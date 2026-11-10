@@ -24,7 +24,7 @@ public static class News
     public static void TitleChanged(World world, Title title, Fighter newChamp, Fighter oldChamp, DateOnly date) =>
         Post(world, date, NewsCategory.TitleChange,
             $"{newChamp.FullName} dethrones {oldChamp.FullName} for the {title.Name}",
-            Flavor.Quotes.Say(newChamp, Flavor.Moment.TitleWin, date), title.Promotion, newChamp.Id);
+            Flavor.Quotes.Say(newChamp, Flavor.Moment.TitleWin, date, oldChamp), title.Promotion, newChamp.Id);
 
     public static void TitleClaimed(World world, Title title, Fighter champ, DateOnly date) =>
         Post(world, date, NewsCategory.TitleChange,

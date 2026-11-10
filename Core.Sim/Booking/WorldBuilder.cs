@@ -398,13 +398,23 @@ public sealed class WorldBuilder
     /// </summary>
     private static void SeedDesignedBonds(World world, List<(DesignedFighter Spec, Fighter Fighter)> designed, DateOnly on)
     {
-        Fighter? ByLast(string last) =>
-            designed.FirstOrDefault(x => x.Spec.Last == last).Fighter
-            ?? world.Fighters.Values.FirstOrDefault(f => f.Designed && f.LastName == last);
+        // A bond names a last name, or "First Last" where a surname is shared
+        // (Wallace Bandeira, a living champion, and the legend Paulo Bandeira).
+        // The key must pick exactly ONE authored person — a shared bare surname
+        // resolves to nobody rather than to whoever was written first, which is
+        // how a rival org's heavyweight champion became Souza's mentor.
+        Fighter? Resolve(string key)
+        {
+            var authored = world.Fighters.Values.Where(f => f.Designed).ToList();
+            var full = authored.Where(f => $"{f.FirstName} {f.LastName}" == key).ToList();
+            if (full.Count == 1) return full[0];
+            var byLast = authored.Where(f => f.LastName == key).ToList();
+            return byLast.Count == 1 ? byLast[0] : null;
+        }
 
         foreach (var bond in Generation.DesignedRoster.Bonds)
         {
-            if (ByLast(bond.A) is not { } a || ByLast(bond.B) is not { } b || a.Id == b.Id) continue;
+            if (Resolve(bond.A) is not { } a || Resolve(bond.B) is not { } b || a.Id == b.Id) continue;
             if (world.Relationships.Any(r => r.IsBetween(a.Id, b.Id))) continue;
             world.Relationships.Add(new Relationship
             {
@@ -549,6 +559,11 @@ public sealed class WorldBuilder
                 MaxBouts = journeyman ? null : rng.Range(0, 4),
             });
             gen.AssignHometown(world, f);
+            // Same guard every other pool has: without it a founded start carried
+            // dozens of repeated fight names, including copies of authored ones
+            // ("The Lion", "The Viper"). Re-rolls come off a keyed per-fighter
+            // stream inside EnsureUniqueName, never the shared build stream.
+            gen.EnsureUniqueName(world, f);
             world.Fighters[id] = f;
         }
     }
