@@ -66,7 +66,12 @@ public class NegotiationTests
         var negotiator = new Negotiator();
         var val = new FighterValuation();
         var promo = RichestPromotion(world);
-        var f = world.FreeAgents().First(x => x.Status == FighterStatus.Active);
+        // A FAIR offer needs an ask the org can actually meet: above its purse cap
+        // the AI opens below the ask by design (that's the counter path, tested
+        // elsewhere). Picking "the first free agent" made this depend on who
+        // happened to be on the market that week.
+        var f = world.FreeAgents().First(x => x.Status == FighterStatus.Active
+            && val.Evaluate(world, x).AskingPurse.Amount <= Negotiator.PurseCap(world, promo));
         var exp = val.Evaluate(world, f);
 
         var offer = negotiator.AiOpeningOffer(world, promo, f, exp);

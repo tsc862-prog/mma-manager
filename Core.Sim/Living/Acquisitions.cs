@@ -190,6 +190,9 @@ public static class Acquisitions
             }
         }
 
+        // Nobody fights under the old banner now: its contender lists go with it.
+        foreach (var d in target.Divisions) d.Rankings.Clear();
+
         // The belts retire with the banner — their lineages simply end.
         foreach (var tid in target.Titles)
         {

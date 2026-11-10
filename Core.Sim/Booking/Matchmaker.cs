@@ -52,9 +52,11 @@ public sealed class Matchmaker
             var title = world.Get(division.Title!.Value);
             if (title is null) continue;
 
+            // Only fighters this org still holds: rankings rebuild at the org's
+            // next card, and a stale name must never be booked for its belt.
             var contenders = division.Rankings
                 .Select(world.Get)
-                .Where(f => f is not null && f.IsMatchReady(world.CurrentDate))
+                .Where(f => f is not null && f.Contract?.Promotion == promoId && f.IsMatchReady(world.CurrentDate))
                 .Cast<Fighter>()
                 .ToList();
 

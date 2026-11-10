@@ -17,6 +17,9 @@ public static class ContractLifecycle
     public static void Sign(World world, Fighter f, ContractOffer offer, DateOnly on)
     {
         bool renewal = f.Contract?.Promotion == offer.Promotion;
+        // Signing away from a live deal is still leaving the old org (callers
+        // normally clear it first; this keeps the old books clean if one doesn't).
+        if (f.Contract is { } old && !renewal) LeavePromotion(world, f, old.Promotion, on);
         f.Contract = offer.ToContract(on);
         BiddingWars.OnSigned(world, f, offer.Promotion, on);   // a signature ends any public war over them
         // A move to a new org starts the loyalty clock over; re-upping deepens it a touch.
@@ -48,10 +51,47 @@ public static class ContractLifecycle
         {
             Finance.Ledger.Expense(promo, world.CurrentDate, FinanceCategory.ContractBuyout, owed, $"Contract buyout — {f.FullName}");
             if (dentReputation) Org.Standing.OnRelease(promo);
-            foreach (var d in promo.Divisions) d.Rankings.Remove(f.Id);
         }
+        LeavePromotion(world, f, c.Promotion, world.CurrentDate);
         f.Contract = null;
         return owed;
+    }
+
+    /// <summary>
+    /// The one place "this fighter has left this promotion" lands, whatever the
+    /// door — a cut, a deal that ran out, a poach, the board's veteran cut, a
+    /// signing elsewhere: he comes out of every one of the org's division
+    /// rankings (its matchmaker books title fights straight off them, and they
+    /// only rebuild at the org's next card), and any belt of that org he holds
+    /// goes VACANT (the champion walked; it isn't his to hand on). Does not touch
+    /// the contract or the money — callers clear or replace the deal. Retirement
+    /// has its own path (<see cref="Living.Lifecycle.Retire"/>: the belt passes to
+    /// the top contender); a folding or sold org clears its own books wholesale.
+    /// </summary>
+    public static void LeavePromotion(World world, Fighter f, PromotionId from, DateOnly date)
+    {
+        if (world.Get(from) is not { } promo) return;
+        foreach (var d in promo.Divisions) d.Rankings.Remove(f.Id);
+
+        foreach (var title in world.Titles.Values
+                     .Where(t => t.Promotion == from && t.CurrentChampion == f.Id)
+                     .OrderBy(t => t.Id.Value)
+                     .ToList())
+        {
+            var reign = title.Lineage.LastOrDefault(r => r.LostOn is null);
+            if (reign is not null) reign.LostOn = date;
+            title.CurrentChampion = null;
+            Living.News.Post(world, date, NewsCategory.TitleChange,
+                $"{f.FullName} vacates the {title.Name}",
+                $"The champion is leaving {promo.Abbreviation} — the belt is vacant.", promo.Id, f.Id);
+        }
+    }
+
+    // An expiring deal that isn't renewed: the fighter walks to the open market.
+    private static void Walk(World world, Fighter f, Promotion from, DateOnly date)
+    {
+        LeavePromotion(world, f, from.Id, date);
+        f.Contract = null;
     }
 
     /// <summary>A champion's clause tops a deal back up so a titleholder never runs out mid-reign.</summary>
@@ -125,11 +165,11 @@ public static class ContractLifecycle
             }
             else if (!Org.RosterPolicy.Wants(world, promo, f))
             {
-                f.Contract = null;                 // not re-signed — slides down the ladder
+                Walk(world, f, promo, date);   // not re-signed — slides down the ladder
             }
             else if (DivisionOverTarget(world, promo, f))
             {
-                f.Contract = null;                 // hoarded depth — over the tier target, let them walk
+                Walk(world, f, promo, date);   // hoarded depth — over the tier target, let them walk
             }
             else
             {
@@ -138,7 +178,7 @@ public static class ContractLifecycle
                 if (distress > 0 && exp.AskingPurse.Amount >
                     Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
                 {
-                    f.Contract = null;             // too rich for a bleeding org — let them walk
+                    Walk(world, f, promo, date);   // too rich for a bleeding org — let them walk
                 }
                 else
                 {
@@ -146,7 +186,7 @@ public static class ContractLifecycle
                     if (Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
                         Sign(world, f, offer, date);   // renew in place
                     else
-                        f.Contract = null;             // to the open market
+                        Walk(world, f, promo, date);   // to the open market
                 }
             }
 

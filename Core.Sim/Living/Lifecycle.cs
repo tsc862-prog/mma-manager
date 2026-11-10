@@ -176,7 +176,8 @@ public static class Lifecycle
         {
             foreach (var id in division.Rankings)
             {
-                if (world.Get(id) is { Status: FighterStatus.Active }) { heir = id; break; }
+                if (world.Get(id) is { Status: FighterStatus.Active } c && c.Contract?.Promotion == title.Promotion)
+                { heir = id; break; }
             }
         }
 

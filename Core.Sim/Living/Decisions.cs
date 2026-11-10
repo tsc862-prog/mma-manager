@@ -105,6 +105,7 @@ public static class Decisions
         switch (d.Kind)
         {
             case DecisionKind.TitleShotRequest when d.Fighter is { } fid && world.Get(fid) is { } f:
+                if (f.Contract?.Promotion != promo.Id) { world.Decisions.Remove(d); break; }   // left since asking
                 foreach (var div in promo.Divisions.Where(x => x.Matches(f)))
                 {
                     div.Rankings.Remove(f.Id);
@@ -136,13 +137,16 @@ public static class Decisions
                 break;
 
             case DecisionKind.VeteranCut when d.Fighter is { } vid && world.Get(vid) is { } vet:
-                foreach (var div in promo.Divisions) div.Rankings.Remove(vet.Id);
-                vet.Contract = null;
-                Org.Standing.OnRelease(promo);      // fighters notice how careers end here
+                world.Decisions.Remove(d);
+                if (vet.Contract?.Promotion != promo.Id) break;   // already gone — nobody left to cut
+                // A real release: guaranteed money is paid out, the rankings and
+                // any belt are cleared, and the locker room notices how careers
+                // end here (the reputation dent).
+                var owed = Contracts.ContractLifecycle.Release(world, vet, dentReputation: true);
                 Mail.Post(world, date, MailCategory.General, Mail.Owner(world),
                     $"{vet.FullName} released",
-                    "The books thank you. The locker room's respect took the hit instead.", aboutFighter: vid);
-                world.Decisions.Remove(d);
+                    (owed.Amount > 0 ? $"The guaranteed money still went out the door ({owed}). " : "The books thank you. ") +
+                    "The locker room's respect took the hit instead.", aboutFighter: vid);
                 break;
 
             default:

@@ -66,18 +66,8 @@ public static class PoachingService
         var exp = Valuation.Evaluate(world, f);
         if (Negotiator.PoachOffer(world, suitor, f, exp) is not { } offer) return false;
 
-        // Any belt they hold with the old org is vacated as they walk.
-        foreach (var title in world.Titles.Values.Where(t => t.Promotion == from.Id && t.CurrentChampion == f.Id))
-        {
-            var reign = title.Lineage.LastOrDefault(r => r.LostOn is null);
-            if (reign is not null) reign.LostOn = date;
-            title.CurrentChampion = null;
-            Living.News.Post(world, date, NewsCategory.TitleChange,
-                $"{f.FullName} vacates the {title.Name}",
-                $"The champion is leaving {from.Abbreviation} — the belt is vacant.", from.Id, f.Id);
-        }
-
-        foreach (var d in from.Divisions) d.Rankings.Remove(f.Id);
+        // Out of the old org's rankings, and any belt they hold there is vacated as they walk.
+        ContractLifecycle.LeavePromotion(world, f, from.Id, date);
         f.Contract = null;
         ContractLifecycle.Sign(world, f, offer, date);   // signs to the bigger org
 
