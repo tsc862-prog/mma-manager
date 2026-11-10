@@ -105,6 +105,12 @@ public sealed class MainViewModel : ObservableObject
         Dashboard.Navigate = NavigateTo;                  // home-page shortcuts jump to their screen
         Dashboard.GetWorld = () => _world;                // the desk acts on the live world
         Dashboard.OnDecisionMade = RefreshAll;            // a decision moves loyalty/rankings/money
+        Dashboard.WatchTonightCommand = WatchTonightCommand;   // home "needs you": fight night's two doors
+        Dashboard.SimTonightCommand = SimTonightCommand;
+        Dashboard.NegotiateCommand = NegotiateFighterCommand;  // home "needs you": re-sign a fighter
+        Dashboard.OpenFighterCommand = OpenFighterCommand;
+        Dashboard.IsFightNight = () => IsFightNight;
+        MyRoster.OpenContracts = () => NavigateTo(Tab.Contracts);   // the empty gym's way out
 
         RosterFilters = new ObservableCollection<string>(new[] { "All divisions" }
             .Concat(Enum.GetValues<WeightClass>().Select(w => FighterRow.Pretty(w.ToString()))));
@@ -208,6 +214,7 @@ public sealed class MainViewModel : ObservableObject
     {
         if (_world.Get(new FighterId(fighterId)) is not { } f) return;
         SelectedFighter = Roster.FirstOrDefault(r => r.Id == fighterId) ?? new FighterRow(f, _world, _fightIndex);
+        MyRoster.SelectedFighterId = fighterId;   // the roster remembers who was opened last
         NavigateTo(Tab.Fighter);
     }
 
