@@ -31,6 +31,9 @@
         <SolidColorBrush x:Key="OrgAccent" Color="#E8B23A" />
         <SolidColorBrush x:Key="OrgAccentDim" Color="#46E8B23A" />
 
+        <!-- ================= Converters (shared by every view) ================= -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
         <!-- ================= Text ================= -->
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />

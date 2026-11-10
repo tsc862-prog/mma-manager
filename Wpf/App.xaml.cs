@@ -17,6 +17,10 @@ public partial class App : Application
         // world. A plain interactive launch shows the start screen instead.
         MainViewModel.HeadlessAutoBoot = e.Args.Length > 0;
 
+        // The crash net (log + rescue save + tell the player) is for real play only.
+        // Harness modes must keep failing loudly on the console with a non-zero exit.
+        if (!MainViewModel.HeadlessAutoBoot) CrashGuard.Install(this);
+
         // Offscreen screenshot of the desktop shell (a maximized app + a floating
         // one over it): `MmaManager.Wpf --renderdesktop <path>`.
         if (e.Args.Contains("--renderdesktop"))
@@ -803,6 +807,96 @@ public partial class App : Application
             }
             catch (Exception ex) { Console.WriteLine("RENDERFOUNDED FAIL: " + ex); }
             Environment.Exit(0);
+            return;
+        }
+
+        // Open every desktop app, one at a time, and lay it out and render it
+        // offscreen — once for the quick-start big org (AFC, a month in) and once
+        // for a freshly founded shoestring promotion: `MmaManager.Wpf --smokeapps`.
+        // One OK/FAIL line per app; exits 1 if any app failed to open.
+        if (e.Args.Contains("--smokeapps"))
+        {
+            int run = 0, failed = 0;
+            Exception? deferred = null;   // errors raised in queued dispatcher work (Loaded handlers, bindings)
+            DispatcherUnhandledException += (_, de) => { deferred ??= de.Exception; de.Handled = true; };
+
+            static string Describe(Exception ex)
+            {
+                string msg = ex.GetType().Name + ": " + ex.Message;
+                if (ex.InnerException is { } inner) msg += " -> " + inner.GetType().Name + ": " + inner.Message;
+                return msg.Replace("\r", " ").Replace("\n", " ");
+            }
+
+            void Smoke(string label, Action<MainViewModel> setup)
+            {
+                MainWindow win;
+                MainViewModel vm;
+                try
+                {
+                    win = new MainWindow();
+                    vm = (MainViewModel)win.DataContext;
+                    setup(vm);
+                }
+                catch (Exception ex)
+                {
+                    run++; failed++;
+                    Console.WriteLine($"FAIL  {label,-8} (world setup)  {Describe(ex)}");
+                    return;
+                }
+
+                var root = (FrameworkElement)win.Content;
+                const int W = 1500, H = 950;
+                var size = new Size(W, H);
+                foreach (var spec in vm.Desktop.PromotionApps.Concat(vm.Desktop.WorldApps).ToList())
+                {
+                    run++;
+                    deferred = null;
+                    try
+                    {
+                        foreach (var open in vm.Desktop.Windows.ToList()) vm.Desktop.Close(open);
+                        vm.Desktop.Open(spec.Id);
+                        if (!vm.Desktop.Windows.Any(w => w.Spec.Id == spec.Id))
+                            throw new InvalidOperationException("the app window did not open");
+                        root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                            System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                        root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                        new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32).Render(root);
+                        if (deferred is not null) throw deferred;
+                        Console.WriteLine($"OK    {label,-8} {spec.Id,-14} {spec.Title}");
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        Console.WriteLine($"FAIL  {label,-8} {spec.Id,-14} {spec.Title}  {Describe(ex)}");
+                    }
+                }
+            }
+
+            Smoke("bigorg", vm =>
+            {
+                vm.AdvanceMonthCommand.Execute(null);   // a month of results in the feeds
+                vm.SelectedFighter = vm.Roster.FirstOrDefault();
+            });
+            Smoke("founded", vm =>
+            {
+                vm.StartWorld(new WorldBuilder.Options
+                {
+                    Seed = 7,
+                    Founding = new WorldBuilder.FoundingSpec
+                    {
+                        Name = "New Wave Fighting",
+                        Abbreviation = "NWF",
+                        Region = MmaManager.Core.Model.Region.Europe,
+                    },
+                }, "You founded New Wave Fighting.");
+                vm.SelectedFighter = vm.Roster.FirstOrDefault();
+            });
+
+            Console.WriteLine(failed == 0
+                ? $"SMOKEAPPS OK: {run} app opens, 0 failed"
+                : $"SMOKEAPPS FAIL: {failed} of {run} app opens failed");
+            Environment.Exit(failed == 0 ? 0 : 1);
             return;
         }
 
