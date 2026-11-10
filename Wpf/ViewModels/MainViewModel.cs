@@ -46,6 +46,10 @@ public sealed class MainViewModel : ObservableObject
 
     private World _world = null!;   // null until a career starts (start screen showing)
 
+    /// <summary>The live world, read only by the crash handler's rescue save;
+    /// null while the start screen is up.</summary>
+    internal World? LiveWorld => _world;
+
     /// <summary>The desktop shell's window manager.</summary>
     public Shell.DesktopViewModel Desktop { get; } = new();
     public Shell.DisplayPreferences Display => Shell.DisplayPreferences.Current;
