@@ -170,9 +170,9 @@ public sealed class Fighter
     public CountryId Country { get; set; }
 
     /// <summary>
-    /// Transient: the atlas country code the generator chose (e.g. "JPN"),
-    /// consumed by AssignHometown to resolve <see cref="Country"/> in-world.
-    /// Not persisted — Country is.
+    /// The atlas country code the generator chose (e.g. "JPN"). AssignHometown
+    /// resolves <see cref="Country"/> from it, and a later rename (EnsureUniqueName,
+    /// when a local is discovered) picks its name pool by it, so it is persisted.
     /// </summary>
     public string? OriginCountryCode { get; set; }
 
@@ -261,9 +261,8 @@ public sealed class Contract
     public bool Guaranteed { get; set; } = true;
 
     /// <summary>
-    /// Transient: the owner has been warned a bigger org is circling this deal,
-    /// so the warning fires once per contract. Not persisted — a fresh warning
-    /// after a load is harmless.
+    /// The owner has been warned a bigger org is circling this deal, so the
+    /// warning fires once per contract. Persisted, so a load does not repeat it.
     /// </summary>
     public bool PoachWarned { get; set; }
 }

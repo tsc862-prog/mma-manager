@@ -9,18 +9,16 @@
     <AssemblyName>MmaManager.Persistence</AssemblyName>
   </PropertyGroup>
 
-  <!-- Save/load of the World graph to a SQLite database. Refs the model, plus
-       Core.Sim for WorldAtlas so pre-country saves can be migrated against the
-       real geography on load. Calls World.SyncIdCounters() and respects
-       World.SaveVersion for migrations. Microsoft.Data.Sqlite bundles the
-       native SQLite engine. -->
+  <!-- Save/load of the World graph to a SQLite database. References the model only
+       (the sim never leaks in here). The reader refuses any version but the current
+       one: there are no migrations. Microsoft.Data.Sqlite bundles the native SQLite
+       engine. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Core.Model\Core.Model.csproj" />
-    <ProjectReference Include="..\Core.Sim\Core.Sim.csproj" />
   </ItemGroup>
 
 </Project>

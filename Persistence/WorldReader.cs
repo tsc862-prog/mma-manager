@@ -28,11 +28,26 @@ internal sealed class WorldReader
         ReadShortlist(world);
         ReadOrg(world);
         ReadRivalries(world);
+        ReadGlobalRankings(world);
         ReadDecisions(world);
         ReadBiddingWars(world);
         ReadRelationships(world);
         ReadEvents(world);
+
+        // Counters: derived from what is in use, raised to the saved values (ids freed by a
+        // cancelled event or released local must not be handed out again).
+        world.SyncIdCounters();
+        world.RestoreIdCounters(ReadIdCounters());
         return world;
+    }
+
+    private Dictionary<string, int> ReadIdCounters()
+    {
+        var saved = new Dictionary<string, int>();
+        using var cmd = _c.Cmd(null, "SELECT * FROM id_counters ORDER BY rowid");
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) saved[r.Str("name")] = r.Int("value");
+        return saved;
     }
 
     private World ReadMeta()
@@ -60,7 +75,7 @@ internal sealed class WorldReader
 
     private void ReadFighters(World world)
     {
-        using var cmd = _c.Cmd(null, "SELECT * FROM fighters");
+        using var cmd = _c.Cmd(null, "SELECT * FROM fighters ORDER BY ordinal");
         using var r = cmd.ExecuteReader();
         while (r.Read())
         {
@@ -119,6 +134,7 @@ internal sealed class WorldReader
                     PpvPoints = r.Int("ppv_points"),
                     PerformanceBonus = r.Cash("performance_bonus"),
                     Guaranteed = r.Bool("guaranteed"),
+                    PoachWarned = r.Bool("poach_warned"),
                 };
             }
 
@@ -141,6 +157,7 @@ internal sealed class WorldReader
             f.StarPower = r.Int("star_power") != 0;
             f.DiscoveredBy = r.IntN("discovered_by") is { } disc ? new PromotionId(disc) : null;
             f.Disposition = r.Enum<Disposition>("disposition");
+            f.OriginCountryCode = r.StrN("origin_country");
 
             foreach (var rc in FighterColumns.Ratings)
                 rc.Set(f, r.Int(rc.Column));
@@ -159,7 +176,7 @@ internal sealed class WorldReader
                     f.BoutHistory.Add(new FightId(r.Int("fight_id")));
         }
 
-        using (var cmd = _c.Cmd(null, "SELECT * FROM fighter_city_rep"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM fighter_city_rep ORDER BY rowid"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -178,7 +195,7 @@ internal sealed class WorldReader
 
     private void ReadTitles(World world)
     {
-        using (var cmd = _c.Cmd(null, "SELECT * FROM titles"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM titles ORDER BY ordinal"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -216,7 +233,7 @@ internal sealed class WorldReader
 
     private void ReadPromotions(World world)
     {
-        using (var cmd = _c.Cmd(null, "SELECT * FROM promotions"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM promotions ORDER BY ordinal"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -274,7 +291,7 @@ internal sealed class WorldReader
                 .OrderBy(t => t.Id.Value)
                 .Select(t => t.Id));
 
-        using (var cmd = _c.Cmd(null, "SELECT * FROM promotion_city_pop"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM promotion_city_pop ORDER BY rowid"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -380,6 +397,26 @@ internal sealed class WorldReader
         }
     }
 
+    private void ReadGlobalRankings(World world)
+    {
+        using (var cmd = _c.Cmd(null, "SELECT * FROM global_rankings ORDER BY rowid"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.GlobalRankings[r.Enum<WeightClass>("weight_class")] = r.Str("fighters")
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => new FighterId(int.Parse(x)))
+                    .ToList();
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM pound_for_pound ORDER BY ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.PoundForPound.Add(new FighterId(r.Int("fighter_id")));
+        }
+    }
+
     private void ReadRivalries(World world)
     {
         using var cmd = _c.Cmd(null, "SELECT * FROM rivalries ORDER BY ordinal");
@@ -396,7 +433,7 @@ internal sealed class WorldReader
 
     private void ReadDecisions(World world)
     {
-        using var cmd = _c.Cmd(null, "SELECT * FROM decisions ORDER BY id");
+        using var cmd = _c.Cmd(null, "SELECT * FROM decisions ORDER BY rowid");
         using var r = cmd.ExecuteReader();
         while (r.Read())
             world.Decisions.Add(new Decision
@@ -545,7 +582,7 @@ internal sealed class WorldReader
 
     private void ReadGeography(World world)
     {
-        using (var cmd = _c.Cmd(null, "SELECT * FROM countries"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM countries ORDER BY ordinal"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -565,7 +602,7 @@ internal sealed class WorldReader
             }
         }
 
-        using (var cmd = _c.Cmd(null, "SELECT * FROM cities"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM cities ORDER BY ordinal"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -585,7 +622,7 @@ internal sealed class WorldReader
             }
         }
 
-        using (var cmd = _c.Cmd(null, "SELECT * FROM venues"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM venues ORDER BY ordinal"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -602,7 +639,7 @@ internal sealed class WorldReader
             }
         }
 
-        using (var cmd = _c.Cmd(null, "SELECT * FROM camps"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM camps ORDER BY ordinal"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -627,7 +664,7 @@ internal sealed class WorldReader
 
     private void ReadEvents(World world)
     {
-        using (var cmd = _c.Cmd(null, "SELECT * FROM events"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM events ORDER BY ordinal"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -694,6 +731,7 @@ internal sealed class WorldReader
                         Method = r.Enum<FightMethod>("method"),
                         EndRound = r.Int("end_round"),
                         EndTimeSeconds = r.Int("end_time"),
+                        RoundScores = r.Scores("round_scores"),
                     };
                 }
                 ev.Card.Add(fight);
@@ -706,7 +744,7 @@ internal sealed class WorldReader
             .Where(f => f.Outcome is not null)
             .ToDictionary(f => f.Id.Value);
 
-        using (var cmd = _c.Cmd(null, "SELECT * FROM fight_stats"))
+        using (var cmd = _c.Cmd(null, "SELECT * FROM fight_stats ORDER BY rowid"))
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
