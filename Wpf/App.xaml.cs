@@ -721,6 +721,117 @@ public partial class App : Application
             return;
         }
 
+        // One app on the desktop at a real screen size, maximised or floating at its
+        // default window size: `MmaManager.Wpf --renderapp <appId> <W> <H> [--founded]
+        // [--floating] [--months N] [--card] [--table] <path>`. Big org (AFC) by default, a
+        // month into the career; --founded = a newly founded shoestring promotion
+        // on day one; --card books a next card first; --table flips the Roster to its Table view.
+        if (e.Args.Contains("--renderapp"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--renderapp");
+                string appId = e.Args[at + 1];
+                int W = int.Parse(e.Args[at + 2]), H = int.Parse(e.Args[at + 3]);
+                int months = e.Args.Contains("--months") ? int.Parse(e.Args[Array.IndexOf(e.Args, "--months") + 1]) : 1;
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                if (e.Args.Contains("--founded"))
+                {
+                    vm.StartWorld(new WorldBuilder.Options
+                    {
+                        Seed = 7,
+                        Founding = new WorldBuilder.FoundingSpec
+                        {
+                            Name = "New Wave Fighting",
+                            Abbreviation = "NWF",
+                            Region = MmaManager.Core.Model.Region.Europe,
+                        },
+                    }, "You founded New Wave Fighting.");
+                }
+                else
+                    for (int i = 0; i < months; i++) vm.AdvanceMonthCommand.Execute(null);
+                if (e.Args.Contains("--card"))
+                {
+                    // Book a next card the way a player would: one bout per division, top two.
+                    var bk = vm.Booking;
+                    bk.NewEventCommand.Execute(null);
+                    foreach (var div in bk.Divisions.ToList())
+                    {
+                        bk.SelectedDivision = div;
+                        if (bk.RedOptions.Count > 0)
+                        {
+                            bk.SelectedRed = bk.RedOptions[0];
+                            if (bk.BlueOptions.Count > 0) { bk.SelectedBlue = bk.BlueOptions[0]; bk.AddBoutCommand.Execute(null); }
+                        }
+                    }
+                    vm.Contracts.OnChanged?.Invoke();
+                }
+                Console.WriteLine($"RENDERAPP world ready in {clock.ElapsedMilliseconds} ms");
+                if (e.Args.Contains("--table"))
+                    vm.MyRoster.ShowTable = true;
+                var root = (FrameworkElement)win.Content;
+                var size = new Size(W, H);
+                void Layout()
+                {
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                }
+                Layout();
+                clock.Restart();
+                vm.Desktop.Open(appId);
+                Layout();
+                Console.WriteLine($"RENDERAPP open {appId} + first layout: {clock.ElapsedMilliseconds} ms");
+                if (e.Args.Contains("--floating") && vm.Desktop.Windows.FirstOrDefault(w => w.Spec.Id == appId) is { } app)
+                {
+                    app.IsMaximized = false;
+                    app.X = 46; app.Y = 26; app.W = app.Spec.W; app.H = app.Spec.H;
+                    vm.Desktop.FitToArea(app);
+                    Console.WriteLine($"RENDERAPP floating window {app.W:0}x{app.H:0} on a {vm.Desktop.Area.Width:0}x{vm.Desktop.Area.Height:0} desk");
+                    Layout();
+                }
+
+                // Cost of a full screen refresh with this app open (what an advance pays).
+                clock.Restart();
+                vm.Contracts.OnChanged?.Invoke();
+                Layout();
+                Console.WriteLine($"RENDERAPP refresh + relayout: {clock.ElapsedMilliseconds} ms");
+                clock.Restart();
+                vm.Contracts.OnChanged?.Invoke();
+                Layout();
+                Console.WriteLine($"RENDERAPP second refresh + relayout (warm): {clock.ElapsedMilliseconds} ms");
+                clock.Restart();
+                if (appId == "home") vm.Dashboard.Attach(vm.LiveWorld!); else if (appId == "roster") vm.MyRoster.Attach(vm.LiveWorld!);
+                long attach = clock.ElapsedMilliseconds;
+                Layout();
+                Console.WriteLine($"RENDERAPP this app alone: rebuild {attach} ms + relayout {clock.ElapsedMilliseconds - attach} ms");
+                if (e.Args.Contains("--advance"))
+                {
+                    // A week of the world going by with this app open (sim tick + every refresh + relayout).
+                    clock.Restart();
+                    vm.AdvanceWeekCommand.Execute(null);
+                    Layout();
+                    Console.WriteLine($"RENDERAPP advance a week with {appId} open: {clock.ElapsedMilliseconds} ms");
+                }
+                foreach (var wall in FindAll<MmaManager.Wpf.Controls.CardWall>(root))
+                    Console.WriteLine($"RENDERAPP card wall: {wall.Lines.Count} lines x {wall.Columns} columns, {wall.ActualWidth:0}x{wall.ActualHeight:0} px, "
+                        + $"cards drawn {FindAll<MmaManager.Wpf.Controls.RatingBadge>(wall).Count()}");
+
+                var rtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(root);
+                var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                string p = e.Args[^1];
+                using (var fs = File.Create(p)) enc.Save(fs);
+                Console.WriteLine("RENDERAPP OK -> " + Path.GetFullPath(p));
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERAPP FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
         // Generic tab render: `MmaManager.Wpf --rendertab <index> <path>` (advances a year first to fill feeds).
         if (e.Args.Contains("--rendertab"))
         {
@@ -1065,6 +1176,19 @@ public partial class App : Application
                         Console.WriteLine($"Booking refresh drops a booked-elsewhere corner: {dropped} (red still {bk.SelectedRed?.Display}) status='{bk.Status}'");
                         if (!dropped) throw new InvalidOperationException("a refresh did not drop (or did not report) an invalid pick");
                     }
+                }
+
+                // Roster: the picked fighter is held by id, so a refresh (rows rebuilt)
+                // keeps the same fighter picked in both the card wall and the table.
+                if (vm.MyRoster.Fighters.Skip(3).FirstOrDefault() is { } pick)
+                {
+                    vm.MyRoster.SelectedRow = pick;
+                    vm.Contracts.OnChanged?.Invoke();
+                    bool rowKept = vm.MyRoster.SelectedRow?.FighterId == pick.FighterId && !ReferenceEquals(vm.MyRoster.SelectedRow, pick);
+                    var picked = vm.MyRoster.Cards.OfType<FighterCardModel>().Where(c => c.IsSelected).ToList();
+                    bool cardKept = picked.Count == 1 && picked[0].Id == pick.FighterId;
+                    Console.WriteLine($"Roster refresh keeps the pick: table {rowKept}, cards {cardKept} ({pick.Name})");
+                    if (!rowKept || !cardKept) throw new InvalidOperationException("a refresh lost the roster's picked fighter");
                 }
 
                 var bookedId = bk.SelectedEvent?.Model.Id;
