@@ -4,15 +4,20 @@
         Title="PromoterOS" Width="480" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="#16191E" ShowInTaskbar="False">
-    <!-- A must-not-miss message (bankruptcy, a failed save or load), in the
-         same dress as the New Game and Load Career windows. -->
+    <!-- A must-not-miss message (bankruptcy, a failed save or load), or a
+         two-button confirmation before something destructive, in the same
+         dress as the New Game and Load Career windows. -->
     <Border x:Name="Root" Background="{StaticResource Bg}" BorderThickness="0,3,0,0" BorderBrush="{StaticResource Gold}" Padding="22,18">
         <StackPanel>
             <TextBlock x:Name="HeadingText" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Gold}" TextWrapping="Wrap" />
             <TextBlock x:Name="BodyText" Foreground="{StaticResource TextPrimary}" FontSize="13" TextWrapping="Wrap" Margin="0,10,0,0" />
             <TextBlock x:Name="DetailText" Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0" Visibility="Collapsed" />
-            <Button x:Name="OkButton" Content="OK" IsDefault="True" IsCancel="True" MinWidth="100" FontWeight="SemiBold"
-                    Foreground="{StaticResource Gold}" HorizontalAlignment="Right" Margin="0,18,0,0" Click="OnOk" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                <!-- Confirm mode only: the safe choice is the default (Enter and Esc) -->
+                <Button x:Name="KeepButton" MinWidth="100" FontWeight="SemiBold" Visibility="Collapsed" Click="OnKeep" />
+                <Button x:Name="OkButton" Content="OK" IsDefault="True" IsCancel="True" MinWidth="100" FontWeight="SemiBold"
+                        Foreground="{StaticResource Gold}" Click="OnOk" />
+            </StackPanel>
         </StackPanel>
     </Border>
 </Window>
