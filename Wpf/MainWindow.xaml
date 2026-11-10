@@ -287,7 +287,7 @@
         </Border>
 
         <!-- ==== The desktop ==== -->
-        <Grid>
+        <Grid SizeChanged="OnDesktopSizeChanged">
             <!-- Wallpaper: the org watermark on the dark desk -->
             <Border>
                 <Border.Background>

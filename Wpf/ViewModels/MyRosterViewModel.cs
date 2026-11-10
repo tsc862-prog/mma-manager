@@ -111,6 +111,7 @@ public sealed class MyRosterViewModel : ObservableObject
             .Where(f => f.Status != FighterStatus.Retired && f.Contract?.Promotion == world.PlayerPromotion)
             .Select(f => new MyRosterRow(f, world, booked.GetValueOrDefault(f.Id)))
             .OrderBy(r => r.SortKey)
+            .ThenBy(r => r.FighterId)
             .ToList();
         foreach (var r in mine) Fighters.Add(r);
 

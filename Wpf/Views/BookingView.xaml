@@ -1,100 +1,206 @@
 <UserControl x:Class="MmaManager.Wpf.Views.BookingView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
-        <!-- Three columns: the fight card is the star column so the lineup
-             gets every spare pixel; Add bout + Tale of the Tape share the
-             fixed right rail (the tape list scrolls internally). -->
-        <Grid Margin="8" DataContext="{Binding Booking}" HorizontalAlignment="Left" MaxWidth="2060">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250" />
-                <ColumnDefinition Width="*" MinWidth="360" />
-                <ColumnDefinition Width="430" />
-                <ColumnDefinition Width="330" />
-            </Grid.ColumnDefinitions>
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
+             SizeChanged="OnSizeChanged">
+    <UserControl.Resources>
+        <!-- A corner on the card sheet: portrait + full name. Double-click opens the profile. -->
+        <Style x:Key="CornerHit" TargetType="DockPanel">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip" Value="Double-click to open profile" />
+        </Style>
+        <Style x:Key="CornerName" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
 
-            <!-- Column 0: create an event, pick from your events -->
-            <DockPanel Grid.Column="0" Margin="0,0,10,0">
-                <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="10" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="PLAN A NEW CARD" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
-                        <TextBlock Text="Date" FontSize="11" Foreground="{StaticResource TextSecondary}" />
-                        <DatePicker SelectedDate="{Binding NewEventDate}" Margin="0,2,0,4" />
-                        <TextBlock Text="Card tier" FontSize="11" Foreground="{StaticResource TextSecondary}" />
-                        <ComboBox ItemsSource="{Binding Tiers}" SelectedItem="{Binding SelectedTier}" Margin="0,2,0,4" />
-                        <TextBlock Text="Host city" FontSize="11" Foreground="{StaticResource TextSecondary}" />
-                        <ComboBox ItemsSource="{Binding Cities}" SelectedItem="{Binding SelectedCity}" Margin="0,2,0,4" />
-                        <TextBlock Text="{Binding ReachLine}" FontSize="11" Foreground="#7B8794" TextWrapping="Wrap" Margin="0,0,0,8" />
-                        <Button Content="+ Create Event" Command="{Binding NewEventCommand}" HorizontalAlignment="Left"
-                                FontWeight="SemiBold" Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}" />
-                    </StackPanel>
-                </Border>
-                <TextBlock DockPanel.Dock="Top" Text="YOUR UPCOMING EVENTS" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
-                <ListBox ItemsSource="{Binding UpcomingEvents}" SelectedItem="{Binding SelectedEvent}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="0,3">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondary}">
-                                    <Run Text="{Binding Date, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding Bouts, Mode=OneWay}" /><Run Text=" bouts" />
-                                </TextBlock>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
-
-            <!-- Column 1: the fight card for the selected event -->
-            <DockPanel Grid.Column="1" Margin="0,0,10,0">
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
-                    <Button DockPanel.Dock="Right" Content="Cancel Event" Command="{Binding CancelEventCommand}" />
-                    <Button DockPanel.Dock="Right" Content="▶ Watch Tonight" Command="{Binding RunLiveCommand}" Margin="0,0,6,0" FontWeight="SemiBold"
-                            ToolTip="Available on fight night — advance to the event date first" />
-                    <TextBlock Text="{Binding SelectedEventTitle}" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
+        <!-- Wide card: red | vs | blue on one line. Names wrap rather than cut. -->
+        <DataTemplate x:Key="MatchupSideBySide">
+            <Grid Margin="0,4,8,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <DockPanel Grid.Column="0" Style="{StaticResource CornerHit}" LastChildFill="True">
+                    <DockPanel.InputBindings>
+                        <MouseBinding Gesture="LeftDoubleClick"
+                                      Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      CommandParameter="{Binding RedId}" />
+                    </DockPanel.InputBindings>
+                    <Image DockPanel.Dock="Left" Source="{Binding RedPortrait}" Width="52" Height="52" Margin="0,0,10,0" />
+                    <TextBlock Text="{Binding RedName}" Style="{StaticResource CornerName}" />
                 </DockPanel>
-                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                <TextBlock Grid.Column="1" Text="vs" Foreground="{StaticResource TextMuted}" Margin="12,0" VerticalAlignment="Center" />
+                <DockPanel Grid.Column="2" Style="{StaticResource CornerHit}" LastChildFill="True">
+                    <DockPanel.InputBindings>
+                        <MouseBinding Gesture="LeftDoubleClick"
+                                      Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      CommandParameter="{Binding BlueId}" />
+                    </DockPanel.InputBindings>
+                    <Image DockPanel.Dock="Right" Source="{Binding BluePortrait}" Width="52" Height="52" Margin="10,0,0,0" />
+                    <TextBlock Text="{Binding BlueName}" Style="{StaticResource CornerName}" TextAlignment="Right" />
+                </DockPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Narrow card: each corner gets the full width of the column, blue under red. -->
+        <DataTemplate x:Key="MatchupStacked">
+            <StackPanel Margin="0,4,8,4">
+                <DockPanel Style="{StaticResource CornerHit}" LastChildFill="True">
+                    <DockPanel.InputBindings>
+                        <MouseBinding Gesture="LeftDoubleClick"
+                                      Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      CommandParameter="{Binding RedId}" />
+                    </DockPanel.InputBindings>
+                    <Image DockPanel.Dock="Left" Source="{Binding RedPortrait}" Width="30" Height="30" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding RedName}" Style="{StaticResource CornerName}" />
+                </DockPanel>
+                <DockPanel Style="{StaticResource CornerHit}" LastChildFill="True" Margin="0,2,0,0">
+                    <DockPanel.InputBindings>
+                        <MouseBinding Gesture="LeftDoubleClick"
+                                      Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      CommandParameter="{Binding BlueId}" />
+                    </DockPanel.InputBindings>
+                    <Image DockPanel.Dock="Left" Source="{Binding BluePortrait}" Width="30" Height="30" Margin="0,0,8,0" />
+                    <TextBlock Style="{StaticResource CornerName}">
+                        <Run Text="vs " FontWeight="Normal" FontSize="12" Foreground="{StaticResource TextMuted}" /><Run Text="{Binding BlueName, Mode=OneWay}" />
+                    </TextBlock>
+                </DockPanel>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!-- The fight card is the star column and takes every spare pixel. The
+         poster has its own column only on a wide window; below that it shares
+         the right column with the matchup builder as a tab (see code-behind). -->
+    <Grid x:Name="Layout" Margin="8" DataContext="{Binding Booking}" MaxWidth="2240">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="RailCol" Width="250" />
+            <ColumnDefinition Width="*" MinWidth="380" />
+            <ColumnDefinition x:Name="BuilderCol" Width="430" />
+            <ColumnDefinition x:Name="PosterCol" Width="330" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Column 0: create an event, pick from your events -->
+        <DockPanel Grid.Column="0" Grid.RowSpan="2" Margin="0,0,10,0">
+            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock Text="PLAN A NEW CARD" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+                    <TextBlock Text="Date" Style="{StaticResource FieldLabel}" />
+                    <DatePicker SelectedDate="{Binding NewEventDate}" Margin="0,2,0,4" />
+                    <TextBlock Text="Card tier" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding Tiers}" SelectedItem="{Binding SelectedTier}" Margin="0,2,0,4" />
+                    <TextBlock Text="Host city" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding Cities}" SelectedItem="{Binding SelectedCity}" Margin="0,2,0,4"
+                              ToolTip="{Binding SelectedCity.Display}" />
+                    <TextBlock Text="{Binding ReachLine}" Style="{StaticResource FieldLabel}" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                    <Button Content="+ Create Event" Command="{Binding NewEventCommand}" HorizontalAlignment="Left"
+                            FontWeight="SemiBold" Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}" />
+                </StackPanel>
+            </Border>
+            <TextBlock DockPanel.Dock="Top" Text="YOUR UPCOMING EVENTS" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+            <ListBox ItemsSource="{Binding UpcomingEvents}" SelectedItem="{Binding SelectedEvent}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,3">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource FieldLabel}">
+                                <Run Text="{Binding Date, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding Bouts, Mode=OneWay}" /><Run Text=" bouts" />
+                            </TextBlock>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- Column 1: the fight card for the selected event -->
+        <DockPanel Grid.Column="1" Grid.RowSpan="2" Margin="0,0,10,0">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                <Button DockPanel.Dock="Right" Content="Cancel Event" Command="{Binding CancelEventCommand}" VerticalAlignment="Top"
+                        ToolTip="Scrap this card and every bout on it — you'll be asked to confirm" />
+                <Button DockPanel.Dock="Right" Content="▶ Watch Tonight" Command="{Binding RunLiveCommand}" Margin="0,0,6,0" FontWeight="SemiBold"
+                        VerticalAlignment="Top" ToolTip="Available on fight night — advance to the event date first" />
+                <TextBlock Text="{Binding SelectedEventTitle}" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
+            </DockPanel>
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Top">
                     <Button Content="▲ Up the bill" Command="{Binding MoveBoutUpCommand}"
                             ToolTip="Move the selected fight toward the main event" />
                     <Button Content="▼ Down the bill" Command="{Binding MoveBoutDownCommand}" Margin="6,0,0,0"
                             ToolTip="Move the selected fight toward the prelims" />
                     <Border Width="1" Background="{StaticResource Border}" Margin="10,2" />
                     <Button Content="Remove Selected Bout" Command="{Binding RemoveBoutCommand}" />
-                    <TextBlock Text="Advancing stops on fight night — you'll choose to watch the card live or sim the result."
-                               Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="14,0,0,0" />
                 </StackPanel>
-                <!-- The broadcast window: how much of this card is the main card. -->
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4"
-                            Visibility="{Binding HasSelectedEvent, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="Main card:" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,6,0" />
-                    <ComboBox ItemsSource="{Binding MainCardOptions}" SelectedItem="{Binding SelectedMainCard}" Width="150"
-                              ToolTip="Fights above the divider air as the main card; the rest are prelims (less exposure, less fame). Media deals demand a window of a certain size." />
+                <TextBlock Text="Advancing stops on fight night — you'll choose to watch the card live or sim the result."
+                           Style="{StaticResource FieldLabel}" Foreground="{StaticResource TextFaint}" TextWrapping="Wrap"
+                           VerticalAlignment="Center" Margin="14,0,0,0" />
+            </DockPanel>
+            <!-- The broadcast window: how much of this card is the main card. -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4"
+                        Visibility="{Binding HasSelectedEvent, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="Main card:" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,6,0" />
+                <ComboBox ItemsSource="{Binding MainCardOptions}" SelectedItem="{Binding SelectedMainCard}" Width="150"
+                          ToolTip="Fights above the divider air as the main card; the rest are prelims (less exposure, less fame). Media deals demand a window of a certain size." />
+            </StackPanel>
+            <!-- Contract clauses the card as booked would break: one folded line, the clauses on demand. -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource NoticeStrip}" Margin="0,0,0,4"
+                    Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <DockPanel>
+                        <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding ShowAllWarnings}" VerticalAlignment="Top">
+                            <ToggleButton.Style>
+                                <Style TargetType="ToggleButton" BasedOn="{StaticResource LinkToggle}">
+                                    <Setter Property="Content" Value="Show terms ▾" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter Property="Content" Value="Hide ▴" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ToggleButton.Style>
+                        </ToggleButton>
+                        <TextBlock Text="{Binding WarningSummary}" Foreground="{StaticResource Negative}" FontSize="12" TextWrapping="Wrap" />
+                    </DockPanel>
+                    <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0"
+                                  Visibility="{Binding ShowAllWarnings, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding Warnings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StringFormat=•  {0}}" Foreground="{StaticResource TextPrimary}" FontSize="12" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </StackPanel>
-                <!-- Contract clauses the card as booked would break. -->
-                <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Warnings}" Margin="0,0,0,4"
-                              Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVis}}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" Foreground="{StaticResource Negative}" FontSize="12" TextWrapping="Wrap" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <!-- Projected box office for the card as it stands. -->
-                <TextBlock DockPanel.Dock="Top" Text="{Binding Projection}" Margin="0,0,0,6" FontSize="12" FontWeight="SemiBold">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                            <Setter Property="Foreground" Value="{StaticResource Positive}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ProjectionInTheRed}" Value="True">
-                                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Projection}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
+            </Border>
+            <!-- The sim's box-office estimate, labelled for what it leaves out (never silently cut). -->
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Projection}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock FontSize="12" TextWrapping="Wrap">
+                    <Run Text="Box office estimate:  " FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding Projection, Mode=OneWay}" />
                 </TextBlock>
-                <DataGrid ItemsSource="{Binding Bouts}" SelectedItem="{Binding SelectedBout}" RowHeight="62">
+                <TextBlock Text="{Binding ProjectionDetail}" Style="{StaticResource FieldLabel}" Foreground="{StaticResource TextFaint}" TextWrapping="Wrap" Margin="0,1,0,0" />
+            </StackPanel>
+            <Grid>
+                <DataGrid x:Name="CardGrid" ItemsSource="{Binding Bouts}" SelectedItem="{Binding SelectedBout}" MinRowHeight="62"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled" SizeChanged="OnCardSizeChanged">
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
                             <Style.Triggers>
@@ -112,11 +218,11 @@
                     <DataGrid.Columns>
                         <!-- Matchup is the star column: * widths are re-negotiated on every
                              resize, unlike Auto + a trailing filler, which freezes at the
-                             pre-data measure and squishes the card. -->
-                        <DataGridTemplateColumn Header="Slot" Width="96">
+                             pre-data measure and squishes the card. The fixed columns wrap. -->
+                        <DataGridTemplateColumn Header="Slot" Width="92">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Slot}" VerticalAlignment="Center" Margin="4,0">
+                                    <TextBlock Text="{Binding Slot}" VerticalAlignment="Center" TextWrapping="Wrap">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground" Value="{StaticResource TextFaint}" />
@@ -132,47 +238,80 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="Matchup" Width="*" MinWidth="320">
+                        <DataGridTemplateColumn x:Name="MatchupColumn" Header="Matchup" Width="*" MinWidth="240"
+                                                CellTemplate="{StaticResource MatchupStacked}" />
+                        <DataGridTemplateColumn Header="Division" Width="118">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,16,0">
-                                        <StackPanel Orientation="Horizontal" Background="Transparent" Cursor="Hand"
-                                                    ToolTip="Double-click to open profile">
-                                            <StackPanel.InputBindings>
-                                                <MouseBinding Gesture="LeftDoubleClick"
-                                                              Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                              CommandParameter="{Binding RedId}" />
-                                            </StackPanel.InputBindings>
-                                            <Image Source="{Binding RedPortrait}" Width="52" Height="52" Margin="0,0,10,0" />
-                                            <TextBlock Text="{Binding RedName}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <TextBlock Text="vs" Foreground="#7C848D" Margin="14,0" VerticalAlignment="Center" />
-                                        <StackPanel Orientation="Horizontal" Background="Transparent" Cursor="Hand"
-                                                    ToolTip="Double-click to open profile">
-                                            <StackPanel.InputBindings>
-                                                <MouseBinding Gesture="LeftDoubleClick"
-                                                              Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                              CommandParameter="{Binding BlueId}" />
-                                            </StackPanel.InputBindings>
-                                            <TextBlock Text="{Binding BlueName}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
-                                            <Image Source="{Binding BluePortrait}" Width="52" Height="52" Margin="10,0,0,0" />
-                                        </StackPanel>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Division}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Rounds}" Style="{StaticResource FieldLabel}" />
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Division" Binding="{Binding Division}" Width="110" />
-                        <DataGridTextColumn Header="Rounds" Binding="{Binding Rounds}" Width="60" />
-                        <DataGridTextColumn Header="Stakes" Binding="{Binding Stakes}" Width="100" />
+                        <DataGridTemplateColumn Header="Stakes" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Stakes}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
-            </DockPanel>
+                <!-- Empty card: say what to do next -->
+                <TextBlock Text="{Binding CardHint}" Style="{StaticResource EmptyStateText}" VerticalAlignment="Center" Margin="16"
+                           Visibility="{Binding HasCardHint, Converter={StaticResource BoolToVis}}" />
+            </Grid>
+        </DockPanel>
 
-            <!-- Column 2: build the matchup — the corner pickers ARE the tale of the tape -->
-            <DockPanel Grid.Column="2">
+        <!-- Right column header on narrower windows: the matchup builder and the
+             poster share the column as two tabs (code-behind shows this strip). -->
+        <StackPanel x:Name="RightTabs" Grid.Column="2" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6" Visibility="Collapsed">
+            <RadioButton x:Name="BuilderTab" Content="BUILD A MATCHUP" Style="{StaticResource PanelTab}" GroupName="BookingRight"
+                         IsChecked="True" Checked="OnRightTabChanged" />
+            <RadioButton x:Name="PosterTab" Content="THE POSTER" Style="{StaticResource PanelTab}" GroupName="BookingRight"
+                         Checked="OnRightTabChanged" />
+        </StackPanel>
+
+        <!-- Column 2: build the matchup — the corner pickers ARE the tale of the tape -->
+        <Grid x:Name="BuilderHost" Grid.Column="2" Grid.Row="1">
+
+            <!-- No fighters yet (a founded promotion's first day): say what to do. -->
+            <Border Padding="20" VerticalAlignment="Top">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasRoster}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <TextBlock Text="BUILD A MATCHUP" Style="{StaticResource SectionLabel}" Margin="0,0,0,12" />
+                    <TextBlock Text="No fighters signed yet" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Gold}" HorizontalAlignment="Center" Margin="0,0,0,8" />
+                    <TextBlock Style="{StaticResource EmptyStateText}"
+                               Text="Every bout needs two of your fighters in the same division — or one of yours against the local scene. Free agents and their asking prices are on the Contracts screen." />
+                    <Button Content="Open Contracts" Command="{Binding OpenContractsCommand}" HorizontalAlignment="Center" Margin="0,14,0,0"
+                            FontWeight="SemiBold" Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}" />
+                </StackPanel>
+            </Border>
+
+            <DockPanel>
+                <DockPanel.Style>
+                    <Style TargetType="DockPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasRoster}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DockPanel.Style>
 
             <!-- Local fight: the small-org special (City/Regional reach only) -->
-            <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8" Background="#20262E" CornerRadius="4">
+            <Border DockPanel.Dock="Bottom" Margin="0,10,0,0" Padding="8" Background="{StaticResource SurfaceAlt}" CornerRadius="4">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -186,7 +325,7 @@
                 <StackPanel>
                     <TextBlock Text="Local fight" FontWeight="Bold" />
                     <TextBlock Text="Put your red corner against the local club scene — easy work for $1,000 flat, and it builds a prospect up. Careful: locals occasionally bite."
-                               FontSize="11" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,2,0,6" />
+                               Style="{StaticResource FieldLabel}" TextWrapping="Wrap" Margin="0,2,0,6" />
                     <StackPanel Orientation="Horizontal">
                         <ComboBox Width="120" ItemsSource="{Binding LocalStyles}" SelectedItem="{Binding SelectedLocalStyle}" />
                         <Button Content="Book Local Fight" Command="{Binding AddLocalBoutCommand}" Margin="10,0,0,0" Padding="10,2" />
@@ -203,9 +342,9 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="BUILD A MATCHUP" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                                <TextBlock x:Name="BuilderLabel" Text="BUILD A MATCHUP" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <TextBlock Text="Division" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Division" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <ComboBox MinWidth="140" ItemsSource="{Binding Divisions}" SelectedItem="{Binding SelectedDivision}" />
                                 </StackPanel>
                             </Grid>
@@ -235,7 +374,7 @@
                                                           CommandParameter="{Binding RedCornerId}" />
                                         </TextBlock.InputBindings>
                                     </TextBlock>
-                                    <TextBlock Text="Red corner" FontSize="11" Foreground="{StaticResource TextSecondary}" />
+                                    <TextBlock Text="Red corner" Style="{StaticResource FieldLabel}" />
                                     <ComboBox ItemsSource="{Binding RedOptions}" SelectedItem="{Binding SelectedRed}" Margin="0,2,0,0">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate>
@@ -248,7 +387,7 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="vs" Foreground="#7C848D" FontSize="16" VerticalAlignment="Center" Margin="8,0" />
+                                <TextBlock Grid.Column="1" Text="vs" Foreground="{StaticResource TextMuted}" FontSize="16" VerticalAlignment="Center" Margin="8,0" />
                                 <StackPanel Grid.Column="2">
                                     <Border Width="112" Height="150" Background="{StaticResource SurfaceAlt}" BorderBrush="#3C639E" BorderThickness="1" HorizontalAlignment="Center"
                                             Cursor="Hand" ToolTip="Double-click to open profile">
@@ -267,7 +406,7 @@
                                                           CommandParameter="{Binding BlueCornerId}" />
                                         </TextBlock.InputBindings>
                                     </TextBlock>
-                                    <TextBlock Text="Blue corner" FontSize="11" Foreground="{StaticResource TextSecondary}" />
+                                    <TextBlock Text="Blue corner" Style="{StaticResource FieldLabel}" />
                                     <ComboBox ItemsSource="{Binding BlueOptions}" SelectedItem="{Binding SelectedBlue}" Margin="0,2,0,0">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate>
@@ -284,13 +423,15 @@
                                 </StackPanel>
                             </Grid>
 
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="Rounds" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                <ComboBox Width="55" ItemsSource="{Binding RoundsOptions}" SelectedItem="{Binding SelectedRounds}" />
-                                <CheckBox Content="Title fight" IsChecked="{Binding IsTitleBout}" VerticalAlignment="Center" Margin="16,0,0,0" />
-                                <Button Content="Add Bout" Command="{Binding AddBoutCommand}" Margin="16,0,0,0" Padding="14,3"
+                            <WrapPanel HorizontalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Rounds" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <ComboBox Width="55" ItemsSource="{Binding RoundsOptions}" SelectedItem="{Binding SelectedRounds}" />
+                                    <CheckBox Content="Title fight" IsChecked="{Binding IsTitleBout}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                                </StackPanel>
+                                <Button Content="Add Bout" Command="{Binding AddBoutCommand}" Margin="16,0,0,4" Padding="14,3"
                                         FontWeight="Bold" Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}" />
-                            </StackPanel>
+                            </WrapPanel>
 
                             <!-- Live matchup appraisal -->
                             <TextBlock Text="{Binding Appraisal}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,6" />
@@ -305,9 +446,9 @@
                                     <RowDefinition />
                                     <RowDefinition />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Competitive" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Competitive" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
                                 <ProgressBar Grid.Row="0" Grid.Column="1" Value="{Binding Competitiveness, Mode=OneWay}" Maximum="100" Height="11" Margin="0,2" Foreground="{StaticResource Positive}" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Appeal" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Appeal" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
                                 <ProgressBar Grid.Row="1" Grid.Column="1" Value="{Binding Appeal, Mode=OneWay}" Maximum="100" Height="11" Margin="0,2" Foreground="{StaticResource World}" />
                             </Grid>
 
@@ -341,7 +482,7 @@
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="110" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="{Binding Red}" TextAlignment="Right" Margin="0,0,10,0">
@@ -378,15 +519,21 @@
                     </DockPanel>
             </Border>
             </DockPanel>
+        </Grid>
 
-            <!-- Column 3: the auto-generated fight poster — redraws live as
-                 the card (and its story) takes shape under your hands -->
-            <DockPanel Grid.Column="3" Margin="10,0,0,0">
-                <TextBlock DockPanel.Dock="Top" Text="THE POSTER" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
-                <Border Background="#0B0C10" BorderBrush="#2A2F38" BorderThickness="1" CornerRadius="4" Padding="6">
+        <!-- The auto-generated fight poster — redraws live as the card (and its
+             story) takes shape. Its own column when wide, a tab otherwise. -->
+        <DockPanel x:Name="PosterPanel" Grid.Column="3" Grid.RowSpan="2" Margin="10,0,0,0">
+            <TextBlock x:Name="PosterLabel" DockPanel.Dock="Top" Text="THE POSTER" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+            <Border Background="#0B0C10" BorderBrush="#2A2F38" BorderThickness="1" CornerRadius="4" Padding="6">
+                <Grid>
                     <Image Source="{Binding Poster}" Stretch="Uniform" VerticalAlignment="Top"
                            RenderOptions.BitmapScalingMode="HighQuality" />
-                </Border>
-            </DockPanel>
-        </Grid>
+                    <TextBlock Text="The poster draws itself from the card. Create or pick an event and it appears here."
+                               Style="{StaticResource EmptyStateText}" VerticalAlignment="Center" Margin="16"
+                               Visibility="{Binding HasSelectedEvent, Converter={StaticResource InverseBoolToVis}}" />
+                </Grid>
+            </Border>
+        </DockPanel>
+    </Grid>
 </UserControl>

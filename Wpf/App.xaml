@@ -1,6 +1,7 @@
 <Application x:Class="MmaManager.Wpf.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
 
@@ -33,6 +34,7 @@
 
         <!-- ================= Converters (shared by every view) ================= -->
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <mvvm:InverseBoolToVisibility x:Key="InverseBoolToVis" />
 
         <!-- ================= Text ================= -->
         <Style TargetType="TextBlock">
@@ -54,6 +56,74 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="12" />
+        </Style>
+
+        <!-- Small grey caption above an input ("Date", "Host city", …) -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+        </Style>
+
+        <!-- An empty panel says what to do next instead of showing blank controls. -->
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="MaxWidth" Value="420" />
+        </Style>
+
+        <!-- A folded notice strip (contract warnings, cautions): one line, opens on demand. -->
+        <SolidColorBrush x:Key="NegativeDim" Color="#2A1D1F" />
+        <Style x:Key="NoticeStrip" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource NegativeDim}" />
+            <Setter Property="BorderBrush" Value="#5A3033" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+
+        <!-- A small text toggle ("Show all", "Hide") that sits inside a strip. -->
+        <Style x:Key="LinkToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="Transparent" Padding="6,1">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Panel tabs (two views sharing one column): gold underline on the open one. -->
+        <Style x:Key="PanelTab" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="b" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="10,5" Margin="0,0,4,0">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource Hover}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- ================= Buttons ================= -->

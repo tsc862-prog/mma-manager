@@ -33,7 +33,6 @@
                     <DataGridTextColumn Header="Division" Binding="{Binding Division}" />
                     <DataGridTextColumn Header="Style" Binding="{Binding Style}" />
                     <DataGridTextColumn Header="Scout" Binding="{Binding Ovr}" />
-                    <DataGridTextColumn Header="POT" Binding="{Binding Pot}" />
                     <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort"/>
                     <DataGridTemplateColumn Header="Form" Width="66">
                         <DataGridTemplateColumn.CellTemplate>
