@@ -11,7 +11,17 @@ namespace MmaManager.Wpf.Shell;
 /// </summary>
 public partial class AppWindow : UserControl
 {
-    public AppWindow() { InitializeComponent(); }
+    public AppWindow()
+    {
+        InitializeComponent();
+        // Offscreen harness renders never run the open animation's clock, so the
+        // window would be captured at its 97% starting scale: start it at rest.
+        if (ViewModels.MainViewModel.HeadlessAutoBoot && Content is Grid g)
+        {
+            g.Triggers.Clear();
+            OpenScale.ScaleX = OpenScale.ScaleY = 1;
+        }
+    }
 
     private OpenWindow? Win => DataContext as OpenWindow;
 

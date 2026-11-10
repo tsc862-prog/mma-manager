@@ -96,6 +96,12 @@ public sealed class MainViewModel : ObservableObject
         Org.OnChanged = RefreshAll;         // hiring/firing changes staff and overhead
         Camps.OnChanged = RefreshAll;       // a team deal / camp report moves the balance
         Booking.OnRunLive = RunLive;        // "run & watch" a card
+        Booking.OpenContracts = () => NavigateTo(Tab.Contracts);   // empty roster: go sign someone
+        // Destructive booking actions ask first — in the interactive app only;
+        // harness runs never open a dialog (null = go ahead as scripted).
+        if (!HeadlessAutoBoot)
+            Booking.Confirm = (heading, body, detail, confirm) =>
+                MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep the event");
         Dashboard.Navigate = NavigateTo;                  // home-page shortcuts jump to their screen
         Dashboard.GetWorld = () => _world;                // the desk acts on the live world
         Dashboard.OnDecisionMade = RefreshAll;            // a decision moves loyalty/rankings/money

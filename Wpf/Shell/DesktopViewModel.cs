@@ -186,12 +186,31 @@ public sealed class DesktopViewModel : ObservableObject
             win.H = last.H;
             win.IsMaximized = last.Max;
         }
+        FitToArea(win);
         win.CloseCommand = new RelayCommand(() => Close(win));
         win.MinimizeCommand = new RelayCommand(() => win.IsMinimized = true);
         win.MaximizeCommand = new RelayCommand(() => { win.IsMaximized = !win.IsMaximized; Focus(win); });
         win.OnActivate = Focus;
         Windows.Add(win);
         Focus(win);
+    }
+
+    /// <summary>The desk's current size (set by the main window); empty until it has laid out.</summary>
+    public System.Windows.Size Area { get; set; } = System.Windows.Size.Empty;
+
+    /// <summary>
+    /// Keep a floating window on the desk: a 1420-wide app opened on a 1366
+    /// screen (or a layout remembered from a bigger monitor) shrinks to fit
+    /// instead of running off the edge.
+    /// </summary>
+    public void FitToArea(OpenWindow win)
+    {
+        if (Area.IsEmpty || Area.Width <= 0 || Area.Height <= 0) return;
+        const double edge = 8;
+        win.W = Math.Min(win.W, Area.Width - win.X - edge);
+        if (win.W < 640) { win.X = Math.Max(0, Area.Width - 640 - edge); win.W = Math.Min(640, Area.Width - edge); }
+        win.H = Math.Min(win.H, Area.Height - win.Y - edge);
+        if (win.H < 420) { win.Y = Math.Max(0, Area.Height - 420 - edge); win.H = Math.Min(420, Area.Height - edge); }
     }
 
     /// <summary>The sidebar shell's tab indexes, spoken as desktop apps — so every
