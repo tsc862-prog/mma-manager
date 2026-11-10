@@ -170,9 +170,9 @@ public sealed class Fighter
     public CountryId Country { get; set; }
 
     /// <summary>
-    /// Transient: the atlas country code the generator chose (e.g. "JPN"),
-    /// consumed by AssignHometown to resolve <see cref="Country"/> in-world.
-    /// Not persisted — Country is.
+    /// The atlas country code the generator chose (e.g. "JPN"). AssignHometown
+    /// resolves <see cref="Country"/> from it, and a later rename (EnsureUniqueName,
+    /// when a local is discovered) picks its name pool by it, so it is persisted.
     /// </summary>
     public string? OriginCountryCode { get; set; }
 

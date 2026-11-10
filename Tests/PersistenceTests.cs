@@ -145,29 +145,83 @@ public class PersistenceTests
     };
 
     [Fact]
-    public void DictionaryEnumerationOrder_SurvivesTheSave()
+    public void EveryWorldDictionary_KeepsItsEnumerationOrderAcrossTheSave()
     {
-        // The sim iterates these dictionaries. After a removal a new entry reuses the
-        // freed slot, so enumeration order stops matching id order; the save must keep it.
-        var world = new LeagueBuilder().Build(new LeagueBuilder.Options { Seed = 5, RosterSize = 40 });
-        var first = world.Fighters.Values.First();
-        world.Fighters.Remove(first.Id);
-        var newcomer = new Fighter
-        {
-            Id = world.NewFighterId(), FirstName = "New", LastName = "Arrival",
-            BirthDate = new DateOnly(2000, 1, 1),
-        };
-        world.Fighters[newcomer.Id] = newcomer;
-        Assert.Equal(newcomer.Id, world.Fighters.Keys.First());   // the premise: slot reuse put it first
+        // The sim iterates these dictionaries. After a removal a new entry reuses the freed
+        // slot, so enumeration order stops matching id order; the save must keep it. Scramble
+        // EVERY dictionary on World so reading any table in id order would fail here.
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 5 });
+        var dicts = typeof(World).GetProperties()
+            .Where(p => typeof(System.Collections.IDictionary).IsAssignableFrom(p.PropertyType) && p.Name != nameof(World.IdCounters))
+            .ToList();
+        Assert.True(dicts.Count >= 9, "expected the entity dictionaries plus global rankings");
 
-        string path = TempPath("order");
+        foreach (var p in dicts)
+        {
+            var d = (System.Collections.IDictionary)p.GetValue(world)!;
+            Assert.True(d.Count >= 2, $"{p.Name} needs at least two entries for this test");
+            var keys = d.Keys.Cast<object>().ToList();
+            object firstKey = keys[0], firstVal = d[firstKey]!, lastKey = keys[^1], lastVal = d[lastKey]!;
+            d.Remove(lastKey);
+            d.Remove(firstKey);          // freed last, so reused first
+            d.Add(lastKey, lastVal);
+            d.Add(firstKey, firstVal);
+            Assert.True(Equals(d.Keys.Cast<object>().First(), lastKey), $"premise: {p.Name} should now enumerate its newest key first");
+        }
+
+        var loaded = RoundTrip(world);
+        foreach (var p in dicts)
+        {
+            var before = ((System.Collections.IDictionary)p.GetValue(world)!).Keys.Cast<object>().ToList();
+            var after = ((System.Collections.IDictionary)p.GetValue(loaded)!).Keys.Cast<object>().ToList();
+            Assert.True(before.SequenceEqual(after), $"{p.Name} enumerates in a different order after load");
+        }
+    }
+
+    // ---- swap hardening and stale temp files ------------------------------
+
+    [Fact]
+    public void WhenTheSwapLosesTheTargetAfterDeletingIt_TheNewSaveIsPutInPlace()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"mma_swap_{Guid.NewGuid():N}");
+        string path = Path.Combine(dir, "career.db");
         try
         {
-            SaveGame.Save(world, path);
-            var loaded = SaveGame.Load(path);
-            Assert.Equal(world.Fighters.Keys.ToList(), loaded.Fighters.Keys.ToList());
+            var a = new LeagueBuilder().Build(new LeagueBuilder.Options { Seed = 31, RosterSize = 40 });
+            var b = new LeagueBuilder().Build(new LeagueBuilder.Options { Seed = 32, RosterSize = 40 });
+            SaveGame.Save(a, path);
+
+            // Simulate ReplaceFile error 1176: the target is already gone and the swap throws.
+            SaveGame.SwapFile = (tmp, full) => { File.Delete(full); throw new IOException("unable to move the replacement file"); };
+            try { SaveGame.Save(b, path); }
+            finally { SaveGame.SwapFile = null; }
+
+            AssertSame(b, SaveGame.Load(path));
+            Assert.Equal(new[] { path }, Directory.GetFiles(dir));
         }
-        finally { File.Delete(path); }
+        finally { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void Save_SweepsStaleTempFilesOfItsOwnTargetOnly()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"mma_sweep_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "career.db");
+        string stale = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        string otherTarget = Path.Combine(dir, "other.db") + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        string lookalike = path + ".notaguid.tmp";
+        string unrelated = Path.Combine(dir, "career.db.bak");
+        try
+        {
+            foreach (var f in new[] { stale, otherTarget, lookalike, unrelated }) File.WriteAllText(f, "x");
+            SaveGame.Save(new LeagueBuilder().Build(new LeagueBuilder.Options { Seed = 41, RosterSize = 40 }), path);
+
+            Assert.False(File.Exists(stale));
+            Assert.True(File.Exists(otherTarget) && File.Exists(lookalike) && File.Exists(unrelated));
+            Assert.True(File.Exists(path));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
     }
 
     // ---- save -> load -> save -------------------------------------------
@@ -188,10 +242,12 @@ public class PersistenceTests
 
     // ---- loading must not change behaviour --------------------------------
 
-    // Two seeds, and the second run crosses a year end (year-end awards read the saved rankings).
+    // Two seeds. The second saves in December, after the month-end recompute that entered
+    // December and before the year rolls over, so the year-end awards (which read
+    // PoundForPound before the next recompute) read the SAVED rankings after the load.
     [Theory]
     [InlineData(7, 20, 20)]
-    [InlineData(13, 45, 25)]
+    [InlineData(13, 50, 25)]
     public void LoadedWorld_AdvancesExactlyLikeAWorldThatWasNeverSaved(int seed, int before, int after)
     {
         var straight = BuildSeasoned(seed: seed, weeks: 0);
@@ -199,19 +255,120 @@ public class PersistenceTests
 
         var split = BuildSeasoned(seed: seed, weeks: 0);
         new WorldTick().AdvanceWeeks(split, before);
-        string path = TempPath("determinism");
-        World resumed;
-        try
-        {
-            SaveGame.Save(split, path);
-            resumed = SaveGame.Load(path);
-        }
-        finally { File.Delete(path); }
+        if (seed == 13) Assert.Equal(12, split.CurrentDate.Month);   // the premise of this case
+        var resumed = RoundTrip(split);
         new WorldTick().AdvanceWeeks(resumed, after);
+        if (seed == 13) Assert.True(resumed.CurrentDate.Year > split.CurrentDate.Year, "the run must cross the year end");
 
         var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "A saved-and-loaded world diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    private static World RoundTrip(World w)
+    {
+        string path = TempPath("rt");
+        try { SaveGame.Save(w, path); return SaveGame.Load(path); }
+        finally { File.Delete(path); }
+    }
+
+    /// <summary>
+    /// The player's own paths mint ids and then free them: book an event with local bouts,
+    /// cancel it, drop a single bout. Fight seeds, tick rolls and local fighters all key on
+    /// ids, so a loaded world must keep handing out fresh ids, not reuse the freed ones.
+    /// </summary>
+    private static World PlayerWorld(ulong seed, bool holeInTheMiddle = false)
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options
+        {
+            Seed = seed,
+            Founding = new WorldBuilder.FoundingSpec
+            {
+                Prestige = 15,
+                Divisions = new[] { WeightClass.Lightweight, WeightClass.Welterweight },
+            },
+        });
+        new WorldTick().AdvanceWeeks(world, 6);
+
+        var promo = world.Get(world.PlayerPromotion)!;
+        Fighter Hire()
+        {
+            var pick = MmaManager.Core.Sim.Contracts.SigningAdvisor.Suggest(world, promo)!;
+            var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(world, pick.Fighter);
+            MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(world, pick.Fighter, new ContractOffer
+            {
+                Fighter = pick.Fighter.Id, Promotion = promo.Id,
+                PursePerFight = exp.AskingPurse, WinBonus = exp.AskingWinBonus, Fights = exp.DesiredFights,
+            }, world.CurrentDate);
+            return pick.Fighter;
+        }
+        var first = Hire();
+        var second = Hire();
+        var third = Hire();
+
+        var booking = new PlayerBooking();
+        // Optionally an OLD event that is cancelled at the end: its dictionary slot is then free in a
+        // never-saved world but absent from a loaded one.
+        var early = holeInTheMiddle ? booking.CreateEvent(world, world.CurrentDate.AddDays(14)) : null;
+        if (early is not null) Assert.True(booking.AddLocalBout(world, early, third.Id, PrimaryStyle.Grappler, 3, out _));
+        // An event that stays, with a local bout added, removed again and added anew.
+        var kept = booking.CreateEvent(world, world.CurrentDate.AddDays(28));
+        Assert.True(booking.AddLocalBout(world, kept, first.Id, PrimaryStyle.Wrestler, 3, out var err), err);
+        booking.RemoveBout(world, kept, kept.Card[0].Id);
+        Assert.True(booking.AddLocalBout(world, kept, first.Id, PrimaryStyle.Brawler, 3, out err), err);
+        // Then the newest event, with a local bout, cancelled LAST: frees the highest event,
+        // fight and fighter ids, which a counter derived from what survives would hand out again.
+        var doomed = booking.CreateEvent(world, world.CurrentDate.AddDays(21));
+        Assert.True(booking.AddLocalBout(world, doomed, second.Id, PrimaryStyle.Striker, 3, out err), err);
+        booking.CancelEvent(world, doomed);
+        if (early is not null) booking.CancelEvent(world, early);
+        return world;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PlayerPaths_CancelledEventsAndReleasedLocals_DoNotChangeWhatTheLoadedWorldDoes(bool holeInTheMiddle)
+    {
+        var straight = PlayerWorld(21, holeInTheMiddle);
+        var split = PlayerWorld(21, holeInTheMiddle);
+        var resumed = RoundTrip(split);
+
+        // The next ids minted must be the ones a never-saved world would mint.
+        Assert.Equal(split.NewEventId(), resumed.NewEventId());
+        Assert.Equal(split.NewFightId(), resumed.NewFightId());
+        Assert.Equal(split.NewFighterId(), resumed.NewFighterId());
+        Assert.Equal(split.NewTitleId(), resumed.NewTitleId());
+        // (the straight world was only built to prove the setup is itself deterministic)
+        Assert.Equal(straight.IdCounters, PlayerWorld(21, holeInTheMiddle).IdCounters);
+
+        // Mint the same ids in the straight world so the compare below is like for like.
+        straight.NewEventId(); straight.NewFightId(); straight.NewFighterId(); straight.NewTitleId();
+
+        new WorldTick().AdvanceWeeks(straight, 12);
+        new WorldTick().AdvanceWeeks(resumed, 12);
+        // A slot freed in the MIDDLE of a dictionary is reused by the never-saved world's next entry but
+        // not by the compact loaded one, so enumeration ORDER differs (inherent to Dictionary; see the
+        // skipped strict test below). Everything else, i.e. every value the sim produced, must match.
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60, ignoreKeyOrder: holeInTheMiddle);
+        Assert.True(diffs.Count == 0,
+            "After the player's cancel/remove paths a loaded world diverged from a never-saved one:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    [Fact(Skip = "Known, not fixable in Persistence: after PlayerBooking.CancelEvent / ReleaseLocals remove a non-newest entry "
+        + "(Core.Sim/Booking/PlayerBooking.cs:139 Events.Remove, :147 Fighters.Remove) the never-saved Dictionary reuses the freed slot "
+        + "while a loaded one is compact, so World.Events/Fighters enumerate in a different order (reproduced: Events key order differs at "
+        + "3832, Fighters at 6188; every value still matched). world-sim must iterate by id wherever order feeds a roll "
+        + "(Core.Sim has ~31 `Fighters.Values` sites); strict key-order equality cannot be restored.")]
+    public void PlayerPaths_WithAHoleInTheMiddle_EnumerateInTheSameOrderAsANeverSavedWorld()
+    {
+        var straight = PlayerWorld(21, holeInTheMiddle: true);
+        var resumed = RoundTrip(PlayerWorld(21, holeInTheMiddle: true));
+        straight.NewEventId(); straight.NewFightId(); straight.NewFighterId(); straight.NewTitleId();
+        resumed.NewEventId(); resumed.NewFightId(); resumed.NewFighterId(); resumed.NewTitleId();
+        new WorldTick().AdvanceWeeks(straight, 12);
+        new WorldTick().AdvanceWeeks(resumed, 12);
+        Assert.Empty(PersistenceGraph.Diff(straight, resumed, max: 20));
     }
 
     // ---- saving is safe ---------------------------------------------------

@@ -29,6 +29,10 @@ internal static class SaveSchema
                 last_acquisition TEXT
             );
 
+            CREATE TABLE id_counters (
+                name TEXT NOT NULL, value INTEGER NOT NULL
+            );
+
             CREATE TABLE shortlist (
                 ordinal INTEGER NOT NULL, fighter_id INTEGER NOT NULL
             );
@@ -119,6 +123,7 @@ internal static class SaveSchema
                 camp_stipend INTEGER NOT NULL DEFAULT 0, star_power INTEGER NOT NULL DEFAULT 0,
                 discovered_by INTEGER,
                 disposition TEXT NOT NULL DEFAULT 'QuietProfessional',
+                origin_country TEXT,
                 {ratingCols}
             );
 
@@ -183,12 +188,12 @@ internal static class SaveSchema
 
             CREATE TABLE countries (
                 id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL,
-                continent TEXT NOT NULL, areas TEXT NOT NULL, mma_interest INTEGER, mma_interest_base INTEGER
+                continent TEXT NOT NULL, areas TEXT NOT NULL, mma_interest INTEGER NOT NULL, mma_interest_base INTEGER NOT NULL
             );
 
             CREATE TABLE cities (
                 id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, name TEXT NOT NULL, region TEXT NOT NULL, market INTEGER NOT NULL,
-                country_id INTEGER NOT NULL, area INTEGER, mma_interest INTEGER, mma_interest_base INTEGER
+                country_id INTEGER NOT NULL, area INTEGER, mma_interest INTEGER NOT NULL, mma_interest_base INTEGER NOT NULL
             );
 
             CREATE TABLE venues (

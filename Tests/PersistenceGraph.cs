@@ -22,21 +22,20 @@ internal static class PersistenceGraph
     public static readonly IReadOnlyDictionary<string, string> NotSaved = new Dictionary<string, string>
     {
         ["World.ArtCatalog"] = "Opaque portrait catalog attached by the app after load; null in headless runs.",
-        ["Fighter.OriginCountryCode"] = "Generator scratch consumed by AssignHometown; Country is what is saved.",
         ["FightOutcome.PlayByPlay"] = "Large prose log, dropped on purpose; only present on a freshly simulated bout.",
     };
 
     // ---- deep comparison --------------------------------------------------
 
     /// <summary>Every difference between two graphs, as readable paths. Empty means identical.</summary>
-    public static List<string> Diff(object? expected, object? actual, int max = 40)
+    public static List<string> Diff(object? expected, object? actual, int max = 40, bool ignoreKeyOrder = false)
     {
         var diffs = new List<string>();
-        Compare(expected, actual, "world", diffs, max, new HashSet<string>());
+        Compare(expected, actual, "world", diffs, max, ignoreKeyOrder);
         return diffs;
     }
 
-    private static void Compare(object? a, object? b, string path, List<string> diffs, int max, HashSet<string> seenKeys)
+    private static void Compare(object? a, object? b, string path, List<string> diffs, int max, bool ignoreKeyOrder)
     {
         if (diffs.Count >= max) return;
         if (a is null || b is null)
@@ -61,12 +60,12 @@ internal static class PersistenceGraph
             var ka = da.Keys.Cast<object>().ToList();
             var kb = db.Keys.Cast<object>().ToList();
             // Enumeration order matters: the sim iterates these when it rolls.
-            for (int i = 0; i < ka.Count; i++)
+            for (int i = 0; i < ka.Count && !ignoreKeyOrder; i++)
                 if (!Equals(ka[i], kb[i])) { diffs.Add($"{path}: key order differs at {i} ({ka[i]} vs {kb[i]})"); break; }
             foreach (var k in ka)
             {
                 if (!db.Contains(k)) { diffs.Add($"{path}[{k}]: missing after load"); continue; }
-                Compare(da[k], db[k], $"{path}[{k}]", diffs, max, seenKeys);
+                Compare(da[k], db[k], $"{path}[{k}]", diffs, max, ignoreKeyOrder);
             }
             return;
         }
@@ -83,14 +82,14 @@ internal static class PersistenceGraph
                 foreach (var x in la) if (!sb.Contains(x)) diffs.Add($"{path}: {Show(x)} missing after load");
                 return;
             }
-            for (int i = 0; i < la.Count; i++) Compare(la[i], lb[i], $"{path}[{i}]", diffs, max, seenKeys);
+            for (int i = 0; i < la.Count; i++) Compare(la[i], lb[i], $"{path}[{i}]", diffs, max, ignoreKeyOrder);
             return;
         }
 
         foreach (var m in Members(t))
         {
             if (NotSaved.ContainsKey(Key(t, m.Name))) continue;
-            Compare(m.Get(a), m.Get(b), $"{path}.{m.Name}", diffs, max, seenKeys);
+            Compare(m.Get(a), m.Get(b), $"{path}.{m.Name}", diffs, max, ignoreKeyOrder);
         }
     }
 

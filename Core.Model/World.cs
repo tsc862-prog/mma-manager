@@ -106,9 +106,8 @@ public sealed class World
     public CampId NewCampId()           => new(++_nextCamp);
 
     /// <summary>
-    /// Reset id counters above the highest id currently in use. Call once right
-    /// after deserialising a save so the private counters (which don't persist)
-    /// resume above existing ids instead of restarting at 1.
+    /// Reset id counters to the highest id currently in use. The save reader calls
+    /// this and then <see cref="RestoreIdCounters"/> with the saved counters.
     /// </summary>
     public void SyncIdCounters()
     {
@@ -127,6 +126,33 @@ public sealed class World
             .DefaultIfEmpty(0)
             .Max();
         _nextFight = maxFight;
+    }
+
+    /// <summary>
+    /// The id counters by name, for the save. A counter is not derivable from the entities
+    /// that survive (cancelling the newest event frees its id, yet the next one must not
+    /// reuse it, because fight seeds and tick rolls key on ids).
+    /// </summary>
+    public Dictionary<string, int> IdCounters => new()
+    {
+        ["fighter"] = _nextFighter, ["promotion"] = _nextPromotion, ["title"] = _nextTitle,
+        ["event"] = _nextEvent, ["fight"] = _nextFight, ["country"] = _nextCountry,
+        ["city"] = _nextCity, ["venue"] = _nextVenue, ["camp"] = _nextCamp,
+    };
+
+    /// <summary>Restore saved counters after <see cref="SyncIdCounters"/>; never lowers one below what is in use.</summary>
+    public void RestoreIdCounters(IReadOnlyDictionary<string, int> saved)
+    {
+        int Pick(string key, int derived) => Math.Max(derived, saved.GetValueOrDefault(key));
+        _nextFighter = Pick("fighter", _nextFighter);
+        _nextPromotion = Pick("promotion", _nextPromotion);
+        _nextTitle = Pick("title", _nextTitle);
+        _nextEvent = Pick("event", _nextEvent);
+        _nextFight = Pick("fight", _nextFight);
+        _nextCountry = Pick("country", _nextCountry);
+        _nextCity = Pick("city", _nextCity);
+        _nextVenue = Pick("venue", _nextVenue);
+        _nextCamp = Pick("camp", _nextCamp);
     }
 
     // --- Convenience lookups ------------------------------------------------

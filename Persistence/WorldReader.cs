@@ -33,7 +33,21 @@ internal sealed class WorldReader
         ReadBiddingWars(world);
         ReadRelationships(world);
         ReadEvents(world);
+
+        // Counters: derived from what is in use, raised to the saved values (ids freed by a
+        // cancelled event or released local must not be handed out again).
+        world.SyncIdCounters();
+        world.RestoreIdCounters(ReadIdCounters());
         return world;
+    }
+
+    private Dictionary<string, int> ReadIdCounters()
+    {
+        var saved = new Dictionary<string, int>();
+        using var cmd = _c.Cmd(null, "SELECT * FROM id_counters ORDER BY rowid");
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) saved[r.Str("name")] = r.Int("value");
+        return saved;
     }
 
     private World ReadMeta()
@@ -143,6 +157,7 @@ internal sealed class WorldReader
             f.StarPower = r.Int("star_power") != 0;
             f.DiscoveredBy = r.IntN("discovered_by") is { } disc ? new PromotionId(disc) : null;
             f.Disposition = r.Enum<Disposition>("disposition");
+            f.OriginCountryCode = r.StrN("origin_country");
 
             foreach (var rc in FighterColumns.Ratings)
                 rc.Set(f, r.Int(rc.Column));

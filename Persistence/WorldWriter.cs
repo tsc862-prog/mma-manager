@@ -14,6 +14,7 @@ internal sealed class WorldWriter
     public void Write(World world)
     {
         WriteMeta(world);
+        WriteIdCounters(world);
         WriteFighters(world);
         WritePromotions(world);
         WriteTitles(world);
@@ -296,6 +297,18 @@ internal sealed class WorldWriter
         }
     }
 
+    private void WriteIdCounters(World w)
+    {
+        using var cmd = _c.Cmd(_tx, "INSERT INTO id_counters (name, value) VALUES ($n,$v)");
+        foreach (var kv in w.IdCounters)
+        {
+            cmd.Parameters.Clear();
+            cmd.Bind("$n", kv.Key);
+            cmd.Bind("$v", kv.Value);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
     private void WriteMeta(World w)
     {
         using var cmd = _c.Cmd(_tx,
@@ -335,7 +348,7 @@ internal sealed class WorldWriter
             "signing_bonus", "ppv_points", "performance_bonus", "guaranteed", "poach_warned",
             "injury_severity", "injury_desc", "injury_occurred", "injury_return",
             "ready_to_fight_on", "loyalty", "marketing_push", "camp_id", "camp_stipend", "star_power",
-            "discovered_by", "disposition",
+            "discovered_by", "disposition", "origin_country",
         };
         var cols = core.Concat(FighterColumns.Ratings.Select(r => r.Column)).ToList();
         string sql = $"INSERT INTO fighters ({string.Join(",", cols)}) VALUES ({string.Join(",", cols.Select(c => "$" + c))})";
@@ -426,6 +439,7 @@ internal sealed class WorldWriter
             cmd.Bind("$star_power", f.StarPower ? 1 : 0);
             cmd.Bind("$discovered_by", Db.IdN(f.DiscoveredBy?.Value));
             cmd.Bind("$disposition", f.Disposition.ToString());
+            cmd.Bind("$origin_country", Db.Text(f.OriginCountryCode));
 
             foreach (var r in FighterColumns.Ratings)
                 cmd.Bind("$" + r.Column, r.Get(f));
