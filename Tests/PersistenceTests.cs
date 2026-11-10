@@ -25,10 +25,10 @@ public class PersistenceTests
 
         if (exerciseEveryField)
         {
-            // The sim has not raised a desk decision in 30 weeks; add one so the table is tested.
+            // Make sure the desk table is exercised even if the sim raised no decision (Id must be unique).
             world.Decisions.Add(new Decision
             {
-                Id = 1, Kind = DecisionKind.TitleShotRequest,
+                Id = world.Decisions.Select(d => d.Id).DefaultIfEmpty(0).Max() + 1, Kind = DecisionKind.TitleShotRequest,
                 Created = world.CurrentDate, Deadline = world.CurrentDate.AddDays(7),
             });
             PersistenceGraph.FillUnpopulated(world);
@@ -176,6 +176,53 @@ public class PersistenceTests
             var after = ((System.Collections.IDictionary)p.GetValue(loaded)!).Keys.Cast<object>().ToList();
             Assert.True(before.SequenceEqual(after), $"{p.Name} enumerates in a different order after load");
         }
+    }
+
+    [Fact]
+    public void FailedFirstSave_LeavesNoFileAtAll_AndTheErrorIsTheRealOne()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"mma_nofile_{Guid.NewGuid():N}");
+        string path = Path.Combine(dir, "career.db");
+        try
+        {
+            var bad = new LeagueBuilder().Build(new LeagueBuilder.Options { Seed = 12, RosterSize = 40 });
+            bad.Fighters.Values.Last().FirstName = null!;
+            Assert.Throws<SqliteException>(() => SaveGame.Save(bad, path));   // the writer's own error, not swallowed
+            Assert.Empty(Directory.GetFiles(dir));                              // no empty target, no temp
+        }
+        finally { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void Load_OfAMissingEmptyOrForeignFile_FailsClearlyAndCreatesNothing()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"mma_badload_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string missing = Path.Combine(dir, "missing.db");
+            Assert.Throws<FileNotFoundException>(() => SaveGame.Load(missing));
+            Assert.False(File.Exists(missing));
+
+            string empty = Path.Combine(dir, "empty.db");
+            File.WriteAllBytes(empty, Array.Empty<byte>());
+            Assert.Throws<InvalidDataException>(() => SaveGame.Load(empty));
+
+            string foreign = Path.Combine(dir, "foreign.db");
+            File.WriteAllText(foreign, "this is not a database, just text that is long enough to look like a file");
+            Assert.Throws<InvalidDataException>(() => SaveGame.Load(foreign));
+
+            string noMeta = Path.Combine(dir, "nometa.db");
+            using (var c = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = noMeta, Pooling = false }.ToString()))
+            {
+                c.Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "CREATE TABLE other (x INTEGER)";
+                cmd.ExecuteNonQuery();
+            }
+            Assert.Throws<InvalidDataException>(() => SaveGame.Load(noMeta));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
     }
 
     // ---- swap hardening and stale temp files ------------------------------

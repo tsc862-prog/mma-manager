@@ -26,6 +26,7 @@ public static class SaveGame
         SweepStaleTemps(full);
 
         string tmp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        bool verified = false;
         try
         {
             using (var conn = new SqliteConnection(ConnectionString(tmp)))
@@ -42,18 +43,22 @@ public static class SaveGame
             }
 
             Verify(tmp);
+            verified = true;
 
             (SwapFile ?? DefaultSwap)(tmp, full);
+            if (!File.Exists(full))
+                throw new IOException("The save was swapped into place but the target file does not exist.");
         }
         catch
         {
             // ReplaceFile with no backup can fail after it has already removed the target
-            // (error 1176), leaving the finished save only under its temp name. Put it in place
-            // rather than delete the only copy; the save then succeeded and is not an error.
-            if (!File.Exists(full) && File.Exists(tmp))
+            // (error 1176), leaving the finished save only under its temp name. Only a temp
+            // file that passed verification may be put in place (an unfinished one must never
+            // become the save); the save then succeeded and is not an error.
+            if (verified && !File.Exists(full) && File.Exists(tmp))
             {
-                try { File.Move(tmp, full); return; }
-                catch (IOException) { throw; }
+                File.Move(tmp, full);   // if this fails too, the temp file is kept and the error surfaces
+                return;
             }
             DeleteQuietly(tmp);
             throw;
@@ -123,17 +128,25 @@ public static class SaveGame
     {
         if (!File.Exists(path)) throw new FileNotFoundException("Save file not found.", path);
 
-        using var conn = new SqliteConnection(ConnectionString(path));
+        if (new FileInfo(path).Length == 0)
+            throw new InvalidDataException($"'{path}' is empty, not a save file.");
+
+        // Read-only: opening must never create or change a file.
+        using var conn = new SqliteConnection(ConnectionString(path, readOnly: true));
         conn.Open();
 
-        var world = new WorldReader(conn).Read();
-        return world;
+        try { return new WorldReader(conn).Read(); }
+        catch (SqliteException e) when (e.SqliteErrorCode == 1 || e.SqliteErrorCode == 26)   // SQL error (no such table) / not a database
+        {
+            throw new InvalidDataException($"'{path}' is not a readable save file ({e.Message}).", e);
+        }
     }
 
-    private static string ConnectionString(string path) =>
+    private static string ConnectionString(string path, bool readOnly = false) =>
         new SqliteConnectionStringBuilder
         {
             DataSource = path,
+            Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
             // No pooling: closing the connection must release the file handle
             // immediately so the save can be re-saved, moved, or deleted.
             Pooling = false,
