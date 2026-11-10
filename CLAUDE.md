@@ -26,6 +26,10 @@ it for the system you are working on. Stable architecture notes start at its "St
 - **Never trust one seed.** Balance claims need `longsim compare` across seeds, not a single run.
 - **Designed content ships with lore.** New authored fighters, orgs, camps, staff and venues carry
   `Bio`/`Lore` text. All people and companies are fictional.
+- **The interface is a desktop, and it is welcoming.** The OS-style shell (taskbar, start menu,
+  floating app windows, toasts) is the game's identity and stays. Inside it, lead with people, art
+  and story - portraits, posters, quotes, what to do next - and keep dense tables as a toggle, not
+  the default (owner, 2026-11-10: "less of a boring spreadsheet all over").
 - **Secrets stay out of the repo.** `hf-token.txt` and `.env` are ignored. This repo is public.
 
 ## Commands
@@ -72,6 +76,7 @@ each part to the owning agent, reviews what comes back, and is the only one that
 | `art` | `Wpf/Art`, `Wpf/Assets`, and the `E:/FighterArt` pipeline | sonnet |
 | `agent-builder` | Runtime AI agents: `Core.Agents` (policies, observations, tools) and the model host | opus |
 | `balance-tester` | Read-only. Runs `tools/longsim` and reports. May add reporting to longsim only. | sonnet |
+| `sim-qa` | Read-only for game code. Hunts correctness bugs by running the sim: monthly world invariants, a scripted headless player, save and reload soak, crash hunting. Owns the checking side of `tools/longsim` and invariant tests. | sonnet |
 | `reviewer` | Read-only. Independent review of a branch before merge. | opus |
 
 `Core.Model` is shared. Any agent may add a field its area needs, but must list it in the PR so
@@ -81,23 +86,35 @@ each part to the owning agent, reviews what comes back, and is the only one that
 
 1. **One task, one branch, one worktree.** Branch from `main` as `<area>/<short-name>`
    (`engine/standing-tko`, `ui/advance-shortcuts`). Agents doing parallel work each get their own
-   worktree (`isolation: "worktree"`); two agents never edit one working tree.
+   worktree; two agents never edit one working tree. The lead creates it by hand and names the path
+   in the agent's brief: `git worktree add E:\mma-wt\<name> -b <area>/<name> origin/main`. (The Agent
+   tool's automatic `isolation: "worktree"` is refused on this machine and leaves locked empty
+   worktrees behind.) An agent uses absolute paths inside its own worktree and never touches the
+   main checkout or another agent's folder. A worktree has no fighter portrait PNGs, since they are
+   not in git: fine for sim work, but for UI work that will be judged by eye, copy
+   `Wpf/Assets/Painted/*.png` in from the main checkout first.
 2. **Stay in your area.** Edit only files your area owns. If another area's file must change, keep
    the edit minimal and list it under "Out-of-area edits" in the PR.
 3. **The agent proves its own work** before handing back: build, the tests for its area, and the
    full suite. It reports what it ran and the result, including failures, in plain words.
 4. **The orchestrator's gate.** Nothing merges until the lead has:
    - read the whole diff itself, not the agent's summary of it;
-   - run `dotnet build` and `dotnet test` on the branch and seen them pass;
+   - run `dotnet build` and `dotnet test` on the branch and seen them pass - on the branch merged
+     with current `main`, not as it was when the agent finished (two PRs that each passed alone
+     failed together on 2026-11-10);
    - for anything touching fight outcomes, money, contracts, generation or tick order, a
-     `balance-tester` report from `longsim compare` against the README's healthy ranges;
+     `balance-tester` report from `longsim compare`, branch against `main` (the README's healthy
+     ranges are out of date; compare like with like, and use enough seeds - one bad seed in 20
+     proved to be noise at 100);
+   - for anything touching sim rules or saving, a `sim-qa` pass once its checks exist;
    - for a change of any size or risk, a `reviewer` pass, given the diff and the task but not the
      author's conclusions;
    - checked the save version was bumped if the model changed, and that the PR says so;
    - checked no RNG stream gained a draw.
    If the gate fails, the work goes back to the same agent with the specific finding.
-5. **Merge is the owner's call for anything that breaks saves, changes balance targets or changes
-   what the player sees in a big way.** The lead merges routine work once the gate is green.
+5. **The lead merges what passes the gate** (owner, 2026-11-10: "you are able to merge anything you
+   deem worthy; you manage the repos"). It tells the owner plainly when a merge breaks saves, and
+   shows him matters of taste - a new look, a redesigned screen - before merging them.
 6. **Shared tables are append-only during a feature.** Adding a designed fighter, a venue or a quote
    in parallel is fine; renaming or reordering existing rows is done alone on `main`, because row
    order feeds ids and ids feed seeds.
