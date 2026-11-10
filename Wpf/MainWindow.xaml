@@ -237,6 +237,33 @@
             </DockPanel>
         </Border>
 
+        <!-- ==== Result strip: what just happened (the last action's result) ==== -->
+        <Border DockPanel.Dock="Bottom" Style="{StaticResource ResultStrip}">
+            <Border.Background>
+                <SolidColorBrush Color="{StaticResource ResultStripRestColor}" />
+            </Border.Background>
+            <Border.Triggers>
+                <!-- Flash when a new result lands (fires on every StatusText set) -->
+                <EventTrigger RoutedEvent="Binding.TargetUpdated">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <ColorAnimation Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                            From="{StaticResource ResultStripFlashColor}" To="{StaticResource ResultStripRestColor}"
+                                            Duration="0:0:1.6" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+            </Border.Triggers>
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="✕" Command="{Binding ClearStatusCommand}"
+                        Style="{StaticResource ChromeButton}" Width="24" VerticalAlignment="Center"
+                        ToolTip="Clear this message" />
+                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ResultStripGlyph}" />
+                <TextBlock Text="{Binding StatusText, NotifyOnTargetUpdated=True}" ToolTip="{Binding StatusText}"
+                           Style="{StaticResource ResultStripText}" />
+            </DockPanel>
+        </Border>
+
         <!-- Fight night still stops the clock, desktop or not -->
         <Border DockPanel.Dock="Top" Background="#3A2226" BorderBrush="#B3392E" BorderThickness="0,0,0,1" Padding="12,7">
             <Border.Style>

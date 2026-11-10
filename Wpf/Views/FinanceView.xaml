@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
         <UserControl.Resources>
-            <BooleanToVisibilityConverter x:Key="BoolToVis" />
             <!-- Ledger figures: monospace, right-aligned -->
             <Style x:Key="Figure" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                 <Setter Property="FontFamily" Value="Consolas" />

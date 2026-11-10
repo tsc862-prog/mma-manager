@@ -31,6 +31,9 @@
         <SolidColorBrush x:Key="OrgAccent" Color="#E8B23A" />
         <SolidColorBrush x:Key="OrgAccentDim" Color="#46E8B23A" />
 
+        <!-- ================= Converters (shared by every view) ================= -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
         <!-- ================= Text ================= -->
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
@@ -370,6 +373,53 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- ===== Result strip (the shell's "what just happened" line above the taskbar) ===== -->
+        <!-- Rest colour = Surface; the flash is a dim gold that fades back to it when a new result lands. -->
+        <Color x:Key="ResultStripRestColor">#1E232B</Color>
+        <Color x:Key="ResultStripFlashColor">#6B5520</Color>
+        <Style x:Key="ResultStrip" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Padding" Value="12,3,6,3" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasStatus}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusIsAlert}" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource Negative}" />
+                    <Setter Property="BorderThickness" Value="0,2,0,0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ResultStripText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusIsAlert}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                    <Setter Property="FontWeight" Value="Bold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ResultStripGlyph" TargetType="TextBlock">
+            <Setter Property="Text" Value="›" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,-2,8,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusIsAlert}" Value="True">
+                    <Setter Property="Text" Value="⚠" />
+                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                    <Setter Property="Margin" Value="0,0,8,0" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
     </Application.Resources>

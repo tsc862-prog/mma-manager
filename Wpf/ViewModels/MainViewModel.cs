@@ -46,6 +46,10 @@ public sealed class MainViewModel : ObservableObject
 
     private World _world = null!;   // null until a career starts (start screen showing)
 
+    /// <summary>The live world, read only by the crash handler's rescue save;
+    /// null while the start screen is up.</summary>
+    internal World? LiveWorld => _world;
+
     /// <summary>The desktop shell's window manager.</summary>
     public Shell.DesktopViewModel Desktop { get; } = new();
     public Shell.DisplayPreferences Display => Shell.DisplayPreferences.Current;
@@ -86,6 +90,7 @@ public sealed class MainViewModel : ObservableObject
         ToggleMarketingCommand = new RelayCommand(ToggleMarketingSelected, () => SelectedIsMine);
         ToggleCampStipendCommand = new RelayCommand(ToggleCampStipendSelected, () => SelectedIsMine);
         MakeFaceCommand = new RelayCommand(MakeFaceSelected, () => SelectedIsMine);
+        ClearStatusCommand = new RelayCommand(() => StatusText = "");
         Desktop.ScreenContext = this;       // app windows host the same screens the tabs do
         Contracts.OnChanged = RefreshAll;   // a signing/release moves the balance and roster
         Org.OnChanged = RefreshAll;         // hiring/firing changes staff and overhead
@@ -214,7 +219,7 @@ public sealed class MainViewModel : ObservableObject
         }
         else if (_world.Get(id) is { Contract: { } c } f && _world.Get(c.Promotion) is { } theirs)
         {
-            StatusText = $"{f.FullName} is under contract with {theirs.Abbreviation} — wait for the deal to run out, or outbid them then.";
+            StatusText = $"Can't open talks with {f.FullName}: under contract with {theirs.Abbreviation}. Wait for the deal to run out, then bid.";
         }
     }
 
@@ -278,7 +283,44 @@ public sealed class MainViewModel : ObservableObject
     public string BalanceText { get => _balanceText; private set => Set(ref _balanceText, value); }
 
     private string _statusText = "";
-    public string StatusText { get => _statusText; private set => Set(ref _statusText, value); }
+    /// <summary>
+    /// The latest result of something the player did (shown in the shell's
+    /// result strip above the taskbar). Every set raises a change, even for the
+    /// same text, so a repeated result still flashes the strip. A plain set is
+    /// a routine result; <see cref="Alert"/> marks a must-not-miss one.
+    /// </summary>
+    public string StatusText
+    {
+        get => _statusText;
+        private set
+        {
+            _statusText = value ?? "";
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasStatus));
+            StatusIsAlert = false;
+        }
+    }
+
+    public bool HasStatus => _statusText.Length > 0;
+
+    private bool _statusIsAlert;
+    /// <summary>True when the strip is showing a must-not-miss result (game over, failed save/load).</summary>
+    public bool StatusIsAlert { get => _statusIsAlert; private set => Set(ref _statusIsAlert, value); }
+
+    public ICommand ClearStatusCommand { get; }
+
+    /// <summary>
+    /// A result the player must not miss: it goes on the strip (in red) and, in
+    /// the interactive app, also opens a blocking message window. Headless
+    /// harness runs never open a dialog.
+    /// </summary>
+    internal void Alert(string heading, string strip, string body, string? detail = null)
+    {
+        StatusText = strip;
+        StatusIsAlert = true;
+        if (HeadlessAutoBoot) return;
+        MessageWindow.ShowOver(heading, body, detail, severe: true);
+    }
 
     private ImageSource? _playerLogo;
     public ImageSource? PlayerLogo { get => _playerLogo; private set => Set(ref _playerLogo, value); }
@@ -367,7 +409,7 @@ public sealed class MainViewModel : ObservableObject
         if (_world is null || SelectedFighter?.Model is not { } f || _world.Get(_world.PlayerPromotion) is not { } promo) return;
         StatusText = RetentionService.TryPayBonus(_world, promo, f, out var reason)
             ? $"Locked down {f.FullName} with a retention bonus — loyalty up to {f.Loyalty}."
-            : reason;
+            : $"No retention bonus for {f.FullName}: {reason}";
         RefreshAll();
     }
 
@@ -480,7 +522,7 @@ public sealed class MainViewModel : ObservableObject
         if (dialog.Result.Founding is not null)
         {
             NavigateTo(Tab.Contracts);
-            StatusText = "Your roster is empty — sign fighters from the free-agent market, then book your first card.";
+            StatusText = $"{OrgName} is open for business with an empty roster — sign fighters from the free-agent market, then book your first card.";
         }
     }
 
@@ -495,6 +537,7 @@ public sealed class MainViewModel : ObservableObject
         // Generate fighters to match real portraits from the pack.
         _world = new WorldBuilder().Build(options with { IdentityCatalog = ArtCatalog });
         LastAdvance = summary;
+        StatusText = "";   // the last career's results don't carry over
         IsGameStarted = true;
         RefreshAll();
         BeginSession();
@@ -511,9 +554,13 @@ public sealed class MainViewModel : ObservableObject
         {
             Booking.SelectEvent(due.Id);
             NavigateTo(Tab.BookEvent);
-            StatusText = $"▶ {due.Name} is tonight — watch it live or sim the result before moving on.";
+            StatusText = $"▶ Time can't move on: {due.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar first.";
             return;
         }
+
+        // A new stretch of time: the last action's result is old news (the
+        // advance itself is summarised in the tray).
+        StatusText = "";
 
         var r = _tick.AdvanceWeeksStoppingForPlayer(_world, weeks);
         LastAdvance =
@@ -526,9 +573,13 @@ public sealed class MainViewModel : ObservableObject
 
         // Bankruptcy is the end of the road (no autosave — CONTINUE keeps the
         // last world that was still alive).
-        if (_world.Get(_world.PlayerPromotion) is { Defunct: true })
+        if (_world.Get(_world.PlayerPromotion) is { Defunct: true } dead)
         {
-            StatusText = "GAME OVER — the promotion is bankrupt. Hit New Game to start a new story.";
+            Alert("GAME OVER",
+                $"GAME OVER — {dead.Name} is bankrupt. Start menu → New Game for a new career, or Load an earlier save.",
+                $"{dead.Name} has gone bankrupt and closed its doors. Your career with it is over.",
+                "The collapse was not autosaved, so your saves (and Continue) still hold the career as it was before it. " +
+                "Start menu → New Game begins a new career; Load picks up an earlier save.");
             return;
         }
         Autosave();
@@ -548,7 +599,7 @@ public sealed class MainViewModel : ObservableObject
         {
             Booking.SelectEvent(pending.Id);
             NavigateTo(Tab.BookEvent);
-            StatusText = $"▶ {pending.Name} is tonight — watch it live or sim the result.";
+            StatusText = $"▶ Time stopped: {pending.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar.";
         }
     }
 
@@ -575,7 +626,9 @@ public sealed class MainViewModel : ObservableObject
         EventsPage.Select(ev.Id.Value);
         NavigateTo(Tab.Events);
         var fin = ev.Financials;
-        StatusText = $"{ev.Name} is in the books — house {fin?.Attendance:N0}, gate {fin?.GateRevenue}.";
+        StatusText = fin is null
+            ? $"{ev.Name} is in the books — results are on the event page."
+            : $"{ev.Name} is in the books — house {fin.Attendance:N0}, gate {fin.GateRevenue}.";
     }
 
     // Run one of the player's booked cards now, with commentary, and open the
@@ -614,10 +667,16 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             SaveGame.Save(world, dialog.FileName);
-            StatusText = $"Saved to {Path.GetFileName(dialog.FileName)}.";
+            StatusText = $"Career saved to {Path.GetFileName(dialog.FileName)}.";
             RefreshContinue();
         }
-        catch (Exception ex) { StatusText = "Save failed: " + ex.Message; }
+        catch (Exception ex)
+        {
+            Alert("SAVE FAILED",
+                $"Save failed — {Path.GetFileName(dialog.FileName)} was not written: {ex.Message}",
+                $"The career was not saved to {Path.GetFileName(dialog.FileName)}. Nothing in the game has changed; try saving again, to another name or folder.",
+                ex.Message);
+        }
     }
 
     /// <summary>
@@ -662,14 +721,19 @@ public sealed class MainViewModel : ObservableObject
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
             Core.Sim.Booking.GlobalRankings.Recompute(_world);   // derived data isn't saved
             LastAdvance = $"Loaded {Path.GetFileName(path)}.";
+            StatusText = "";   // the last career's results don't carry over
             IsGameStarted = true;
             RefreshAll();
             BeginSession();
         }
         catch (Exception ex)
         {
-            StatusText = "Load failed: " + ex.Message;
             StartScreenError = IsGameStarted ? "" : $"Couldn't load {Path.GetFileName(path)} — {ex.Message}";
+            Alert("LOAD FAILED",
+                $"Load failed — {Path.GetFileName(path)} could not be opened: {ex.Message}",
+                $"{Path.GetFileName(path)} could not be loaded. It may be damaged or from an older version of the game " +
+                "(saves don't carry across versions). Load another save, or start a new career.",
+                ex.Message);
         }
     }
 
@@ -775,8 +839,8 @@ public sealed class MainViewModel : ObservableObject
             app.Resources["OrgAccent"] = brush;
             app.Resources["OrgAccentDim"] = dim;
         }
-        int active = _world.Fighters.Values.Count(f => f.Status != FighterStatus.Retired);
-        StatusText = $"{active} active fighters · {_world.Promotions.Count} promotions";
+        // (StatusText is the player's last result — a refresh must never
+        // overwrite it, or every action's message is lost the moment it lands.)
 
         Promotions.Clear();
         Organizations.Clear();

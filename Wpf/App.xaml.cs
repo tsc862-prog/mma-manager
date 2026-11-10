@@ -17,6 +17,10 @@ public partial class App : Application
         // world. A plain interactive launch shows the start screen instead.
         MainViewModel.HeadlessAutoBoot = e.Args.Length > 0;
 
+        // The crash net (log + rescue save + tell the player) is for real play only.
+        // Harness modes must keep failing loudly on the console with a non-zero exit.
+        if (!MainViewModel.HeadlessAutoBoot) CrashGuard.Install(this);
+
         // Offscreen screenshot of the desktop shell (a maximized app + a floating
         // one over it): `MmaManager.Wpf --renderdesktop <path>`.
         if (e.Args.Contains("--renderdesktop"))
@@ -33,6 +37,16 @@ public partial class App : Application
                 floating.W = 1080; floating.H = 660; floating.X = 250; floating.Y = 80;
                 vm.Desktop.Notify("✉", "2 new messages", "Show report: the numbers are in from last night.");
 
+                // Leave a result on the shell's result strip: a real shortlist pin
+                // (routine), or with --alert a must-not-miss one (headless: strip only,
+                // never a dialog — the dialog itself is rendered to <path>-dialog.png).
+                if (e.Args.Contains("--alert"))
+                    vm.Alert("SAVE FAILED", "Save failed — afc-career.mmasave was not written: Access to the path is denied.",
+                        "The career was not saved to afc-career.mmasave. Nothing in the game has changed; try saving again, to another name or folder.",
+                        "Access to the path is denied.");
+                else if (vm.Roster.FirstOrDefault() is { } pin)
+                    vm.ToggleShortlistCommand.Execute(pin.Id);
+
                 var root = (FrameworkElement)win.Content;
                 const int W = 1600, H = 900;
                 var size = new Size(W, H);
@@ -46,6 +60,23 @@ public partial class App : Application
                 string p = e.Args[^1];
                 using (var fs = File.Create(p)) enc.Save(fs);
                 Console.WriteLine("RENDERDESKTOP OK -> " + Path.GetFullPath(p));
+
+                if (e.Args.Contains("--alert"))
+                {
+                    var dlg = new MessageWindow("SAVE FAILED",
+                        "The career was not saved to afc-career.mmasave. Nothing in the game has changed; try saving again, to another name or folder.",
+                        "Access to the path is denied.", severe: true);
+                    var droot = (FrameworkElement)dlg.Content;
+                    droot.Measure(new Size(480, double.PositiveInfinity));
+                    var dsize = new Size(480, Math.Ceiling(droot.DesiredSize.Height));
+                    droot.Arrange(new Rect(dsize)); droot.UpdateLayout();
+                    var drtb = new RenderTargetBitmap((int)dsize.Width, (int)dsize.Height, 96, 96, PixelFormats.Pbgra32);
+                    drtb.Render(droot);
+                    var denc = new PngBitmapEncoder(); denc.Frames.Add(BitmapFrame.Create(drtb));
+                    string dp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-dialog.png");
+                    using (var dfs = File.Create(dp)) denc.Save(dfs);
+                    Console.WriteLine("RENDERDESKTOP DIALOG OK -> " + dp);
+                }
             }
             catch (Exception ex) { Console.WriteLine("RENDERDESKTOP FAIL: " + ex); }
             Environment.Exit(0);
@@ -776,6 +807,96 @@ public partial class App : Application
             }
             catch (Exception ex) { Console.WriteLine("RENDERFOUNDED FAIL: " + ex); }
             Environment.Exit(0);
+            return;
+        }
+
+        // Open every desktop app, one at a time, and lay it out and render it
+        // offscreen — once for the quick-start big org (AFC, a month in) and once
+        // for a freshly founded shoestring promotion: `MmaManager.Wpf --smokeapps`.
+        // One OK/FAIL line per app; exits 1 if any app failed to open.
+        if (e.Args.Contains("--smokeapps"))
+        {
+            int run = 0, failed = 0;
+            Exception? deferred = null;   // errors raised in queued dispatcher work (Loaded handlers, bindings)
+            DispatcherUnhandledException += (_, de) => { deferred ??= de.Exception; de.Handled = true; };
+
+            static string Describe(Exception ex)
+            {
+                string msg = ex.GetType().Name + ": " + ex.Message;
+                if (ex.InnerException is { } inner) msg += " -> " + inner.GetType().Name + ": " + inner.Message;
+                return msg.Replace("\r", " ").Replace("\n", " ");
+            }
+
+            void Smoke(string label, Action<MainViewModel> setup)
+            {
+                MainWindow win;
+                MainViewModel vm;
+                try
+                {
+                    win = new MainWindow();
+                    vm = (MainViewModel)win.DataContext;
+                    setup(vm);
+                }
+                catch (Exception ex)
+                {
+                    run++; failed++;
+                    Console.WriteLine($"FAIL  {label,-8} (world setup)  {Describe(ex)}");
+                    return;
+                }
+
+                var root = (FrameworkElement)win.Content;
+                const int W = 1500, H = 950;
+                var size = new Size(W, H);
+                foreach (var spec in vm.Desktop.PromotionApps.Concat(vm.Desktop.WorldApps).ToList())
+                {
+                    run++;
+                    deferred = null;
+                    try
+                    {
+                        foreach (var open in vm.Desktop.Windows.ToList()) vm.Desktop.Close(open);
+                        vm.Desktop.Open(spec.Id);
+                        if (!vm.Desktop.Windows.Any(w => w.Spec.Id == spec.Id))
+                            throw new InvalidOperationException("the app window did not open");
+                        root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                            System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                        root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                        new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32).Render(root);
+                        if (deferred is not null) throw deferred;
+                        Console.WriteLine($"OK    {label,-8} {spec.Id,-14} {spec.Title}");
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        Console.WriteLine($"FAIL  {label,-8} {spec.Id,-14} {spec.Title}  {Describe(ex)}");
+                    }
+                }
+            }
+
+            Smoke("bigorg", vm =>
+            {
+                vm.AdvanceMonthCommand.Execute(null);   // a month of results in the feeds
+                vm.SelectedFighter = vm.Roster.FirstOrDefault();
+            });
+            Smoke("founded", vm =>
+            {
+                vm.StartWorld(new WorldBuilder.Options
+                {
+                    Seed = 7,
+                    Founding = new WorldBuilder.FoundingSpec
+                    {
+                        Name = "New Wave Fighting",
+                        Abbreviation = "NWF",
+                        Region = MmaManager.Core.Model.Region.Europe,
+                    },
+                }, "You founded New Wave Fighting.");
+                vm.SelectedFighter = vm.Roster.FirstOrDefault();
+            });
+
+            Console.WriteLine(failed == 0
+                ? $"SMOKEAPPS OK: {run} app opens, 0 failed"
+                : $"SMOKEAPPS FAIL: {failed} of {run} app opens failed");
+            Environment.Exit(failed == 0 ? 0 : 1);
             return;
         }
 
