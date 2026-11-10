@@ -319,7 +319,6 @@ public sealed class MainViewModel : ObservableObject
         set
         {
             if (!Set(ref _selectedFighter, value)) return;
-            OnPropertyChanged(nameof(FighterDetail));
             OnPropertyChanged(nameof(HasSelectedFighter));
             OnPropertyChanged(nameof(SelectedIsMine));
             OnPropertyChanged(nameof(RetentionButtonText));
@@ -330,7 +329,6 @@ public sealed class MainViewModel : ObservableObject
         }
     }
     public bool HasSelectedFighter => _selectedFighter is not null;
-    public string FighterDetail => SelectedFighter?.Detail ?? "Select a fighter to see their profile.";
 
     // --- Front office: spend on the selected fighter (own roster only) -------
     /// <summary>Is the selected fighter under contract to the player's promotion?</summary>
@@ -839,7 +837,9 @@ public sealed class MainViewModel : ObservableObject
         if (RosterFilter != "All divisions")
             fighters = fighters.Where(f => FighterRow.Pretty(f.WeightClass.ToString()) == RosterFilter);
 
-        foreach (var f in fighters.OrderByDescending(f => Core.Sim.Ability.FighterAbility.CurrentAbility(f)).Take(400))
+        // Best first by YOUR scout's read (the Scout column), never the truth —
+        // list position must not leak what the fog hides. Id breaks ties.
+        foreach (var f in fighters.OrderByDescending(f => FighterRow.Scouted(_world, f)).ThenBy(f => f.Id.Value).Take(400))
             Roster.Add(new FighterRow(f, _world, _fightIndex));
 
         // Keep the same fighter selected across advances/filters — including one

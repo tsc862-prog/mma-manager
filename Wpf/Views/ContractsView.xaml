@@ -74,7 +74,6 @@
                             <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort" Width="86" />
                             <DataGridTextColumn Header="Fights" Binding="{Binding Fights}" Width="56" ElementStyle="{StaticResource NumCell}" />
                             <DataGridTextColumn Header="Hometown" Binding="{Binding Hometown}" Width="148" />
-                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="52" ElementStyle="{StaticResource NumCell}" />
                             <DataGridTextColumn Header="Ask / fight" Binding="{Binding Ask}" SortMemberPath="AskSort" Width="92" ElementStyle="{StaticResource NumCell}" />
                         </DataGrid.Columns>
                     </DataGrid>

@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Living;
 using MmaManager.Wpf.Mvvm;
 
@@ -112,7 +111,8 @@ public sealed class CampsViewModel : ObservableObject
         if (_world is null || SelectedCamp is null) return;
         var members = _world.Fighters.Values
             .Where(f => f.Camp == SelectedCamp.Model.Id && f.Status == FighterStatus.Active)
-            .OrderByDescending(FighterAbility.CurrentAbility);
+            .OrderByDescending(f => FighterRow.Scouted(_world, f))   // your scout's read, not the truth
+            .ThenBy(f => f.Id.Value);
         foreach (var f in members)
         {
             string org = f.Contract is { } c ? _world.Get(c.Promotion)?.Abbreviation ?? "FA" : "FA";

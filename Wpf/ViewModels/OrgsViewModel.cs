@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Media;
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Org;
 using MmaManager.Wpf.Art;
 using MmaManager.Wpf.Mvvm;
@@ -194,7 +193,8 @@ public sealed class OrgsViewModel : ObservableObject
                 Belts.Add(new BeltRow(title, d, _world));
 
         // The marquee: best names on the books.
-        foreach (var f in roster.OrderByDescending(FighterAbility.CurrentAbility).Take(6))
+        // By YOUR scout's read (the Sct on each card), never the truth.
+        foreach (var f in roster.OrderByDescending(f => FighterRow.Scouted(_world, f)).ThenBy(f => f.Id.Value).Take(6))
             TopFighters.Add(new OrgTopFighter
             {
                 FighterId = f.Id.Value,
