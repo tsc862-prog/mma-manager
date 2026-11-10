@@ -81,6 +81,17 @@ internal static class Db
         return s is null ? null : System.Enum.Parse<T>(s);
     }
 
+    // --- round scores: null = not recorded, "" = recorded with no rounds, else "10-9,9-10" ----
+    public static object Scores(List<RoundScore>? scores) =>
+        scores is null ? DBNull.Value : string.Join(",", scores.Select(x => $"{x.Red}-{x.Blue}"));
+
+    public static List<RoundScore>? Scores(this SqliteDataReader r, string col) =>
+        r.StrN(col) is not { } s ? null
+        : s.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Split('-'))
+            .Select(p => new RoundScore(int.Parse(p[0], Inv), int.Parse(p[1], Inv)))
+            .ToList();
+
     // --- deal requirements: "Kind:Threshold|Kind:Threshold" ------------------
     public static string Reqs(IEnumerable<DealRequirement> reqs) =>
         string.Join("|", reqs.Select(x => $"{x.Kind}:{x.Threshold}"));

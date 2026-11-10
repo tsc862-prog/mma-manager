@@ -3,7 +3,7 @@ using MmaManager.Core.Model;
 namespace MmaManager.Persistence;
 
 /// <summary>
-/// Single source of truth for the fighters table's 32 rating columns: the
+/// Single source of truth for the fighters table's 36 rating columns: the
 /// column name paired with a getter/setter into the fighter's grouped ratings.
 /// The writer and reader both drive off this list, so the schema, the INSERT,
 /// and the SELECT can never drift out of order.

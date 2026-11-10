@@ -4,10 +4,12 @@ namespace MmaManager.Persistence;
 
 /// <summary>
 /// The save-file schema. Top-level entities and their queryable dimensions
-/// (weight class, promotion, status, record) are real columns; the 32 fighter
+/// (weight class, promotion, status, record) are real columns; the 36 fighter
 /// ratings are generated from <see cref="FighterColumns"/> so schema and mapping
 /// stay in lock-step. Order-bearing lists (rankings, lineage, cards, bout
-/// history) carry an ordinal so they round-trip exactly.
+/// history) carry an ordinal so they round-trip exactly, and so do the entity
+/// tables (fighters, promotions, ...): the sim iterates those dictionaries, so
+/// the order they enumerate in is state and is restored as saved.
 /// </summary>
 internal static class SaveSchema
 {
@@ -32,7 +34,7 @@ internal static class SaveSchema
             );
 
             CREATE TABLE promotions (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL,
                 name TEXT NOT NULL, abbreviation TEXT NOT NULL, base_region TEXT NOT NULL,
                 is_player INTEGER NOT NULL, balance TEXT NOT NULL, prestige INTEGER NOT NULL,
                 reputation INTEGER NOT NULL, defunct INTEGER NOT NULL DEFAULT 0, home_city INTEGER,
@@ -87,7 +89,7 @@ internal static class SaveSchema
             );
 
             CREATE TABLE titles (
-                id INTEGER PRIMARY KEY, promotion_id INTEGER NOT NULL,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, promotion_id INTEGER NOT NULL,
                 weight_class TEXT NOT NULL, name TEXT NOT NULL, current_champion INTEGER,
                 prestige INTEGER NOT NULL DEFAULT 0
             );
@@ -98,7 +100,7 @@ internal static class SaveSchema
             );
 
             CREATE TABLE fighters (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL,
                 first_name TEXT NOT NULL, last_name TEXT NOT NULL, nickname TEXT,
                 persona TEXT, bio TEXT, is_designed INTEGER NOT NULL DEFAULT 0, is_local INTEGER NOT NULL DEFAULT 0,
                 home_city INTEGER, country_id INTEGER NOT NULL DEFAULT 0,
@@ -111,9 +113,9 @@ internal static class SaveSchema
                 wins_ko INTEGER NOT NULL, wins_sub INTEGER NOT NULL, wins_dec INTEGER NOT NULL, streak INTEGER NOT NULL,
                 contract_promotion INTEGER, contract_signed_on TEXT, contract_type TEXT,
                 purse TEXT, win_bonus TEXT, fights_remaining INTEGER, is_exclusive INTEGER, has_champions_clause INTEGER,
-                signing_bonus TEXT, ppv_points INTEGER, performance_bonus TEXT, guaranteed INTEGER,
+                signing_bonus TEXT, ppv_points INTEGER, performance_bonus TEXT, guaranteed INTEGER, poach_warned INTEGER,
                 injury_severity TEXT, injury_desc TEXT, injury_occurred TEXT, injury_return TEXT,
-                ready_to_fight_on TEXT, loyalty INTEGER, marketing_push INTEGER, camp_id INTEGER,
+                ready_to_fight_on TEXT, loyalty INTEGER NOT NULL, marketing_push INTEGER NOT NULL, camp_id INTEGER,
                 camp_stipend INTEGER NOT NULL DEFAULT 0, star_power INTEGER NOT NULL DEFAULT 0,
                 discovered_by INTEGER,
                 disposition TEXT NOT NULL DEFAULT 'QuietProfessional',
@@ -131,6 +133,14 @@ internal static class SaveSchema
 
             CREATE TABLE fighter_city_rep (
                 fighter_id INTEGER NOT NULL, city_id INTEGER NOT NULL, rating INTEGER NOT NULL
+            );
+
+            CREATE TABLE global_rankings (
+                weight_class TEXT NOT NULL, fighters TEXT NOT NULL
+            );
+
+            CREATE TABLE pound_for_pound (
+                ordinal INTEGER NOT NULL, fighter_id INTEGER NOT NULL
             );
 
             CREATE TABLE rivalries (
@@ -172,29 +182,29 @@ internal static class SaveSchema
             );
 
             CREATE TABLE countries (
-                id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, name TEXT NOT NULL, code TEXT NOT NULL,
                 continent TEXT NOT NULL, areas TEXT NOT NULL, mma_interest INTEGER, mma_interest_base INTEGER
             );
 
             CREATE TABLE cities (
-                id INTEGER PRIMARY KEY, name TEXT NOT NULL, region TEXT NOT NULL, market INTEGER NOT NULL,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, name TEXT NOT NULL, region TEXT NOT NULL, market INTEGER NOT NULL,
                 country_id INTEGER NOT NULL, area INTEGER, mma_interest INTEGER, mma_interest_base INTEGER
             );
 
             CREATE TABLE venues (
-                id INTEGER PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER NOT NULL,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, name TEXT NOT NULL, city_id INTEGER NOT NULL,
                 capacity INTEGER NOT NULL, rent TEXT NOT NULL
             );
 
             CREATE TABLE camps (
-                id INTEGER PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER NOT NULL,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, name TEXT NOT NULL, city_id INTEGER NOT NULL,
                 specialty TEXT NOT NULL, reputation INTEGER NOT NULL,
                 head_coach INTEGER, coach_quality INTEGER NOT NULL,
                 capacity INTEGER NOT NULL, monthly_fee TEXT NOT NULL, lore TEXT
             );
 
             CREATE TABLE events (
-                id INTEGER PRIMARY KEY, promotion_id INTEGER NOT NULL, name TEXT NOT NULL,
+                id INTEGER PRIMARY KEY, ordinal INTEGER NOT NULL, promotion_id INTEGER NOT NULL, name TEXT NOT NULL,
                 date TEXT NOT NULL, venue TEXT, venue_id INTEGER, region TEXT NOT NULL, tier TEXT NOT NULL, status TEXT NOT NULL,
                 fin_present INTEGER NOT NULL, attendance INTEGER, gate TEXT, ppv_buys INTEGER,
                 ppv_rev TEXT, production TEXT, payroll TEXT, main_card INTEGER NOT NULL DEFAULT 0,
@@ -207,7 +217,8 @@ internal static class SaveSchema
                 scheduled_rounds INTEGER NOT NULL, is_title INTEGER NOT NULL, title_id INTEGER, catchweight INTEGER,
                 weight_miss INTEGER, overturned INTEGER NOT NULL DEFAULT 0,
                 out_present INTEGER NOT NULL, winner INTEGER, loser INTEGER,
-                method TEXT, end_round INTEGER, end_time INTEGER
+                method TEXT, end_round INTEGER, end_time INTEGER,
+                round_scores TEXT
             );
 
             CREATE TABLE decisions (

@@ -23,10 +23,36 @@ internal sealed class WorldWriter
         WriteShortlist(world);
         WriteOrg(world);
         WriteRivalries(world);
+        WriteGlobalRankings(world);
         WriteDecisions(world);
         WriteBiddingWars(world);
         WriteRelationships(world);
         WriteEvents(world);
+    }
+
+    // The cross-org rankings are derived (GlobalRankings.Recompute), but the sim reads them
+    // before it next recomputes (year-end awards), so a world loaded without them behaves
+    // differently from one that never was saved. Saved as-is; one row per class so a class
+    // with an empty list keeps its key.
+    private void WriteGlobalRankings(World w)
+    {
+        using var gr = _c.Cmd(_tx, "INSERT INTO global_rankings (weight_class, fighters) VALUES ($w,$f)");
+        foreach (var kv in w.GlobalRankings)
+        {
+            gr.Parameters.Clear();
+            gr.Bind("$w", kv.Key.ToString());
+            gr.Bind("$f", string.Join("|", kv.Value.Select(f => f.Value)));
+            gr.ExecuteNonQuery();
+        }
+
+        using var p4p = _c.Cmd(_tx, "INSERT INTO pound_for_pound (ordinal, fighter_id) VALUES ($o,$f)");
+        for (int i = 0; i < w.PoundForPound.Count; i++)
+        {
+            p4p.Parameters.Clear();
+            p4p.Bind("$o", i);
+            p4p.Bind("$f", w.PoundForPound[i].Value);
+            p4p.ExecuteNonQuery();
+        }
     }
 
     private void WriteRivalries(World w)
@@ -202,15 +228,17 @@ internal sealed class WorldWriter
 
     private void WriteGeography(World w)
     {
-        using var country = _c.Cmd(_tx, "INSERT INTO countries (id, name, code, continent, areas, mma_interest, mma_interest_base) VALUES ($id,$n,$c,$ct,$a,$mi,$mib)");
-        using var city = _c.Cmd(_tx, "INSERT INTO cities (id, name, region, market, country_id, area, mma_interest, mma_interest_base) VALUES ($id,$n,$r,$m,$c,$a,$mi,$mib)");
-        using var venue = _c.Cmd(_tx, "INSERT INTO venues (id, name, city_id, capacity, rent) VALUES ($id,$n,$c,$cap,$rent)");
-        using var camp = _c.Cmd(_tx, "INSERT INTO camps (id, name, city_id, specialty, reputation, head_coach, coach_quality, capacity, monthly_fee, lore) VALUES ($id,$n,$c,$sp,$rep,$hc,$q,$cap,$fee,$lore)");
+        using var country = _c.Cmd(_tx, "INSERT INTO countries (id, ordinal, name, code, continent, areas, mma_interest, mma_interest_base) VALUES ($id,$ord,$n,$c,$ct,$a,$mi,$mib)");
+        using var city = _c.Cmd(_tx, "INSERT INTO cities (id, ordinal, name, region, market, country_id, area, mma_interest, mma_interest_base) VALUES ($id,$ord,$n,$r,$m,$c,$a,$mi,$mib)");
+        using var venue = _c.Cmd(_tx, "INSERT INTO venues (id, ordinal, name, city_id, capacity, rent) VALUES ($id,$ord,$n,$c,$cap,$rent)");
+        using var camp = _c.Cmd(_tx, "INSERT INTO camps (id, ordinal, name, city_id, specialty, reputation, head_coach, coach_quality, capacity, monthly_fee, lore) VALUES ($id,$ord,$n,$c,$sp,$rep,$hc,$q,$cap,$fee,$lore)");
 
+        int countryOrd = 0;
         foreach (var k in w.Countries.Values)
         {
             country.Parameters.Clear();
             country.Bind("$id", k.Id.Value);
+            country.Bind("$ord", countryOrd++);
             country.Bind("$n", k.Name);
             country.Bind("$c", k.Code);
             country.Bind("$ct", k.Continent.ToString());
@@ -220,10 +248,12 @@ internal sealed class WorldWriter
             country.ExecuteNonQuery();
         }
 
+        int cityOrd = 0;
         foreach (var c in w.Cities.Values)
         {
             city.Parameters.Clear();
             city.Bind("$id", c.Id.Value);
+            city.Bind("$ord", cityOrd++);
             city.Bind("$n", c.Name);
             city.Bind("$r", c.Region.ToString());
             city.Bind("$m", c.Market);
@@ -234,10 +264,12 @@ internal sealed class WorldWriter
             city.ExecuteNonQuery();
         }
 
+        int venueOrd = 0;
         foreach (var v in w.Venues.Values)
         {
             venue.Parameters.Clear();
             venue.Bind("$id", v.Id.Value);
+            venue.Bind("$ord", venueOrd++);
             venue.Bind("$n", v.Name);
             venue.Bind("$c", v.City.Value);
             venue.Bind("$cap", v.Capacity);
@@ -245,10 +277,12 @@ internal sealed class WorldWriter
             venue.ExecuteNonQuery();
         }
 
+        int campOrd = 0;
         foreach (var g in w.Camps.Values)
         {
             camp.Parameters.Clear();
             camp.Bind("$id", g.Id.Value);
+            camp.Bind("$ord", campOrd++);
             camp.Bind("$n", g.Name);
             camp.Bind("$c", g.City.Value);
             camp.Bind("$sp", g.Specialty.ToString());
@@ -292,13 +326,13 @@ internal sealed class WorldWriter
     {
         var core = new[]
         {
-            "id", "first_name", "last_name", "nickname", "persona", "bio", "is_designed", "is_local", "home_city", "country_id", "birth_date", "sex", "nationality", "stance",
+            "id", "ordinal", "first_name", "last_name", "nickname", "persona", "bio", "is_designed", "is_local", "home_city", "country_id", "birth_date", "sex", "nationality", "stance",
             "height_cm", "reach_cm", "natural_weight_lbs", "weight_class", "primary_style", "potential_ability",
             "status", "morale", "momentum", "suspended_until",
             "wins", "losses", "draws", "no_contests", "wins_ko", "wins_sub", "wins_dec", "streak",
             "contract_promotion", "contract_signed_on", "contract_type", "purse", "win_bonus",
             "fights_remaining", "is_exclusive", "has_champions_clause",
-            "signing_bonus", "ppv_points", "performance_bonus", "guaranteed",
+            "signing_bonus", "ppv_points", "performance_bonus", "guaranteed", "poach_warned",
             "injury_severity", "injury_desc", "injury_occurred", "injury_return",
             "ready_to_fight_on", "loyalty", "marketing_push", "camp_id", "camp_stipend", "star_power",
             "discovered_by", "disposition",
@@ -311,10 +345,12 @@ internal sealed class WorldWriter
         using var rrep = _c.Cmd(_tx, "INSERT INTO fighter_city_rep (fighter_id, city_id, rating) VALUES ($f,$r,$v)");
         using var acc = _c.Cmd(_tx, "INSERT INTO fighter_accolades (fighter_id, ordinal, date, title) VALUES ($f,$o,$d,$t)");
 
+        int fighterOrd = 0;
         foreach (var f in w.Fighters.Values)
         {
             cmd.Parameters.Clear();
             cmd.Bind("$id", f.Id.Value);
+            cmd.Bind("$ordinal", fighterOrd++);
             cmd.Bind("$first_name", f.FirstName);
             cmd.Bind("$last_name", f.LastName);
             cmd.Bind("$nickname", Db.Text(f.Nickname));
@@ -361,10 +397,11 @@ internal sealed class WorldWriter
                 cmd.Bind("$ppv_points", k.PpvPoints);
                 cmd.Bind("$performance_bonus", Db.Cash(k.PerformanceBonus));
                 cmd.Bind("$guaranteed", k.Guaranteed ? 1 : 0);
+                cmd.Bind("$poach_warned", k.PoachWarned ? 1 : 0);
             }
             else
             {
-                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed" })
+                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed", "$poach_warned" })
                     cmd.Bind(p, DBNull.Value);
             }
 
@@ -428,7 +465,7 @@ internal sealed class WorldWriter
     private void WritePromotions(World w)
     {
         using var promo = _c.Cmd(_tx,
-            "INSERT INTO promotions (id, name, abbreviation, base_region, is_player, balance, prestige, reputation, defunct, home_city, round_minutes, standard_rounds, title_rounds, fotn_bonus, prestige_hundredths, milestones, marketing_budget, tier_clearance, promotion_offered, eligible_since, sponsored_camp, face_fighter, lore, stream_name, stream_launched, stream_subs, courted_by, last_cleared_tier, last_cleared_on, owner_name, owner_note, founded_year) VALUES ($id,$n,$a,$r,$p,$b,$pr,$rep,$def,$hc,$rm,$sr,$tr,$fotn,$ph,$ms,$mb,$tc,$po,$es,$sc,$ff,$lore,$stn,$stl,$sts,$cb,$lct,$lco,$own,$ownn,$fy)");
+            "INSERT INTO promotions (id, ordinal, name, abbreviation, base_region, is_player, balance, prestige, reputation, defunct, home_city, round_minutes, standard_rounds, title_rounds, fotn_bonus, prestige_hundredths, milestones, marketing_budget, tier_clearance, promotion_offered, eligible_since, sponsored_camp, face_fighter, lore, stream_name, stream_launched, stream_subs, courted_by, last_cleared_tier, last_cleared_on, owner_name, owner_note, founded_year) VALUES ($id,$ord,$n,$a,$r,$p,$b,$pr,$rep,$def,$hc,$rm,$sr,$tr,$fotn,$ph,$ms,$mb,$tc,$po,$es,$sc,$ff,$lore,$stn,$stl,$sts,$cb,$lct,$lco,$own,$ownn,$fy)");
         using var pop = _c.Cmd(_tx,
             "INSERT INTO promotion_city_pop (promotion_id, city_id, rating) VALUES ($p,$r,$v)");
         using var div = _c.Cmd(_tx,
@@ -444,10 +481,12 @@ internal sealed class WorldWriter
         using var offer = _c.Cmd(_tx,
             "INSERT INTO deal_offers (promotion_id, ordinal, media_kind, partner, fee_per_event, term, requirements, offered_on, expires_on) VALUES ($p,$o,$k,$pt,$fee,$t,$req,$on,$ex)");
 
+        int promoOrd = 0;
         foreach (var p in w.Promotions.Values)
         {
             promo.Parameters.Clear();
             promo.Bind("$id", p.Id.Value);
+            promo.Bind("$ord", promoOrd++);
             promo.Bind("$n", p.Name);
             promo.Bind("$a", p.Abbreviation);
             promo.Bind("$r", p.BaseRegion.ToString());
@@ -579,14 +618,16 @@ internal sealed class WorldWriter
     private void WriteTitles(World w)
     {
         using var title = _c.Cmd(_tx,
-            "INSERT INTO titles (id, promotion_id, weight_class, name, current_champion, prestige) VALUES ($id,$p,$w,$n,$c,$pr)");
+            "INSERT INTO titles (id, ordinal, promotion_id, weight_class, name, current_champion, prestige) VALUES ($id,$ord,$p,$w,$n,$c,$pr)");
         using var reign = _c.Cmd(_tx,
             "INSERT INTO title_reigns (title_id, ordinal, champion, won_on, lost_on, defenses) VALUES ($t,$o,$c,$won,$lost,$d)");
 
+        int titleOrd = 0;
         foreach (var t in w.Titles.Values)
         {
             title.Parameters.Clear();
             title.Bind("$id", t.Id.Value);
+            title.Bind("$ord", titleOrd++);
             title.Bind("$p", t.Promotion.Value);
             title.Bind("$w", t.WeightClass.ToString());
             title.Bind("$n", t.Name);
@@ -613,15 +654,15 @@ internal sealed class WorldWriter
     {
         using var ev = _c.Cmd(_tx,
             """
-            INSERT INTO events (id, promotion_id, name, date, venue, venue_id, region, tier, status,
+            INSERT INTO events (id, ordinal, promotion_id, name, date, venue, venue_id, region, tier, status,
                 fin_present, attendance, gate, ppv_buys, ppv_rev, production, payroll, main_card, hype_bonus)
-            VALUES ($id,$p,$n,$d,$v,$vid,$r,$tier,$s,$fp,$at,$g,$pb,$pr,$pc,$pay,$mc,$hb)
+            VALUES ($id,$ord,$p,$n,$d,$v,$vid,$r,$tier,$s,$fp,$at,$g,$pb,$pr,$pc,$pay,$mc,$hb)
             """);
         using var fight = _c.Cmd(_tx,
             """
             INSERT INTO fights (id, event_id, ordinal, red, blue, weight_class, scheduled_rounds,
-                is_title, title_id, catchweight, weight_miss, overturned, out_present, winner, loser, method, end_round, end_time)
-            VALUES ($id,$e,$o,$red,$blue,$w,$sr,$it,$t,$cw,$wm,$ot,$op,$win,$lose,$m,$er,$et)
+                is_title, title_id, catchweight, weight_miss, overturned, out_present, winner, loser, method, end_round, end_time, round_scores)
+            VALUES ($id,$e,$o,$red,$blue,$w,$sr,$it,$t,$cw,$wm,$ot,$op,$win,$lose,$m,$er,$et,$rs)
             """);
         using var stat = _c.Cmd(_tx,
             """
@@ -629,10 +670,12 @@ internal sealed class WorldWriter
             VALUES ($f,$fi,$sl,$sa,$tl,$ta,$su,$kd,$c)
             """);
 
+        int eventOrd = 0;
         foreach (var e in w.Events.Values)
         {
             ev.Parameters.Clear();
             ev.Bind("$id", e.Id.Value);
+            ev.Bind("$ord", eventOrd++);
             ev.Bind("$p", e.Promotion.Value);
             ev.Bind("$n", e.Name);
             ev.Bind("$d", Db.Date(e.Date));
@@ -684,11 +727,12 @@ internal sealed class WorldWriter
                     fight.Bind("$m", o.Method.ToString());
                     fight.Bind("$er", o.EndRound);
                     fight.Bind("$et", o.EndTimeSeconds);
+                    fight.Bind("$rs", Db.Scores(o.RoundScores));
                 }
                 else
                 {
                     fight.Bind("$op", 0);
-                    foreach (var p in new[] { "$win", "$lose", "$m", "$er", "$et" }) fight.Bind(p, DBNull.Value);
+                    foreach (var p in new[] { "$win", "$lose", "$m", "$er", "$et", "$rs" }) fight.Bind(p, DBNull.Value);
                 }
                 fight.ExecuteNonQuery();
 

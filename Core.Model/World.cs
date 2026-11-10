@@ -13,7 +13,7 @@ public sealed class World
     /// shape. Development rule: saves are never migrated — the reader refuses any
     /// other version and the player starts a new world (see PROJECT.md).
     /// </summary>
-    public const int LatestSaveVersion = 42;   // v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
+    public const int LatestSaveVersion = 43;   // v43: safe save (entity ordinals keep dictionary order, round scores + poach warning + cross-org rankings persisted, loyalty/marketing_push NOT NULL); v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
 
     /// <summary>The version a loaded save was written at (always <see cref="LatestSaveVersion"/> — older saves are refused on load).</summary>
     public int SaveVersion { get; init; } = LatestSaveVersion;
@@ -83,7 +83,7 @@ public sealed class World
     /// <summary>Staff available to hire.</summary>
     public List<StaffMember> StaffMarket { get; init; } = new();
 
-    // --- Cross-org rankings (derived; recomputed, not part of the save) ------
+    // --- Cross-org rankings (derived by GlobalRankings.Recompute, but saved: the sim reads them before it next recomputes) ---
     /// <summary>Best fighters in each weight class across all promotions.</summary>
     public Dictionary<WeightClass, List<FighterId>> GlobalRankings { get; init; } = new();
 

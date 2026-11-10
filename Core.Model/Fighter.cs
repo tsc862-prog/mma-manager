@@ -261,9 +261,8 @@ public sealed class Contract
     public bool Guaranteed { get; set; } = true;
 
     /// <summary>
-    /// Transient: the owner has been warned a bigger org is circling this deal,
-    /// so the warning fires once per contract. Not persisted — a fresh warning
-    /// after a load is harmless.
+    /// The owner has been warned a bigger org is circling this deal, so the
+    /// warning fires once per contract. Persisted, so a load does not repeat it.
     /// </summary>
     public bool PoachWarned { get; set; }
 }

@@ -94,8 +94,9 @@ public sealed class FightOutcome
     /// <summary>
     /// Each COMPLETED round on the canonical judge's card (10-9s, 10-8 on a
     /// knockdown or a rout — no per-judge noise). A finish carries the rounds
-    /// before the stoppage. Transient like <see cref="PlayByPlay"/>: not
-    /// persisted, only present on freshly simulated bouts (the live broadcast).
+    /// before the stoppage. Persisted (unlike <see cref="PlayByPlay"/>), because
+    /// the sim and the broadcast both read it and a loaded world must behave
+    /// as the one that was saved.
     /// </summary>
     public List<RoundScore>? RoundScores { get; set; }
 }
