@@ -139,8 +139,47 @@ public static class Biographer
             : $"a {origin}";
     }
 
+    /// <summary>
+    /// How a retired fighter's page closes. Retired people used to fall through to
+    /// the "free agent, available to the highest bidder" line, which is not only
+    /// wrong but invites the player to bid on a legend. Everything here comes
+    /// straight off the data: the room they run, the reigns on the lineages, the
+    /// final tally.
+    /// </summary>
+    private static string RetiredLine(World world, Fighter f)
+    {
+        var sb = new StringBuilder("Retired");
+        var room = world.Camps.Values.FirstOrDefault(c => c.HeadCoach == f.Id);
+        if (room is not null) sb.Append($", and now head coach of {room.Name}");
+        sb.Append('.');
+
+        var reigns = world.Titles.Values
+            .SelectMany(t => t.Lineage.Where(r => r.Champion == f.Id).Select(r => (Title: t, Reign: r)))
+            .OrderBy(x => x.Reign.WonOn)
+            .ToList();
+        foreach (var (title, reign) in reigns)
+        {
+            string span = reign.LostOn is { } lost
+                ? $"{reign.WonOn.Year} to {lost.Year}"
+                : $"since {reign.WonOn.Year}";
+            string defenses = reign.Defenses switch
+            {
+                0 => "no defenses",
+                1 => "1 defense",
+                var n => $"{n} defenses",
+            };
+            sb.Append($" Held the {title.Name} from {span} ({defenses}).");
+        }
+
+        if (f.Record.TotalBouts > 0)
+            sb.Append($" Finished {f.Record.Wins}-{f.Record.Losses}.");
+        return sb.ToString();
+    }
+
     private static string CareerLine(World world, Fighter f, int age, int ability)
     {
+        if (f.Status == FighterStatus.Retired) return RetiredLine(world, f);
+
         bool champion = world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
         var promo = f.Contract is { } c ? world.Get(c.Promotion) : null;
         int total = f.Record.TotalBouts;
