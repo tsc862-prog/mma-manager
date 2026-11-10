@@ -33,6 +33,16 @@ public partial class App : Application
                 floating.W = 1080; floating.H = 660; floating.X = 250; floating.Y = 80;
                 vm.Desktop.Notify("✉", "2 new messages", "Show report: the numbers are in from last night.");
 
+                // Leave a result on the shell's result strip: a real shortlist pin
+                // (routine), or with --alert a must-not-miss one (headless: strip only,
+                // never a dialog — the dialog itself is rendered to <path>-dialog.png).
+                if (e.Args.Contains("--alert"))
+                    vm.Alert("SAVE FAILED", "Save failed — afc-career.mmasave was not written: Access to the path is denied.",
+                        "The career was not saved to afc-career.mmasave. Nothing in the game has changed; try saving again, to another name or folder.",
+                        "Access to the path is denied.");
+                else if (vm.Roster.FirstOrDefault() is { } pin)
+                    vm.ToggleShortlistCommand.Execute(pin.Id);
+
                 var root = (FrameworkElement)win.Content;
                 const int W = 1600, H = 900;
                 var size = new Size(W, H);
@@ -46,6 +56,23 @@ public partial class App : Application
                 string p = e.Args[^1];
                 using (var fs = File.Create(p)) enc.Save(fs);
                 Console.WriteLine("RENDERDESKTOP OK -> " + Path.GetFullPath(p));
+
+                if (e.Args.Contains("--alert"))
+                {
+                    var dlg = new MessageWindow("SAVE FAILED",
+                        "The career was not saved to afc-career.mmasave. Nothing in the game has changed; try saving again, to another name or folder.",
+                        "Access to the path is denied.", severe: true);
+                    var droot = (FrameworkElement)dlg.Content;
+                    droot.Measure(new Size(480, double.PositiveInfinity));
+                    var dsize = new Size(480, Math.Ceiling(droot.DesiredSize.Height));
+                    droot.Arrange(new Rect(dsize)); droot.UpdateLayout();
+                    var drtb = new RenderTargetBitmap((int)dsize.Width, (int)dsize.Height, 96, 96, PixelFormats.Pbgra32);
+                    drtb.Render(droot);
+                    var denc = new PngBitmapEncoder(); denc.Frames.Add(BitmapFrame.Create(drtb));
+                    string dp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-dialog.png");
+                    using (var dfs = File.Create(dp)) denc.Save(dfs);
+                    Console.WriteLine("RENDERDESKTOP DIALOG OK -> " + dp);
+                }
             }
             catch (Exception ex) { Console.WriteLine("RENDERDESKTOP FAIL: " + ex); }
             Environment.Exit(0);
