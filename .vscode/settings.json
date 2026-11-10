@@ -1,0 +1,11 @@
+{
+  // The system-wide dotnet (C:\Program Files\dotnet) only has the .NET 6 runtime,
+  // but the C# extension's build host needs .NET 8. Point the .NET Install Tool
+  // (and the C# language server) at the per-user .NET 8 SDK installed at
+  // %USERPROFILE%\.dotnet so IntelliSense / project loading work.
+  "dotnetAcquisitionExtension.existingDotnetPath": [
+    { "extensionId": "ms-dotnettools.csharp", "path": "C:\\Users\\timca\\.dotnet\\dotnet.exe" },
+    { "extensionId": "ms-dotnettools.csdevkit", "path": "C:\\Users\\timca\\.dotnet\\dotnet.exe" }
+  ],
+  "omnisharp.dotnetPath": "C:\\Users\\timca\\.dotnet"
+}

@@ -1,0 +1,231 @@
+<UserControl x:Class="MmaManager.Wpf.Views.ContractsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+        <UserControl.Resources>
+            <!-- Right-aligned numeric cell -->
+            <Style x:Key="NumCell" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="TextAlignment" Value="Right" />
+                <Setter Property="Margin" Value="0,0,6,0" />
+            </Style>
+        </UserControl.Resources>
+        <Grid Margin="8" DataContext="{Binding Contracts}" HorizontalAlignment="Left" MaxWidth="1560">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="520" />
+                <ColumnDefinition Width="470" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: the market (top) + your deals (bottom) -->
+            <Grid Grid.Column="0" Margin="0,0,10,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- ============ Free agents ============ -->
+                <DockPanel Grid.Row="0">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="☆ Shortlist"
+                                Command="{Binding DataContext.ToggleShortlistCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding SelectedFreeAgent.Id.Value}" Margin="6,0,0,0"
+                                ToolTip="Pin the selected free agent to the Notes app shortlist" />
+                        <Button DockPanel.Dock="Right" Content="🔎 Suggest a signing" Command="{Binding SuggestSigningCommand}"
+                                ToolTip="The scout picks the smartest next signing — thin divisions, your budget, best talent available" />
+                        <ComboBox DockPanel.Dock="Right" Width="150" Margin="0,0,8,0"
+                                  ItemsSource="{Binding DivisionFilters}" SelectedItem="{Binding FaDivision}" />
+                        <TextBox DockPanel.Dock="Right" Width="150" Margin="0,0,8,0" VerticalAlignment="Center"
+                                 Text="{Binding FaSearch, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                                 ToolTip="Search the market by name" />
+                        <TextBlock DockPanel.Dock="Right" Text="Find:" FontSize="11" Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="FREE AGENTS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding MarketLine}" FontSize="11" Foreground="{StaticResource TextMuted}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+                    <!-- Prospect-hunting bounds: résumé, age and price caps -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Narrow it down:" FontSize="11" Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <ComboBox Width="104" ItemsSource="{Binding FightCapFilters}" SelectedItem="{Binding FaMaxFights}"
+                                  ToolTip="Career length cap — find the green prospects" />
+                        <ComboBox Width="94" Margin="6,0,0,0" ItemsSource="{Binding WinCapFilters}" SelectedItem="{Binding FaMaxWins}"
+                                  ToolTip="Career wins cap" />
+                        <ComboBox Width="84" Margin="6,0,0,0" ItemsSource="{Binding AgeCapFilters}" SelectedItem="{Binding FaMaxAge}"
+                                  ToolTip="Age cap" />
+                        <ComboBox Width="94" Margin="6,0,0,0" ItemsSource="{Binding AskCapFilters}" SelectedItem="{Binding FaMaxAsk}"
+                                  ToolTip="Asking-purse cap — who your gate can actually pay" />
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding FreeAgents}" SelectedItem="{Binding SelectedFreeAgent}" IsReadOnly="True" RowHeight="40" mvvm:FighterLink.OpenOnDoubleClick="True">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="" Width="46">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Image Source="{Binding Portrait}" Width="34" Height="34" Margin="4,0" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="Division" Binding="{Binding Division}" SortMemberPath="DivisionSort" Width="115" />
+                            <DataGridTextColumn Header="Age" Binding="{Binding Age}" Width="44" ElementStyle="{StaticResource NumCell}" />
+                            <DataGridTextColumn Header="Scout" Binding="{Binding Ovr}" Width="48" ElementStyle="{StaticResource NumCell}" />
+                            <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort" Width="86" />
+                            <DataGridTextColumn Header="Fights" Binding="{Binding Fights}" Width="56" ElementStyle="{StaticResource NumCell}" />
+                            <DataGridTextColumn Header="Hometown" Binding="{Binding Hometown}" Width="148" />
+                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="52" ElementStyle="{StaticResource NumCell}" />
+                            <DataGridTextColumn Header="Ask / fight" Binding="{Binding Ask}" SortMemberPath="AskSort" Width="92" ElementStyle="{StaticResource NumCell}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+
+                <!-- ============ Your deals ============ -->
+                <DockPanel Grid.Row="2">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding PayrollLine}" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center" />
+                        <TextBlock Text="YOUR DEALS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <DataGrid ItemsSource="{Binding MyContracts}" SelectedItem="{Binding SelectedMyContract}" IsReadOnly="True" RowHeight="40" mvvm:FighterLink.OpenOnDoubleClick="True">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="" Width="46">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Image Source="{Binding Portrait}" Width="34" Height="34" Margin="4,0" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="Division" Binding="{Binding Division}" Width="115" />
+                            <DataGridTextColumn Header="Purse" Binding="{Binding Purse}" SortMemberPath="PurseSort" Width="90" ElementStyle="{StaticResource NumCell}" />
+                            <DataGridTextColumn Header="Fights left" Binding="{Binding FightsLeft}" Width="76" ElementStyle="{StaticResource NumCell}" />
+                            <DataGridTextColumn Header="Terms" Binding="{Binding Terms}" Width="120" />
+                            <DataGridTemplateColumn Header="Status" Width="84">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" Margin="4,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                    <Style.Triggers>
+                                                        <!-- last bout on the deal — the giants may be circling -->
+                                                        <DataTrigger Binding="{Binding Expiring}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Grid>
+
+            <!-- ============ Right: the negotiating table ============ -->
+            <Border Grid.Column="1" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="THE NEGOTIATING TABLE" Style="{StaticResource SectionLabel}" Margin="0,0,0,10" />
+
+                    <!-- Who's across the table -->
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="84" Height="84" CornerRadius="6" Background="{StaticResource SurfaceAlt}"
+                                BorderBrush="{StaticResource BorderStrong}" BorderThickness="1" VerticalAlignment="Top">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasTarget}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Image Source="{Binding TargetPortrait}" Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding TargetName}" FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding TargetSub}" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Asking}" FontStyle="Italic" Foreground="#D6DADF" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- What moves them -->
+                    <TextBlock Text="WHAT THEY WANT" Margin="0,8,0,4">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource SectionLabel}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTarget}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Grid IsEnabled="{Binding HasTarget}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Money" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                        <ProgressBar Grid.Row="0" Grid.Column="1" Value="{Binding PriMoney, Mode=OneWay}" Maximum="100" Height="9" Margin="0,2" Foreground="{StaticResource World}" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Title path" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                        <ProgressBar Grid.Row="1" Grid.Column="1" Value="{Binding PriTitle, Mode=OneWay}" Maximum="100" Height="9" Margin="0,2" Foreground="{StaticResource World}" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Loyalty" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                        <ProgressBar Grid.Row="2" Grid.Column="1" Value="{Binding PriLoyalty, Mode=OneWay}" Maximum="100" Height="9" Margin="0,2" Foreground="{StaticResource World}" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Home region" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                        <ProgressBar Grid.Row="3" Grid.Column="1" Value="{Binding PriHome, Mode=OneWay}" Maximum="100" Height="9" Margin="0,2" Foreground="{StaticResource World}" />
+                    </Grid>
+
+                    <!-- The room is where the deal gets made -->
+                    <Border BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Margin="0,10,0,10" />
+                    <Button Content="🤝 Negotiate contract" Command="{Binding NegotiateCommand}" Padding="16,7" FontWeight="Bold"
+                            FontSize="13" HorizontalAlignment="Left"
+                            Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}"
+                            ToolTip="Sit down with their agent — multi-round talks over every lever of the deal" />
+                    <TextBlock Text="Opens the negotiating room: their agent quotes a position, you table offers, and the number moves — or the talks die."
+                               FontSize="11" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+                    <!-- The room's answer -->
+                    <TextBlock Text="{Binding Response}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,12,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                <Setter Property="Foreground" Value="{StaticResource Positive}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ResponseTone}" Value="Warn">
+                                        <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ResponseTone}" Value="Bad">
+                                        <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- Cutting a fighter is a different conversation — keep it away from the offer -->
+                    <Button Content="Release fighter" Command="{Binding ReleaseCommand}" HorizontalAlignment="Left" Margin="0,14,0,0"
+                            Foreground="{StaticResource Negative}"
+                            ToolTip="Guaranteed money on the deal is paid out on release">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsOwnFighter}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+</UserControl>

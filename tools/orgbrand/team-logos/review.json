@@ -1,0 +1,67 @@
+{
+  "KFL": {
+    "status": "approved",
+    "note": "",
+    "ts": 1784994184.130391
+  },
+  "TU": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555277.300877
+  },
+  "TO": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555280.148075
+  },
+  "VA": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555281.1006162
+  },
+  "WFT": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555283.6822307
+  },
+  "PA": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555284.2500749
+  },
+  "IMA": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555286.2082036
+  },
+  "TE": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555287.2063627
+  },
+  "BB": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555291.1111906
+  },
+  "TMA": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555301.7233126
+  },
+  "FMA": {
+    "status": "approved",
+    "note": "",
+    "ts": 1783555302.390124
+  },
+  "OA": {
+    "status": "declined",
+    "note": "boring and bad shape",
+    "ts": 1784994192.793763
+  },
+  "ZB": {
+    "status": "declined",
+    "note": "same fist all over...",
+    "ts": 1784994200.4033518
+  }
+}

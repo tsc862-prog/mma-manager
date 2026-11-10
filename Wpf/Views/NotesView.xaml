@@ -1,0 +1,91 @@
+<UserControl x:Class="MmaManager.Wpf.Views.NotesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+        <!-- The owner's legal pad + the watch list. Everything here saves with the career. -->
+        <Grid DataContext="{Binding Notes}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="380" />
+                <ColumnDefinition Width="430" />
+            </Grid.ColumnDefinitions>
+
+            <!-- The pad -->
+            <Border Background="#EFE7C1" BorderBrush="#C9BE8E" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="#E4D67A" Padding="14,9" BorderBrush="#C9BE8E" BorderThickness="0,0,0,1">
+                        <TextBlock Text="📝  the plan" FontFamily="Segoe Print" FontSize="13" FontWeight="Bold" Foreground="#4A3F1E" />
+                    </Border>
+                    <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                             Background="Transparent" BorderThickness="0" Padding="16,12"
+                             FontFamily="Segoe Print" FontSize="13.5" Foreground="#33301F" CaretBrush="#33301F" />
+                </DockPanel>
+            </Border>
+
+            <!-- The shortlist -->
+            <Border Grid.Column="1" Background="{StaticResource SurfaceSunken}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="★ THE SHORTLIST" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                            <TextBlock Text="pin fighters from any screen" FontSize="10.5" Foreground="{StaticResource TextFaint}"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock DockPanel.Dock="Top" Text="Nobody pinned yet — hit ☆ Shortlist on a fighter's profile, the Fighters database, the free-agent market, mail, or a news story."
+                               FontSize="12" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="14,12,14,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasShortlist}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Shortlist}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1" Padding="12,8"
+                                            Background="Transparent" Cursor="Hand"
+                                            ToolTip="Double-click for the full profile">
+                                        <Border.InputBindings>
+                                            <MouseBinding Gesture="LeftDoubleClick"
+                                                          Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          CommandParameter="{Binding FighterId}" />
+                                        </Border.InputBindings>
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource ChromeButton}" Width="26"
+                                                    Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" ToolTip="Take them off the list" />
+                                            <Image DockPanel.Dock="Left" Source="{Binding Portrait}" Width="38" Height="38" Margin="0,0,10,0" />
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource TextSecondary}" />
+                                                <TextBlock Text="{Binding Status}" FontSize="10.5" FontWeight="Bold" Margin="0,1,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextFaint}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsFreeAgent}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Positive}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+</UserControl>

@@ -1,0 +1,110 @@
+<Window x:Class="MmaManager.Wpf.NewGameWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="New Game" Width="640" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="#16191E" ShowInTaskbar="False">
+    <Border x:Name="Root" Background="{StaticResource Bg}" Padding="22,18">
+        <StackPanel>
+            <TextBlock Text="START A NEW CAREER" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+            <TextBlock Text="Build a fight promotion from nothing — or take the keys to an established one."
+                       Foreground="{StaticResource TextSecondary}" Margin="0,4,0,14" />
+
+            <!-- ============ Found a new promotion ============ -->
+            <RadioButton x:Name="FoundMode" IsChecked="True" GroupName="Mode" Foreground="{StaticResource TextPrimary}">
+                <StackPanel Margin="4,0,0,0">
+                    <TextBlock Text="Found a new promotion" FontWeight="SemiBold" FontSize="14" />
+                    <TextBlock Text="Zero to hero: a small bankroll, the fighters nobody signed, and everything to prove."
+                               Foreground="{StaticResource TextMuted}" FontSize="11.5" />
+                </StackPanel>
+            </RadioButton>
+
+            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    CornerRadius="4" Padding="14,10" Margin="22,8,0,14"
+                    IsEnabled="{Binding IsChecked, ElementName=FoundMode}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Promotion name" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,10,8" />
+                    <TextBox x:Name="NameBox" Grid.Column="1" Text="New Wave Fighting" Margin="0,0,14,8" />
+                    <TextBlock Grid.Column="2" Text="Abbreviation" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,10,8" />
+                    <TextBox x:Name="AbbrevBox" Grid.Column="3" Text="NWF" MaxLength="5" CharacterCasing="Upper" Margin="0,0,0,8" />
+
+                    <TextBlock Grid.Row="1" Text="Home region" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,10,8" />
+                    <ComboBox x:Name="RegionBox" Grid.Row="1" Grid.Column="1" Margin="0,0,14,8" SelectionChanged="OnRegionChanged" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Starting scale" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,10,8" />
+                    <ComboBox x:Name="ScaleBox" Grid.Row="1" Grid.Column="3" Margin="0,0,0,8" SelectionChanged="OnScaleChanged" />
+
+                    <TextBlock Grid.Row="2" Text="Home town" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,10,8" />
+                    <ComboBox x:Name="CityBox" Grid.Row="2" Grid.Column="1" Margin="0,0,14,8"
+                              ToolTip="Where your fans are: the town you draw best in, and the default stop on every card" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" VerticalAlignment="Center"
+                               Text="The capital is the biggest market — a smaller town is a quieter start."
+                               Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                    <TextBlock x:Name="ScaleBlurb" Grid.Row="3" Grid.ColumnSpan="4"
+                               Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+
+            <!-- ============ Take over an existing promotion ============ -->
+            <RadioButton x:Name="TakeoverMode" GroupName="Mode" Foreground="{StaticResource TextPrimary}">
+                <StackPanel Margin="4,0,0,0">
+                    <TextBlock Text="Take over an existing promotion" FontWeight="SemiBold" FontSize="14" />
+                    <TextBlock Text="Skip the climb and run one of the world's established organizations."
+                               Foreground="{StaticResource TextMuted}" FontSize="11.5" />
+                </StackPanel>
+            </RadioButton>
+
+            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    CornerRadius="4" Padding="6" Margin="22,8,0,14"
+                    IsEnabled="{Binding IsChecked, ElementName=TakeoverMode}">
+                <ListBox x:Name="TakeoverBox" BorderThickness="0" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="4,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock>
+                                    <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
+                                </TextBlock>
+                                <TextBlock Grid.Column="1" Text="{Binding Detail, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <!-- ============ Seed + go ============ -->
+            <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="World seed" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,0,10,0" />
+                <TextBox x:Name="SeedBox" Grid.Column="1" VerticalAlignment="Center" />
+                <TextBlock x:Name="ErrorText" Grid.Column="2" VerticalAlignment="Center" Margin="14,0"
+                           Foreground="{StaticResource Negative}" TextWrapping="Wrap" />
+                <Button Grid.Column="3" Content="Cancel" IsCancel="True" MinWidth="80" />
+                <Button Grid.Column="4" Content="Start" IsDefault="True" MinWidth="100" FontWeight="SemiBold"
+                        Foreground="{StaticResource Gold}" Click="OnStart" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>

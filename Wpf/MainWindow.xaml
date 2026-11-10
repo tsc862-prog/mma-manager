@@ -1,0 +1,516 @@
+<Window x:Class="MmaManager.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
+        xmlns:views="clr-namespace:MmaManager.Wpf.Views"
+        xmlns:shell="clr-namespace:MmaManager.Wpf.Shell"
+        Title="{Binding Title}" Height="860" Width="1520"
+        WindowStartupLocation="CenterScreen">
+    <Grid x:Name="RootGrid" Background="{StaticResource Bg}">
+
+
+    <!-- ============ THE DESKTOP SHELL (the "desktop" launch flag: the owner's computer) ============ -->
+    <DockPanel x:Name="DesktopShell" Background="{StaticResource Bg}">
+        <DockPanel.Style>
+            <Style TargetType="DockPanel">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsGameStarted}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </DockPanel.Style>
+        <DockPanel.Resources>
+            <!-- Start-menu entry: glyph + name, full-width -->
+            <Style x:Key="MenuEntry" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="b" Background="Transparent" CornerRadius="3" Padding="10,6">
+                                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource Hover}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <!-- Desktop icon -->
+            <Style x:Key="DesktopIcon" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Width" Value="88" />
+                <Setter Property="Margin" Value="0,0,4,6" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="b" Background="Transparent" CornerRadius="5" Padding="4,8">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="#33262C35" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource Hover}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <DataTemplate x:Key="DesktopIconTemplate">
+                <Button Style="{StaticResource DesktopIcon}"
+                        Command="{Binding DataContext.Desktop.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Glyph}" FontSize="26" TextAlignment="Center" />
+                        <TextBlock Text="{Binding Title}" FontSize="11" Foreground="{StaticResource TextPrimary}"
+                                   TextAlignment="Center" TextWrapping="Wrap" Margin="0,5,0,0" />
+                    </StackPanel>
+                </Button>
+            </DataTemplate>
+            <!-- Taskbar button for a running window -->
+            <Style x:Key="TaskbarButton" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Margin" Value="3,0,0,0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="b" Background="Transparent" CornerRadius="3" Padding="10,0" Height="34" VerticalAlignment="Center">
+                                <DockPanel LastChildFill="False" VerticalAlignment="Center">
+                                    <ContentPresenter VerticalAlignment="Center" />
+                                    <Border x:Name="bar" DockPanel.Dock="Bottom" Height="2" Background="Transparent" Margin="0,2,0,0" />
+                                </DockPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource Hover}" />
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAlt}" />
+                                    <Setter TargetName="bar" Property="Background" Value="{Binding AccentBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsMinimized}" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="Transparent" />
+                                    <Setter TargetName="bar" Property="Background" Value="{StaticResource BorderStrong}" />
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </DockPanel.Resources>
+
+        <!-- ==== Taskbar ==== -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource Header}" BorderBrush="{DynamicResource OrgAccentDim}" BorderThickness="0,2,0,0">
+            <DockPanel Margin="8,4">
+                <!-- Start -->
+                <ToggleButton x:Name="StartToggle" DockPanel.Dock="Left" Cursor="Hand" VerticalAlignment="Center">
+                    <ToggleButton.Template>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="b" Background="Transparent" CornerRadius="3" Padding="9,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <Image Source="{Binding PlayerLogo}" Width="24" Height="24" />
+                                    <TextBlock Text="{Binding OrgName}" FontWeight="Bold" FontSize="12.5"
+                                               Foreground="{DynamicResource OrgAccent}" VerticalAlignment="Center" Margin="8,0,0,0" MaxWidth="170" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource Hover}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAlt}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+                </ToggleButton>
+                <Popup IsOpen="{Binding IsChecked, ElementName=StartToggle, Mode=TwoWay}" StaysOpen="False"
+                       PlacementTarget="{Binding ElementName=StartToggle}" Placement="Top" AllowsTransparency="True" PopupAnimation="Slide">
+                    <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource BorderStrong}" BorderThickness="1" CornerRadius="6" Width="300" Margin="0,0,0,6">
+                        <Grid Margin="8" PreviewMouseUp="CloseStartMenu">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="YOUR PROMOTION" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" Margin="10,4,0,4" />
+                                <ItemsControl ItemsSource="{Binding Desktop.PromotionApps}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource MenuEntry}"
+                                                    Command="{Binding DataContext.Desktop.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Glyph}" Width="24" />
+                                                    <TextBlock Text="{Binding Title}" Margin="4,0,0,0" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Border Height="1" Background="{StaticResource Border}" Margin="6,8" />
+                                <Button Style="{StaticResource MenuEntry}" Command="{Binding NewGameCommand}" Content="New Game" />
+                                <Button Style="{StaticResource MenuEntry}" Command="{Binding SaveCommand}" Content="Save" />
+                                <Button Style="{StaticResource MenuEntry}" Command="{Binding LoadCommand}" Content="Load" />
+                                <Button Style="{StaticResource MenuEntry}" Command="{Binding ExitCommand}">
+                                    <TextBlock Text="Quit" Foreground="{StaticResource Negative}" />
+                                </Button>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="WORLD" FontSize="10" FontWeight="Bold" Foreground="{StaticResource World}" Margin="10,4,0,4" />
+                                <ItemsControl ItemsSource="{Binding Desktop.WorldApps}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource MenuEntry}"
+                                                    Command="{Binding DataContext.Desktop.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Glyph}" Width="24" />
+                                                    <TextBlock Text="{Binding Title}" Margin="4,0,0,0" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Popup>
+
+                <!-- System tray: the game clock lives where an OS clock would -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding LastAdvance}" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center"
+                               MaxWidth="330" TextTrimming="CharacterEllipsis" ToolTip="{Binding LastAdvance}" Margin="0,0,14,0" />
+                    <Button Command="{Binding OpenInboxCommand}" ToolTip="Unread mail — open the inbox" Margin="0,0,10,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Mail.UnreadCount}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✉" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding Mail.UnreadCount}" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Content="Advance Week" Command="{Binding AdvanceWeekCommand}" />
+                    <Button Content="Advance Month" Command="{Binding AdvanceMonthCommand}"
+                            Background="{StaticResource Crimson}" BorderBrush="{StaticResource Crimson}" Foreground="White" FontWeight="SemiBold" />
+                    <Border Width="1" Background="{StaticResource Border}" Margin="10,4" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding DateText}" FontWeight="Bold" FontSize="12" Foreground="{StaticResource TextPrimary}" TextAlignment="Right" />
+                        <TextBlock Text="{Binding BalanceText}" FontWeight="Bold" FontSize="12" Foreground="{StaticResource Gold}" TextAlignment="Right" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Running apps -->
+                <ItemsControl ItemsSource="{Binding Desktop.Windows}" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Style="{StaticResource TaskbarButton}"
+                                    Command="{Binding DataContext.Desktop.TaskbarClickCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Glyph}" FontSize="13" />
+                                    <TextBlock Text="{Binding Title}" FontSize="12" Margin="7,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+        </Border>
+
+        <!-- Fight night still stops the clock, desktop or not -->
+        <Border DockPanel.Dock="Top" Background="#3A2226" BorderBrush="#B3392E" BorderThickness="0,0,0,1" Padding="12,7">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFightNight}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="▶ Watch Live" Command="{Binding WatchTonightCommand}" FontWeight="SemiBold"
+                            Background="{StaticResource Crimson}" BorderBrush="{StaticResource Crimson}" Foreground="White" />
+                    <Button Content="Sim Result" Command="{Binding SimTonightCommand}" Margin="8,0,0,0" />
+                </StackPanel>
+                <TextBlock Text="{Binding FightNightLine}" FontWeight="Bold" Foreground="#F2D7D3" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <!-- ==== The desktop ==== -->
+        <Grid>
+            <!-- Wallpaper: the org watermark on the dark desk -->
+            <Border>
+                <Border.Background>
+                    <RadialGradientBrush Center="0.5,0.42" GradientOrigin="0.5,0.42" RadiusX="0.85" RadiusY="0.85">
+                        <GradientStop Color="#1A1F27" Offset="0" />
+                        <GradientStop Color="#101318" Offset="1" />
+                    </RadialGradientBrush>
+                </Border.Background>
+            </Border>
+            <Image Source="{Binding PlayerLogo}" Width="360" Height="360" Opacity="0.05"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+            <!-- The sticky note on the desk: what actually needs doing -->
+            <Border Width="235" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,26,30,0"
+                    Background="#E2D276" Padding="14,10,14,14" RenderTransformOrigin="0.5,0">
+                <Border.RenderTransform>
+                    <RotateTransform Angle="1.7" />
+                </Border.RenderTransform>
+                <StackPanel>
+                    <TextBlock Text="📌  the desk" FontFamily="Segoe Print" FontSize="12" FontWeight="Bold" Foreground="#4A3F1E" Margin="0,0,0,4" />
+                    <ItemsControl ItemsSource="{Binding DeskNotes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding StringFormat=•  {0}}" FontFamily="Segoe Print" FontSize="12"
+                                           Foreground="#3A3320" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Desktop icons, grouped like the old sidebar -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="YOUR PROMOTION" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" Margin="6,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Desktop.PromotionApps}" ItemTemplate="{StaticResource DesktopIconTemplate}" />
+                </StackPanel>
+                <StackPanel Margin="8,0,0,0">
+                    <TextBlock Text="WORLD" FontSize="10" FontWeight="Bold" Foreground="{StaticResource World}" Margin="6,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Desktop.WorldApps}" ItemTemplate="{StaticResource DesktopIconTemplate}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- The windows -->
+            <ItemsControl ItemsSource="{Binding Desktop.Windows}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Canvas ClipToBounds="True" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="Canvas.Left" Value="{Binding X}" />
+                        <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                        <Setter Property="Panel.ZIndex" Value="{Binding Z}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMaximized}" Value="True">
+                                <Setter Property="Canvas.Left" Value="0" />
+                                <Setter Property="Canvas.Top" Value="0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <shell:AppWindow />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- The notification corner -->
+            <ItemsControl ItemsSource="{Binding Desktop.Toasts}" Width="340"
+                          HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,12">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="#F5262C35" BorderBrush="{DynamicResource OrgAccentDim}" BorderThickness="1"
+                                CornerRadius="6" Padding="12,10" Margin="0,8,0,0" Cursor="Hand"
+                                ToolTip="Click to open" RenderTransformOrigin="1,0.5">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="ToastSlide" X="40" />
+                            </Border.RenderTransform>
+                            <Border.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.18" />
+                                            <DoubleAnimation Storyboard.TargetName="ToastSlide" Storyboard.TargetProperty="X" To="0" Duration="0:0:0.18" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Border.Triggers>
+                            <Border.InputBindings>
+                                <MouseBinding Gesture="LeftClick" Command="{Binding ClickCommand}" />
+                            </Border.InputBindings>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="✕" Command="{Binding DismissCommand}"
+                                        Style="{StaticResource ChromeButton}" Width="24" VerticalAlignment="Top" />
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Glyph}" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Body}" FontSize="11.5" Foreground="{StaticResource TextSecondary}"
+                                               TextWrapping="Wrap" MaxHeight="34" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </DockPanel>
+
+    <!-- ============ START SCREEN (the front door — shown until a career begins) ============ -->
+    <Grid>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsGameStarted}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
+        <Grid.Resources>
+            <!-- Big menu entries: a loud label over a quiet one-line pitch. -->
+            <Style x:Key="MenuButton" TargetType="Button">
+                <Setter Property="Margin" Value="0,0,0,10" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Background" Value="#CC1E232B" />
+                <Setter Property="BorderBrush" Value="{StaticResource BorderStrong}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1,1,1,1" CornerRadius="3" Padding="18,11" SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource Hover}" />
+                                    <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="b" Property="Background" Value="{StaticResource Bg}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Grid.Resources>
+        <Grid.Background>
+            <RadialGradientBrush Center="0.32,0.38" GradientOrigin="0.32,0.38" RadiusX="0.95" RadiusY="0.95">
+                <GradientStop Color="#1D222B" Offset="0" />
+                <GradientStop Color="#0F1216" Offset="1" />
+            </RadialGradientBrush>
+        </Grid.Background>
+
+        <!-- The empty cage under the house lights, waiting -->
+        <Grid Width="600" Height="600" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,70,0" Opacity="0.9">
+            <Path Stroke="#2A313B" StrokeThickness="2.5"
+                  Data="M 558.7,407.2 L 407.2,558.7 L 192.8,558.7 L 41.3,407.2 L 41.3,192.8 L 192.8,41.3 L 407.2,41.3 L 558.7,192.8 Z" />
+            <Path Stroke="{StaticResource Selection}" StrokeThickness="1.5"
+                  Data="M 531,395.8 L 395.8,531 L 204.2,531 L 69,395.8 L 69,204.2 L 204.2,69 L 395.8,69 L 531,204.2 Z" />
+            <Path Stroke="#20262E" StrokeThickness="1"
+                  Data="M 496,381.4 L 381.4,496 L 218.6,496 L 104,381.4 L 104,218.6 L 218.6,104 L 381.4,104 L 496,218.6 Z" />
+        </Grid>
+
+        <!-- Title + the doors in -->
+        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center" Margin="120,0,0,0" Width="430">
+            <TextBlock Text="MMA" FontSize="66" FontWeight="Black" Foreground="{StaticResource Gold}" Margin="0,0,0,-22" />
+            <TextBlock Text="MANAGER" FontSize="66" FontWeight="Black" Foreground="{StaticResource TextPrimary}" />
+            <Rectangle Height="3" Width="130" Fill="{StaticResource Crimson}" HorizontalAlignment="Left" Margin="4,8,0,10" />
+            <TextBlock Text="Run the fight game — from a fight-hall shoestring to the biggest stage in the sport."
+                       Foreground="{StaticResource TextSecondary}" FontSize="14" TextWrapping="Wrap" Margin="4,0,0,30" />
+
+            <Button Command="{Binding ContinueCommand}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource MenuButton}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasContinue}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <StackPanel>
+                    <TextBlock Text="CONTINUE" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+                    <TextBlock Text="{Binding ContinueDetail}" FontSize="11.5" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" />
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource MenuButton}" Command="{Binding NewGameCommand}">
+                <StackPanel>
+                    <TextBlock Text="NEW CAREER" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+                    <TextBlock Text="Found a promotion from nothing — or take the keys to an established one."
+                               FontSize="11.5" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" />
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource MenuButton}" Command="{Binding LoadCommand}">
+                <StackPanel>
+                    <TextBlock Text="LOAD CAREER" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                    <TextBlock Text="Pick up a saved story where you left it."
+                               FontSize="11.5" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" />
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource MenuButton}" Command="{Binding QuickStartCommand}">
+                <StackPanel>
+                    <TextBlock Text="QUICK START" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                    <TextBlock Text="Straight into the cage — run the AFC in a fresh world."
+                               FontSize="11.5" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" />
+                </StackPanel>
+            </Button>
+            <Button Style="{StaticResource MenuButton}" Command="{Binding ExitCommand}">
+                <TextBlock Text="EXIT" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextMuted}" />
+            </Button>
+            <TextBlock Text="{Binding StartScreenError}" Foreground="{StaticResource Negative}"
+                       FontSize="12" TextWrapping="Wrap" Margin="4,4,0,0" />
+        </StackPanel>
+
+        <TextBlock Text="A single-player management sim. Every fighter, promotion and result is fictional.  ·  PromoterOS 4.2"
+                   FontSize="11" Foreground="{StaticResource TextMuted}"
+                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="122,0,0,26" />
+    </Grid>
+
+    <!-- ============ SIGN-IN (the OS boots before the day begins) ============ -->
+    <Grid Background="#0B0C10">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsBooting}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Image Source="{Binding PlayerLogo}" Width="72" Height="72" HorizontalAlignment="Center" />
+            <TextBlock Text="PromoterOS" FontSize="26" FontWeight="Light" Foreground="{StaticResource TextPrimary}"
+                       TextAlignment="Center" Margin="0,18,0,4" />
+            <TextBlock Text="{Binding BootLine}" FontSize="12.5" Foreground="{StaticResource TextSecondary}" TextAlignment="Center" />
+            <ProgressBar IsIndeterminate="True" Width="240" Height="4" Margin="0,22,0,0"
+                         Foreground="{DynamicResource OrgAccent}" Background="{StaticResource Track}" BorderThickness="0" />
+        </StackPanel>
+        <TextBlock Text="PromoterOS 4.2 — licensed to the front office"
+                   FontSize="10.5" Foreground="{StaticResource TextFaint}"
+                   HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,26" />
+    </Grid>
+    </Grid>
+</Window>

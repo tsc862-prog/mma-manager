@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MmaManager.Core.Sim</RootNamespace>
+    <AssemblyName>MmaManager.Core.Sim</AssemblyName>
+  </PropertyGroup>
+
+  <!-- The headless simulation: fight engine, growth/aging, world tick, and the
+       fighter generator. Refs the model only and stays UI-independent so the
+       whole world can run in tests and CLI for mass balancing. Keep it BCL-only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Core.Model\Core.Model.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MmaManager.Tests" />
+  </ItemGroup>
+
+</Project>

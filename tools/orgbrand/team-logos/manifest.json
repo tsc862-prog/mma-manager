@@ -1,0 +1,106 @@
+{
+  "TE": {
+    "name": "Team Extreme",
+    "region": "NorthAmerica",
+    "type": "team",
+    "motif": "a snarling tiger head",
+    "layout": "icon",
+    "file": "TE.png"
+  },
+  "TMA": {
+    "name": "Tropa Martial Arts",
+    "region": "SouthAmerica",
+    "type": "team",
+    "motif": "a muay thai fighter silhouette",
+    "layout": "lettermark",
+    "file": "TMA.png"
+  },
+  "VA": {
+    "name": "Viking Academy",
+    "region": "Europe",
+    "type": "team",
+    "motif": "a fierce ram head",
+    "layout": "emblem",
+    "file": "VA.png"
+  },
+  "BB": {
+    "name": "Boomerang BJJ",
+    "region": "Oceania",
+    "type": "team",
+    "motif": "a fierce gorilla head",
+    "layout": "emblem",
+    "file": "BB.png"
+  },
+  "TU": {
+    "name": "Team Ubuntu",
+    "region": "Africa",
+    "type": "team",
+    "motif": "a fierce ram head",
+    "layout": "icon",
+    "file": "TU.png"
+  },
+  "PA": {
+    "name": "Peninsula Academy",
+    "region": "MiddleEast",
+    "type": "team",
+    "motif": "a bold letter monogram",
+    "layout": "icon",
+    "file": "PA.png"
+  },
+  "IMA": {
+    "name": "Iron Martial Arts",
+    "region": "NorthAmerica",
+    "type": "team",
+    "motif": "a cobra ready to strike",
+    "layout": "emblem",
+    "file": "IMA.png"
+  },
+  "FMA": {
+    "name": "Fenix Martial Arts",
+    "region": "SouthAmerica",
+    "type": "team",
+    "motif": "a muay thai fighter silhouette",
+    "layout": "lettermark",
+    "file": "FMA.png"
+  },
+  "WFT": {
+    "name": "Wolfpack Fight Team",
+    "region": "Europe",
+    "type": "team",
+    "motif": "crossed muay thai shin guards",
+    "layout": "emblem",
+    "file": "WFT.png"
+  },
+  "TO": {
+    "name": "Team Onyx",
+    "region": "Asia",
+    "type": "team",
+    "motif": "a snarling wolf head",
+    "layout": "emblem",
+    "file": "TO.png"
+  },
+  "KFL": {
+    "name": "Kensei Fight Lab",
+    "region": "Asia",
+    "type": "team",
+    "motif": "a roaring lion head",
+    "layout": "icon",
+    "file": "KFL.png"
+  },
+  "OA": {
+    "name": "Outback Academy",
+    "region": "Oceania",
+    "type": "team",
+    "motif": "a muay thai fighter silhouette",
+    "layout": "emblem",
+    "file": "OA.png"
+  },
+  "ZB": {
+    "name": "Zulu BJJ",
+    "region": "Africa",
+    "type": "team",
+    "motif": "a clenched fist",
+    "layout": "lettermark",
+    "file": "ZB.png"
+  }
+}

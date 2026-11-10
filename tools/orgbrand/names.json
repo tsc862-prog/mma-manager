@@ -1,0 +1,1340 @@
+{
+  "NorthAmerica": [
+    {
+      "name": "Meridian Cage Championship",
+      "abbrev": "MCC"
+    },
+    {
+      "name": "Vanguard Fighting Series",
+      "abbrev": "VFS"
+    },
+    {
+      "name": "Titan FC",
+      "abbrev": "TF"
+    },
+    {
+      "name": "Empire Mixed Martial Arts",
+      "abbrev": "EMMA"
+    },
+    {
+      "name": "Crossfire Fighting Network",
+      "abbrev": "CFN"
+    },
+    {
+      "name": "Coastal Fighting Series",
+      "abbrev": "CFS"
+    },
+    {
+      "name": "Apex Fight Nights",
+      "abbrev": "AFN"
+    },
+    {
+      "name": "Redline Cage",
+      "abbrev": "RC"
+    },
+    {
+      "name": "Redline FC",
+      "abbrev": "RF"
+    },
+    {
+      "name": "Maverick Fight Series",
+      "abbrev": "MFS"
+    },
+    {
+      "name": "Maverick Fighting Championship",
+      "abbrev": "MFC"
+    },
+    {
+      "name": "Keystone FC",
+      "abbrev": "KF"
+    },
+    {
+      "name": "Coastal Fight League",
+      "abbrev": "CFL"
+    },
+    {
+      "name": "Maverick MMA",
+      "abbrev": "MM"
+    },
+    {
+      "name": "Bedrock Fighting Championship",
+      "abbrev": "BFC"
+    },
+    {
+      "name": "Blackstone Fight League",
+      "abbrev": "BFL"
+    },
+    {
+      "name": "Coliseum Combat Alliance",
+      "abbrev": "CCA"
+    },
+    {
+      "name": "Anvil Fighting Alliance",
+      "abbrev": "AFA"
+    },
+    {
+      "name": "Bedrock Fighting Network",
+      "abbrev": "BFN"
+    },
+    {
+      "name": "Ironclad Fighting Federation",
+      "abbrev": "IFF"
+    },
+    {
+      "name": "Liberty MMA",
+      "abbrev": "LM"
+    },
+    {
+      "name": "Liberty Combat League",
+      "abbrev": "LCL"
+    },
+    {
+      "name": "Summit MMA",
+      "abbrev": "SM"
+    },
+    {
+      "name": "Rampart Fighting Alliance",
+      "abbrev": "RFA"
+    },
+    {
+      "name": "Titan MMA",
+      "abbrev": "TM"
+    },
+    {
+      "name": "Highrise Combat Sport",
+      "abbrev": "HCS"
+    },
+    {
+      "name": "Rampart Fighting Championship",
+      "abbrev": "RFC"
+    },
+    {
+      "name": "Meridian Fight League",
+      "abbrev": "MFL"
+    },
+    {
+      "name": "Apex Fighting Series",
+      "abbrev": "AFS"
+    },
+    {
+      "name": "Ironclad Fight Nights",
+      "abbrev": "IFN"
+    },
+    {
+      "name": "Patriot Cage",
+      "abbrev": "PC"
+    },
+    {
+      "name": "Highrise Combat",
+      "abbrev": "HC"
+    },
+    {
+      "name": "Ironclad Fight League",
+      "abbrev": "IFL"
+    },
+    {
+      "name": "Meridian Fighting Alliance",
+      "abbrev": "MFA"
+    },
+    {
+      "name": "Sentinel Fighting Championship",
+      "abbrev": "SFC"
+    },
+    {
+      "name": "Vanguard Fights",
+      "abbrev": "VF"
+    },
+    {
+      "name": "Sentinel Fighting Federation",
+      "abbrev": "SFF"
+    },
+    {
+      "name": "Rampart MMA",
+      "abbrev": "RM"
+    },
+    {
+      "name": "Ironclad Mixed Martial Arts",
+      "abbrev": "IMMA"
+    },
+    {
+      "name": "Redline Combat League",
+      "abbrev": "RCL"
+    },
+    {
+      "name": "Ironclad Combat",
+      "abbrev": "IC"
+    },
+    {
+      "name": "Empire Cage",
+      "abbrev": "EC"
+    },
+    {
+      "name": "Keystone Combat Alliance",
+      "abbrev": "KCA"
+    },
+    {
+      "name": "Blackstone Fighting Alliance",
+      "abbrev": "BFA"
+    },
+    {
+      "name": "Bedrock Fighting Series",
+      "abbrev": "BFS"
+    },
+    {
+      "name": "Empire Fighting Federation",
+      "abbrev": "EFF"
+    },
+    {
+      "name": "Patriot Fighting Championship",
+      "abbrev": "PFC"
+    },
+    {
+      "name": "Blackstone Arena",
+      "abbrev": "BA"
+    },
+    {
+      "name": "Bedrock Fighting Federation",
+      "abbrev": "BFF"
+    },
+    {
+      "name": "Patriot Combat League",
+      "abbrev": "PCL"
+    }
+  ],
+  "SouthAmerica": [
+    {
+      "name": "Vale Tudo FC",
+      "abbrev": "VTF"
+    },
+    {
+      "name": "Selva Fighting Network",
+      "abbrev": "SFN"
+    },
+    {
+      "name": "Fenix FC",
+      "abbrev": "FF"
+    },
+    {
+      "name": "Jaguar Fight League",
+      "abbrev": "JFL"
+    },
+    {
+      "name": "Chaco MMA",
+      "abbrev": "CM"
+    },
+    {
+      "name": "Capoeira Combat League",
+      "abbrev": "CCL"
+    },
+    {
+      "name": "Pampas Fighting Alliance",
+      "abbrev": "PFA"
+    },
+    {
+      "name": "Fenix MMA",
+      "abbrev": "FM"
+    },
+    {
+      "name": "Tropa Fighting Championship",
+      "abbrev": "TFC"
+    },
+    {
+      "name": "Toro Combat League",
+      "abbrev": "TCL"
+    },
+    {
+      "name": "Guerreiro Fighting Federation",
+      "abbrev": "GFF"
+    },
+    {
+      "name": "Selva Arena",
+      "abbrev": "SA"
+    },
+    {
+      "name": "Vale Tudo Fighting Championship",
+      "abbrev": "VTFC"
+    },
+    {
+      "name": "Capoeira Fighting Alliance",
+      "abbrev": "CFA"
+    },
+    {
+      "name": "Tijuca Fighting Federation",
+      "abbrev": "TFF"
+    },
+    {
+      "name": "Jaguar Fighting Alliance",
+      "abbrev": "JFA"
+    },
+    {
+      "name": "Jaguar Cage Championship",
+      "abbrev": "JCC"
+    },
+    {
+      "name": "Guerreiro Fights",
+      "abbrev": "GF"
+    },
+    {
+      "name": "Pampas Fighting Network",
+      "abbrev": "PFN"
+    },
+    {
+      "name": "Selva Fighting Alliance",
+      "abbrev": "SFA"
+    },
+    {
+      "name": "Vale Tudo Cage",
+      "abbrev": "VTC"
+    },
+    {
+      "name": "Jaguar Fighting Network",
+      "abbrev": "JFN"
+    },
+    {
+      "name": "Furia Fighting Championship",
+      "abbrev": "FFC"
+    },
+    {
+      "name": "Amazonia Fight League",
+      "abbrev": "AFL"
+    },
+    {
+      "name": "Furia Fight Series",
+      "abbrev": "FFS"
+    },
+    {
+      "name": "Tropa Fighting Network",
+      "abbrev": "TFN"
+    },
+    {
+      "name": "Selva Mixed Martial Arts",
+      "abbrev": "SMMA"
+    },
+    {
+      "name": "Selva Fighting Series",
+      "abbrev": "SFS"
+    },
+    {
+      "name": "Jaguar Combat League",
+      "abbrev": "JCL"
+    },
+    {
+      "name": "Tropa Combat Alliance",
+      "abbrev": "TCA"
+    },
+    {
+      "name": "Vale Tudo Fighting Federation",
+      "abbrev": "VTFF"
+    },
+    {
+      "name": "Pampas Mixed Martial Arts",
+      "abbrev": "PMMA"
+    },
+    {
+      "name": "Bravo MMA",
+      "abbrev": "BM"
+    },
+    {
+      "name": "Fenix Fighting Federation",
+      "abbrev": "FFF"
+    },
+    {
+      "name": "Jaguar Fights",
+      "abbrev": "JF"
+    },
+    {
+      "name": "Andes MMA",
+      "abbrev": "AM"
+    },
+    {
+      "name": "Copa Fighting Championship",
+      "abbrev": "CFC"
+    },
+    {
+      "name": "Selva Combat Sport",
+      "abbrev": "SCS"
+    },
+    {
+      "name": "Jaguar Combat Sport",
+      "abbrev": "JCS"
+    },
+    {
+      "name": "Pampas Fights",
+      "abbrev": "PF"
+    },
+    {
+      "name": "Furia Fight Nights",
+      "abbrev": "FFN"
+    },
+    {
+      "name": "Fenix Arena",
+      "abbrev": "FA"
+    },
+    {
+      "name": "Cordillera FC",
+      "abbrev": "CF"
+    },
+    {
+      "name": "Guerreiro MMA",
+      "abbrev": "GM"
+    },
+    {
+      "name": "Capoeira Cage Championship",
+      "abbrev": "CCC"
+    },
+    {
+      "name": "Furia Fighting Alliance",
+      "abbrev": "FFA"
+    },
+    {
+      "name": "Fenix Fight League",
+      "abbrev": "FFL"
+    },
+    {
+      "name": "Selva Combat Alliance",
+      "abbrev": "SCA"
+    },
+    {
+      "name": "Guerreiro Cage Championship",
+      "abbrev": "GCC"
+    },
+    {
+      "name": "Bravo Combat League",
+      "abbrev": "BCL"
+    }
+  ],
+  "Europe": [
+    {
+      "name": "Gladius Arena",
+      "abbrev": "GA"
+    },
+    {
+      "name": "Legion Cage Championship",
+      "abbrev": "LCC"
+    },
+    {
+      "name": "Zenith Arena",
+      "abbrev": "ZA"
+    },
+    {
+      "name": "Zenith Combat Alliance",
+      "abbrev": "ZCA"
+    },
+    {
+      "name": "Vanguard Combat",
+      "abbrev": "VC"
+    },
+    {
+      "name": "Bastion Combat",
+      "abbrev": "BC"
+    },
+    {
+      "name": "Ironhold Fighting Championship",
+      "abbrev": "IFC"
+    },
+    {
+      "name": "Meridian Cage",
+      "abbrev": "MC"
+    },
+    {
+      "name": "Valor Fighting Championship",
+      "abbrev": "VFC"
+    },
+    {
+      "name": "Albion Fights",
+      "abbrev": "AF"
+    },
+    {
+      "name": "Albion Fighting Federation",
+      "abbrev": "AFF"
+    },
+    {
+      "name": "Legion Fighting Alliance",
+      "abbrev": "LFA"
+    },
+    {
+      "name": "Legion Mixed Martial Arts",
+      "abbrev": "LMMA"
+    },
+    {
+      "name": "Meridian Combat Sport",
+      "abbrev": "MCS"
+    },
+    {
+      "name": "Citadel Arena",
+      "abbrev": "CA"
+    },
+    {
+      "name": "Meridian Fight Nights",
+      "abbrev": "MFN"
+    },
+    {
+      "name": "Vanguard Combat Sport",
+      "abbrev": "VCS"
+    },
+    {
+      "name": "Valor Fighting Alliance",
+      "abbrev": "VFA"
+    },
+    {
+      "name": "Gladius Combat Alliance",
+      "abbrev": "GCA"
+    },
+    {
+      "name": "Zenith Combat League",
+      "abbrev": "ZCL"
+    },
+    {
+      "name": "Gladius Combat Sport",
+      "abbrev": "GCS"
+    },
+    {
+      "name": "Legion Fighting Federation",
+      "abbrev": "LFF"
+    },
+    {
+      "name": "Hanseatic Fight League",
+      "abbrev": "HFL"
+    },
+    {
+      "name": "Hanseatic MMA",
+      "abbrev": "HM"
+    },
+    {
+      "name": "Sterling Fight League",
+      "abbrev": "SFL"
+    },
+    {
+      "name": "Zenith Fighting Network",
+      "abbrev": "ZFN"
+    },
+    {
+      "name": "Albion Combat League",
+      "abbrev": "ACL"
+    },
+    {
+      "name": "Sovereign Cage",
+      "abbrev": "SC"
+    },
+    {
+      "name": "Nordkraft FC",
+      "abbrev": "NF"
+    },
+    {
+      "name": "Legion Cage",
+      "abbrev": "LC"
+    },
+    {
+      "name": "Baltic FC",
+      "abbrev": "BF"
+    },
+    {
+      "name": "Albion Mixed Martial Arts",
+      "abbrev": "AMMA"
+    },
+    {
+      "name": "Regent Fighting Network",
+      "abbrev": "RFN"
+    },
+    {
+      "name": "Crown Mixed Martial Arts",
+      "abbrev": "CMMA"
+    },
+    {
+      "name": "Hanseatic Fight Series",
+      "abbrev": "HFS"
+    },
+    {
+      "name": "Meridian Arena",
+      "abbrev": "MA"
+    },
+    {
+      "name": "Nordkraft Combat League",
+      "abbrev": "NCL"
+    },
+    {
+      "name": "Vanguard Fight League",
+      "abbrev": "VFL"
+    },
+    {
+      "name": "Legion Arena",
+      "abbrev": "LA"
+    },
+    {
+      "name": "Crown Combat Sport",
+      "abbrev": "CCS"
+    },
+    {
+      "name": "Hanseatic Fighting Network",
+      "abbrev": "HFN"
+    },
+    {
+      "name": "Regent Cage Championship",
+      "abbrev": "RCC"
+    },
+    {
+      "name": "Vanguard Cage Championship",
+      "abbrev": "VCC"
+    },
+    {
+      "name": "Meridian Fights",
+      "abbrev": "MF"
+    },
+    {
+      "name": "Baltic Combat Alliance",
+      "abbrev": "BCA"
+    },
+    {
+      "name": "Legion Fight League",
+      "abbrev": "LFL"
+    },
+    {
+      "name": "Regent Mixed Martial Arts",
+      "abbrev": "RMMA"
+    },
+    {
+      "name": "Legion Fights",
+      "abbrev": "LF"
+    },
+    {
+      "name": "Alpine Cage Championship",
+      "abbrev": "ACC"
+    },
+    {
+      "name": "Carpath Fighting Federation",
+      "abbrev": "CFF"
+    }
+  ],
+  "Asia": [
+    {
+      "name": "Ronin Fight League",
+      "abbrev": "RFL"
+    },
+    {
+      "name": "Silk Road Fight Club",
+      "abbrev": "SRFC"
+    },
+    {
+      "name": "Rising Sun Fighting Alliance",
+      "abbrev": "RSFA"
+    },
+    {
+      "name": "Dynasty Fighting Network",
+      "abbrev": "DFN"
+    },
+    {
+      "name": "Onyx Fighting Championship",
+      "abbrev": "OFC"
+    },
+    {
+      "name": "Jade Fighting Championship",
+      "abbrev": "JFC"
+    },
+    {
+      "name": "Dragon FC",
+      "abbrev": "DF"
+    },
+    {
+      "name": "Onyx Combat",
+      "abbrev": "OC"
+    },
+    {
+      "name": "Garuda Combat League",
+      "abbrev": "GCL"
+    },
+    {
+      "name": "Typhoon Combat",
+      "abbrev": "TC"
+    },
+    {
+      "name": "Silk Road Cage",
+      "abbrev": "SRC"
+    },
+    {
+      "name": "Kensei MMA",
+      "abbrev": "KM"
+    },
+    {
+      "name": "Rising Sun Fight League",
+      "abbrev": "RSFL"
+    },
+    {
+      "name": "Kensei Fighting Championship",
+      "abbrev": "KFC"
+    },
+    {
+      "name": "Silk Road Fight League",
+      "abbrev": "SRFL"
+    },
+    {
+      "name": "Dynasty Combat",
+      "abbrev": "DC"
+    },
+    {
+      "name": "Tiger Fighting Series",
+      "abbrev": "TFS"
+    },
+    {
+      "name": "Rising Sun Combat Sport",
+      "abbrev": "RSCS"
+    },
+    {
+      "name": "Dynasty Fighting Championship",
+      "abbrev": "DFC"
+    },
+    {
+      "name": "Tiger Fighting Alliance",
+      "abbrev": "TFA"
+    },
+    {
+      "name": "Dynasty Fight League",
+      "abbrev": "DFL"
+    },
+    {
+      "name": "Monsoon Combat League",
+      "abbrev": "MCL"
+    },
+    {
+      "name": "Silk Road FC",
+      "abbrev": "SRF"
+    },
+    {
+      "name": "Jade Cage",
+      "abbrev": "JC"
+    },
+    {
+      "name": "Onyx Fight Nights",
+      "abbrev": "OFN"
+    },
+    {
+      "name": "Rising Sun Mixed Martial Arts",
+      "abbrev": "RSMMA"
+    },
+    {
+      "name": "Silk Road Combat League",
+      "abbrev": "SRCL"
+    },
+    {
+      "name": "Onyx Fight League",
+      "abbrev": "OFL"
+    },
+    {
+      "name": "Garuda Combat",
+      "abbrev": "GC"
+    },
+    {
+      "name": "Iron Circle Fight League",
+      "abbrev": "ICFL"
+    },
+    {
+      "name": "Onyx Arena",
+      "abbrev": "OA"
+    },
+    {
+      "name": "Iron Circle Mixed Martial Arts",
+      "abbrev": "ICMMA"
+    },
+    {
+      "name": "Vermilion Arena",
+      "abbrev": "VA"
+    },
+    {
+      "name": "Tiger Combat Sport",
+      "abbrev": "TCS"
+    },
+    {
+      "name": "Jade Fighting Series",
+      "abbrev": "JFS"
+    },
+    {
+      "name": "Dragon Fighting Federation",
+      "abbrev": "DFF"
+    },
+    {
+      "name": "Rising Sun Fighting Championship",
+      "abbrev": "RSFC"
+    },
+    {
+      "name": "Rising Sun MMA",
+      "abbrev": "RSM"
+    },
+    {
+      "name": "Rising Sun Fighting Series",
+      "abbrev": "RSFS"
+    },
+    {
+      "name": "Dynasty Cage Championship",
+      "abbrev": "DCC"
+    },
+    {
+      "name": "Silk Road MMA",
+      "abbrev": "SRM"
+    },
+    {
+      "name": "Vermilion Fight Nights",
+      "abbrev": "VFN"
+    },
+    {
+      "name": "Ronin Fighting Series",
+      "abbrev": "RFS"
+    },
+    {
+      "name": "Iron Circle Fight Series",
+      "abbrev": "ICFS"
+    },
+    {
+      "name": "Iron Circle Fighting Championship",
+      "abbrev": "ICFC"
+    },
+    {
+      "name": "Vermilion Combat League",
+      "abbrev": "VCL"
+    },
+    {
+      "name": "Lotus Combat Sport",
+      "abbrev": "LCS"
+    },
+    {
+      "name": "Rising Sun Fights",
+      "abbrev": "RSF"
+    },
+    {
+      "name": "Vermilion Combat Alliance",
+      "abbrev": "VCA"
+    },
+    {
+      "name": "Onyx Combat League",
+      "abbrev": "OCL"
+    }
+  ],
+  "Oceania": [
+    {
+      "name": "Southern Cross Combatives",
+      "abbrev": "SCC"
+    },
+    {
+      "name": "Outback MMA",
+      "abbrev": "OM"
+    },
+    {
+      "name": "Boomerang Mixed Martial Arts",
+      "abbrev": "BMMA"
+    },
+    {
+      "name": "Outback Cage Championship",
+      "abbrev": "OCC"
+    },
+    {
+      "name": "Outback FC",
+      "abbrev": "OF"
+    },
+    {
+      "name": "Kanga Combat League",
+      "abbrev": "KCL"
+    },
+    {
+      "name": "Coral Sea Fight Club",
+      "abbrev": "CSFC"
+    },
+    {
+      "name": "Southern Cross Cage Championship",
+      "abbrev": "SCCC"
+    },
+    {
+      "name": "Longboard Fight Series",
+      "abbrev": "LFS"
+    },
+    {
+      "name": "Southern Cross Fighting Federation",
+      "abbrev": "SCFF"
+    },
+    {
+      "name": "Kanga Fight League",
+      "abbrev": "KFL"
+    },
+    {
+      "name": "Boomerang Combat Sport",
+      "abbrev": "BCS"
+    },
+    {
+      "name": "Kanga Cage",
+      "abbrev": "KC"
+    },
+    {
+      "name": "Kanga Fighting Federation",
+      "abbrev": "KFF"
+    },
+    {
+      "name": "Antipodean Combat Alliance",
+      "abbrev": "ACA"
+    },
+    {
+      "name": "Southern Cross Fighting Championship",
+      "abbrev": "SCFC"
+    },
+    {
+      "name": "Kiwi Fighting Alliance",
+      "abbrev": "KFA"
+    },
+    {
+      "name": "Longboard Fight Nights",
+      "abbrev": "LFN"
+    },
+    {
+      "name": "Antipodean Combat Sport",
+      "abbrev": "ACS"
+    },
+    {
+      "name": "Antipodean Combat",
+      "abbrev": "AC"
+    },
+    {
+      "name": "Coral Sea Combat Sport",
+      "abbrev": "CSCS"
+    },
+    {
+      "name": "Barrier Cage Championship",
+      "abbrev": "BCC"
+    },
+    {
+      "name": "Reef Combat Alliance",
+      "abbrev": "RCA"
+    },
+    {
+      "name": "Kanga Fight Nights",
+      "abbrev": "KFN"
+    },
+    {
+      "name": "Southern Cross FC",
+      "abbrev": "SCF"
+    },
+    {
+      "name": "Reef Arena",
+      "abbrev": "RA"
+    },
+    {
+      "name": "Coral Sea Combatives",
+      "abbrev": "CSC"
+    },
+    {
+      "name": "Kanga Fight Series",
+      "abbrev": "KFS"
+    },
+    {
+      "name": "Outback Fighting Federation",
+      "abbrev": "OFF"
+    },
+    {
+      "name": "Kiwi Combat Sport",
+      "abbrev": "KCS"
+    },
+    {
+      "name": "Sunburnt FC",
+      "abbrev": "SF"
+    },
+    {
+      "name": "Coral Sea Fighting Federation",
+      "abbrev": "CSFF"
+    },
+    {
+      "name": "Coral Sea Arena",
+      "abbrev": "CSA"
+    },
+    {
+      "name": "Coral Sea Combat League",
+      "abbrev": "CSCL"
+    },
+    {
+      "name": "Kanga Arena",
+      "abbrev": "KA"
+    },
+    {
+      "name": "Longboard Fighting Championship",
+      "abbrev": "LFC"
+    },
+    {
+      "name": "Southern Cross Fight Series",
+      "abbrev": "SCFS"
+    },
+    {
+      "name": "Coral Sea Fighting Network",
+      "abbrev": "CSFN"
+    },
+    {
+      "name": "Outback Combat Sport",
+      "abbrev": "OCS"
+    },
+    {
+      "name": "Coral Sea Fighting Alliance",
+      "abbrev": "CSFA"
+    },
+    {
+      "name": "Outback Combat Alliance",
+      "abbrev": "OCA"
+    },
+    {
+      "name": "Southern Cross Fighting Alliance",
+      "abbrev": "SCFA"
+    },
+    {
+      "name": "Outback Fighting Series",
+      "abbrev": "OFS"
+    },
+    {
+      "name": "Longboard Combat Alliance",
+      "abbrev": "LCA"
+    },
+    {
+      "name": "Tasman Cage Championship",
+      "abbrev": "TCC"
+    },
+    {
+      "name": "Coral Sea Fight Series",
+      "abbrev": "CSFS"
+    },
+    {
+      "name": "Southern Cross Combat Alliance",
+      "abbrev": "SCCA"
+    },
+    {
+      "name": "Coral Sea Combat Alliance",
+      "abbrev": "CSCA"
+    },
+    {
+      "name": "Coral Sea Cage Championship",
+      "abbrev": "CSCC"
+    },
+    {
+      "name": "Tasman Fight League",
+      "abbrev": "TFL"
+    }
+  ],
+  "Africa": [
+    {
+      "name": "Ivory FC",
+      "abbrev": "IF"
+    },
+    {
+      "name": "Rift Valley FC",
+      "abbrev": "RVF"
+    },
+    {
+      "name": "Ubuntu Combat Alliance",
+      "abbrev": "UCA"
+    },
+    {
+      "name": "Rift Valley Arena",
+      "abbrev": "RVA"
+    },
+    {
+      "name": "Golden Lion Fighting Federation",
+      "abbrev": "GLFF"
+    },
+    {
+      "name": "Zambezi Fighting Championship",
+      "abbrev": "ZFC"
+    },
+    {
+      "name": "Kalahari Mixed Martial Arts",
+      "abbrev": "KMMA"
+    },
+    {
+      "name": "Golden Lion Combat League",
+      "abbrev": "GLCL"
+    },
+    {
+      "name": "Ubuntu MMA",
+      "abbrev": "UM"
+    },
+    {
+      "name": "Golden Lion FC",
+      "abbrev": "GLF"
+    },
+    {
+      "name": "Golden Lion Cage",
+      "abbrev": "GLC"
+    },
+    {
+      "name": "Ivory Cage Championship",
+      "abbrev": "ICC"
+    },
+    {
+      "name": "Nile Arena",
+      "abbrev": "NA"
+    },
+    {
+      "name": "Rift Valley Combat Alliance",
+      "abbrev": "RVCA"
+    },
+    {
+      "name": "Nile Fighting Alliance",
+      "abbrev": "NFA"
+    },
+    {
+      "name": "Rift Valley Fighting Championship",
+      "abbrev": "RVFC"
+    },
+    {
+      "name": "Ivory Fighting Series",
+      "abbrev": "IFS"
+    },
+    {
+      "name": "Nile Combatives",
+      "abbrev": "NC"
+    },
+    {
+      "name": "Zambezi FC",
+      "abbrev": "ZF"
+    },
+    {
+      "name": "Rift Valley Fighting Alliance",
+      "abbrev": "RVFA"
+    },
+    {
+      "name": "Rift Valley Fight League",
+      "abbrev": "RVFL"
+    },
+    {
+      "name": "Nile Combat Alliance",
+      "abbrev": "NCA"
+    },
+    {
+      "name": "Zambezi Cage",
+      "abbrev": "ZC"
+    },
+    {
+      "name": "Zambezi Fight League",
+      "abbrev": "ZFL"
+    },
+    {
+      "name": "Golden Lion Fight Series",
+      "abbrev": "GLFS"
+    },
+    {
+      "name": "Rift Valley Combat",
+      "abbrev": "RVC"
+    },
+    {
+      "name": "Ubuntu Cage",
+      "abbrev": "UC"
+    },
+    {
+      "name": "Nile Cage Championship",
+      "abbrev": "NCC"
+    },
+    {
+      "name": "Nile Fighting Championship",
+      "abbrev": "NFC"
+    },
+    {
+      "name": "Zambezi Fighting Alliance",
+      "abbrev": "ZFA"
+    },
+    {
+      "name": "Ubuntu FC",
+      "abbrev": "UF"
+    },
+    {
+      "name": "Rift Valley Combat League",
+      "abbrev": "RVCL"
+    },
+    {
+      "name": "Zambezi Cage Championship",
+      "abbrev": "ZCC"
+    },
+    {
+      "name": "Rift Valley Cage Championship",
+      "abbrev": "RVCC"
+    },
+    {
+      "name": "Rift Valley Mixed Martial Arts",
+      "abbrev": "RVMMA"
+    },
+    {
+      "name": "Ubuntu Arena",
+      "abbrev": "UA"
+    },
+    {
+      "name": "Nile Fight Series",
+      "abbrev": "NFS"
+    },
+    {
+      "name": "Zambezi Mixed Martial Arts",
+      "abbrev": "ZMMA"
+    },
+    {
+      "name": "Ivory Combat Alliance",
+      "abbrev": "ICA"
+    },
+    {
+      "name": "Rift Valley Fighting Federation",
+      "abbrev": "RVFF"
+    },
+    {
+      "name": "Ubuntu Mixed Martial Arts",
+      "abbrev": "UMMA"
+    },
+    {
+      "name": "Zambezi Fight Series",
+      "abbrev": "ZFS"
+    },
+    {
+      "name": "Ashanti Arena",
+      "abbrev": "AA"
+    },
+    {
+      "name": "Zambezi Fighting Federation",
+      "abbrev": "ZFF"
+    },
+    {
+      "name": "Kalahari Cage Championship",
+      "abbrev": "KCC"
+    },
+    {
+      "name": "Zambezi MMA",
+      "abbrev": "ZM"
+    },
+    {
+      "name": "Golden Lion Fight League",
+      "abbrev": "GLFL"
+    },
+    {
+      "name": "Ivory MMA",
+      "abbrev": "IM"
+    },
+    {
+      "name": "Zambezi Combat Sport",
+      "abbrev": "ZCS"
+    },
+    {
+      "name": "Golden Lion Fighting Championship",
+      "abbrev": "GLFC"
+    }
+  ],
+  "MiddleEast": [
+    {
+      "name": "Oasis Fighting Alliance",
+      "abbrev": "OFA"
+    },
+    {
+      "name": "Dune Combat Sport",
+      "abbrev": "DCS"
+    },
+    {
+      "name": "Falcon Combat Alliance",
+      "abbrev": "FCA"
+    },
+    {
+      "name": "Dune MMA",
+      "abbrev": "DM"
+    },
+    {
+      "name": "Peninsula Fighting Federation",
+      "abbrev": "PFF"
+    },
+    {
+      "name": "Dinar Combat Alliance",
+      "abbrev": "DCA"
+    },
+    {
+      "name": "Falcon Combat",
+      "abbrev": "FC"
+    },
+    {
+      "name": "Falcon Combat League",
+      "abbrev": "FCL"
+    },
+    {
+      "name": "Desert Fighting Series",
+      "abbrev": "DFS"
+    },
+    {
+      "name": "Dinar Combat League",
+      "abbrev": "DCL"
+    },
+    {
+      "name": "Peninsula MMA",
+      "abbrev": "PM"
+    },
+    {
+      "name": "Gulf Mixed Martial Arts",
+      "abbrev": "GMMA"
+    },
+    {
+      "name": "Peninsula Fighting Series",
+      "abbrev": "PFS"
+    },
+    {
+      "name": "Dinar Fighting Alliance",
+      "abbrev": "DFA"
+    },
+    {
+      "name": "Dinar Arena",
+      "abbrev": "DA"
+    },
+    {
+      "name": "Oasis Mixed Martial Arts",
+      "abbrev": "OMMA"
+    },
+    {
+      "name": "Gulf Fight League",
+      "abbrev": "GFL"
+    },
+    {
+      "name": "Persia Combat Sport",
+      "abbrev": "PCS"
+    },
+    {
+      "name": "Gulf Fight Nights",
+      "abbrev": "GFN"
+    },
+    {
+      "name": "Desert Mixed Martial Arts",
+      "abbrev": "DMMA"
+    },
+    {
+      "name": "Persia Combat Alliance",
+      "abbrev": "PCA"
+    },
+    {
+      "name": "Gulf Fighting Series",
+      "abbrev": "GFS"
+    },
+    {
+      "name": "Mirage Combat Alliance",
+      "abbrev": "MCA"
+    },
+    {
+      "name": "Peninsula Cage Championship",
+      "abbrev": "PCC"
+    },
+    {
+      "name": "Gulf Fighting Alliance",
+      "abbrev": "GFA"
+    },
+    {
+      "name": "Falcon Combat Sport",
+      "abbrev": "FCS"
+    },
+    {
+      "name": "Falcon Mixed Martial Arts",
+      "abbrev": "FMMA"
+    },
+    {
+      "name": "Falcon Cage Championship",
+      "abbrev": "FCC"
+    },
+    {
+      "name": "Peninsula Arena",
+      "abbrev": "PA"
+    },
+    {
+      "name": "Mirage Mixed Martial Arts",
+      "abbrev": "MMMA"
+    },
+    {
+      "name": "Mirage Fighting Federation",
+      "abbrev": "MFF"
+    }
+  ]
+}

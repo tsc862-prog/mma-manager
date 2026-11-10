@@ -1,0 +1,207 @@
+<UserControl x:Class="MmaManager.Wpf.Views.FinanceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+        <UserControl.Resources>
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+            <!-- Ledger figures: monospace, right-aligned -->
+            <Style x:Key="Figure" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="TextAlignment" Value="Right" />
+                <Setter Property="Margin" Value="0,0,4,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="FigureIn" TargetType="TextBlock" BasedOn="{StaticResource Figure}">
+                <Setter Property="Foreground" Value="{StaticResource Positive}" />
+            </Style>
+            <Style x:Key="FigureOut" TargetType="TextBlock" BasedOn="{StaticResource Figure}">
+                <Setter Property="Foreground" Value="{StaticResource Negative}" />
+            </Style>
+        </UserControl.Resources>
+
+        <!-- The books: an accounting app for the fight game. -->
+        <DockPanel DataContext="{Binding Finance}">
+
+            <!-- Account header: the balance line every owner reads first -->
+            <Border DockPanel.Dock="Top" Background="{StaticResource Header}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="16,12">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Margin="0,0,26,0">
+                            <TextBlock Text="INCOME" FontSize="10" Foreground="{StaticResource TextFaint}" TextAlignment="Right" />
+                            <TextBlock Text="{Binding MonthIncome}" Style="{StaticResource FigureIn}" FontSize="14" FontWeight="Bold" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,26,0">
+                            <TextBlock Text="EXPENSE" FontSize="10" Foreground="{StaticResource TextFaint}" TextAlignment="Right" />
+                            <TextBlock Text="{Binding MonthExpense}" Style="{StaticResource FigureOut}" FontSize="14" FontWeight="Bold" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="NET" FontSize="10" Foreground="{StaticResource TextFaint}" TextAlignment="Right" />
+                            <TextBlock Text="{Binding MonthNet}" Style="{StaticResource Figure}" FontSize="14" FontWeight="Bold" />
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="📒 THE BOOKS" FontSize="10.5" FontWeight="Bold" Foreground="{StaticResource TextSecondary}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Balance}" FontFamily="Consolas" FontWeight="Bold" FontSize="26" Foreground="{StaticResource Gold}" />
+                            <TextBlock Text="{Binding MonthLabel}" FontSize="12" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Bottom" Margin="14,0,0,4" />
+                        </StackPanel>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="430" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: this month's P&L sheets -->
+            <DockPanel Grid.Column="0" Margin="0,0,12,0">
+                <TextBlock DockPanel.Dock="Top" Text="THIS MONTH — INCOME" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                <DataGrid DockPanel.Dock="Top" ItemsSource="{Binding Income}" IsReadOnly="True" HeadersVisibility="None" MaxHeight="170" Margin="0,0,0,12"
+                          GridLinesVisibility="All" VerticalGridLinesBrush="{StaticResource GridLine}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Binding="{Binding Category}" Width="*" />
+                        <DataGridTextColumn Binding="{Binding Amount}" SortMemberPath="AmountSort" Width="130" ElementStyle="{StaticResource FigureIn}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <TextBlock DockPanel.Dock="Top" Text="THIS MONTH — EXPENSES" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                <DataGrid DockPanel.Dock="Top" ItemsSource="{Binding Expenses}" IsReadOnly="True" HeadersVisibility="None" MaxHeight="200" Margin="0,0,0,12"
+                          GridLinesVisibility="All" VerticalGridLinesBrush="{StaticResource GridLine}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Binding="{Binding Category}" Width="*" />
+                        <DataGridTextColumn Binding="{Binding Amount}" SortMemberPath="AmountSort" Width="130" ElementStyle="{StaticResource FigureOut}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="SPONSORS — PAID PER EVENT" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                        <DataGrid ItemsSource="{Binding Sponsors}" IsReadOnly="True" HeadersVisibility="Column" Margin="0,0,0,12">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                    <Setter Property="ToolTip" Value="{Binding Terms}" />
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Partner" Binding="{Binding Partner}" Width="*" />
+                                <DataGridTextColumn Header="/event" Binding="{Binding Fee}" SortMemberPath="FeeSort" Width="100" ElementStyle="{StaticResource FigureIn}" />
+                                <DataGridTextColumn Header="Left" Binding="{Binding Left}" Width="56" ElementStyle="{StaticResource Figure}" />
+                                <DataGridTextColumn Header="" Binding="{Binding Strikes}" Width="46" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Text="SPONSOR OFFERS ON THE TABLE" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                        <ItemsControl ItemsSource="{Binding Offers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="Sign" Padding="10,2" Margin="0,0,6,0"
+                                                        Command="{Binding DataContext.AcceptOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Content="Pass" Padding="10,2"
+                                                        Command="{Binding DataContext.DeclineOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Partner}" FontWeight="Bold" />
+                                                    <TextBlock Text="{Binding Kind}" Foreground="{StaticResource TextSecondary}" Margin="8,0,0,0" />
+                                                </StackPanel>
+                                                <TextBlock Foreground="{StaticResource TextSecondary}" FontSize="11" TextWrapping="Wrap">
+                                                    <Run Text="{Binding Fee, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Term, Mode=OneWay}" /><Run Text=" · expires " /><Run Text="{Binding Expires, Mode=OneWay}" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Terms}" Foreground="{StaticResource TextFaint}" FontSize="11" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+
+            <!-- Right: the 12-month sheet + the journal -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <TextBlock Text="MONTHLY PROFIT &amp; LOSS" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                    <DataGrid ItemsSource="{Binding History}" IsReadOnly="True" HeadersVisibility="Column" MaxHeight="280" RowHeight="30"
+                              GridLinesVisibility="All" VerticalGridLinesBrush="{StaticResource GridLine}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Month" Binding="{Binding Month}" SortMemberPath="MonthSort" Width="96" />
+                            <DataGridTemplateColumn Header="In / out" Width="150" CanUserResize="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel VerticalAlignment="Center" Margin="4,0">
+                                            <Border Height="7" Width="{Binding IncomeBar}" Background="{StaticResource Positive}" CornerRadius="1" HorizontalAlignment="Left" Margin="0,0,0,2" />
+                                            <Border Height="7" Width="{Binding ExpenseBar}" Background="{StaticResource Negative}" CornerRadius="1" HorizontalAlignment="Left" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Income" Binding="{Binding Income}" SortMemberPath="IncomeSort" Width="*" ElementStyle="{StaticResource FigureIn}" />
+                            <DataGridTextColumn Header="Expense" Binding="{Binding Expense}" SortMemberPath="ExpenseSort" Width="*" ElementStyle="{StaticResource FigureOut}" />
+                            <DataGridTemplateColumn Header="Net" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Net}" FontWeight="Bold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Figure}">
+                                                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Positive}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Positive}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+
+                <DockPanel Grid.Row="1">
+                    <TextBlock DockPanel.Dock="Top" Text="THE JOURNAL — RECENT TRANSACTIONS" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                    <DataGrid ItemsSource="{Binding Recent}" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="All" VerticalGridLinesBrush="{StaticResource GridLine}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Binding="{Binding When}" SortMemberPath="WhenSort" Width="76" />
+                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="140" />
+                            <DataGridTemplateColumn Header="Amount" SortMemberPath="AmountSort" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Amount}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Figure}">
+                                                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Positive}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Positive}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Detail" Binding="{Binding Description}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Grid>
+            </Grid>
+        </DockPanel>
+</UserControl>

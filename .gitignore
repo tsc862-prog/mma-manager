@@ -1,0 +1,50 @@
+# ── Secrets ────────────────────────────────────────────────────────────
+hf-token.txt
+*.token
+.env
+.env.*
+!.env.example
+
+# ── .NET build output ──────────────────────────────────────────────────
+bin/
+obj/
+TestResults/
+
+# ── Per-user / IDE ─────────────────────────────────────────────────────
+.vs/
+*.user
+*.suo
+.dotnet/
+
+# ── Claude Code: local-only state (agent definitions and skills ARE committed)
+.claude/settings.local.json
+.claude/worktrees/
+
+# ── Save games ─────────────────────────────────────────────────────────
+*.mmasave
+
+# ── Fighter images ─────────────────────────────────────────────────────
+# The painted/realistic portrait pack is ~2.8 GB and is produced by the
+# separate E:/FighterArt pipeline (sync/syncassets.py copies approvals in).
+# The manifest and tags stay tracked so the pack's shape is versioned; the
+# app falls back to the tracked Placeholders (and flat-vector art) when the
+# PNGs are absent, so a fresh clone still builds and runs.
+Wpf/Assets/Painted/**/*.png
+Wpf/Assets/Painted/**/*.jpg
+Wpf/Assets/Faces/
+
+# ── Old asset snapshots, scratch output, review screenshots ────────────
+_archive/
+output/
+review-output/
+.eldmoor-review-cache/
+
+# Throwaway previews at the repo root (kept assets live in Wpf/Assets/)
+/*.png
+
+# ── Tools: generated renders, logs, Python caches ──────────────────────
+tools/orgbrand/**/*.png
+tools/**/raw/
+__pycache__/
+*.pyc
+*.log

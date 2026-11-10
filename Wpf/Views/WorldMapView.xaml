@@ -1,0 +1,159 @@
+<UserControl x:Class="MmaManager.Wpf.Views.WorldMapView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+        <Grid Margin="8" DataContext="{Binding WorldMap}" HorizontalAlignment="Left" MaxWidth="1560">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="2,0,0,8">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="The Global Scene" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Summary}" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Bottom" Margin="12,0,0,2" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="28,0,0,0">
+                        <TextBlock Text="MMA interest:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,7,0" FontSize="11" />
+                        <Border Width="16" Height="12" Background="#2C5F8A" />
+                        <TextBlock Text="cool" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="4,0,10,0" VerticalAlignment="Center" />
+                        <Border Width="16" Height="12" Background="#8A5B58" />
+                        <Border Width="16" Height="12" Background="#C0392B" />
+                        <TextBlock Text="fight-mad" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="4,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Breadcrumb + level hint -->
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <ItemsControl ItemsSource="{Binding Breadcrumb}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{Binding Label}"
+                                            Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Background="Transparent" BorderThickness="0" Padding="2,0" Cursor="Hand">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLast}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Setter Property="Cursor" Value="Arrow" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock Text="  ›  " Foreground="{StaticResource TextMuted}" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLast}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding LevelHint}" Foreground="{StaticResource TextMuted}" FontSize="11" FontStyle="Italic"
+                               VerticalAlignment="Center" Margin="16,0,0,0" />
+                </StackPanel>
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Places}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Command="{Binding DataContext.DrillCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}" HorizontalContentAlignment="Stretch" Padding="0" BorderThickness="0" Background="Transparent">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Card" Margin="6" CornerRadius="7" Background="{StaticResource Surface}"
+                                                MinHeight="210" MinWidth="300" BorderBrush="{StaticResource Border}" BorderThickness="1">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsPlayerHere}" Value="True">
+                                                <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                                <Setter TargetName="Card" Property="BorderThickness" Value="2" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Drillable}" Value="True">
+                                                <Setter Property="Cursor" Value="Hand" />
+                                            </DataTrigger>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsMouseOver" Value="True" />
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                                <Setter TargetName="Card" Property="Background" Value="#1E242C" />
+                                            </MultiTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Border Background="{Binding HeatBrush}" CornerRadius="6,6,0,0" Padding="12,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="{Binding TextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Interest}" FontWeight="Bold" FontSize="22" Foreground="{Binding TextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Chevron}" FontSize="22" Foreground="{Binding TextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock Grid.Row="1" Text="{Binding OrgSummary}" Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="12,8,12,0" />
+                                    <ItemsControl Grid.Row="2" ItemsSource="{Binding Orgs}" Margin="12,4,12,6">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,3">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="52" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Abbrev}" FontWeight="SemiBold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsPlayer}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Detail}" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Border Grid.Row="3" BorderBrush="{StaticResource GridLine}" BorderThickness="0,1,0,0" Padding="12,6">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding CitiesHeader}" Foreground="{StaticResource TextMuted}" FontSize="9" />
+                                            <TextBlock Text="{Binding CitiesLine}" Foreground="{StaticResource TextSecondary}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+</UserControl>

@@ -1,0 +1,2650 @@
+{
+  "MCC": {
+    "name": "Meridian Cage Championship",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "MCC.png"
+  },
+  "VFS": {
+    "name": "Vanguard Fighting Series",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VFS.png"
+  },
+  "TF": {
+    "name": "Titan FC",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "TF.png"
+  },
+  "EMMA": {
+    "name": "Empire Mixed Martial Arts",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "EMMA.png"
+  },
+  "CFN": {
+    "name": "Crossfire Fighting Network",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "CFN.png"
+  },
+  "CFS": {
+    "name": "Coastal Fighting Series",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "CFS.png"
+  },
+  "AFN": {
+    "name": "Apex Fight Nights",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "AFN.png"
+  },
+  "RC": {
+    "name": "Redline Cage",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "RC.png"
+  },
+  "RF": {
+    "name": "Redline FC",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RF.png"
+  },
+  "MFS": {
+    "name": "Maverick Fight Series",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "MFS.png"
+  },
+  "MFC": {
+    "name": "Maverick Fighting Championship",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "MFC.png"
+  },
+  "KF": {
+    "name": "Keystone FC",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "KF.png"
+  },
+  "CFL": {
+    "name": "Coastal Fight League",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "CFL.png"
+  },
+  "MM": {
+    "name": "Maverick MMA",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "MM.png"
+  },
+  "BFC": {
+    "name": "Bedrock Fighting Championship",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "BFC.png"
+  },
+  "BFL": {
+    "name": "Blackstone Fight League",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "BFL.png"
+  },
+  "CCA": {
+    "name": "Coliseum Combat Alliance",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "CCA.png"
+  },
+  "AFA": {
+    "name": "Anvil Fighting Alliance",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "AFA.png"
+  },
+  "BFN": {
+    "name": "Bedrock Fighting Network",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "BFN.png"
+  },
+  "IFF": {
+    "name": "Ironclad Fighting Federation",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "IFF.png"
+  },
+  "LM": {
+    "name": "Liberty MMA",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "LM.png"
+  },
+  "LCL": {
+    "name": "Liberty Combat League",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "LCL.png"
+  },
+  "SM": {
+    "name": "Summit MMA",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "SM.png"
+  },
+  "RFA": {
+    "name": "Rampart Fighting Alliance",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RFA.png"
+  },
+  "TM": {
+    "name": "Titan MMA",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "TM.png"
+  },
+  "HCS": {
+    "name": "Highrise Combat Sport",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "HCS.png"
+  },
+  "RFC": {
+    "name": "Rampart Fighting Championship",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "RFC.png"
+  },
+  "MFL": {
+    "name": "Meridian Fight League",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "MFL.png"
+  },
+  "AFS": {
+    "name": "Apex Fighting Series",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "AFS.png"
+  },
+  "IFN": {
+    "name": "Ironclad Fight Nights",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "IFN.png"
+  },
+  "PC": {
+    "name": "Patriot Cage",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "PC.png"
+  },
+  "HC": {
+    "name": "Highrise Combat",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "HC.png"
+  },
+  "IFL": {
+    "name": "Ironclad Fight League",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "IFL.png"
+  },
+  "MFA": {
+    "name": "Meridian Fighting Alliance",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "MFA.png"
+  },
+  "SFC": {
+    "name": "Sentinel Fighting Championship",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "SFC.png"
+  },
+  "VF": {
+    "name": "Vanguard Fights",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VF.png"
+  },
+  "SFF": {
+    "name": "Sentinel Fighting Federation",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "SFF.png"
+  },
+  "RM": {
+    "name": "Rampart MMA",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RM.png"
+  },
+  "IMMA": {
+    "name": "Ironclad Mixed Martial Arts",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "IMMA.png"
+  },
+  "RCL": {
+    "name": "Redline Combat League",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RCL.png"
+  },
+  "IC": {
+    "name": "Ironclad Combat",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "IC.png"
+  },
+  "EC": {
+    "name": "Empire Cage",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "EC.png"
+  },
+  "KCA": {
+    "name": "Keystone Combat Alliance",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "KCA.png"
+  },
+  "BFA": {
+    "name": "Blackstone Fighting Alliance",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "BFA.png"
+  },
+  "BFS": {
+    "name": "Bedrock Fighting Series",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "BFS.png"
+  },
+  "EFF": {
+    "name": "Empire Fighting Federation",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "EFF.png"
+  },
+  "PFC": {
+    "name": "Patriot Fighting Championship",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "PFC.png"
+  },
+  "BA": {
+    "name": "Blackstone Arena",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "BA.png"
+  },
+  "BFF": {
+    "name": "Bedrock Fighting Federation",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "BFF.png"
+  },
+  "PCL": {
+    "name": "Patriot Combat League",
+    "region": "NorthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "PCL.png"
+  },
+  "VTF": {
+    "name": "Vale Tudo FC",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "VTF.png"
+  },
+  "SFN": {
+    "name": "Selva Fighting Network",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "SFN.png"
+  },
+  "FF": {
+    "name": "Fenix FC",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "FF.png"
+  },
+  "JFL": {
+    "name": "Jaguar Fight League",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "JFL.png"
+  },
+  "CM": {
+    "name": "Chaco MMA",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "CM.png"
+  },
+  "CCL": {
+    "name": "Capoeira Combat League",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "CCL.png"
+  },
+  "PFA": {
+    "name": "Pampas Fighting Alliance",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "PFA.png"
+  },
+  "FM": {
+    "name": "Fenix MMA",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "FM.png"
+  },
+  "TFC": {
+    "name": "Tropa Fighting Championship",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "TFC.png"
+  },
+  "TCL": {
+    "name": "Toro Combat League",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "TCL.png"
+  },
+  "GFF": {
+    "name": "Guerreiro Fighting Federation",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "GFF.png"
+  },
+  "SA": {
+    "name": "Selva Arena",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "SA.png"
+  },
+  "VTFC": {
+    "name": "Vale Tudo Fighting Championship",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "VTFC.png"
+  },
+  "CFA": {
+    "name": "Capoeira Fighting Alliance",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "CFA.png"
+  },
+  "TFF": {
+    "name": "Tijuca Fighting Federation",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "TFF.png"
+  },
+  "JFA": {
+    "name": "Jaguar Fighting Alliance",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "JFA.png"
+  },
+  "JCC": {
+    "name": "Jaguar Cage Championship",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "JCC.png"
+  },
+  "GF": {
+    "name": "Guerreiro Fights",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GF.png"
+  },
+  "PFN": {
+    "name": "Pampas Fighting Network",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "PFN.png"
+  },
+  "SFA": {
+    "name": "Selva Fighting Alliance",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "SFA.png"
+  },
+  "VTC": {
+    "name": "Vale Tudo Cage",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "VTC.png"
+  },
+  "JFN": {
+    "name": "Jaguar Fighting Network",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "JFN.png"
+  },
+  "FFC": {
+    "name": "Furia Fighting Championship",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "FFC.png"
+  },
+  "AFL": {
+    "name": "Amazonia Fight League",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "AFL.png"
+  },
+  "FFS": {
+    "name": "Furia Fight Series",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "FFS.png"
+  },
+  "TFN": {
+    "name": "Tropa Fighting Network",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "TFN.png"
+  },
+  "SMMA": {
+    "name": "Selva Mixed Martial Arts",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "SMMA.png"
+  },
+  "SFS": {
+    "name": "Selva Fighting Series",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SFS.png"
+  },
+  "JCL": {
+    "name": "Jaguar Combat League",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "JCL.png"
+  },
+  "TCA": {
+    "name": "Tropa Combat Alliance",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "TCA.png"
+  },
+  "VTFF": {
+    "name": "Vale Tudo Fighting Federation",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "VTFF.png"
+  },
+  "PMMA": {
+    "name": "Pampas Mixed Martial Arts",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "PMMA.png"
+  },
+  "BM": {
+    "name": "Bravo MMA",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "BM.png"
+  },
+  "FFF": {
+    "name": "Fenix Fighting Federation",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "FFF.png"
+  },
+  "JF": {
+    "name": "Jaguar Fights",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "JF.png"
+  },
+  "AM": {
+    "name": "Andes MMA",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "AM.png"
+  },
+  "CFC": {
+    "name": "Copa Fighting Championship",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "CFC.png"
+  },
+  "SCS": {
+    "name": "Selva Combat Sport",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "SCS.png"
+  },
+  "JCS": {
+    "name": "Jaguar Combat Sport",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "JCS.png"
+  },
+  "PF": {
+    "name": "Pampas Fights",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "PF.png"
+  },
+  "FFN": {
+    "name": "Furia Fight Nights",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "FFN.png"
+  },
+  "FA": {
+    "name": "Fenix Arena",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "FA.png"
+  },
+  "CF": {
+    "name": "Cordillera FC",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "CF.png"
+  },
+  "GM": {
+    "name": "Guerreiro MMA",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GM.png"
+  },
+  "CCC": {
+    "name": "Capoeira Cage Championship",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "CCC.png"
+  },
+  "FFA": {
+    "name": "Furia Fighting Alliance",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "FFA.png"
+  },
+  "FFL": {
+    "name": "Fenix Fight League",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "FFL.png"
+  },
+  "SCA": {
+    "name": "Selva Combat Alliance",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SCA.png"
+  },
+  "GCC": {
+    "name": "Guerreiro Cage Championship",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "GCC.png"
+  },
+  "BCL": {
+    "name": "Bravo Combat League",
+    "region": "SouthAmerica",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "BCL.png"
+  },
+  "GA": {
+    "name": "Gladius Arena",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "GA.png"
+  },
+  "LCC": {
+    "name": "Legion Cage Championship",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "LCC.png"
+  },
+  "ZA": {
+    "name": "Zenith Arena",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "ZA.png"
+  },
+  "ZCA": {
+    "name": "Zenith Combat Alliance",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ZCA.png"
+  },
+  "VC": {
+    "name": "Vanguard Combat",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "VC.png"
+  },
+  "BC": {
+    "name": "Bastion Combat",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "BC.png"
+  },
+  "IFC": {
+    "name": "Ironhold Fighting Championship",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "IFC.png"
+  },
+  "MC": {
+    "name": "Meridian Cage",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "MC.png"
+  },
+  "VFC": {
+    "name": "Valor Fighting Championship",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VFC.png"
+  },
+  "AF": {
+    "name": "Albion Fights",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "AF.png"
+  },
+  "AFF": {
+    "name": "Albion Fighting Federation",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "AFF.png"
+  },
+  "LFA": {
+    "name": "Legion Fighting Alliance",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "LFA.png"
+  },
+  "LMMA": {
+    "name": "Legion Mixed Martial Arts",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "LMMA.png"
+  },
+  "MCS": {
+    "name": "Meridian Combat Sport",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "MCS.png"
+  },
+  "CA": {
+    "name": "Citadel Arena",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "CA.png"
+  },
+  "MFN": {
+    "name": "Meridian Fight Nights",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "MFN.png"
+  },
+  "VCS": {
+    "name": "Vanguard Combat Sport",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "VCS.png"
+  },
+  "VFA": {
+    "name": "Valor Fighting Alliance",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VFA.png"
+  },
+  "GCA": {
+    "name": "Gladius Combat Alliance",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "GCA.png"
+  },
+  "ZCL": {
+    "name": "Zenith Combat League",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "ZCL.png"
+  },
+  "GCS": {
+    "name": "Gladius Combat Sport",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "GCS.png"
+  },
+  "LFF": {
+    "name": "Legion Fighting Federation",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "LFF.png"
+  },
+  "HFL": {
+    "name": "Hanseatic Fight League",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "HFL.png"
+  },
+  "HM": {
+    "name": "Hanseatic MMA",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "HM.png"
+  },
+  "SFL": {
+    "name": "Sterling Fight League",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "SFL.png"
+  },
+  "ZFN": {
+    "name": "Zenith Fighting Network",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ZFN.png"
+  },
+  "ACL": {
+    "name": "Albion Combat League",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ACL.png"
+  },
+  "SC": {
+    "name": "Sovereign Cage",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "SC.png"
+  },
+  "NF": {
+    "name": "Nordkraft FC",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "NF.png"
+  },
+  "LC": {
+    "name": "Legion Cage",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "LC.png"
+  },
+  "BF": {
+    "name": "Baltic FC",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "BF.png"
+  },
+  "AMMA": {
+    "name": "Albion Mixed Martial Arts",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "AMMA.png"
+  },
+  "RFN": {
+    "name": "Regent Fighting Network",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RFN.png"
+  },
+  "CMMA": {
+    "name": "Crown Mixed Martial Arts",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "CMMA.png"
+  },
+  "HFS": {
+    "name": "Hanseatic Fight Series",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "HFS.png"
+  },
+  "MA": {
+    "name": "Meridian Arena",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "MA.png"
+  },
+  "NCL": {
+    "name": "Nordkraft Combat League",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "NCL.png"
+  },
+  "VFL": {
+    "name": "Vanguard Fight League",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VFL.png"
+  },
+  "LA": {
+    "name": "Legion Arena",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "LA.png"
+  },
+  "CCS": {
+    "name": "Crown Combat Sport",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "CCS.png"
+  },
+  "HFN": {
+    "name": "Hanseatic Fighting Network",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "HFN.png"
+  },
+  "RCC": {
+    "name": "Regent Cage Championship",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "RCC.png"
+  },
+  "VCC": {
+    "name": "Vanguard Cage Championship",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "VCC.png"
+  },
+  "MF": {
+    "name": "Meridian Fights",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "MF.png"
+  },
+  "BCA": {
+    "name": "Baltic Combat Alliance",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "BCA.png"
+  },
+  "LFL": {
+    "name": "Legion Fight League",
+    "region": "Europe",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "LFL.png"
+  },
+  "RMMA": {
+    "name": "Regent Mixed Martial Arts",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RMMA.png"
+  },
+  "LF": {
+    "name": "Legion Fights",
+    "region": "Europe",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "LF.png"
+  },
+  "ACC": {
+    "name": "Alpine Cage Championship",
+    "region": "Europe",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "ACC.png"
+  },
+  "CFF": {
+    "name": "Carpath Fighting Federation",
+    "region": "Europe",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "CFF.png"
+  },
+  "RFL": {
+    "name": "Ronin Fight League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RFL.png"
+  },
+  "SRFC": {
+    "name": "Silk Road Fight Club",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SRFC.png"
+  },
+  "RSFA": {
+    "name": "Rising Sun Fighting Alliance",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "RSFA.png"
+  },
+  "DFN": {
+    "name": "Dynasty Fighting Network",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "DFN.png"
+  },
+  "OFC": {
+    "name": "Onyx Fighting Championship",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "OFC.png"
+  },
+  "JFC": {
+    "name": "Jade Fighting Championship",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "JFC.png"
+  },
+  "DF": {
+    "name": "Dragon FC",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "DF.png"
+  },
+  "OC": {
+    "name": "Onyx Combat",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "OC.png"
+  },
+  "GCL": {
+    "name": "Garuda Combat League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GCL.png"
+  },
+  "TC": {
+    "name": "Typhoon Combat",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "TC.png"
+  },
+  "SRC": {
+    "name": "Silk Road Cage",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SRC.png"
+  },
+  "KM": {
+    "name": "Kensei MMA",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "KM.png"
+  },
+  "RSFL": {
+    "name": "Rising Sun Fight League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "RSFL.png"
+  },
+  "KFC": {
+    "name": "Kensei Fighting Championship",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "KFC.png"
+  },
+  "SRFL": {
+    "name": "Silk Road Fight League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SRFL.png"
+  },
+  "DC": {
+    "name": "Dynasty Combat",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "DC.png"
+  },
+  "TFS": {
+    "name": "Tiger Fighting Series",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "TFS.png"
+  },
+  "RSCS": {
+    "name": "Rising Sun Combat Sport",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RSCS.png"
+  },
+  "DFC": {
+    "name": "Dynasty Fighting Championship",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "DFC.png"
+  },
+  "TFA": {
+    "name": "Tiger Fighting Alliance",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "TFA.png"
+  },
+  "DFL": {
+    "name": "Dynasty Fight League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "DFL.png"
+  },
+  "MCL": {
+    "name": "Monsoon Combat League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "MCL.png"
+  },
+  "SRF": {
+    "name": "Silk Road FC",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SRF.png"
+  },
+  "JC": {
+    "name": "Jade Cage",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "JC.png"
+  },
+  "OFN": {
+    "name": "Onyx Fight Nights",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "OFN.png"
+  },
+  "RSMMA": {
+    "name": "Rising Sun Mixed Martial Arts",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RSMMA.png"
+  },
+  "SRCL": {
+    "name": "Silk Road Combat League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "SRCL.png"
+  },
+  "OFL": {
+    "name": "Onyx Fight League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "OFL.png"
+  },
+  "GC": {
+    "name": "Garuda Combat",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "GC.png"
+  },
+  "ICFL": {
+    "name": "Iron Circle Fight League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "ICFL.png"
+  },
+  "OA": {
+    "name": "Onyx Arena",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "OA.png"
+  },
+  "ICMMA": {
+    "name": "Iron Circle Mixed Martial Arts",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ICMMA.png"
+  },
+  "VA": {
+    "name": "Vermilion Arena",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "VA.png"
+  },
+  "TCS": {
+    "name": "Tiger Combat Sport",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "TCS.png"
+  },
+  "JFS": {
+    "name": "Jade Fighting Series",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "JFS.png"
+  },
+  "DFF": {
+    "name": "Dragon Fighting Federation",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "DFF.png"
+  },
+  "RSFC": {
+    "name": "Rising Sun Fighting Championship",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RSFC.png"
+  },
+  "RSM": {
+    "name": "Rising Sun MMA",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RSM.png"
+  },
+  "RSFS": {
+    "name": "Rising Sun Fighting Series",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RSFS.png"
+  },
+  "DCC": {
+    "name": "Dynasty Cage Championship",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "DCC.png"
+  },
+  "SRM": {
+    "name": "Silk Road MMA",
+    "region": "Asia",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "SRM.png"
+  },
+  "VFN": {
+    "name": "Vermilion Fight Nights",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VFN.png"
+  },
+  "RFS": {
+    "name": "Ronin Fighting Series",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RFS.png"
+  },
+  "ICFS": {
+    "name": "Iron Circle Fight Series",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ICFS.png"
+  },
+  "ICFC": {
+    "name": "Iron Circle Fighting Championship",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "ICFC.png"
+  },
+  "VCL": {
+    "name": "Vermilion Combat League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VCL.png"
+  },
+  "LCS": {
+    "name": "Lotus Combat Sport",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "LCS.png"
+  },
+  "RSF": {
+    "name": "Rising Sun Fights",
+    "region": "Asia",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RSF.png"
+  },
+  "VCA": {
+    "name": "Vermilion Combat Alliance",
+    "region": "Asia",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "VCA.png"
+  },
+  "OCL": {
+    "name": "Onyx Combat League",
+    "region": "Asia",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "OCL.png"
+  },
+  "SCC": {
+    "name": "Southern Cross Combatives",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "SCC.png"
+  },
+  "OM": {
+    "name": "Outback MMA",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "OM.png"
+  },
+  "BMMA": {
+    "name": "Boomerang Mixed Martial Arts",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "BMMA.png"
+  },
+  "OCC": {
+    "name": "Outback Cage Championship",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "OCC.png"
+  },
+  "OF": {
+    "name": "Outback FC",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "OF.png"
+  },
+  "KCL": {
+    "name": "Kanga Combat League",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "KCL.png"
+  },
+  "CSFC": {
+    "name": "Coral Sea Fight Club",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "CSFC.png"
+  },
+  "SCCC": {
+    "name": "Southern Cross Cage Championship",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "SCCC.png"
+  },
+  "LFS": {
+    "name": "Longboard Fight Series",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "LFS.png"
+  },
+  "SCFF": {
+    "name": "Southern Cross Fighting Federation",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SCFF.png"
+  },
+  "KFL": {
+    "name": "Kanga Fight League",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "KFL.png"
+  },
+  "BCS": {
+    "name": "Boomerang Combat Sport",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "BCS.png"
+  },
+  "KC": {
+    "name": "Kanga Cage",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "KC.png"
+  },
+  "KFF": {
+    "name": "Kanga Fighting Federation",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "KFF.png"
+  },
+  "ACA": {
+    "name": "Antipodean Combat Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "ACA.png"
+  },
+  "SCFC": {
+    "name": "Southern Cross Fighting Championship",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "SCFC.png"
+  },
+  "KFA": {
+    "name": "Kiwi Fighting Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "KFA.png"
+  },
+  "LFN": {
+    "name": "Longboard Fight Nights",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "LFN.png"
+  },
+  "ACS": {
+    "name": "Antipodean Combat Sport",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ACS.png"
+  },
+  "AC": {
+    "name": "Antipodean Combat",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "AC.png"
+  },
+  "CSCS": {
+    "name": "Coral Sea Combat Sport",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "CSCS.png"
+  },
+  "BCC": {
+    "name": "Barrier Cage Championship",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "BCC.png"
+  },
+  "RCA": {
+    "name": "Reef Combat Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RCA.png"
+  },
+  "KFN": {
+    "name": "Kanga Fight Nights",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "KFN.png"
+  },
+  "SCF": {
+    "name": "Southern Cross FC",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "SCF.png"
+  },
+  "RA": {
+    "name": "Reef Arena",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RA.png"
+  },
+  "CSC": {
+    "name": "Coral Sea Combatives",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "CSC.png"
+  },
+  "KFS": {
+    "name": "Kanga Fight Series",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "KFS.png"
+  },
+  "OFF": {
+    "name": "Outback Fighting Federation",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "OFF.png"
+  },
+  "KCS": {
+    "name": "Kiwi Combat Sport",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "KCS.png"
+  },
+  "SF": {
+    "name": "Sunburnt FC",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SF.png"
+  },
+  "CSFF": {
+    "name": "Coral Sea Fighting Federation",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "CSFF.png"
+  },
+  "CSA": {
+    "name": "Coral Sea Arena",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "CSA.png"
+  },
+  "CSCL": {
+    "name": "Coral Sea Combat League",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "CSCL.png"
+  },
+  "KA": {
+    "name": "Kanga Arena",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "KA.png"
+  },
+  "LFC": {
+    "name": "Longboard Fighting Championship",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "LFC.png"
+  },
+  "SCFS": {
+    "name": "Southern Cross Fight Series",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "SCFS.png"
+  },
+  "CSFN": {
+    "name": "Coral Sea Fighting Network",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "CSFN.png"
+  },
+  "OCS": {
+    "name": "Outback Combat Sport",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "OCS.png"
+  },
+  "CSFA": {
+    "name": "Coral Sea Fighting Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "CSFA.png"
+  },
+  "OCA": {
+    "name": "Outback Combat Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "OCA.png"
+  },
+  "SCFA": {
+    "name": "Southern Cross Fighting Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "SCFA.png"
+  },
+  "OFS": {
+    "name": "Outback Fighting Series",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "OFS.png"
+  },
+  "LCA": {
+    "name": "Longboard Combat Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "LCA.png"
+  },
+  "TCC": {
+    "name": "Tasman Cage Championship",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "TCC.png"
+  },
+  "CSFS": {
+    "name": "Coral Sea Fight Series",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "CSFS.png"
+  },
+  "SCCA": {
+    "name": "Southern Cross Combat Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "SCCA.png"
+  },
+  "CSCA": {
+    "name": "Coral Sea Combat Alliance",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "CSCA.png"
+  },
+  "CSCC": {
+    "name": "Coral Sea Cage Championship",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "CSCC.png"
+  },
+  "TFL": {
+    "name": "Tasman Fight League",
+    "region": "Oceania",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "TFL.png"
+  },
+  "IF": {
+    "name": "Ivory FC",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "IF.png"
+  },
+  "RVF": {
+    "name": "Rift Valley FC",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "RVF.png"
+  },
+  "UCA": {
+    "name": "Ubuntu Combat Alliance",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "UCA.png"
+  },
+  "RVA": {
+    "name": "Rift Valley Arena",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RVA.png"
+  },
+  "GLFF": {
+    "name": "Golden Lion Fighting Federation",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GLFF.png"
+  },
+  "ZFC": {
+    "name": "Zambezi Fighting Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ZFC.png"
+  },
+  "KMMA": {
+    "name": "Kalahari Mixed Martial Arts",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "KMMA.png"
+  },
+  "GLCL": {
+    "name": "Golden Lion Combat League",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "GLCL.png"
+  },
+  "UM": {
+    "name": "Ubuntu MMA",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "UM.png"
+  },
+  "GLF": {
+    "name": "Golden Lion FC",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "GLF.png"
+  },
+  "GLC": {
+    "name": "Golden Lion Cage",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GLC.png"
+  },
+  "ICC": {
+    "name": "Ivory Cage Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ICC.png"
+  },
+  "NA": {
+    "name": "Nile Arena",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "NA.png"
+  },
+  "RVCA": {
+    "name": "Rift Valley Combat Alliance",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RVCA.png"
+  },
+  "NFA": {
+    "name": "Nile Fighting Alliance",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "NFA.png"
+  },
+  "RVFC": {
+    "name": "Rift Valley Fighting Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "RVFC.png"
+  },
+  "IFS": {
+    "name": "Ivory Fighting Series",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "IFS.png"
+  },
+  "NC": {
+    "name": "Nile Combatives",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "NC.png"
+  },
+  "ZF": {
+    "name": "Zambezi FC",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ZF.png"
+  },
+  "RVFA": {
+    "name": "Rift Valley Fighting Alliance",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "RVFA.png"
+  },
+  "RVFL": {
+    "name": "Rift Valley Fight League",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RVFL.png"
+  },
+  "NCA": {
+    "name": "Nile Combat Alliance",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "NCA.png"
+  },
+  "ZC": {
+    "name": "Zambezi Cage",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ZC.png"
+  },
+  "ZFL": {
+    "name": "Zambezi Fight League",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ZFL.png"
+  },
+  "GLFS": {
+    "name": "Golden Lion Fight Series",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GLFS.png"
+  },
+  "RVC": {
+    "name": "Rift Valley Combat",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RVC.png"
+  },
+  "UC": {
+    "name": "Ubuntu Cage",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "UC.png"
+  },
+  "NCC": {
+    "name": "Nile Cage Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "NCC.png"
+  },
+  "NFC": {
+    "name": "Nile Fighting Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "NFC.png"
+  },
+  "ZFA": {
+    "name": "Zambezi Fighting Alliance",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ZFA.png"
+  },
+  "UF": {
+    "name": "Ubuntu FC",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "UF.png"
+  },
+  "RVCL": {
+    "name": "Rift Valley Combat League",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "RVCL.png"
+  },
+  "ZCC": {
+    "name": "Zambezi Cage Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ZCC.png"
+  },
+  "RVCC": {
+    "name": "Rift Valley Cage Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RVCC.png"
+  },
+  "RVMMA": {
+    "name": "Rift Valley Mixed Martial Arts",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "RVMMA.png"
+  },
+  "UA": {
+    "name": "Ubuntu Arena",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "UA.png"
+  },
+  "NFS": {
+    "name": "Nile Fight Series",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "NFS.png"
+  },
+  "ZMMA": {
+    "name": "Zambezi Mixed Martial Arts",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "ZMMA.png"
+  },
+  "ICA": {
+    "name": "Ivory Combat Alliance",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ICA.png"
+  },
+  "RVFF": {
+    "name": "Rift Valley Fighting Federation",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "RVFF.png"
+  },
+  "UMMA": {
+    "name": "Ubuntu Mixed Martial Arts",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "UMMA.png"
+  },
+  "ZFS": {
+    "name": "Zambezi Fight Series",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ZFS.png"
+  },
+  "AA": {
+    "name": "Ashanti Arena",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "AA.png"
+  },
+  "ZFF": {
+    "name": "Zambezi Fighting Federation",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "ZFF.png"
+  },
+  "KCC": {
+    "name": "Kalahari Cage Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "KCC.png"
+  },
+  "ZM": {
+    "name": "Zambezi MMA",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ZM.png"
+  },
+  "GLFL": {
+    "name": "Golden Lion Fight League",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GLFL.png"
+  },
+  "IM": {
+    "name": "Ivory MMA",
+    "region": "Africa",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "IM.png"
+  },
+  "ZCS": {
+    "name": "Zambezi Combat Sport",
+    "region": "Africa",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "ZCS.png"
+  },
+  "GLFC": {
+    "name": "Golden Lion Fighting Championship",
+    "region": "Africa",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "GLFC.png"
+  },
+  "OFA": {
+    "name": "Oasis Fighting Alliance",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "OFA.png"
+  },
+  "DCS": {
+    "name": "Dune Combat Sport",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "DCS.png"
+  },
+  "FCA": {
+    "name": "Falcon Combat Alliance",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "FCA.png"
+  },
+  "DM": {
+    "name": "Dune MMA",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "DM.png"
+  },
+  "PFF": {
+    "name": "Peninsula Fighting Federation",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "PFF.png"
+  },
+  "DCA": {
+    "name": "Dinar Combat Alliance",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "DCA.png"
+  },
+  "FC": {
+    "name": "Falcon Combat",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "FC.png"
+  },
+  "FCL": {
+    "name": "Falcon Combat League",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "FCL.png"
+  },
+  "DFS": {
+    "name": "Desert Fighting Series",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "DFS.png"
+  },
+  "DCL": {
+    "name": "Dinar Combat League",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "DCL.png"
+  },
+  "PM": {
+    "name": "Peninsula MMA",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "PM.png"
+  },
+  "GMMA": {
+    "name": "Gulf Mixed Martial Arts",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GMMA.png"
+  },
+  "PFS": {
+    "name": "Peninsula Fighting Series",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "PFS.png"
+  },
+  "DFA": {
+    "name": "Dinar Fighting Alliance",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "DFA.png"
+  },
+  "DA": {
+    "name": "Dinar Arena",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "DA.png"
+  },
+  "OMMA": {
+    "name": "Oasis Mixed Martial Arts",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "OMMA.png"
+  },
+  "GFL": {
+    "name": "Gulf Fight League",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GFL.png"
+  },
+  "PCS": {
+    "name": "Persia Combat Sport",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "PCS.png"
+  },
+  "GFN": {
+    "name": "Gulf Fight Nights",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "GFN.png"
+  },
+  "DMMA": {
+    "name": "Desert Mixed Martial Arts",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "DMMA.png"
+  },
+  "PCA": {
+    "name": "Persia Combat Alliance",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "PCA.png"
+  },
+  "GFS": {
+    "name": "Gulf Fighting Series",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "GFS.png"
+  },
+  "MCA": {
+    "name": "Mirage Combat Alliance",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "MCA.png"
+  },
+  "PCC": {
+    "name": "Peninsula Cage Championship",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "PCC.png"
+  },
+  "GFA": {
+    "name": "Gulf Fighting Alliance",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "GFA.png"
+  },
+  "FCS": {
+    "name": "Falcon Combat Sport",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "FCS.png"
+  },
+  "FMMA": {
+    "name": "Falcon Mixed Martial Arts",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "big_italic",
+    "layout": "big_italic",
+    "file": "FMMA.png"
+  },
+  "FCC": {
+    "name": "Falcon Cage Championship",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "outlined",
+    "layout": "outlined",
+    "file": "FCC.png"
+  },
+  "PA": {
+    "name": "Peninsula Arena",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "PA.png"
+  },
+  "MMMA": {
+    "name": "Mirage Mixed Martial Arts",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "knockout",
+    "layout": "knockout",
+    "file": "MMMA.png"
+  },
+  "MFF": {
+    "name": "Mirage Fighting Federation",
+    "region": "MiddleEast",
+    "type": "org",
+    "motif": "two_tone",
+    "layout": "two_tone",
+    "file": "MFF.png"
+  }
+}

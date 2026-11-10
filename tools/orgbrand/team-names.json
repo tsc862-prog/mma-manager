@@ -1,0 +1,1108 @@
+{
+  "NorthAmerica": [
+    {
+      "name": "Team Extreme",
+      "abbrev": "TE"
+    },
+    {
+      "name": "Iron Martial Arts",
+      "abbrev": "IMA"
+    },
+    {
+      "name": "Renegade Top Team",
+      "abbrev": "RTT"
+    },
+    {
+      "name": "Blackbelt Muay Thai",
+      "abbrev": "BMT"
+    },
+    {
+      "name": "Elite Top Team",
+      "abbrev": "ETT"
+    },
+    {
+      "name": "Blackbelt Fight Club",
+      "abbrev": "BFC"
+    },
+    {
+      "name": "Blackbelt Fight Lab",
+      "abbrev": "BFL"
+    },
+    {
+      "name": "Frontline MMA",
+      "abbrev": "FM"
+    },
+    {
+      "name": "Syndicate Fight Team",
+      "abbrev": "SFT"
+    },
+    {
+      "name": "Kings Martial Arts",
+      "abbrev": "KMA"
+    },
+    {
+      "name": "Team Steel City",
+      "abbrev": "TSC"
+    },
+    {
+      "name": "Extreme Academy",
+      "abbrev": "EA"
+    },
+    {
+      "name": "Steel City Fight Team",
+      "abbrev": "SCFT"
+    },
+    {
+      "name": "Redline Training Center",
+      "abbrev": "RTC"
+    },
+    {
+      "name": "Syndicate Top Team",
+      "abbrev": "STT"
+    },
+    {
+      "name": "Team Apex",
+      "abbrev": "TA"
+    },
+    {
+      "name": "Warrior Top Team",
+      "abbrev": "WTT"
+    },
+    {
+      "name": "Anvil Academy",
+      "abbrev": "AA"
+    },
+    {
+      "name": "Team Kings",
+      "abbrev": "TK"
+    },
+    {
+      "name": "Team Blackbelt",
+      "abbrev": "TB"
+    },
+    {
+      "name": "Maverick Academy",
+      "abbrev": "MA"
+    },
+    {
+      "name": "Frontline Gym",
+      "abbrev": "FG"
+    },
+    {
+      "name": "Grit Fight Team",
+      "abbrev": "GFT"
+    },
+    {
+      "name": "Team Ridgeline",
+      "abbrev": "TR"
+    },
+    {
+      "name": "Savage MMA",
+      "abbrev": "SM"
+    },
+    {
+      "name": "Team Warrior",
+      "abbrev": "TW"
+    },
+    {
+      "name": "Grit Combat Club",
+      "abbrev": "GCC"
+    },
+    {
+      "name": "Elite Training Center",
+      "abbrev": "ETC"
+    },
+    {
+      "name": "Iron Fight Team",
+      "abbrev": "IFT"
+    },
+    {
+      "name": "Renegade MMA",
+      "abbrev": "RM"
+    },
+    {
+      "name": "Grit Top Team",
+      "abbrev": "GTT"
+    },
+    {
+      "name": "Apex MMA",
+      "abbrev": "AM"
+    },
+    {
+      "name": "Ridgeline Muay Thai",
+      "abbrev": "RMT"
+    },
+    {
+      "name": "Elite Combat Club",
+      "abbrev": "ECC"
+    },
+    {
+      "name": "Blackbelt MMA",
+      "abbrev": "BM"
+    },
+    {
+      "name": "Syndicate Academy",
+      "abbrev": "SA"
+    },
+    {
+      "name": "Kings Muay Thai",
+      "abbrev": "KMT"
+    },
+    {
+      "name": "Team Syndicate",
+      "abbrev": "TS"
+    },
+    {
+      "name": "Team Grit",
+      "abbrev": "TG"
+    },
+    {
+      "name": "Steel City Top Team",
+      "abbrev": "SCTT"
+    },
+    {
+      "name": "Redline Combat Club",
+      "abbrev": "RCC"
+    },
+    {
+      "name": "Savage Martial Arts",
+      "abbrev": "SMA"
+    },
+    {
+      "name": "Kings Top Team",
+      "abbrev": "KTT"
+    },
+    {
+      "name": "Blackbelt Fight Team",
+      "abbrev": "BFT"
+    },
+    {
+      "name": "Warrior Martial Arts",
+      "abbrev": "WMA"
+    },
+    {
+      "name": "Elite Fight Team",
+      "abbrev": "EFT"
+    },
+    {
+      "name": "Apex Fight Team",
+      "abbrev": "AFT"
+    },
+    {
+      "name": "Extreme BJJ",
+      "abbrev": "EB"
+    },
+    {
+      "name": "Steel City Academy",
+      "abbrev": "SCA"
+    },
+    {
+      "name": "Warrior MMA",
+      "abbrev": "WM"
+    }
+  ],
+  "SouthAmerica": [
+    {
+      "name": "Tropa Martial Arts",
+      "abbrev": "TMA"
+    },
+    {
+      "name": "Fenix Martial Arts",
+      "abbrev": "FMA"
+    },
+    {
+      "name": "Capital Training Center",
+      "abbrev": "CTC"
+    },
+    {
+      "name": "Fera Muay Thai",
+      "abbrev": "FMT"
+    },
+    {
+      "name": "Guerreiro Martial Arts",
+      "abbrev": "GMA"
+    },
+    {
+      "name": "Nova Academy",
+      "abbrev": "NA"
+    },
+    {
+      "name": "Vale Fight Club",
+      "abbrev": "VFC"
+    },
+    {
+      "name": "Vale Training Center",
+      "abbrev": "VTC"
+    },
+    {
+      "name": "Favela Top Team",
+      "abbrev": "FTT"
+    },
+    {
+      "name": "Pitbull MMA",
+      "abbrev": "PM"
+    },
+    {
+      "name": "Team Nova",
+      "abbrev": "TN"
+    },
+    {
+      "name": "Jungle Gym",
+      "abbrev": "JG"
+    },
+    {
+      "name": "Pitbull Top Team",
+      "abbrev": "PTT"
+    },
+    {
+      "name": "Tropa Fight Lab",
+      "abbrev": "TFL"
+    },
+    {
+      "name": "Pitbull Combat Club",
+      "abbrev": "PCC"
+    },
+    {
+      "name": "Guerreiro Fight Lab",
+      "abbrev": "GFL"
+    },
+    {
+      "name": "Team Pitbull",
+      "abbrev": "TP"
+    },
+    {
+      "name": "Favela Fight Club",
+      "abbrev": "FFC"
+    },
+    {
+      "name": "Pitbull BJJ",
+      "abbrev": "PB"
+    },
+    {
+      "name": "Team Tropa",
+      "abbrev": "TT"
+    },
+    {
+      "name": "Tropa Fight Team",
+      "abbrev": "TFT"
+    },
+    {
+      "name": "Nova Top Team",
+      "abbrev": "NTT"
+    },
+    {
+      "name": "Nova Fight Team",
+      "abbrev": "NFT"
+    },
+    {
+      "name": "Vale Muay Thai",
+      "abbrev": "VMT"
+    },
+    {
+      "name": "Bravo Martial Arts",
+      "abbrev": "BMA"
+    },
+    {
+      "name": "Favela Fight Team",
+      "abbrev": "FFT"
+    },
+    {
+      "name": "Team Fera",
+      "abbrev": "TF"
+    },
+    {
+      "name": "Capital BJJ",
+      "abbrev": "CB"
+    },
+    {
+      "name": "Vale BJJ",
+      "abbrev": "VB"
+    },
+    {
+      "name": "Capital Martial Arts",
+      "abbrev": "CMA"
+    },
+    {
+      "name": "Pitbull Martial Arts",
+      "abbrev": "PMA"
+    },
+    {
+      "name": "Raiz Fight Team",
+      "abbrev": "RFT"
+    },
+    {
+      "name": "Team Muralha",
+      "abbrev": "TM"
+    },
+    {
+      "name": "Favela Academy",
+      "abbrev": "FA"
+    },
+    {
+      "name": "Nova Muay Thai",
+      "abbrev": "NMT"
+    },
+    {
+      "name": "Jungle MMA",
+      "abbrev": "JM"
+    },
+    {
+      "name": "Tropa Combat Club",
+      "abbrev": "TCC"
+    },
+    {
+      "name": "Team Jungle",
+      "abbrev": "TJ"
+    },
+    {
+      "name": "Vale Top Team",
+      "abbrev": "VTT"
+    },
+    {
+      "name": "Capital Top Team",
+      "abbrev": "CTT"
+    },
+    {
+      "name": "Nova Fight Lab",
+      "abbrev": "NFL"
+    },
+    {
+      "name": "Jungle Top Team",
+      "abbrev": "JTT"
+    },
+    {
+      "name": "Vale Fight Team",
+      "abbrev": "VFT"
+    },
+    {
+      "name": "Selva Training Center",
+      "abbrev": "STC"
+    },
+    {
+      "name": "Muralha Combat Club",
+      "abbrev": "MCC"
+    },
+    {
+      "name": "Favela BJJ",
+      "abbrev": "FB"
+    },
+    {
+      "name": "Muralha Fight Team",
+      "abbrev": "MFT"
+    },
+    {
+      "name": "Capital Academy",
+      "abbrev": "CA"
+    },
+    {
+      "name": "Selva Gym",
+      "abbrev": "SG"
+    },
+    {
+      "name": "Raiz Fight Club",
+      "abbrev": "RFC"
+    }
+  ],
+  "Europe": [
+    {
+      "name": "Viking Academy",
+      "abbrev": "VA"
+    },
+    {
+      "name": "Wolfpack Fight Team",
+      "abbrev": "WFT"
+    },
+    {
+      "name": "Vanguard Martial Arts",
+      "abbrev": "VMA"
+    },
+    {
+      "name": "Vanguard Gym",
+      "abbrev": "VG"
+    },
+    {
+      "name": "Ironside Top Team",
+      "abbrev": "ITT"
+    },
+    {
+      "name": "Team Ironside",
+      "abbrev": "TI"
+    },
+    {
+      "name": "Crown MMA",
+      "abbrev": "CM"
+    },
+    {
+      "name": "Legion BJJ",
+      "abbrev": "LB"
+    },
+    {
+      "name": "Crown Muay Thai",
+      "abbrev": "CMT"
+    },
+    {
+      "name": "Sovereign Combat Club",
+      "abbrev": "SCC"
+    },
+    {
+      "name": "Bastion Top Team",
+      "abbrev": "BTT"
+    },
+    {
+      "name": "Wolfpack Fight Lab",
+      "abbrev": "WFL"
+    },
+    {
+      "name": "Bastion Academy",
+      "abbrev": "BA"
+    },
+    {
+      "name": "Sabre Fight Lab",
+      "abbrev": "SFL"
+    },
+    {
+      "name": "Team Vanguard",
+      "abbrev": "TV"
+    },
+    {
+      "name": "Titan Top Team",
+      "abbrev": "TTT"
+    },
+    {
+      "name": "Team Crown",
+      "abbrev": "TC"
+    },
+    {
+      "name": "Wolfpack Muay Thai",
+      "abbrev": "WMT"
+    },
+    {
+      "name": "Sovereign BJJ",
+      "abbrev": "SB"
+    },
+    {
+      "name": "Ironside Academy",
+      "abbrev": "IA"
+    },
+    {
+      "name": "Vanguard MMA",
+      "abbrev": "VM"
+    },
+    {
+      "name": "Sovereign Fight Club",
+      "abbrev": "SFC"
+    },
+    {
+      "name": "Legion Martial Arts",
+      "abbrev": "LMA"
+    },
+    {
+      "name": "Valhalla Combat Club",
+      "abbrev": "VCC"
+    },
+    {
+      "name": "Crown Fight Club",
+      "abbrev": "CFC"
+    },
+    {
+      "name": "Legion MMA",
+      "abbrev": "LM"
+    },
+    {
+      "name": "Bulldog Training Center",
+      "abbrev": "BTC"
+    },
+    {
+      "name": "Ironside Gym",
+      "abbrev": "IG"
+    },
+    {
+      "name": "Wolfpack Academy",
+      "abbrev": "WA"
+    },
+    {
+      "name": "Viking Fight Lab",
+      "abbrev": "VFL"
+    },
+    {
+      "name": "Legion Fight Lab",
+      "abbrev": "LFL"
+    },
+    {
+      "name": "Legion Top Team",
+      "abbrev": "LTT"
+    },
+    {
+      "name": "Titan Fight Club",
+      "abbrev": "TFC"
+    },
+    {
+      "name": "Bastion Combat Club",
+      "abbrev": "BCC"
+    },
+    {
+      "name": "Legion Fight Team",
+      "abbrev": "LFT"
+    },
+    {
+      "name": "Titan Muay Thai",
+      "abbrev": "TMT"
+    },
+    {
+      "name": "Gladiator Muay Thai",
+      "abbrev": "GMT"
+    },
+    {
+      "name": "Ironside MMA",
+      "abbrev": "IM"
+    },
+    {
+      "name": "Ironside Training Center",
+      "abbrev": "ITC"
+    },
+    {
+      "name": "Gladiator Fight Club",
+      "abbrev": "GFC"
+    },
+    {
+      "name": "Gladiator Training Center",
+      "abbrev": "GTC"
+    },
+    {
+      "name": "Crown Fight Team",
+      "abbrev": "CFT"
+    },
+    {
+      "name": "Wolfpack Training Center",
+      "abbrev": "WTC"
+    },
+    {
+      "name": "Granite MMA",
+      "abbrev": "GM"
+    },
+    {
+      "name": "Crown Combat Club",
+      "abbrev": "CCC"
+    },
+    {
+      "name": "Granite Academy",
+      "abbrev": "GA"
+    },
+    {
+      "name": "Legion Training Center",
+      "abbrev": "LTC"
+    },
+    {
+      "name": "Crown Fight Lab",
+      "abbrev": "CFL"
+    },
+    {
+      "name": "Sovereign Muay Thai",
+      "abbrev": "SMT"
+    },
+    {
+      "name": "Team Legion",
+      "abbrev": "TL"
+    }
+  ],
+  "Asia": [
+    {
+      "name": "Kensei Fight Lab",
+      "abbrev": "KFL"
+    },
+    {
+      "name": "Team Onyx",
+      "abbrev": "TO"
+    },
+    {
+      "name": "Monsoon Muay Thai",
+      "abbrev": "MMT"
+    },
+    {
+      "name": "Lotus Combat Club",
+      "abbrev": "LCC"
+    },
+    {
+      "name": "Onyx Training Center",
+      "abbrev": "OTC"
+    },
+    {
+      "name": "Ronin Martial Arts",
+      "abbrev": "RMA"
+    },
+    {
+      "name": "Onyx MMA",
+      "abbrev": "OM"
+    },
+    {
+      "name": "Dragon Muay Thai",
+      "abbrev": "DMT"
+    },
+    {
+      "name": "Iron Fist Martial Arts",
+      "abbrev": "IFMA"
+    },
+    {
+      "name": "Kensei BJJ",
+      "abbrev": "KB"
+    },
+    {
+      "name": "Onyx Gym",
+      "abbrev": "OG"
+    },
+    {
+      "name": "Bushido Gym",
+      "abbrev": "BG"
+    },
+    {
+      "name": "Dragon Fight Team",
+      "abbrev": "DFT"
+    },
+    {
+      "name": "Monsoon Fight Lab",
+      "abbrev": "MFL"
+    },
+    {
+      "name": "Onyx Muay Thai",
+      "abbrev": "OMT"
+    },
+    {
+      "name": "Ronin Academy",
+      "abbrev": "RA"
+    },
+    {
+      "name": "Dragon Gym",
+      "abbrev": "DG"
+    },
+    {
+      "name": "Iron Fist Muay Thai",
+      "abbrev": "IFMT"
+    },
+    {
+      "name": "Onyx Top Team",
+      "abbrev": "OTT"
+    },
+    {
+      "name": "Lotus Fight Club",
+      "abbrev": "LFC"
+    },
+    {
+      "name": "Jade BJJ",
+      "abbrev": "JB"
+    },
+    {
+      "name": "Jade Training Center",
+      "abbrev": "JTC"
+    },
+    {
+      "name": "Lotus Academy",
+      "abbrev": "LA"
+    },
+    {
+      "name": "Kensei Academy",
+      "abbrev": "KA"
+    },
+    {
+      "name": "Jade Martial Arts",
+      "abbrev": "JMA"
+    },
+    {
+      "name": "Team Dragon",
+      "abbrev": "TD"
+    },
+    {
+      "name": "Onyx Fight Club",
+      "abbrev": "OFC"
+    },
+    {
+      "name": "Iron Fist Fight Team",
+      "abbrev": "IFFT"
+    },
+    {
+      "name": "Onyx Fight Lab",
+      "abbrev": "OFL"
+    },
+    {
+      "name": "Monsoon Gym",
+      "abbrev": "MG"
+    },
+    {
+      "name": "Dragon MMA",
+      "abbrev": "DM"
+    },
+    {
+      "name": "Kensei Fight Team",
+      "abbrev": "KFT"
+    },
+    {
+      "name": "Dragon Martial Arts",
+      "abbrev": "DMA"
+    },
+    {
+      "name": "Tiger Training Center",
+      "abbrev": "TTC"
+    },
+    {
+      "name": "Kensei Fight Club",
+      "abbrev": "KFC"
+    },
+    {
+      "name": "Monsoon Top Team",
+      "abbrev": "MTT"
+    },
+    {
+      "name": "Kensei MMA",
+      "abbrev": "KM"
+    },
+    {
+      "name": "Jade Academy",
+      "abbrev": "JA"
+    },
+    {
+      "name": "Monsoon Fight Club",
+      "abbrev": "MFC"
+    },
+    {
+      "name": "Dragon Fight Club",
+      "abbrev": "DFC"
+    },
+    {
+      "name": "Onyx Combat Club",
+      "abbrev": "OCC"
+    },
+    {
+      "name": "Iron Fist Fight Club",
+      "abbrev": "IFFC"
+    },
+    {
+      "name": "Iron Fist Top Team",
+      "abbrev": "IFTT"
+    },
+    {
+      "name": "Dragon Combat Club",
+      "abbrev": "DCC"
+    },
+    {
+      "name": "Dragon Academy",
+      "abbrev": "DA"
+    },
+    {
+      "name": "Onyx BJJ",
+      "abbrev": "OB"
+    },
+    {
+      "name": "Monsoon MMA",
+      "abbrev": "MM"
+    },
+    {
+      "name": "Iron Fist BJJ",
+      "abbrev": "IFB"
+    },
+    {
+      "name": "Monsoon Training Center",
+      "abbrev": "MTC"
+    },
+    {
+      "name": "Monsoon Martial Arts",
+      "abbrev": "MMA"
+    }
+  ],
+  "Oceania": [
+    {
+      "name": "Boomerang BJJ",
+      "abbrev": "BB"
+    },
+    {
+      "name": "Outback Academy",
+      "abbrev": "OA"
+    },
+    {
+      "name": "Kanga Gym",
+      "abbrev": "KG"
+    },
+    {
+      "name": "Reef BJJ",
+      "abbrev": "RB"
+    },
+    {
+      "name": "City Gym",
+      "abbrev": "CG"
+    },
+    {
+      "name": "Kanga Combat Club",
+      "abbrev": "KCC"
+    },
+    {
+      "name": "Outback Fight Team",
+      "abbrev": "OFT"
+    },
+    {
+      "name": "Kanga Training Center",
+      "abbrev": "KTC"
+    },
+    {
+      "name": "Outback Martial Arts",
+      "abbrev": "OMA"
+    },
+    {
+      "name": "Redback Fight Lab",
+      "abbrev": "RFL"
+    },
+    {
+      "name": "Reef Gym",
+      "abbrev": "RG"
+    }
+  ],
+  "Africa": [
+    {
+      "name": "Team Ubuntu",
+      "abbrev": "TU"
+    },
+    {
+      "name": "Zulu BJJ",
+      "abbrev": "ZB"
+    },
+    {
+      "name": "Zulu Fight Lab",
+      "abbrev": "ZFL"
+    },
+    {
+      "name": "Ashanti Muay Thai",
+      "abbrev": "AMT"
+    },
+    {
+      "name": "Ubuntu Fight Team",
+      "abbrev": "UFT"
+    },
+    {
+      "name": "Ubuntu Academy",
+      "abbrev": "UA"
+    },
+    {
+      "name": "Ubuntu MMA",
+      "abbrev": "UM"
+    },
+    {
+      "name": "Zulu MMA",
+      "abbrev": "ZM"
+    },
+    {
+      "name": "Ashanti Gym",
+      "abbrev": "AG"
+    },
+    {
+      "name": "Zulu Fight Club",
+      "abbrev": "ZFC"
+    },
+    {
+      "name": "Ubuntu BJJ",
+      "abbrev": "UB"
+    },
+    {
+      "name": "Zulu Gym",
+      "abbrev": "ZG"
+    },
+    {
+      "name": "Ubuntu Combat Club",
+      "abbrev": "UCC"
+    },
+    {
+      "name": "Ivory Fight Lab",
+      "abbrev": "IFL"
+    },
+    {
+      "name": "Ubuntu Martial Arts",
+      "abbrev": "UMA"
+    },
+    {
+      "name": "Team Zulu",
+      "abbrev": "TZ"
+    },
+    {
+      "name": "Zulu Martial Arts",
+      "abbrev": "ZMA"
+    },
+    {
+      "name": "Ivory Combat Club",
+      "abbrev": "ICC"
+    },
+    {
+      "name": "Ashanti Martial Arts",
+      "abbrev": "AMA"
+    },
+    {
+      "name": "Ashanti Combat Club",
+      "abbrev": "ACC"
+    },
+    {
+      "name": "Ubuntu Top Team",
+      "abbrev": "UTT"
+    },
+    {
+      "name": "Ivory Fight Club",
+      "abbrev": "IFC"
+    },
+    {
+      "name": "Ashanti Fight Lab",
+      "abbrev": "AFL"
+    },
+    {
+      "name": "Lion Muay Thai",
+      "abbrev": "LMT"
+    },
+    {
+      "name": "Ivory BJJ",
+      "abbrev": "IB"
+    },
+    {
+      "name": "Ubuntu Fight Lab",
+      "abbrev": "UFL"
+    },
+    {
+      "name": "Zulu Top Team",
+      "abbrev": "ZTT"
+    },
+    {
+      "name": "Lion Gym",
+      "abbrev": "LG"
+    },
+    {
+      "name": "Zulu Academy",
+      "abbrev": "ZA"
+    },
+    {
+      "name": "Zulu Fight Team",
+      "abbrev": "ZFT"
+    },
+    {
+      "name": "Zulu Training Center",
+      "abbrev": "ZTC"
+    },
+    {
+      "name": "Ubuntu Training Center",
+      "abbrev": "UTC"
+    },
+    {
+      "name": "Golden Gym",
+      "abbrev": "GG"
+    },
+    {
+      "name": "Zulu Combat Club",
+      "abbrev": "ZCC"
+    },
+    {
+      "name": "Ashanti Training Center",
+      "abbrev": "ATC"
+    },
+    {
+      "name": "Zulu Muay Thai",
+      "abbrev": "ZMT"
+    },
+    {
+      "name": "Ubuntu Gym",
+      "abbrev": "UG"
+    },
+    {
+      "name": "Ashanti Fight Club",
+      "abbrev": "AFC"
+    },
+    {
+      "name": "Ubuntu Muay Thai",
+      "abbrev": "UMT"
+    },
+    {
+      "name": "Ivory Muay Thai",
+      "abbrev": "IMT"
+    },
+    {
+      "name": "Ashanti BJJ",
+      "abbrev": "AB"
+    }
+  ],
+  "MiddleEast": [
+    {
+      "name": "Peninsula Academy",
+      "abbrev": "PA"
+    },
+    {
+      "name": "Peninsula Training Center",
+      "abbrev": "PTC"
+    },
+    {
+      "name": "Nomad BJJ",
+      "abbrev": "NB"
+    },
+    {
+      "name": "Nomad Fight Club",
+      "abbrev": "NFC"
+    },
+    {
+      "name": "Desert BJJ",
+      "abbrev": "DB"
+    },
+    {
+      "name": "Nomad Martial Arts",
+      "abbrev": "NMA"
+    },
+    {
+      "name": "Peninsula Fight Club",
+      "abbrev": "PFC"
+    },
+    {
+      "name": "Peninsula Muay Thai",
+      "abbrev": "PMT"
+    },
+    {
+      "name": "Peninsula Gym",
+      "abbrev": "PG"
+    },
+    {
+      "name": "Desert Top Team",
+      "abbrev": "DTT"
+    },
+    {
+      "name": "Nomad MMA",
+      "abbrev": "NM"
+    },
+    {
+      "name": "Nomad Combat Club",
+      "abbrev": "NCC"
+    },
+    {
+      "name": "Desert Fight Lab",
+      "abbrev": "DFL"
+    },
+    {
+      "name": "Falcon Combat Club",
+      "abbrev": "FCC"
+    },
+    {
+      "name": "Dune Training Center",
+      "abbrev": "DTC"
+    },
+    {
+      "name": "Falcon Training Center",
+      "abbrev": "FTC"
+    },
+    {
+      "name": "Peninsula Fight Team",
+      "abbrev": "PFT"
+    },
+    {
+      "name": "Falcon Fight Lab",
+      "abbrev": "FFL"
+    },
+    {
+      "name": "Nomad Training Center",
+      "abbrev": "NTC"
+    },
+    {
+      "name": "Mirage BJJ",
+      "abbrev": "MB"
+    },
+    {
+      "name": "Nomad Gym",
+      "abbrev": "NG"
+    }
+  ]
+}

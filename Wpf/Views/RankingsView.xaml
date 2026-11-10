@@ -1,0 +1,78 @@
+<UserControl x:Class="MmaManager.Wpf.Views.RankingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Right: this promotion's popularity by region -->
+            <Border Grid.Column="1" Grid.RowSpan="3" Margin="12,0,0,0" Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource Border}" BorderThickness="1" Padding="12" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Text="{Binding SelectedOrgBio}" TextWrapping="Wrap" LineHeight="18" Foreground="#C9CFD6" FontStyle="Italic" Margin="0,0,0,12" />
+                    <TextBlock Text="Popularity by region" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding OrgRegions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="28" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" />
+                                    <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Value, Mode=OneWay}" Height="12" Margin="2,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Promotion:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox Width="220" ItemsSource="{Binding Organizations}" SelectedItem="{Binding SelectedOrg}" Margin="0,0,18,0">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="Division:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox Width="190" ItemsSource="{Binding RankingDivisions}" SelectedItem="{Binding RankingDivision}" />
+            </StackPanel>
+            <!-- Champion showcase: portrait + reign; double-click opens the profile. -->
+            <Border Grid.Row="1" Margin="0,0,0,8" Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    Padding="10" HorizontalAlignment="Left" MinWidth="420" Cursor="Hand"
+                    ToolTip="Double-click for the full profile">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftDoubleClick" Command="{Binding OpenFighterCommand}" CommandParameter="{Binding ChampionId}" />
+                </Border.InputBindings>
+                <DockPanel>
+                    <Border DockPanel.Dock="Left" Width="56" Height="56" Background="{StaticResource SurfaceAlt}" BorderBrush="{StaticResource BorderStrong}" BorderThickness="1" Margin="0,0,12,0">
+                        <Image Source="{Binding ChampionPortrait}" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock FontSize="10" FontWeight="Bold" Foreground="{StaticResource Gold}" Text="CHAMPION" />
+                        <TextBlock Text="{Binding ChampionText}" FontWeight="Bold" FontSize="14" />
+                        <TextBlock Text="{Binding ChampionReign}" Foreground="{StaticResource TextSecondary}" FontSize="11.5" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <DataGrid Grid.Row="2" ItemsSource="{Binding Standings}" mvvm:FighterLink.OpenOnDoubleClick="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Rank" Binding="{Binding Rank}" SortMemberPath="RankSort" />
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                    <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort" />
+                    <DataGridTextColumn Header="Scout" Binding="{Binding Ovr}" />
+                    <DataGridTextColumn Header="Age" Binding="{Binding Age}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Grid>
+</UserControl>

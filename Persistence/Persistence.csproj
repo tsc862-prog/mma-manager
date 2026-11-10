@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MmaManager.Persistence</RootNamespace>
+    <AssemblyName>MmaManager.Persistence</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Save/load of the World graph to a SQLite database. Refs the model, plus
+       Core.Sim for WorldAtlas so pre-country saves can be migrated against the
+       real geography on load. Calls World.SyncIdCounters() and respects
+       World.SaveVersion for migrations. Microsoft.Data.Sqlite bundles the
+       native SQLite engine. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core.Model\Core.Model.csproj" />
+    <ProjectReference Include="..\Core.Sim\Core.Sim.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MmaManager.Core.Model</RootNamespace>
+    <AssemblyName>MmaManager.Core.Model</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Pure BCL. No external NuGet dependencies by design: the model must stay
+       trivially serialisable and testable in isolation. -->
+
+</Project>

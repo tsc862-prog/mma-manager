@@ -1,0 +1,50 @@
+<Window x:Class="MmaManager.Wpf.LoadGameWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Load Career" Width="560" SizeToContent="Height" MaxHeight="640"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="#16191E" ShowInTaskbar="False">
+    <Border Background="{StaticResource Bg}" Padding="22,18">
+        <StackPanel>
+            <TextBlock Text="LOAD CAREER" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+            <TextBlock Text="Pick up a saved story where you left it."
+                       Foreground="{StaticResource TextSecondary}" Margin="0,4,0,14" />
+
+            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    CornerRadius="4" Padding="6" MaxHeight="380">
+                <ListBox x:Name="SlotBox" BorderThickness="0" Background="Transparent"
+                         MouseDoubleClick="OnLoadClicked">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="4,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" FontSize="13.5" />
+                                    <TextBlock Text="{Binding Detail, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" FontSize="11.5" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Age, Mode=OneWay}" Foreground="{StaticResource TextMuted}"
+                                           FontSize="11.5" VerticalAlignment="Center" Margin="10,0,4,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <TextBlock x:Name="EmptyText" Text="No saves yet — careers you save will show up here."
+                       Foreground="{StaticResource TextMuted}" Margin="2,8,0,0" Visibility="Collapsed" />
+
+            <DockPanel Margin="0,14,0,0">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Cancel" IsCancel="True" MinWidth="80" />
+                    <Button x:Name="LoadButton" Content="Load" IsDefault="True" MinWidth="100" FontWeight="SemiBold"
+                            Foreground="{StaticResource Gold}" Click="OnLoadClicked" />
+                </StackPanel>
+                <Button Content="Browse…" HorizontalAlignment="Left" Click="OnBrowse"
+                        ToolTip="Load a save from somewhere else on disk" />
+            </DockPanel>
+        </StackPanel>
+    </Border>
+</Window>

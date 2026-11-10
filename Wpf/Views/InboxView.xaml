@@ -1,0 +1,169 @@
+<UserControl x:Class="MmaManager.Wpf.Views.InboxView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+        <!-- The mail client: message list on the left, the open letter on the right. -->
+        <Grid DataContext="{Binding Mail}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="380" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Message list -->
+            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="14,12" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Mark all read" Command="{Binding MarkAllReadCommand}" FontSize="11" Padding="8,3" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="✉ MAIL" FontWeight="Bold" FontSize="13" />
+                                <Border Background="{DynamicResource OrgAccent}" CornerRadius="8" Padding="7,1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding UnreadCount}" Value="0">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding UnreadCount}" FontSize="10.5" FontWeight="Bold" Foreground="#16191E" />
+                                </Border>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <ListBox ItemsSource="{Binding Messages}" SelectedItem="{Binding Selected}" BorderThickness="0"
+                             Background="Transparent" HorizontalContentAlignment="Stretch"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="8,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Width="7" Height="7" VerticalAlignment="Top" Margin="0,5,0,0">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="Transparent" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Unread}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource OrgAccent}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding From}" FontSize="11.5" Foreground="{StaticResource TextSecondary}" />
+                                        <TextBlock Text="{Binding Subject}" TextWrapping="Wrap" Margin="0,1,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Unread}" Value="True">
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Category}" FontSize="10" Foreground="{StaticResource TextFaint}" Margin="0,1,0,0" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding When}" FontSize="11" Foreground="{StaticResource TextFaint}"
+                                               VerticalAlignment="Top" Margin="8,0,0,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- The open letter -->
+            <Border Grid.Column="1" Background="{StaticResource SurfaceSunken}">
+                <Grid>
+                    <!-- Empty state -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelection}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="✉" FontSize="42" TextAlignment="Center" Foreground="{StaticResource Border}" />
+                        <TextBlock Text="Select a message" Foreground="{StaticResource TextMuted}" Margin="0,8,0,0" />
+                    </StackPanel>
+
+                    <!-- The letter -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelection}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                        <StackPanel Margin="28,22" MaxWidth="860" HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding ReadSubject}" FontWeight="Bold" FontSize="19" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ReadMeta}" Foreground="{StaticResource TextSecondary}" Margin="0,6,0,0" />
+                            <Border Height="1" Background="{StaticResource Border}" Margin="0,14,0,16" />
+                            <TextBlock Text="{Binding ReadBody}" TextWrapping="Wrap" LineHeight="22" FontSize="13.5" Foreground="#D6DADF" />
+
+                            <!-- The message's actions: jump straight to who/what it's about -->
+                            <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                                <Button Content="{Binding Selected.FighterLinkLabel}"
+                                        Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Selected.FighterLinkId}" Margin="0,0,8,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Selected.HasFighterLink}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Margin="0,0,8,0"
+                                        Command="{Binding DataContext.ToggleShortlistCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Selected.FighterLinkId}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Selected.HasFighterLink}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <TextBlock Text="☆ Shortlist" />
+                                </Button>
+                                <Button Content="{Binding Selected.EventLinkLabel}"
+                                        Command="{Binding DataContext.OpenEventCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Selected.EventLinkId}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Selected.HasEventLink}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+</UserControl>
