@@ -1,304 +1,303 @@
 <UserControl x:Class="MmaManager.Wpf.Views.HomeView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
-        <Grid Margin="8" DataContext="{Binding Dashboard}" HorizontalAlignment="Left" MaxWidth="2060">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="360" />
-                <ColumnDefinition Width="*" MinWidth="380" />
-                <ColumnDefinition Width="430" />
-            </Grid.ColumnDefinitions>
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls">
+    <!-- HOME: walking into your promotion. Built only from the shared blocks in
+         App.xaml; panels reflow 1-3 columns with the window (MasonryPanel). -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" DataContext="{Binding Dashboard}"
+                  Background="{StaticResource Bg}">
+        <controls:MasonryPanel Margin="{StaticResource Space.Screen}" MinColumnWidth="390" MaxColumns="3" MaxWidth="2300" Gap="16">
 
-            <!-- Column 0: who you are -->
-            <DockPanel Grid.Column="0" Margin="0,0,10,0">
-                <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14" Margin="0,0,0,10">
-                    <StackPanel>
-                        <DockPanel>
-                            <Image DockPanel.Dock="Left" Source="{Binding Logo}" Width="56" Height="56" Margin="0,0,12,0" VerticalAlignment="Top" />
-                            <StackPanel>
-                                <TextBlock Text="{Binding OrgName}" FontSize="17" FontWeight="Bold" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding OrgTagline}" FontSize="11.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,3,0,0" />
-                            </StackPanel>
-                        </DockPanel>
-                        <Grid Margin="0,12,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="82" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="34" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition />
-                                <RowDefinition />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Prestige" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <ProgressBar Grid.Row="0" Grid.Column="1" Value="{Binding Prestige, Mode=OneWay}" Maximum="100" Height="10" Margin="0,3" Foreground="{StaticResource Gold}" />
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Prestige}" TextAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold" />
-                            <TextBlock Grid.Row="1" Text="Reputation" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <ProgressBar Grid.Row="1" Grid.Column="1" Value="{Binding Reputation, Mode=OneWay}" Maximum="100" Height="10" Margin="0,3" Foreground="{StaticResource Positive}" />
-                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Reputation}" TextAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold" />
-                        </Grid>
-                        <TextBlock Text="{Binding TierLine}" FontSize="11.5" Foreground="{StaticResource World}" Margin="0,8,0,2" />
-                        <ProgressBar Value="{Binding TierProgress, Mode=OneWay}" Maximum="100" Height="6" Foreground="{StaticResource World}" Background="{StaticResource Track}" BorderThickness="0" />
-                        <TextBlock Text="{Binding BalanceText}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="0,10,0,0" />
-                        <TextBlock Text="{Binding RosterLine}" FontSize="11.5" Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0" />
-                    </StackPanel>
-                </Border>
-
-                <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14,10" Margin="0,0,0,10">
-                    <StackPanel>
-                        <DockPanel Margin="0,0,0,4">
-                            <TextBlock DockPanel.Dock="Right" Text="{Binding MilestoneLine}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <TextBlock Text="Milestones" FontWeight="SemiBold" />
-                        </DockPanel>
-                        <ItemsControl ItemsSource="{Binding Milestones}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Margin="0,3,6,0" Padding="6,2" CornerRadius="3" Background="{StaticResource Track}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Mark}" FontSize="11" Margin="0,0,4,0" />
-                                            <TextBlock Text="{Binding Title}" FontSize="11">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="#5C646E" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Earned}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <!-- THE DESK: calls only the owner can make -->
-                <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Gold}" BorderThickness="1" CornerRadius="4" Padding="14,10" Margin="0,0,0,10">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding DeskHasCalls}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel>
-                        <TextBlock Text="THE DESK — your call" FontWeight="SemiBold" Foreground="{StaticResource Gold}" Margin="0,0,0,6" />
-                        <ItemsControl ItemsSource="{Binding Desk}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="0,6">
-                                        <StackPanel>
-                                            <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Due}" FontSize="11" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" />
-                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
-                                            </DockPanel>
-                                            <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,2,0,6" />
-                                            <StackPanel Orientation="Horizontal">
-                                                <Button Content="Do it" Padding="12,3" FontWeight="SemiBold"
-                                                        Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}"
-                                                        Command="{Binding DataContext.AcceptDecisionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}" />
-                                                <Button Content="Pass" Padding="12,3" Margin="8,0,0,0"
-                                                        Command="{Binding DataContext.DeclineDecisionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14,10" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="Owner objectives" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <ItemsControl ItemsSource="{Binding Objectives}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="0,3">
-                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
-                                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondary}">
-                                            <Run Text="{Binding Deadline, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding Status, Mode=OneWay}" />
-                                        </TextBlock>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14,10">
+            <!-- ===== Hero: who you are, what the boss says, and the climb ===== -->
+            <ContentControl controls:MasonryPanel.FullWidth="True" Style="{StaticResource HeroPanel}" Focusable="False">
+                <controls:MasonryPanel MinColumnWidth="430" MaxColumns="2" Gap="36">
+                    <!-- Who you are, and the boss talking -->
                     <DockPanel>
-                        <DockPanel DockPanel.Dock="Top">
-                            <Button DockPanel.Dock="Right" Content="Open ▸" Command="{Binding InboxCommand}" Padding="8,2" />
-                            <TextBlock Text="Inbox" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        </DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding InboxLine}" FontSize="11.5" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,6" />
-                        <ItemsControl ItemsSource="{Binding RecentMail}" VerticalAlignment="Top">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="0,3">
-                                        <TextBlock Text="{Binding Subject}" TextWrapping="Wrap" />
-                                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondary}">
-                                            <Run Text="{Binding From, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding When, Mode=OneWay}" />
-                                        </TextBlock>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </DockPanel>
-                </Border>
-            </DockPanel>
-
-            <!-- Column 1: what's next + the world talking -->
-            <DockPanel Grid.Column="1" Margin="0,0,10,0">
-                <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14" Margin="0,0,0,10">
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right" Content="Book Event ▸" Command="{Binding BookCommand}" VerticalAlignment="Top" Margin="10,0,0,0" />
+                        <Border DockPanel.Dock="Left" Width="84" Height="84" CornerRadius="12" Background="#14171C" Margin="0,0,18,0" VerticalAlignment="Top">
+                            <Image Source="{Binding Logo}" Margin="8" RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Border>
                         <StackPanel>
-                            <TextBlock Text="NEXT EVENT" FontSize="11" Foreground="{StaticResource TextSecondary}" />
-                            <TextBlock Text="{Binding NextEventTitle}" FontSize="16" FontWeight="Bold" Margin="0,2,0,0" />
-                            <TextBlock Text="{Binding NextEventLine}" Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding NextEventMain}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding DateLine}" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" />
+                            <TextBlock Text="{Binding OrgName}" Style="{StaticResource Text.Display}" Margin="0,2,0,6" />
+                            <WrapPanel>
+                                <Border Style="{StaticResource Chip}"><TextBlock Text="{Binding TierChip}" Style="{StaticResource Chip.Text}" /></Border>
+                                <Border Style="{StaticResource Chip}"><TextBlock Text="{Binding HqChip}" Style="{StaticResource Chip.Text}" /></Border>
+                                <Border Style="{StaticResource Chip}"><TextBlock Text="{Binding RankChip}" Style="{StaticResource Chip.Text}" /></Border>
+                            </WrapPanel>
+                            <DockPanel Margin="0,10,0,0">
+                                <Border DockPanel.Dock="Left" Width="3" CornerRadius="2" Background="{DynamicResource OrgAccent}" Margin="0,2,14,2" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Greeting}" Style="{StaticResource Text.Quote}" />
+                                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,5,0,0" ToolTip="{Binding OwnerNote}">
+                                        <Run Text="— " /><Run Text="{Binding GreetingFrom, Mode=OneWay}" FontWeight="SemiBold" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DockPanel>
                         </StackPanel>
                     </DockPanel>
-                </Border>
-
-                <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14,10">
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Headlines" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding Headlines}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1" Padding="0,5">
-                                            <StackPanel>
-                                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondary}">
-                                                    <Run Text="{Binding When, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding Category, Mode=OneWay}" />
-                                                </TextBlock>
-                                                <TextBlock Text="{Binding Headline}" TextWrapping="Wrap" Margin="0,1,0,0">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding AboutPlayer}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
-            </DockPanel>
-
-            <!-- Column 2: the ladder, your belts, deals running out -->
-            <DockPanel Grid.Column="2">
-                <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14,10" Margin="0,0,0,10">
+                    <!-- The bank, and the climb -->
                     <StackPanel>
-                        <TextBlock Text="The ladder" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <ItemsControl ItemsSource="{Binding Ladder}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1" Padding="4,4">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsPlayer}" Value="True">
-                                                        <Setter Property="Background" Value="{StaticResource Selection}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="34" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="60" />
-                                                <ColumnDefinition Width="86" />
-                                            </Grid.ColumnDefinitions>
-                                            <Image Source="{Binding Logo}" Width="24" Height="24" HorizontalAlignment="Left" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Prestige}" VerticalAlignment="Center" TextAlignment="Right" FontWeight="SemiBold" />
-                                            <TextBlock Grid.Column="3" Text="{Binding Balance}" VerticalAlignment="Center" TextAlignment="Right" FontSize="11.5" Foreground="{StaticResource TextSecondary}" />
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding BalanceText}" Style="{StaticResource Text.Title}" FontSize="24" Foreground="{StaticResource Gold}" HorizontalAlignment="Right" />
+                                <TextBlock Text="{Binding RosterLine}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" />
+                            </StackPanel>
+                            <TextBlock Text="IN THE BANK" Style="{StaticResource Text.Kicker}" VerticalAlignment="Top" Margin="0,8,0,0" />
+                        </DockPanel>
+                        <DockPanel Margin="0,16,0,0">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding ClimbLine}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource TextSoft}" FontWeight="SemiBold" />
+                            <TextBlock Text="THE CLIMB" Style="{StaticResource Text.Kicker}" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding TierStops}" ItemTemplate="{StaticResource JourneyStripTemplate}" Margin="0,8,0,0" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
                         </ItemsControl>
+                        <TextBlock Text="{Binding ClimbDetail}" Style="{StaticResource Text.Secondary}" Margin="0,8,0,0" />
                     </StackPanel>
-                </Border>
+                </controls:MasonryPanel>
+            </ContentControl>
 
-                <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14,10" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="Your champions" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <ItemsControl ItemsSource="{Binding Champions}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <DockPanel Margin="0,3" Background="Transparent" Cursor="Hand"
-                                               ToolTip="Double-click for the full profile">
-                                        <DockPanel.InputBindings>
-                                            <MouseBinding Gesture="LeftDoubleClick"
-                                                          Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                          CommandParameter="{Binding FighterId}" />
-                                        </DockPanel.InputBindings>
-                                        <Image DockPanel.Dock="Left" Source="{Binding Portrait}" Width="36" Height="36" Margin="0,0,10,0" />
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondary}">
-                                                <Run Text="{Binding Division, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding Record, Mode=OneWay}" />
-                                            </TextBlock>
+            <!-- ===== A founder's first three steps ===== -->
+            <Border controls:MasonryPanel.FullWidth="True" Style="{StaticResource Panel}"
+                    Visibility="{Binding ShowFirstSteps, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <controls:SectionHeader Title="Your first three steps" Hint="Every promotion in the sport started exactly here." />
+                    <ItemsControl ItemsSource="{Binding FirstSteps}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><controls:MasonryPanel MinColumnWidth="250" MaxColumns="3" Gap="12" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="card" Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                                        CornerRadius="{StaticResource Radius.Card}" Padding="16,14" MinHeight="170">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Top" x:Name="num" Width="36" Height="36" CornerRadius="18" HorizontalAlignment="Left"
+                                                Background="{StaticResource Track}">
+                                            <TextBlock Text="{Binding Number}" FontWeight="Bold" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextSoft}" x:Name="numText" />
+                                        </Border>
+                                        <Button DockPanel.Dock="Bottom" x:Name="act" Content="{Binding ActionText}" Command="{Binding ActionCommand}"
+                                                Style="{StaticResource Button.Primary}" HorizontalAlignment="Left" Margin="0,12,0,0" Visibility="Collapsed" />
+                                        <StackPanel Margin="0,12,0,0">
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Title}" FontSize="17" x:Name="label" />
+                                            <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Secondary}" Margin="0,4,0,0" />
                                         </StackPanel>
                                     </DockPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Current}" Value="True">
+                                        <Setter TargetName="card" Property="BorderBrush" Value="{DynamicResource OrgAccent}" />
+                                        <Setter TargetName="num" Property="Background" Value="{DynamicResource OrgAccent}" />
+                                        <Setter TargetName="numText" Property="Foreground" Value="#15181D" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding HasAction}" Value="True">
+                                        <Setter TargetName="act" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Done}" Value="True">
+                                        <Setter TargetName="num" Property="Background" Value="{StaticResource ToneGoodDim}" />
+                                        <Setter TargetName="numText" Property="Foreground" Value="{StaticResource ToneGood}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
 
-                <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Padding="14,10">
-                    <DockPanel>
-                        <DockPanel DockPanel.Dock="Top">
-                            <Button DockPanel.Dock="Right" Content="Contracts ▸" Command="{Binding ContractsCommand}" Padding="8,2" />
-                            <TextBlock Text="Deals running out" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        </DockPanel>
-                        <ItemsControl ItemsSource="{Binding Expiring}" Margin="0,6,0,0" VerticalAlignment="Top">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="0,3" Background="Transparent" Cursor="Hand"
-                                                ToolTip="Double-click for the full profile">
-                                        <StackPanel.InputBindings>
-                                            <MouseBinding Gesture="LeftDoubleClick"
-                                                          Command="{Binding DataContext.OpenFighterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                          CommandParameter="{Binding FighterId}" />
-                                        </StackPanel.InputBindings>
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondary}">
-                                            <Run Text="{Binding Division, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding Deal, Mode=OneWay}" />
+            <!-- ===== Your next card ===== -->
+            <Border Style="{StaticResource Panel}" Visibility="{Binding ShowCareerPanels, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <controls:SectionHeader Title="Your next card" />
+                    <!-- a card is booked -->
+                    <Grid Visibility="{Binding HasNextEvent, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="150" Height="200" CornerRadius="6" ClipToBounds="True" VerticalAlignment="Top" Background="{StaticResource SurfaceSunken}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.5" />
+                            </Border.Effect>
+                            <Image Source="{Binding Poster}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <TextBlock Text="{Binding NextEventTagline}" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding NextEventTitle}" Style="{StaticResource Text.Title}" Margin="0,2,0,0" />
+                            <TextBlock Text="{Binding NextEventWhen}" Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextPrimary}" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding NextEventWhere}" Style="{StaticResource Text.Secondary}" />
+                            <TextBlock Text="{Binding NextEventCard}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                            <Button Content="Watch it live ▸" Style="{StaticResource Button.Primary}" HorizontalAlignment="Left" Margin="0,14,0,0"
+                                    Command="{Binding WatchTonightCommand}" Visibility="{Binding FightNight, Converter={StaticResource BoolToVis}}" />
+                            <Button Content="Open the card ▸" Style="{StaticResource Button.Primary}" HorizontalAlignment="Left" Margin="0,14,0,0"
+                                    Command="{Binding BookCommand}" Visibility="{Binding FightNight, Converter={StaticResource InverseBoolToVis}}" />
+                        </StackPanel>
+                    </Grid>
+                    <!-- the main event, face to face -->
+                    <Border Margin="0,14,0,0" Padding="12,10" CornerRadius="{StaticResource Radius.Card}" Background="{StaticResource CardFill}"
+                            Visibility="{Binding HasMainEvent, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Style="{StaticResource Button.Link}" Command="{Binding OpenFighterCommand}" CommandParameter="{Binding MainRed.Id}" HorizontalAlignment="Left">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="46" Height="46" CornerRadius="23" Margin="0,0,10,0">
+                                        <Border.Background><ImageBrush ImageSource="{Binding MainRed.Portrait}" Stretch="UniformToFill" AlignmentY="Top" /></Border.Background>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding MainRed.Name}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                        <TextBlock Text="{Binding MainRed.Line}" Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Button>
+                            <TextBlock Grid.Column="1" Text="VS" FontFamily="{StaticResource DisplayFont}" FontWeight="Bold" FontSize="16" Foreground="{StaticResource Crimson}"
+                                       VerticalAlignment="Center" Margin="8,0" />
+                            <Button Grid.Column="2" Style="{StaticResource Button.Link}" Command="{Binding OpenFighterCommand}" CommandParameter="{Binding MainBlue.Id}" HorizontalAlignment="Right">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Right" Width="46" Height="46" CornerRadius="23" Margin="10,0,0,0">
+                                        <Border.Background><ImageBrush ImageSource="{Binding MainBlue.Portrait}" Stretch="UniformToFill" AlignmentY="Top" /></Border.Background>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding MainBlue.Name}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" TextAlignment="Right" />
+                                        <TextBlock Text="{Binding MainBlue.Line}" Style="{StaticResource Text.Caption}" TextAlignment="Right" HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <!-- nothing booked -->
+                    <controls:EmptyState Glyph="🎟" Title="{Binding NoCardTitle}" Message="{Binding NoCardMessage}"
+                                         ActionText="{Binding NoCardAction}" ActionCommand="{Binding NoCardCommand}"
+                                         Visibility="{Binding HasNextEvent, Converter={StaticResource InverseBoolToVis}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Needs you ===== -->
+            <Border Style="{StaticResource Panel}" Visibility="{Binding ShowNeedsYou, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <controls:SectionHeader Title="Needs you" Hint="{Binding NeedsYouHint}" />
+                    <ItemsControl ItemsSource="{Binding NeedsYou}" ItemTemplate="{StaticResource ActionRowTemplate}" Focusable="False" />
+                    <TextBlock Text="Nothing needs you right now. Advance the calendar when you're ready." Style="{StaticResource Text.Secondary}"
+                               Visibility="{Binding NeedsYouEmpty, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Your people ===== -->
+            <Border Style="{StaticResource Panel}" Visibility="{Binding HasPeople, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <controls:SectionHeader Title="Your people" Hint="Who matters this week." ActionText="Whole roster ▸" ActionCommand="{Binding RosterCommand}" />
+                    <ItemsControl ItemsSource="{Binding People}" ItemTemplate="{StaticResource FighterRowCardTemplate}" Focusable="False" />
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Around the sport ===== -->
+            <Border Style="{StaticResource Panel}">
+                <StackPanel>
+                    <controls:SectionHeader Title="Around the sport" Hint="From the FightWire feed." ActionText="All news ▸" ActionCommand="{Binding NewsCommand}" />
+                    <ItemsControl ItemsSource="{Binding Headlines}" ItemTemplate="{StaticResource HeadlineCardTemplate}" Focusable="False" />
+                </StackPanel>
+            </Border>
+
+            <!-- ===== The ladder: your neighbours ===== -->
+            <Border Style="{StaticResource Panel}">
+                <StackPanel>
+                    <controls:SectionHeader Title="The ladder" Hint="Where you stand among the promotions of the world."
+                                            ActionText="{Binding LadderToggleText}" ActionCommand="{Binding ToggleLadderCommand}" />
+                    <ItemsControl Focusable="False">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Setter Property="ItemsSource" Value="{Binding LadderNear}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LadderExpanded}" Value="True">
+                                        <Setter Property="ItemsSource" Value="{Binding Ladder}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="row" CornerRadius="6" Padding="8,6" Margin="0,0,0,2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="40" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding RankText}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <Image Grid.Column="1" Source="{Binding Logo}" Width="28" Height="28" HorizontalAlignment="Left" />
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock x:Name="name" Text="{Binding Name}" Style="{StaticResource Text.Body}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                            <TextBlock Text="{Binding Tier}" Style="{StaticResource Text.Caption}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding Prestige}" FontWeight="Bold" FontSize="15" HorizontalAlignment="Right" />
+                                            <TextBlock Text="prestige" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsPlayer}" Value="True">
+                                        <Setter TargetName="row" Property="Background" Value="{DynamicResource OrgAccentDim}" />
+                                        <Setter TargetName="name" Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="Visit the Organizations pages ▸" Style="{StaticResource Button.Link}" Command="{Binding OrgsCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Goals: the owner's objectives + career milestones ===== -->
+            <Border Style="{StaticResource Panel}">
+                <StackPanel>
+                    <controls:SectionHeader Title="Goals" Hint="What's expected of you this year, and what you've achieved." ActionText="HQ ▸" ActionCommand="{Binding OrgCommand}" />
+                    <ItemsControl ItemsSource="{Binding Objectives}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,10">
+                                    <TextBlock DockPanel.Dock="Left" Text="◎" FontSize="15" Foreground="{DynamicResource OrgAccent}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Body}" />
+                                        <TextBlock Style="{StaticResource Text.Caption}">
+                                            <Run Text="by " /><Run Text="{Binding Deadline, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Status, Mode=OneWay}" />
                                         </TextBlock>
                                     </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <DockPanel Margin="0,6,0,6">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding MilestoneLine}" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Text="MILESTONES" Style="{StaticResource Text.Kicker}" />
                     </DockPanel>
-                </Border>
-            </DockPanel>
-        </Grid>
+                    <ItemsControl ItemsSource="{Binding Milestones}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="chip" Style="{StaticResource Chip}">
+                                    <TextBlock x:Name="t" Style="{StaticResource Chip.Text}">
+                                        <Run Text="{Binding Mark, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding Title, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Earned}" Value="True">
+                                        <Setter TargetName="chip" Property="Background" Value="{StaticResource ToneWarnDim}" />
+                                        <Setter TargetName="t" Property="Foreground" Value="{StaticResource Gold}" />
+                                        <Setter TargetName="t" Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </controls:MasonryPanel>
+    </ScrollViewer>
 </UserControl>
