@@ -14,12 +14,6 @@ public partial class MainWindow : Window
         DataContext = new MainViewModel();
     }
 
-    private void DesktopSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm)
-            vm.Desktop.ResizeWorkspace(e.NewSize.Width, e.NewSize.Height);
-    }
-
     // Any click inside the start menu launches/acts and folds the menu away.
     private void CloseStartMenu(object sender, MouseButtonEventArgs e) => StartToggle.IsChecked = false;
 
