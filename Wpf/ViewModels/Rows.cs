@@ -58,6 +58,21 @@ public sealed class RatingBar
 
     public double BarOpacity => _reveal == StatReveal.Hidden ? 0.35 : 1.0;
 
+    /// <summary>
+    /// Who has the edge on what the player can SEE: -1 = <paramref name="a"/>,
+    /// 1 = <paramref name="b"/>, 0 = even or unknowable. Two exact numbers compare
+    /// as numbers; otherwise the shown bands compare (an exact number reads as its
+    /// band), and a hidden bar never declares an edge — so the bolding on a
+    /// side-by-side never tells the player more than the two readouts do.
+    /// </summary>
+    public static int ShownEdge(RatingBar a, RatingBar b)
+    {
+        if (a._reveal == StatReveal.Hidden || b._reveal == StatReveal.Hidden) return 0;
+        if (a._reveal == StatReveal.Exact && b._reveal == StatReveal.Exact)
+            return a._value == b._value ? 0 : a._value > b._value ? -1 : 1;
+        return a._band == b._band ? 0 : a._band > b._band ? -1 : 1;
+    }
+
     private static int BandMid(StatBand b) => b switch
     {
         StatBand.Elite => 88, StatBand.Strong => 72, StatBand.Average => 55, _ => 35,
@@ -148,7 +163,6 @@ public sealed class FighterRow
     public string Division => DivisionLabel(_f.WeightClass, _f.Sex);
     public string Style => Pretty(_f.PrimaryStyle.ToString());
     public int Ovr => Scouted(_w, _f);
-    public int Pot => _f.PotentialAbility.Value;
     public string Record => _f.Record.ToString();
     public int RecordSort => RecordKey(_f.Record);
     public string Status => _f.Status.ToString();
@@ -410,6 +424,14 @@ public sealed class FighterRow
             new("Finish", _f.Tendencies.FinishInstinct)),
     };
 
+    /// <summary>
+    /// One fogged rating by its profile label ("Punch Pow", "Chin") — exactly the
+    /// bar the profile draws, so other screens (the booking tape) show the same
+    /// scout's read instead of the true number.
+    /// </summary>
+    public RatingBar ScoutedRating(string name) =>
+        RatingGroups.SelectMany(g => g.Ratings).First(r => r.Name == name);
+
     /// <summary>A one-line summary of how well this fighter is scouted, for the profile header.</summary>
     public string ScoutingLine
     {
@@ -446,8 +468,6 @@ public sealed class FighterRow
     public string Hometown => _f.HomeCity is { } hc && _w.Get(hc) is { } city
         ? city.Country == _f.Country ? $"{city.Name}, {Nation}" : $"{city.Name} · {Nation}"
         : Nation;
-
-    public string Detail => BuildDetail();
 
     /// <summary>The fighter's simulated bouts, most recent first.</summary>
     public IReadOnlyList<FightHistoryRow> History => BuildHistory();
@@ -512,44 +532,6 @@ public sealed class FighterRow
             });
         }
         return rows;
-    }
-
-    private string BuildDetail()
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine(_f.FullName);
-        sb.AppendLine($"{Division}  ·  {Style}  ·  {Nation}  ·  {_f.Stance}");
-        sb.AppendLine($"Age {Age}   {_f.HeightCm}cm / {_f.ReachCm}cm reach");
-        sb.AppendLine($"Scouted {Ovr}   Potential {Pot}   Record {Record}");
-        sb.AppendLine($"Finishes: {_f.Record.WinsByKo} KO · {_f.Record.WinsBySubmission} SUB · {_f.Record.WinsByDecision} DEC");
-        sb.AppendLine($"Status {Status}   Morale {_f.Morale.Value}   Momentum {Momentum}   Org {Org}");
-        if (_f.Contract is { } k)
-            sb.AppendLine($"Contract: {k.PursePerFight} / fight (+{k.WinBonus} win), {k.FightsRemaining} bouts left");
-        if (_f.CurrentInjury is { } inj)
-            sb.AppendLine($"INJURED: {inj.Description} ({inj.Severity}), back {inj.ExpectedReturn:d MMM yyyy}");
-        sb.AppendLine();
-        Group(sb, "Striking", ("Punch Pow", _f.Striking.PunchPower), ("Punch Tech", _f.Striking.PunchTechnique),
-            ("Kick Pow", _f.Striking.KickPower), ("Kick Tech", _f.Striking.KickTechnique),
-            ("Clinch Str", _f.Striking.ClinchStriking), ("Str Defense", _f.Striking.StrikingDefense), ("Footwork", _f.Striking.Footwork));
-        Group(sb, "Grappling", ("TD Offense", _f.Grappling.TakedownOffense), ("TD Defense", _f.Grappling.TakedownDefense),
-            ("Top Control", _f.Grappling.TopControl), ("Bottom", _f.Grappling.BottomGame),
-            ("Sub Off", _f.Grappling.SubmissionOffense), ("Sub Def", _f.Grappling.SubmissionDefense),
-            ("Scrambling", _f.Grappling.Scrambling), ("Clinch Ctrl", _f.Grappling.ClinchControl));
-        Group(sb, "Physical", ("Strength", _f.Physical.Strength), ("Cardio", _f.Physical.Cardio), ("Speed", _f.Physical.Speed),
-            ("Chin", _f.Physical.Chin), ("Recovery", _f.Physical.Recovery), ("Flexibility", _f.Physical.Flexibility));
-        Group(sb, "Mental", ("Fight IQ", _f.Mental.FightIQ), ("Composure", _f.Mental.Composure),
-            ("Heart", _f.Mental.Heart), ("Discipline", _f.Mental.Discipline));
-        Group(sb, "Intangibles", ("Popularity", _f.Intangibles.Popularity), ("Charisma", _f.Intangibles.Charisma));
-        Group(sb, "Tendencies", ("Strike Pref", _f.Tendencies.StrikingPreference), ("Aggression", _f.Tendencies.Aggression),
-            ("Pace", _f.Tendencies.Pace), ("Counter", _f.Tendencies.Counterfighting), ("Finish", _f.Tendencies.FinishInstinct));
-        return sb.ToString();
-    }
-
-    private static void Group(StringBuilder sb, string title, params (string Name, int Value)[] skills)
-    {
-        sb.AppendLine(title);
-        foreach (var s in skills) sb.AppendLine($"   {s.Name,-13} {s.Value,3}");
-        sb.AppendLine();
     }
 
     public static string Pretty(string enumName)

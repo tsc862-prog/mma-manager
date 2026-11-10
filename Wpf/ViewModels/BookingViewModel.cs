@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Media;
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Booking;
 using MmaManager.Wpf.Art;
 using MmaManager.Wpf.Mvvm;
@@ -581,9 +580,19 @@ public sealed class BookingViewModel : ObservableObject
         SelectedRed = null;
         if (_world is null || SelectedEvent is null || SelectedDivision is not { } d) return;
         var pool = _booking.AvailableRoster(_world, SelectedEvent.Model, d.WeightClass, d.Sex);
-        foreach (var f in _advisor.ByStanding(_world, pool))
-            RedOptions.Add(new FighterPick(f, _world, _advisor.StandingOf(_world, f.Id).Label));
+        foreach (var (f, standing) in ScanOrder(pool))
+            RedOptions.Add(new FighterPick(f, _world, standing.Label));
     }
+
+    // The matchmaker's scan order — champ, #1, #2 … then the unranked — with the
+    // unranked ordered by YOUR scout's read (the Sct number on each pick), never
+    // the truth, and the id as the last word so the order is stable.
+    private IEnumerable<(Fighter F, FighterStanding S)> ScanOrder(IEnumerable<Fighter> pool) => pool
+        .Select(f => (F: f, S: _advisor.StandingOf(_world!, f.Id), Sct: FighterRow.Scouted(_world!, f)))
+        .OrderBy(x => x.S.Kind switch { Standing.Champion => 0, Standing.Ranked => x.S.Rank ?? 999, _ => 1000 })
+        .ThenByDescending(x => x.Sct)
+        .ThenBy(x => x.F.Id.Value)
+        .Select(x => (x.F, x.S));
 
     private void RefreshBlueOptions()
     {
@@ -592,8 +601,8 @@ public sealed class BookingViewModel : ObservableObject
         if (_world is not null && SelectedEvent is not null && SelectedRed is not null)
         {
             var pool = _booking.EligibleOpponents(_world, SelectedEvent.Model, SelectedRed.Id);
-            foreach (var f in _advisor.ByStanding(_world, pool))
-                BlueOptions.Add(new FighterPick(f, _world, _advisor.StandingOf(_world, f.Id).Label));
+            foreach (var (f, standing) in ScanOrder(pool))
+                BlueOptions.Add(new FighterPick(f, _world, standing.Label));
         }
         UpdateAppraisal();   // the red portrait shows the moment that corner is picked
     }
@@ -682,13 +691,43 @@ public sealed class BookingViewModel : ObservableObject
         Num("Reach (cm)", r.ReachCm, b.ReachCm);
         Txt("Stance", r.Stance.ToString(), b.Stance.ToString());
         Txt("Style", FighterRow.Pretty(r.PrimaryStyle.ToString()), FighterRow.Pretty(b.PrimaryStyle.ToString()));
-        Num("Punch power", r.Striking.PunchPower, b.Striking.PunchPower);
-        Num("Striking def", r.Striking.StrikingDefense, b.Striking.StrikingDefense);
-        Num("Takedown def", r.Grappling.TakedownDefense, b.Grappling.TakedownDefense);
-        Num("Submissions", r.Grappling.SubmissionOffense, b.Grappling.SubmissionOffense);
-        Num("Cardio", r.Physical.Cardio, b.Physical.Cardio);
-        Num("Chin", r.Physical.Chin, b.Physical.Chin);
-        Num("Fight IQ", r.Mental.FightIQ, b.Mental.FightIQ);
+
+        // The skills: the SAME fogged bars the fighter profile draws (FighterRow's
+        // scout report) — a number when it's known, a band word when it's rough,
+        // "?" when it's unseen. The edge only bolds what the readouts can back up.
+        var taped = TapeIndex(r, b);
+        var rr = new FighterRow(r, _world!, taped);
+        var br = new FighterRow(b, _world!, taped);
+        void Scout(string label, string bar)
+        {
+            var x = rr.ScoutedRating(bar);
+            var y = br.ScoutedRating(bar);
+            Tape.Add(new TaleRow { Label = label, Red = x.ValueText, Blue = y.ValueText, Edge = RatingBar.ShownEdge(x, y) });
+        }
+        Scout("Punch power", "Punch Pow");
+        Scout("Striking def", "Str Defense");
+        Scout("Takedown def", "TD Defense");
+        Scout("Submissions", "Sub Offense");
+        Scout("Cardio", "Cardio");
+        Scout("Chin", "Chin");
+        Scout("Fight IQ", "Fight IQ");
+    }
+
+    // The fight index FighterRow's scout report reads, cut down to the two
+    // corners' bouts since the save began (older bouts are record, not tape,
+    // and FighterRow skips them anyway). One pass over the events, only when a
+    // pairing is picked.
+    private IReadOnlyDictionary<FightId, (Fight, Event)> TapeIndex(Fighter red, Fighter blue)
+    {
+        var wanted = red.BoutHistory.Concat(blue.BoutHistory).ToHashSet();
+        var index = new Dictionary<FightId, (Fight, Event)>();
+        foreach (var ev in _world!.Events.Values)
+        {
+            if (ev.Date < _world.StartDate) continue;
+            foreach (var fight in ev.Card)
+                if (wanted.Contains(fight.Id)) index[fight.Id] = (fight, ev);
+        }
+        return index;
     }
 
     private void SuggestOpponent()

@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Media;
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Contracts;
 using MmaManager.Wpf.Art;
 using MmaManager.Wpf.Mvvm;
@@ -26,7 +25,6 @@ public sealed class FreeAgentRow
         RecordSort = FighterRow.RecordKey(f.Record);
         Fights = f.Record.TotalBouts;
         Hometown = HometownOf(f, w);
-        Value = exp.MarketValue;
         // The ask AT YOUR TERMS (a small hall's non-exclusive deal runs ~20%
         // under the exclusive rate) — so this column, the negotiating table
         // and the purse on the signed deal all quote the same number.
@@ -44,7 +42,6 @@ public sealed class FreeAgentRow
     public int RecordSort { get; }
     public int Fights { get; }
     public string Hometown { get; }
-    public int Value { get; }
     public string Ask { get; }
     public decimal AskSort { get; }
     public ImageSource Portrait { get; }
@@ -262,7 +259,8 @@ public sealed class ContractsViewModel : ObservableObject
         foreach (var f in _world.RosterOf(_world.PlayerPromotion)
                      .Where(f => f.Status != FighterStatus.Retired)
                      .OrderBy(f => f.Contract?.FightsRemaining ?? 99)
-                     .ThenByDescending(FighterAbility.CurrentAbility))
+                     .ThenByDescending(f => FighterRow.Scouted(_world, f))
+                     .ThenBy(f => f.Id.Value))
             MyContracts.Add(new MyContractRow(f, _world));
     }
 
@@ -297,9 +295,11 @@ public sealed class ContractsViewModel : ObservableObject
         if (AskCapChoices.First(c => c.Label == FaMaxAsk).Cap is { } askCap)
             priced = priced.Where(x => x.Ask.Amount <= askCap);
 
-        // The men's market first, then the women's — best available on top of each.
+        // The men's market first, then the women's — best available on top of
+        // each by YOUR scout's read (the Scout column), never the truth.
         int count = 0;
-        foreach (var x in priced.OrderBy(x => x.F.Sex).ThenByDescending(x => FighterAbility.CurrentAbility(x.F)).Take(200))
+        foreach (var x in priced.OrderBy(x => x.F.Sex).ThenByDescending(x => FighterRow.Scouted(_world, x.F))
+                                .ThenBy(x => x.F.Id.Value).Take(200))
         {
             FreeAgents.Add(new FreeAgentRow(x.F, _world, x.Exp, x.Ask));
             count++;
