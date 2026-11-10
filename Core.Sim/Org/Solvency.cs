@@ -83,6 +83,7 @@ public static class Solvency
             f.Contract = null;   // the company is broke — nobody gets a payout
             released++;
         }
+        foreach (var d in promo.Divisions) d.Rankings.Clear();   // no roster, no contenders
 
         foreach (var tid in promo.Titles)
         {
