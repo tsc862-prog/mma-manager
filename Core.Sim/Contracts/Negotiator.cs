@@ -60,8 +60,7 @@ public sealed class Negotiator
         // a LIFER takes less to stay where he belongs (see Lifers).
         decimal factor = (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                        * (offer.ChampionsClause ? ChampionsClausePremium : 1m)
-                       * GratitudeFactor(f, offer.Promotion)
-                       * Lifers.HomeDiscount(world, f, offer.Promotion);
+                       * TableDiscount(world, f, offer.Promotion);
         decimal asked = AskMoney(exp) * factor;
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
 
@@ -177,8 +176,7 @@ public sealed class Negotiator
         // The org that discovered them pitches at the gratitude rate.
         bool exclusive = WantsExclusivity(promo);
         decimal ask = exp.AskingPurse.Amount * (exclusive ? 1m : NonExclusiveMoneyFactor)
-                                             * GratitudeFactor(f, promo.Id)
-                                             * Lifers.HomeDiscount(world, f, promo.Id);
+                                             * TableDiscount(world, f, promo.Id);
         var purse = new Money(RoundTo(Math.Min(ask, cap), 500m));
         var winBonus = new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, 500m)));
 
@@ -213,6 +211,21 @@ public sealed class Negotiator
     /// them the shot, while the career is still young. The open market pays the
     /// hometown-hype price; the discoverer pays about half.
     /// </summary>
+    /// <summary>
+    /// What a fighter knocks off his ask for THIS promotion personally: the
+    /// discoverer's gratitude (<see cref="GratitudeFactor"/>, 0.55) or a lifer's
+    /// hometown discount (<see cref="Lifers.HomeDiscount"/>, 0.50-0.60),
+    /// whichever is bigger — they do NOT stack. Both say "I owe this place", and
+    /// multiplied they reached 0.275 of his ask. So the personal factor is never
+    /// below 0.50; with a non-exclusive deal the whole table factor bottoms out
+    /// at 0.40 of his open-market ask. Every table reads this one number: the
+    /// AI's opening offer, the fighter's answer (<see cref="Evaluate"/>), the
+    /// player's room (<see cref="NegotiationSession"/>) and the quoted ask
+    /// (<see cref="AskingQuote"/>).
+    /// </summary>
+    public static decimal TableDiscount(World world, Fighter f, PromotionId promo) =>
+        Math.Min(GratitudeFactor(f, promo), Lifers.HomeDiscount(world, f, promo));
+
     public static decimal GratitudeFactor(Fighter f, PromotionId promo) =>
         f.DiscoveredBy == promo && f.Record.TotalBouts <= 5 ? 0.55m : 1m;
 
@@ -237,8 +250,7 @@ public sealed class Negotiator
     public static Money EffectiveAskingPurse(World world, Promotion promo, Fighter f, ContractExpectations exp) =>
         new(RoundTo(exp.AskingPurse.Amount
             * (WantsExclusivity(promo) ? 1m : NonExclusiveMoneyFactor)
-            * GratitudeFactor(f, promo.Id)
-            * Lifers.HomeDiscount(world, f, promo.Id), 500m));
+            * TableDiscount(world, f, promo.Id), 500m));
 
     /// <summary>
     /// The biggest per-fight purse a promotion's economics support, derived from

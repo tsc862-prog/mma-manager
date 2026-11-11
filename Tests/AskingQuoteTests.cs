@@ -99,7 +99,39 @@ public class AskingQuoteTests
         f.DiscoveredBy = promo.Id;
         var exp = new FighterValuation().Evaluate(w, f);
 
-        Assert.Equal(RoomOpens(w, promo, f, exp), AskingQuote.For(w, promo, f, exp).Purse);
+        var q = AskingQuote.For(w, promo, f, exp);
+        Assert.Equal(RoomOpens(w, promo, f, exp), q.Purse);
+        // The discoverer's gratitude reaches the room: he opens at the grateful rate.
+        decimal grateful = Math.Round(exp.AskingPurse.Amount
+                                      * (Negotiator.WantsExclusivity(promo) ? 1m : Negotiator.NonExclusiveMoneyFactor)
+                                      * Negotiator.GratitudeFactor(f, promo.Id) / 500m) * 500m;
+        Assert.Equal(grateful, q.Purse.Amount);
+        Assert.Contains(q.Reasons, r => r.StartsWith("you discovered him"));
+    }
+
+    [Fact]
+    public void GratitudeAndTheLiferDiscount_DoNotStack()
+    {
+        var w = Founded();
+        var promo = w.Get(w.PlayerPromotion)!;
+        var f = w.FreeAgents().Where(x => x.Status == FighterStatus.Active && x.Record.TotalBouts <= 5)
+                 .OrderBy(x => x.Id.Value).First();
+        f.DiscoveredBy = promo.Id;
+        SignToPlayer(w, f, purse: 500m, fights: 3);
+        f.Disposition = Disposition.CompanyMan;
+        f.Loyalty = 90;
+        f.Record.CurrentStreak = 1;
+        Assert.True(Lifers.HomeDiscount(w, f, promo.Id) < 1m, Lifers.BondOf(w, f).Grievance?.Reason);
+        Assert.True(Negotiator.GratitudeFactor(f, promo.Id) < 1m);
+
+        // The bigger discount, not the product: never under half his ask.
+        Assert.Equal(Math.Min(Negotiator.GratitudeFactor(f, promo.Id), Lifers.HomeDiscount(w, f, promo.Id)),
+            Negotiator.TableDiscount(w, f, promo.Id));
+        Assert.True(Negotiator.TableDiscount(w, f, promo.Id) >= 0.50m);
+        var exp = new FighterValuation().Evaluate(w, f);
+        var q = AskingQuote.For(w, promo, f, exp);
+        Assert.Equal(RoomOpens(w, promo, f, exp), q.Purse);
+        Assert.Single(q.Reasons, r => r.StartsWith("loyal to you") || r.StartsWith("you discovered him"));
     }
 
     [Fact]
