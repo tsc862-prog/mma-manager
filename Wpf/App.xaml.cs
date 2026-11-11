@@ -781,9 +781,145 @@ public partial class App : Application
             return;
         }
 
+        // THE MOMENT over the desk: `MmaManager.Wpf --rendermoment <W> <H> [--first] <path>`.
+        // The quick-start world (seed 2026) books tonight's card the way a player does —
+        // every belt on the line, champion against the best contender who is free — and sims
+        // it through the real fight-night path; a belt that changes hands takes the screen.
+        // A night with no new champion moves on a week and tries again. --first commissions a
+        // new belt in a division without one, so the night crowns its first champion.
+        if (e.Args.Contains("--rendermoment"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--rendermoment");
+                int W = int.Parse(e.Args[at + 1]), H = int.Parse(e.Args[at + 2]);
+                bool first = e.Args.Contains("--first");
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                var booking = new PlayerBooking();
+                int nights = 0;
+                if (first)
+                {
+                    // A founder's first belt: a new shoestring promotion signs two free agents of
+                    // one weight at their asking terms, then sanctions the belt they will fight for.
+                    vm.StartWorld(new WorldBuilder.Options
+                    {
+                        Seed = 7,
+                        Founding = new WorldBuilder.FoundingSpec { Name = "New Wave Fighting", Abbreviation = "NWF", Region = MmaManager.Core.Model.Region.Europe },
+                    }, "You founded New Wave Fighting.");
+                    var fw = vm.LiveWorld!;
+                    var pool = vm.Contracts.FreeAgents.Select(r => fw.Get(r.Id)).OfType<MmaManager.Core.Model.Fighter>()
+                        .Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.IsMatchReady(fw.CurrentDate))
+                        .GroupBy(f => (f.WeightClass, f.Sex)).Where(g => g.Count() >= 2)
+                        .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.WeightClass).First().Select(f => f.Id).ToList();
+                    // Sign four (fight week can cost a bout to an injury; the next week books the others).
+                    foreach (var id in pool)
+                    {
+                        if (fw.RosterOf(fw.PlayerPromotion).Count() >= 4) break;
+                        if (vm.Contracts.FreeAgents.FirstOrDefault(r => r.Id == id) is not { } row) continue;
+                        vm.Contracts.SelectedFreeAgent = row;
+                        bool signed = vm.Contracts.SignAtTheirTerms();
+                        Console.WriteLine($"RENDERMOMENT signed {fw.Get(id)?.FullName}: {signed}, ready {fw.Get(id)?.IsMatchReady(fw.CurrentDate)} (from {fw.Get(id)?.ReadyToFightOn})");
+                    }
+                }
+                for (int attempt = 0; attempt < 16 && !vm.Moments.IsShowing; attempt++)
+                {
+                    if (attempt > 0) vm.AdvanceWeekCommand.Execute(null);
+                    var w = vm.LiveWorld!;
+                    var promo = w.Get(w.PlayerPromotion)!;
+                    var date = w.CurrentDate;
+                    var ev = booking.CreateEvent(w, date);
+                    bool Free(MmaManager.Core.Model.Fighter f) =>
+                        f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract?.Promotion == promo.Id && f.IsMatchReady(date)
+                        && !w.Events.Values.Any(x => x.Status == MmaManager.Core.Model.EventStatus.Scheduled
+                                                     && x.Card.Any(b => b.RedCorner == f.Id || b.BlueCorner == f.Id));
+                    if (first)
+                    {
+                        // A division of yours with two fighters ready and no champion: sanction its
+                        // belt if it has none (a founded promotion's belts start vacant).
+                        bool Unclaimed((MmaManager.Core.Model.WeightClass Wc, MmaManager.Core.Model.Sex Sex) k) =>
+                            promo.Divisions.FirstOrDefault(d => d.WeightClass == k.Wc && d.Sex == k.Sex)?.Title is not { } t
+                            || w.Get(t) is { CurrentChampion: null, Lineage.Count: 0 };
+                        var pick = w.RosterOf(promo.Id).Where(Free)
+                            .GroupBy(f => (f.WeightClass, f.Sex))
+                            .Where(g => g.Count() >= 2 && Unclaimed(g.Key))
+                            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.WeightClass).FirstOrDefault();
+                        if (pick is null)
+                        {
+                            Console.WriteLine("RENDERMOMENT no unclaimed division with two fighters ready: "
+                                + string.Join("; ", w.RosterOf(promo.Id).Select(f => $"{f.LastName} {f.WeightClass} ready={f.IsMatchReady(date)} free={Free(f)}")));
+                            break;
+                        }
+                        PromotionSetup.CommissionTitle(w, promo, pick.Key.WeightClass, pick.Key.Sex, date);
+                        var two = pick.OrderByDescending(PromotionSetup.SeedScore).ThenBy(f => f.Id.Value).Take(2).ToList();
+                        if (!booking.AddBout(w, ev, two[0].Id, two[1].Id, 5, true, out var why))
+                            Console.WriteLine("RENDERMOMENT could not book the first title fight: " + why);
+                    }
+                    else
+                    {
+                        foreach (var div in promo.Divisions)
+                        {
+                            if (div.Title is not { } tid || w.Get(tid)?.CurrentChampion is not { } cid || w.Get(cid) is not { } champ || !Free(champ)) continue;
+                            var challenger = div.Rankings.Select(id => w.Get(id)).FirstOrDefault(c => c is not null && c.Id != cid && Free(c) && div.Matches(c));
+                            if (challenger is not null)
+                                booking.AddBout(w, ev, champ.Id, challenger.Id, 5, true, out _);
+                        }
+                    }
+                    if (ev.Card.Count == 0) { booking.CancelEvent(w, ev); continue; }
+                    // Run every card of yours that is due tonight (ours, and any already on the calendar).
+                    while (!vm.Moments.IsShowing && w.Events.Values.Any(x => x.Status == MmaManager.Core.Model.EventStatus.Scheduled
+                               && x.Promotion == w.PlayerPromotion && x.Date <= w.CurrentDate))
+                    {
+                        vm.SimTonightCommand.Execute(null);
+                        nights++;
+                    }
+                    foreach (var b in ev.Card)
+                        Console.WriteLine($"RENDERMOMENT night {nights}: {w.Get(b.RedCorner)?.LastName} v {w.Get(b.BlueCorner)?.LastName} title={b.IsTitleFight} missBy={b.WeightMissBy} -> {b.Outcome?.Method} winner {(b.Outcome?.Winner is { } wn ? w.Get(wn)?.LastName : "-")}");
+                }
+                if (vm.Moments.Current is not { } m)
+                {
+                    Console.WriteLine($"RENDERMOMENT FAIL: no belt changed hands in {nights} nights");
+                    Environment.Exit(1);
+                    return;
+                }
+                Console.WriteLine($"RENDERMOMENT after {nights} night(s): {m.GetType().Name} - {m.Headline} {m.Name}, {m.Subline} | {m.Kicker}");
+                Console.WriteLine($"RENDERMOMENT quote: {m.Quote} | answer: {m.Answer?.Text} (face {m.Answer?.HasPicture}) | {m.AlsoLine}");
+                foreach (var f in m.Facts) Console.WriteLine($"RENDERMOMENT fact: {f.Label}: {f.Value} - {f.Detail}");
+
+                var root = (FrameworkElement)win.Content;
+                var size = new Size(W, H);
+                void Layout()
+                {
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                }
+                Layout();
+                var settle = System.Diagnostics.Stopwatch.StartNew();
+                while (Portraits.PendingThumbs > 0 && settle.ElapsedMilliseconds < 15000)
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => { }));
+                Layout();
+                var rtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(root);
+                var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                string p = e.Args[^1];
+                using (var fs = File.Create(p)) enc.Save(fs);
+                Console.WriteLine("RENDERMOMENT OK -> " + Path.GetFullPath(p));
+
+                // Carrying on takes it down and leaves the desk free for the clock.
+                vm.Moments.DismissCommand.Execute(null);
+                Console.WriteLine($"RENDERMOMENT dismissed: showing {vm.Moments.IsShowing}");
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERMOMENT FAIL: " + ex); Environment.Exit(1); }
+            Environment.Exit(0);
+            return;
+        }
+
         // One app on the desktop at a real screen size, maximised or floating at its
         // default window size: `MmaManager.Wpf --renderapp <appId> <W> <H> [--founded]
-        // [--floating] [--months N] [--card] [--table] <path>`. Big org (AFC) by default, a
+        // [--floating] [--months N] [--card] [--cards N] [--table] <path>` (the Planner adds
+        // --agenda, --scope <name>, --select <days|card|clash>, --injure). Big org (AFC) by default, a
         // month into the career; --founded = a newly founded shoestring promotion
         // on day one; --card books a next card first; --table flips the Roster to its Table view.
         if (e.Args.Contains("--renderapp"))
@@ -824,6 +960,31 @@ public partial class App : Application
                         {
                             bk.SelectedRed = bk.RedOptions[0];
                             if (bk.BlueOptions.Count > 0) { bk.SelectedBlue = bk.BlueOptions[0]; bk.AddBoutCommand.Execute(null); }
+                        }
+                    }
+                    vm.Contracts.OnChanged?.Invoke();
+                }
+                if (e.Args.Contains("--cards"))
+                {
+                    // Several cards of yours ahead (the Planner's state): N cards a month apart,
+                    // three weeks out first, each filled the way --card fills one.
+                    int n = int.Parse(e.Args[Array.IndexOf(e.Args, "--cards") + 1]);
+                    var bk = vm.Booking;
+                    var today = vm.LiveWorld!.CurrentDate.ToDateTime(TimeOnly.MinValue);
+                    for (int k = 0; k < n; k++)
+                    {
+                        bk.NewEventDate = today.AddDays(19 + 30 * k);
+                        bk.NewEventCommand.Execute(null);
+                        int bouts = 0;
+                        foreach (var div in bk.Divisions.ToList())
+                        {
+                            if (bouts >= 5 - k) break;      // later cards are thinner (still being built)
+                            bk.SelectedDivision = div;
+                            if (bk.RedOptions.Count > 0)
+                            {
+                                bk.SelectedRed = bk.RedOptions[0];
+                                if (bk.BlueOptions.Count > 0) { bk.SelectedBlue = bk.BlueOptions[0]; bk.AddBoutCommand.Execute(null); bouts++; }
+                            }
                         }
                     }
                     vm.Contracts.OnChanged?.Invoke();
@@ -899,6 +1060,7 @@ public partial class App : Application
                 else if (appId == "fighters") vm.FightersPage.Attach(vm.LiveWorld!, new Dictionary<MmaManager.Core.Model.FightId, (MmaManager.Core.Model.Fight, MmaManager.Core.Model.Event)>());
                 else if (appId == "news") vm.News.Attach(vm.LiveWorld!);
                 else if (appId == "inbox") vm.Mail.Attach(vm.LiveWorld!);
+                else if (appId == "planner") vm.Planner.Attach(vm.LiveWorld!);
                 long attach = clock.ElapsedMilliseconds;
                 if (appId == "fighters")
                     Console.WriteLine($"RENDERAPP fighters index (scouted read for every active fighter) {vm.FightersPage.LastIndexMs} ms, filter {vm.FightersPage.LastFilterMs} ms; {vm.FightersPage.CountLine}");
@@ -999,6 +1161,56 @@ public partial class App : Application
                         Console.WriteLine($"RENDERAPP room -> {roomPath}: their purse {roomVm.TheirPurse}; {roomVm.AskWhy}");
                         roomWin.Close();
                     }
+                }
+                // The Planner's states: --agenda (the list), --scope <Just mine|Near me|Everywhere|Flagships>,
+                // --select <days ahead | card | clash> (a picked date: N days out, your first card's
+                // date, or the first date whose clash window holds a card that would cost the house).
+                if (appId == "planner")
+                {
+                    var pl = vm.Planner;
+                    if (e.Args.Contains("--injure"))
+                    {
+                        // Harness only: hurt a few of your unbooked fighters (returns two to eight weeks
+                        // out) so the "cleared to fight" markers have something to show.
+                        var w = vm.LiveWorld!;
+                        int k = 0;
+                        foreach (var f in w.RosterOf(w.PlayerPromotion).Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active
+                                     && !MmaManager.Core.Sim.Living.ForwardCalendar.IsCommitted(w, f.Id)).OrderBy(f => f.Id.Value).Take(3))
+                        {
+                            var back = w.CurrentDate.AddDays(14 + 21 * k++);
+                            f.CurrentInjury = new MmaManager.Core.Model.Injury
+                            {
+                                Severity = MmaManager.Core.Model.InjurySeverity.Moderate, Description = k == 1 ? "broken hand" : k == 2 ? "torn meniscus" : "cut over the eye",
+                                OccurredOn = w.CurrentDate, ExpectedReturn = back,
+                            };
+                            f.Status = MmaManager.Core.Model.FighterStatus.Injured;
+                            f.ReadyToFightOn = back;
+                        }
+                        vm.Contracts.OnChanged?.Invoke();
+                    }
+                    pl.Wanted();
+                    if (e.Args.Contains("--agenda")) pl.ShowAgenda = true;
+                    if (e.Args.Contains("--scope")) pl.Scope = e.Args[Array.IndexOf(e.Args, "--scope") + 1];
+                    if (e.Args.Contains("--select"))
+                    {
+                        string what = e.Args[Array.IndexOf(e.Args, "--select") + 1];
+                        var w = vm.LiveWorld!;
+                        var today = w.CurrentDate;
+                        DateOnly? pick = null;
+                        if (what == "card")
+                            pick = MmaManager.Core.Sim.Living.ForwardCalendar.Upcoming(w, today, promotion: w.PlayerPromotion).FirstOrDefault()?.Date;
+                        else if (what == "clash")
+                        {
+                            for (int d = 1; d < 60 && pick is null; d++)
+                                if (MmaManager.Core.Sim.Living.ForwardCalendar.RivalCardsNear(w, w.PlayerPromotion, today.AddDays(d)).Rivals.Any(r => r.Charged))
+                                    pick = today.AddDays(d);
+                        }
+                        else pick = today.AddDays(int.Parse(what));
+                        pl.Selected = pick;
+                        Console.WriteLine($"RENDERAPP planner picked {pick:ddd d MMM yyyy}: {pl.ClashLine}");
+                    }
+                    Layout();
+                    Console.WriteLine($"RENDERAPP planner: {pl.Headline} / {pl.Subline}; {pl.Days.Count} squares, {pl.Agenda.Count} agenda rows, {pl.HeadsUp.Count} heads-up, {pl.Flagships.Count} flagships");
                 }
                 WaitThumbs("before the still");
                 foreach (var wall in FindAll<MmaManager.Wpf.Controls.CardWall>(root))
