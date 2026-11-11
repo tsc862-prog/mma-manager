@@ -394,19 +394,17 @@ public class PersistenceTests
 
         new WorldTick().AdvanceWeeks(straight, 12);
         new WorldTick().AdvanceWeeks(resumed, 12);
-        // A slot freed in the MIDDLE of a dictionary is reused by the never-saved world's next entry but
-        // not by the compact loaded one, so enumeration ORDER differs (inherent to Dictionary; see the
-        // skipped strict test below). Everything else, i.e. every value the sim produced, must match.
-        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60, ignoreKeyOrder: holeInTheMiddle);
+        // A slot freed in the MIDDLE of the world's collections must not change their enumeration order
+        // (World's EntityMap keeps id order), so the compare is strict, key order included.
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "After the player's cancel/remove paths a loaded world diverged from a never-saved one:\n" + PersistenceGraph.Describe(diffs));
     }
 
-    [Fact(Skip = "Known, not fixable in Persistence: after PlayerBooking.CancelEvent / ReleaseLocals remove a non-newest entry "
-        + "(Core.Sim/Booking/PlayerBooking.cs:139 Events.Remove, :147 Fighters.Remove) the never-saved Dictionary reuses the freed slot "
-        + "while a loaded one is compact, so World.Events/Fighters enumerate in a different order (reproduced: Events key order differs at "
-        + "3832, Fighters at 6188; every value still matched). world-sim must iterate by id wherever order feeds a roll "
-        + "(Core.Sim has ~31 `Fighters.Values` sites); strict key-order equality cannot be restored.")]
+    // After PlayerBooking.CancelEvent / ReleaseLocals remove a non-newest entry, a plain Dictionary reused
+    // the freed slot while a loaded one was compact, so the two enumerated differently. World's entity
+    // collections are EntityMaps now: always id order, so strict key-order equality holds.
+    [Fact]
     public void PlayerPaths_WithAHoleInTheMiddle_EnumerateInTheSameOrderAsANeverSavedWorld()
     {
         var straight = PlayerWorld(21, holeInTheMiddle: true);
