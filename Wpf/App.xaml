@@ -487,6 +487,9 @@
                HeroPanel .... (ContentControl) the top band of a screen, washed in the org accent.
                               HeroLogo / Text.HeroName / Text.HeroQuote / Text.HeroDetail / HeroGap
                               tighten when the window is short (controls:Adaptive.IsCompact).
+               MomentCard ... (Border) The Moment's poster card over MomentScrim, with
+                              Text.MomentKicker / Text.Moment (the one huge line) /
+                              Text.MomentName / MomentGap; all tighten when compact.
                Chip ......... (Border) + Chip.Text: a small rounded tag ("City promotion").
                Avatar ....... (ContentControl; Content has Picture/HasPicture/Icon) a round face,
                               or a desk's icon on a disc.
@@ -707,6 +710,64 @@
             <Style.Triggers>
                 <Trigger Property="controls:Adaptive.IsCompact" Value="True">
                     <Setter Property="Margin" Value="0,6,0,0" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- THE MOMENT: one poster-like card over the dimmed desktop (Views/MomentView.xaml). -->
+        <SolidColorBrush x:Key="MomentScrim" Color="#E60A0C10" />
+        <Style x:Key="MomentCard" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource OrgAccentDim}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#1D222A" Offset="0" />
+                        <GradientStop Color="#13161B" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Text.MomentKicker" TargetType="TextBlock" BasedOn="{StaticResource Text.Kicker}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Foreground" Value="{DynamicResource OrgAccent}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="13" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- The one huge line ("AND NEW."): announcer words, never a stat. -->
+        <Style x:Key="Text.Moment" TargetType="TextBlock" BasedOn="{StaticResource Text.Display}">
+            <Setter Property="FontSize" Value="92" />
+            <Setter Property="LineHeight" Value="94" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+            <Setter Property="Margin" Value="-4,2,0,4" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="60" />
+                    <Setter Property="LineHeight" Value="62" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="Text.MomentName" TargetType="TextBlock" BasedOn="{StaticResource Text.Title}">
+            <Setter Property="FontSize" Value="26" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="20" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- A gap between moment sections that closes up on a short screen. -->
+        <Style x:Key="MomentGap" TargetType="FrameworkElement">
+            <Setter Property="Margin" Value="0,22,0,0" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="Margin" Value="0,10,0,0" />
                 </Trigger>
             </Style.Triggers>
         </Style>

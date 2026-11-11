@@ -20,6 +20,21 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm) vm.Desktop.Area = e.NewSize;
     }
 
+    // The Moment carries on with Esc, Enter or Space even when focus was left somewhere
+    // on the desk behind it (the card itself handles keys pressed inside it).
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (DataContext is MainViewModel { Moments.IsShowing: true } vm
+            && e.Key is Key.Escape or Key.Enter or Key.Space
+            && !MomentLayer.IsKeyboardFocusWithin)
+        {
+            vm.Moments.Dismiss();
+            e.Handled = true;
+            return;
+        }
+        base.OnPreviewKeyDown(e);
+    }
+
     // Any click inside the start menu launches/acts and folds the menu away.
     private void CloseStartMenu(object sender, MouseButtonEventArgs e) => StartToggle.IsChecked = false;
 
