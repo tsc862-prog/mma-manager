@@ -28,7 +28,8 @@ if (args.Length > 0 && args[0] == "compare")
 if (args.Length > 0 && args[0] == "diagnose")
 {
     RunDiagnose(args.Length > 1 ? ulong.Parse(args[1]) : 7UL,
-                args.Length > 2 ? int.Parse(args[2]) : 3);
+                args.Length > 2 ? int.Parse(args[2]) : 3,
+                args.Skip(3).ToArray());
     return;
 }
 
@@ -184,8 +185,13 @@ RunSingle(args.Length > 0 && ulong.TryParse(args[0], out var s) ? s : 2026UL,
 
 // ---------------------------------------------------------------------------
 // P&L trace of the designed mid-tier: why do ICF/VMMA/IFA bleed out?
-static void RunDiagnose(ulong seed, int years)
+// diagnose <seed> <years> [ABBR ...]: with org abbreviations, the detailed
+// trace for just those orgs (every ledger line, media deals and strikes,
+// dropped deals and why, acquisitions, houses vs rooms); without, the old
+// mid-tier summary.
+static void RunDiagnose(ulong seed, int years, string[] orgs)
 {
+    if (orgs.Length > 0) { LongSim.Diagnose.Detailed(seed, years, orgs); return; }
     var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
     world.PlayerPromotion = default;
     var tick = new WorldTick();
