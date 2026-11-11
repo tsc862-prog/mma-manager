@@ -64,7 +64,7 @@ public sealed class TournamentService
                     WeightClass = wc,
                     ScheduledRounds = 3,
                 };
-                _engine.Simulate(fight, world, new FightParams { ScheduledRounds = 3 });
+                _engine.Simulate(fight, world, new FightParams { ScheduledRounds = 3, GeneratePlayByPlay = false });   // no screen shows these bouts' text
                 ResultsProcessor.Apply(world, ev, fight);
                 ev.Card.Add(fight);
 
