@@ -43,6 +43,42 @@ public sealed record DesignedLegend(
 /// </summary>
 public static class DesignedLegends
 {
+    /// <summary>
+    /// Who the retired greats ARE, by full name ("First Last" — Paulo Bandeira
+    /// shares a surname with a living champion). Authored for the same reason the
+    /// active roster's are: left to the roll, a legend whose bio says "has never
+    /// once raised his voice" came out a Hothead on some seeds. Applied through
+    /// <see cref="Personality.ApplyTo"/>, which is hash-derived — it costs the
+    /// generation stream nothing.
+    /// </summary>
+    public static IReadOnlyDictionary<string, Disposition> Dispositions { get; } =
+        new Dictionary<string, Disposition>(StringComparer.Ordinal)
+        {
+            ["Randall Boyd"] = Disposition.QuietProfessional,     // makes everyone sweep the mats; says little
+            ["Emiliano Vasquez"] = Disposition.Showman,           // Mexican flags in American arenas, the first pay-per-view lightweight
+            ["Nathan Kroll"] = Disposition.Loudmouth,             // the sermons he gave referees
+            ["Paulo Bandeira"] = Disposition.QuietProfessional,   // quietly building other people's champions
+            ["Danielle Cross"] = Disposition.Loudmouth,           // argued a division into existence
+            ["Hendrik Vos"] = Disposition.QuietProfessional,      // holds the gym door open, does not miss it
+            ["Alfie Rooke"] = Disposition.Warhorse,               // delivered every time, for plumber's wages
+            ["Margaux Bisset"] = Disposition.Showman,             // makes it look easy; French television now
+            ["Yuji Matsuda"] = Disposition.Showman,               // the dome show a nation measures its holidays by
+            ["Chatchai Wongsawat"] = Disposition.QuietProfessional, // has never once raised his voice
+            ["Yerlan Amanov"] = Disposition.Student,              // title fights studied like chess games
+            ["Waldemar Pires"] = Disposition.Warhorse,            // the last champion of the dust
+            ["Osvaldo Ferraz"] = Disposition.QuietProfessional,   // never hurried, never panicked
+            ["Ronaldo Vieira"] = Disposition.Hothead,             // not one dull second
+            ["Hugo Sosa"] = Disposition.Warhorse,                 // nine years of being the man everyone beat
+            ["Grigori Antonov"] = Disposition.Warhorse,           // considers modern warm-ups an indulgence
+            ["Marek Baran"] = Disposition.CompanyMan,             // a fixture in the IFA corner sections
+            ["Bobby Deene"] = Disposition.Warhorse,               // four defenses and not one call from the AFC
+            ["Bryce Kilgore"] = Disposition.Warhorse,             // every short-notice fight the league offered
+            ["Tama Solomona"] = Disposition.Warhorse,             // pads six days a week; "the boy"
+            ["Michiko Arai"] = Disposition.CompanyMan,            // the same two thousand people, the house's whole reason
+            ["Petrus van Zyl"] = Disposition.Student,             // checking his own arithmetic
+            ["Emeka Obiora"] = Disposition.Warhorse,              // a bad hip and a bag of pads
+        };
+
     public static IReadOnlyList<DesignedLegend> All { get; } = new DesignedLegend[]
     {
         // ============ AFC — the summit's founding era ============
@@ -55,21 +91,21 @@ public static class DesignedLegends
             AgeNow: 46, Wins: 27, Losses: 5, Popularity: 85,
             Reigns: new[] { new DesignedReign("AFC", WeightClass.Lightweight, 16, 11, 6) },
             HeadCoachOf: "Sunset Striking Lab",
-            Bio: "Six defenses, five knockdowns in one round, and a decade of Mexican flags in American arenas. Vasquez was the first lightweight the AFC built a pay-per-view around, and every man who has held that belt since has been asked, on camera, whether he could have beaten him."),
+            Bio: "Six defenses, five knockdowns in one round, and a decade of Mexican flags in American arenas. Vasquez was the first lightweight the AFC built a pay-per-view around, and whoever holds that belt is asked, on camera, whether they could have beaten him."),
         new("Nathan", "Kroll", "Old Testament", Region.NorthAmerica, "USA", WeightClass.Middleweight, PrimaryStyle.Wrestler,
             AgeNow: 50, Wins: 22, Losses: 8, Popularity: 74,
             Reigns: new[] { new DesignedReign("AFC", WeightClass.Middleweight, 18, 14, 4) },
             HeadCoachOf: "Iron Range Wrestling",
-            Bio: "Four defenses of the ugliest kind, and a nickname earned for the sermons he gave referees. Kroll's fights were unwatchable and his record was immaculate; the sport spent four years hoping someone would beat him and nobody did until his knees managed it."),
+            Bio: "Four defenses of the ugliest kind, and a nickname earned for the sermons he gave referees. Kroll's fights were unwatchable and his title run was immaculate; the sport spent four years hoping someone would beat him and nobody did until his knees managed it."),
         new("Paulo", "Bandeira", "Mão de Pedra", Region.SouthAmerica, "BRA", WeightClass.Welterweight, PrimaryStyle.BrazilianJiuJitsu,
             AgeNow: 48, Wins: 25, Losses: 4, Popularity: 82,
             Reigns: new[] { new DesignedReign("AFC", WeightClass.Welterweight, 17, 12, 8) },
             HeadCoachOf: "Bandeira Jiu-Jitsu",
-            Bio: "Eight defenses, twenty-one submissions, and the third generation of his family to run the academy that carries their name. Bandeira never lost the belt — he vacated it at thirty-six, went home to Rio, and has been quietly building other people's champions ever since."),
+            Bio: "Eight defenses, a game built to finish on the mat, and the third generation of his family to run the academy that carries their name. Bandeira never lost the belt — he vacated it at thirty-six, went home to Rio, and has been quietly building other people's champions ever since. His nephew Wallace is the Cage Kings heavyweight champion, a house his family's academy now trains against; the picture of the two of them is still on the academy wall."),
         new("Danielle", "Cross", "The Original", Region.NorthAmerica, "USA", WeightClass.Bantamweight, PrimaryStyle.Brawler,
             AgeNow: 41, Wins: 18, Losses: 4, Popularity: 79, Sex: Sex.Female,
             Reigns: new[] { new DesignedReign("AFC", WeightClass.Bantamweight, 12, 8, 5, Sex.Female) },
-            Bio: "There was no women's division until Cross spent two years embarrassing the promoters who said there was no market. She won the first belt, defended it five times, and retired the moment the sport stopped treating her division as an experiment. Everything Volkova headlines today, Cross argued into existence."),
+            Bio: "There was no women's division until Cross spent two years embarrassing the promoters who said there was no market. She won the first belt, defended it five times, and retired the moment the sport stopped treating her division as an experiment. Everything Volkova headlines today, Cross argued into existence. She has told television audiences that nobody has asked Volkova a hard question yet, and she works Sarah Donovan's corner as the woman most likely to."),
 
         // ============ VMMA — the establishment's own past ============
         new("Hendrik", "Vos", "Zwaarhand", Region.Europe, "NED", WeightClass.Heavyweight, PrimaryStyle.Kickboxer,
@@ -92,12 +128,12 @@ public static class DesignedLegends
             AgeNow: 51, Wins: 31, Losses: 8, Popularity: 86,
             Reigns: new[] { new DesignedReign("ICF", WeightClass.Lightweight, 20, 14, 9) },
             HeadCoachOf: "Kobudo Dojo",
-            Bio: "Nine defenses, six years, and a New Year's Eve dome show that a nation still measures its holidays by. Matsuda is the reason the ICF lightweight belt is the one Japanese fighters actually want — and the reason Daichi Sato has never seriously considered leaving it."),
+            Bio: "Nine defenses, six years, and a New Year dome show that a nation still measures its holidays by. Matsuda is the reason the ICF lightweight belt is the one Japanese fighters actually want — and the reason Daichi Sato has never seriously considered leaving it."),
         new("Chatchai", "Wongsawat", "The Old Temple", Region.Asia, "THA", WeightClass.Featherweight, PrimaryStyle.Kickboxer,
             AgeNow: 49, Wins: 42, Losses: 11, Popularity: 70,
             Reigns: new[] { new DesignedReign("ICF", WeightClass.Featherweight, 18, 13, 6) },
             HeadCoachOf: "Emerald Tiger",
-            Bio: "Three hundred stadium fights before the cage, then six years of taking the ICF's featherweight belt home to Bangkok. He teaches at Emerald Tiger at five every morning and has never once raised his voice."),
+            Bio: "Three hundred stadium fights before the cage, then five years of taking the ICF's featherweight belt home to Bangkok. He teaches at Emerald Tiger at five every morning and has never once raised his voice."),
         new("Yerlan", "Amanov", "The Long Winter", Region.Asia, "KAZ", WeightClass.Welterweight, PrimaryStyle.Wrestler,
             AgeNow: 48, Wins: 26, Losses: 6, Popularity: 64,
             Reigns: new[] { new DesignedReign("ICF", WeightClass.Welterweight, 17, 12, 5) },
@@ -122,12 +158,12 @@ public static class DesignedLegends
             AgeNow: 48, Wins: 21, Losses: 9, Popularity: 45,
             Reigns: new[] { new DesignedReign("CK", WeightClass.Featherweight, 17, 13, 3) },
             HeadCoachOf: "Monte Andino MMA",
-            Bio: "The old anvil: Argentina's only Cage Kings champion, who won the belt at thirty-one after nine years of being the man everyone beat on their way up. He takes the Monte Andino fighters to altitude every camp because that is where he finally got fit enough to win."),
+            Bio: "The old anvil: Argentina's first Cage Kings champion, who won the belt at thirty-one after nine years of being the man everyone beat on their way up. He takes the Monte Andino fighters to altitude every camp because that is where he finally got fit enough to win."),
 
         // ============ IFA — the hard school's founders ============
         new("Grigori", "Antonov", "The Foundry", Region.Europe, "RUS", WeightClass.Heavyweight, PrimaryStyle.Grappler,
             AgeNow: 50, Wins: 24, Losses: 9, Popularity: 58,
-            Reigns: new[] { new DesignedReign("IFA", WeightClass.Heavyweight, 18, 13, 5) },
+            Reigns: new[] { new DesignedReign("IFA", WeightClass.Heavyweight, 17, 12, 5) },
             HeadCoachOf: "Volk Sambo Club",
             Bio: "Ironhold's first heavyweight champion, from the years when the purses came out of an envelope and the cage was borrowed. Antonov coaches at the sambo club that made him and considers modern warm-ups an indulgence."),
         new("Marek", "Baran", "Cement", Region.Europe, "POL", WeightClass.LightHeavyweight, PrimaryStyle.Wrestler,
@@ -144,7 +180,7 @@ public static class DesignedLegends
             AgeNow: 46, Wins: 23, Losses: 10, Popularity: 52,
             Reigns: new[] { new DesignedReign("UFL", WeightClass.Lightweight, 14, 10, 3) },
             HeadCoachOf: "Northern Lights MMA",
-            Bio: "He took every short-notice fight the league offered for eleven years and won the belt on the last one anybody expected him to. Kilgore coaches in Montreal now and will still, at forty-six, answer the phone on a Thursday."),
+            Bio: "He took every short-notice fight the league offered for years and won the belt on the last one anybody expected him to. Kilgore coaches in Montreal now and will still, at forty-six, answer the phone on a Thursday."),
 
         // ============ Southern Cross — the island export ============
         new("Tama", "Solomona", "Harbour Light", Region.Oceania, "NZL", WeightClass.Heavyweight, PrimaryStyle.Brawler,

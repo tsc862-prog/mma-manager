@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MmaManager.Core.Model;
 
 namespace MmaManager.Core.Sim.Flavor;
@@ -41,18 +42,41 @@ public enum Moment
 /// </summary>
 public static class Quotes
 {
-    /// <summary>What this fighter says about this moment, already in quote marks.</summary>
-    public static string Say(Fighter f, Moment moment, DateOnly on)
+    /// <summary>
+    /// What this fighter says about this moment, already in quote marks.
+    /// <paramref name="other"/> is the person the line is ABOUT when it talks about
+    /// one (the beaten opponent, the new champion): the lines are written with "he",
+    /// and a woman across the cage is "she". The line is chosen exactly as before —
+    /// off the speaker's id and the date — and only its pronouns follow the other
+    /// person's sex, so passing them never changes WHICH line is picked.
+    /// </summary>
+    public static string Say(Fighter f, Moment moment, DateOnly on, Fighter? other = null)
     {
         var pool = Lines(f.Disposition, moment);
         if (pool.Count == 0) pool = Lines(Disposition.QuietProfessional, moment);
         uint h = Hash(f.Id.Value, (uint)moment * 31u + (uint)on.DayNumber);
-        return $"“{pool[(int)(h % (uint)pool.Count)]}”";
+        string line = pool[(int)(h % (uint)pool.Count)];
+        if (other?.Sex == Sex.Female) line = ForWoman(line);
+        return $"“{line}”";
     }
 
     /// <summary>The same line with the speaker attributed — for a news body.</summary>
-    public static string Attributed(Fighter f, Moment moment, DateOnly on) =>
-        $"{Say(f, moment, on)} — {f.FullName}";
+    public static string Attributed(Fighter f, Moment moment, DateOnly on, Fighter? other = null) =>
+        $"{Say(f, moment, on, other)} — {f.FullName}";
+
+    private static readonly (Regex Pattern, string With)[] FemaleForms =
+    {
+        (new Regex(@"\bHe's\b"), "She's"), (new Regex(@"\bhe's\b"), "she's"),
+        (new Regex(@"\bHe\b"), "She"), (new Regex(@"\bhe\b"), "she"),
+        (new Regex(@"\bhim\b"), "her"), (new Regex(@"\bhis\b"), "her"),
+        (new Regex(@"\ba man\b"), "a woman"),
+    };
+
+    private static string ForWoman(string line)
+    {
+        foreach (var (pattern, with) in FemaleForms) line = pattern.Replace(line, with);
+        return line;
+    }
 
     private static uint Hash(int id, uint salt)
     {

@@ -34,6 +34,7 @@ public static class EventHype
         if (main.IsTitleFight && red.Camp is { } room && red.Camp == blue.Camp) return "TEAMMATES COLLIDE";
         if (bond is { Kind: RelationshipKind.Family }) return "BLOOD AGAINST BLOOD";
         if (bond is { Kind: RelationshipKind.Friend, Strength: >= 30 }) return "BUSINESS, NOT FRIENDSHIP";
+        if (bond is { Kind: RelationshipKind.Mentor }) return "MASTER AND STUDENT";
         if (feud is not null && meetings >= 2) return "THE TRILOGY";
         if (feud is { Intensity: >= 80 }) return "BAD BLOOD";
         if (feud is not null && meetings == 1) return "THE REMATCH";
