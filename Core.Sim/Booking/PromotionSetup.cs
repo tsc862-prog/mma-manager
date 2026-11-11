@@ -43,12 +43,16 @@ public static class PromotionSetup
             // has actually fought a few times and won (HistoryBuilder stages the
             // reign inside their record — a one-fight career puts it in the pro
             // debut, a winless one leaves no night to stage it on at all). Only a
-            // division with no such fighter crowns a novice.
+            // division with no such fighter crowns a novice. Applied at the local
+            // stages, whose rosters RosterNativity reshapes and where a 1-0 kid can
+            // top the seed list; the big stages keep the plain top seed.
+            bool local = RosterNativity.IsLocalStage(promo.Prestige.Value);
             var champion = designedChampions is not null
                            && designedChampions.TryGetValue(wc, out var cid)
                            && byMerit.FirstOrDefault(f => f.Id == cid) is { } dc
                 ? dc
-                : byMerit.FirstOrDefault(f => f.Record.TotalBouts >= MinBoutsForADayOneBelt && f.Record.Wins >= 2) ?? byMerit[0];
+                : (local ? byMerit.FirstOrDefault(f => f.Record.TotalBouts >= MinBoutsForADayOneBelt && f.Record.Wins >= 2) : null)
+                  ?? byMerit[0];
             var title = CreateTitle(world, promo, wc, sex, champion, on);
             division.Title = title.Id;
 
