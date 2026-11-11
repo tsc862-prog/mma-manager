@@ -183,6 +183,16 @@ all AI.
 
 ## Reading results — what "healthy" looks like (as of 2026-07-08)
 
+> **Stale (flagged 2026-11-11, sim-qa).** The ranges below were tuned in July and no longer match `main`: a balance run found about
+> 2,420 active fighters and average popularity about 36 at year 5 (this text says ~900 and 38-40), and the shoestring reference arc no longer
+> matches. They were NOT re-measured here because longsim runs are done on GitHub now (`balance.yml`), not on the owner's PC. Treat every figure
+> in this section as unverified until a `compare 20 5` from `balance.yml` replaces it.
+
+**Running the checks on GitHub.** `gh workflow run simqa.yml -f ref=<branch> -f seeds=20 -f years=10` runs `check`, `playcheck`, both `--soak`
+variants and `determinism` on a windows-latest runner and uploads the reports (`gh run download <id>`). Locally, run only a tiny smoke
+(`check 2 1`), one process at a time.
+
+
 From the tuned baseline (2026-07-09, résumé-priced market; 10 seeds × 5 years):
 AFC #1 in 10/10 (prestige 76–80), pyramid holds, ~895–920 active fighters, avg
 popularity 38–40 (flat over decades), org count growing ~19 → 23 by Y5 (~27 by

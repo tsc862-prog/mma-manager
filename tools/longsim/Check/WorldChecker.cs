@@ -31,7 +31,7 @@ public sealed class WorldChecker
         ("EVENT-FUTURE",       "no card is Completed (results written) while the world clock is still before its date"),
         ("BOUT-HISTORY",       "BoutHistory lists exactly the completed bouts the fighter was a corner of, each once"),
         ("REF-DANGLING",       "every id referenced anywhere (contracts, rankings, titles, cards, bonds, camps, news, mail, desk, wars) resolves"),
-        ("ID-REUSE",           "an id is never handed to a second entity; counters never fall below an id in use or move backwards"),
+        ("ID-REUSE",           "collections enumerate in id order; an id is never handed to a second entity; counters never fall below an id in use or move backwards"),
         ("STATE-FIGHTER",      "status agrees with injury/suspension/contract; ages and ratings in range"),
         ("STATE-WOMEN-CLASS",  "every active woman is in a weight class some women's division runs (strawweight..featherweight)"),
         ("STATE-STIPEND",      "a camp stipend is only on a fighter whose org can pay it (he holds a contract)"),
@@ -107,11 +107,11 @@ public sealed class WorldChecker
 
     private void Ids(World world)
     {
-        void Track<TId, TEnt>(string kind, Dictionary<TId, TEnt> map, Func<TId, int> value) where TId : notnull where TEnt : class
+        void Track<TId, TEnt>(string kind, IReadOnlyDictionary<TId, TEnt> map, Func<TId, int> value) where TId : notnull where TEnt : class
         {
             if (!_idOwner.TryGetValue(kind, out var owners)) _idOwner[kind] = owners = new();
             int max = _maxSeen.GetValueOrDefault(kind);
-            foreach (var (id, ent) in map)
+            foreach (var (id, ent) in map.Select(kv => (kv.Key, kv.Value)))
             {
                 int v = value(id);
                 if (owners.TryGetValue(v, out var prior)) { if (!ReferenceEquals(prior, ent)) V("ID-REUSE", $"{kind}:{v}", $"{kind} id {v} now belongs to a different entity than when first seen ({Name(prior)} -> {Name(ent)})"); }
@@ -119,6 +119,8 @@ public sealed class WorldChecker
                 if (v > max) max = v;
             }
             _maxSeen[kind] = max;
+            int prevId = int.MinValue;
+            foreach (var kv in map) { int v = value(kv.Key); if (v <= prevId) { V("ID-REUSE", $"order:{kind}", $"world.{kind} collection enumerates out of id order ({prevId} then {v})"); break; } prevId = v; }
             _log.Checked("ID-REUSE", map.Count);
         }
         Track("fighter", world.Fighters, k => k.Value);
