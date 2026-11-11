@@ -190,13 +190,13 @@ public sealed class WorldBuilder
             new("Great Lakes Fighting", "GLF", 28, 80, new Money(680_000m), Region.NorthAmerica, CoreThree, Women: false,
                 Lore: "Great Lakes Fighting is Midwest wrestling country distilled into a promotion: high-school gymnasiums, folding chairs, and an endless supply of iron-jawed grinders. It has sent more contenders to the national stage than outfits three times its size — and never once kept one."),
             new("Kansai Cage", "KAC", 26, 75, new Money(600_000m), Region.Asia, LighterHouse, Women: true,
-                Lore: "Kansai Cage is Osaka's temple of the small and the fearless — a lighter-weights house in the old Shooto tradition and the beating heart of Japanese women's MMA. Its shows are intimate, its craft is obsessive, and its faithful believe, correctly, that the best pound-for-pound fighting on earth happens in rooms this size."),
+                Lore: "Kansai Cage was born in Osaka, a temple of the small and the fearless, and still carries the Kansai name — a lighter-weights house in the old Shooto tradition and the beating heart of Japanese women's MMA. It now stages its cards in a Tokyo basement hall the rent could afford; its shows are intimate, its craft is obsessive, and its faithful believe, correctly, that the best pound-for-pound fighting on earth happens in rooms this size."),
             new("Cordillera Combat", "CDC", 24, 70, new Money(500_000m), Region.SouthAmerica, TinyLight, Women: false,
-                Lore: "Cordillera Combat stages its cards in Andean gyms two miles above sea level, where visiting fighters gas out in a round and the locals never seem to breathe. A tiny house with a single famous export: flyweights with bottomless lungs."),
+                Lore: "Cordillera Combat made its name in Andean gyms two miles above sea level, where visiting fighters gas out in a round and the locals never seem to breathe; the big nights are now in Lima. A tiny house with a single famous export: flyweights with bottomless lungs."),
             new("Motor City Cage", "MCC", 17, 60, new Money(320_000m), Region.NorthAmerica, HeavyHall, Women: false,
-                Lore: "Motor City Cage puts on heavy-handed fights for a heavy-handed town — middleweight and up, judges optional. Detroit crowds don't pay to watch footwork, and the promotion has honoured that contract since its first card in an east-side warehouse."),
+                Lore: "Motor City Cage puts on heavy-handed fights for a heavy-handed town — middleweight and up, judges optional. Detroit crowds don't pay to watch footwork, and the promotion honoured that contract from its first card in an east-side warehouse until the lease ran out, then took the act down I-94 to a south-side hall in Chicago — Motor City in name and attitude still."),
             new("Baltic Brawl", "BLB", 12, 50, new Money(220_000m), Region.Europe, HeavyHall, Women: false,
-                Lore: "Baltic Brawl is the old school preserved in amber: big men, small halls, sambo pedigrees, and an announcer who sounds like a dockyard foreman. It survives on stubbornness and the region's inexhaustible supply of enormous, uncomplaining heavyweights."),
+                Lore: "Baltic Brawl is the old school preserved in amber: big men, small halls, sambo pedigrees, and an announcer who sounds like a dockyard foreman. It runs the Baltic ferry circuit from an office and home hall in Stockholm, where the ferries leave from, and its fighters and crowds are Baltic to the bone. It survives on stubbornness and the region's inexhaustible supply of enormous, uncomplaining heavyweights."),
             new("Mekong Fight Club", "MFC", 14, 50, new Money(250_000m), Region.Asia, FeederLight, Women: false,
                 Lore: "Mekong Fight Club grew out of the temple-fair circuit, where fighters have traded leather at festivals up and down the river for generations. It runs the lighter weights the region breeds best, and its cards double as open auditions for every scout in Asia."),
             new("Cape Fury", "CPF", 11, 48, new Money(210_000m), Region.Africa, HeavyHall, Women: false,
@@ -212,7 +212,8 @@ public sealed class WorldBuilder
         // builder stream and reshuffles every seed); where the lore's town isn't in
         // the atlas, the nearest one stands in. The lore lines explaining those
         // stand-ins (KAC Osaka→Tokyo, MCC Detroit→Chicago, CDC Andes→Lima, BLB
-        // Baltic→Stockholm) are still owed by the database agent.
+        // Baltic→Stockholm) now live in each promotion's Lore above; if a home
+        // here changes, change that Lore line with it.
         private static readonly Dictionary<string, string> DesignedHomes = new(StringComparer.Ordinal)
         {
             ["AFC"] = "Las Vegas",        // born in a Las Vegas casino ballroom

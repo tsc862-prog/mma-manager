@@ -180,7 +180,7 @@ public static class DesignedRoster
         // A whole roster of grinders who'd never defect to the establishment across
         // town — loyal to the hard school even as the turf war squeezes the books.
         new("Miron", "Kovac", "Cold Iron", Region.Europe, WeightClass.Lightweight, PrimaryStyle.Wrestler, 28, 78, 17, 3, "IFA", Champion: true, Popularity: 60, Country: "SRB", Loyalty: 72,
-            Bio: "A product of Belgrade's hard school who slept on the gym mats he now headlines above. Kovac bleeds Ironhold black and calls VMMA 'the theatre across town'."),
+            Bio: "A product of Belgrade's hard school who slept on the gym mats he now headlines above. Kovac bleeds Ironhold black and calls VMMA 'the theatre in London'."),
         new("Emil", "Toma", "The Scythe", Region.Europe, WeightClass.Featherweight, PrimaryStyle.Kickboxer, 27, 76, 15, 2, "IFA", Champion: true, Popularity: 49, Country: "ROU", Loyalty: 66,
             Bio: "A Bucharest butcher's son whose body kicks fold people at the waist. Toma answered VMMA's last contract overture with a one-word press release."),
         new("Bohdan", "Marchenko", "Anvil", Region.Europe, WeightClass.Welterweight, PrimaryStyle.ClinchFighter, 29, 77, 16, 4, "IFA", Champion: true, Popularity: 47, Country: "GEO", Loyalty: 64,
@@ -333,7 +333,7 @@ public static class DesignedRoster
             Bio: "A Kaunas demolition contractor — literally — who stopped Ozols in their first war and lost the belt back to him on the cards in the second. The rubber match with Ozols is the Baltic's biggest conversation."),
         // MCC: Detroit's crosstown war — the pride of the east side wants Barone's belt.
         new("Jamal", "Weeks", "Eight Mile", Region.NorthAmerica, WeightClass.Middleweight, PrimaryStyle.Wrestler, 27, 47, 12, 8, "MCC", Popularity: 35, Country: "USA", RivalOf: "Barone",
-            Bio: "The pride of Detroit's east side, still wrestling out of the rec center he grew up in. Weeks says Barone's belt lives on the wrong side of Woodward — the crosstown fight books itself."),
+            Bio: "The pride of Detroit's east side, still wrestling out of the rec center he grew up in. Weeks says Barone's belt lives on the wrong side of Woodward — the grudge books itself."),
         // CDC: the altitude-bred flyweight jewel — 7-0 at 20, no loyalty, pure poach-bait.
         new("Alonso", "Huanca", "Colibrí", Region.SouthAmerica, WeightClass.Flyweight, PrimaryStyle.Striker, 20, 52, 7, 0, "CDC", Popularity: 35, Country: "BOL", Loyalty: 18, Streak: 7,
             Bio: "The hummingbird of El Alto: a twenty-year-old altitude prodigy whose hands blur where other men wheeze. CDC can't pay him what's coming, and everyone — including CDC — knows it. He rides the gym bus beside Mateo Quispe, the champion he is expected to replace, and neither pretends otherwise."),
