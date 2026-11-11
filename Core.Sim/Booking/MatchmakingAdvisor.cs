@@ -3,6 +3,9 @@ using MmaManager.Core.Sim.Ability;
 
 namespace MmaManager.Core.Sim.Booking;
 
+// Fog of war: everything here advises the PLAYER, so every ability figure is
+// the player's scouted read (MatchmakingAdvisor.ScoutedRead), never the truth.
+
 /// <summary>Where a fighter sits in a division: champion, ranked contender, or unranked.</summary>
 public enum Standing { Champion, Ranked, Unranked }
 
@@ -63,13 +66,30 @@ public sealed class MatchmakingAdvisor
         return idx >= 0 ? new(Standing.Ranked, idx + 1) : new(Standing.Unranked, null);
     }
 
-    /// <summary>Order fighters the way a matchmaker scans a division: champ, #1, #2 … then the unranked by ability.</summary>
+    /// <summary>
+    /// Order fighters the way a matchmaker scans a division: champ, #1, #2 … then
+    /// the unranked by the player's scouted read, id as the last word.
+    /// </summary>
     public IEnumerable<Fighter> ByStanding(World world, IEnumerable<Fighter> fighters) =>
         fighters
             .OrderBy(f => StandingSortKey(world, f.Id))
-            .ThenByDescending(FighterAbility.CurrentAbility);
+            .ThenByDescending(f => ScoutedRead(world, f))
+            .ThenBy(f => f.Id.Value);
 
-    /// <summary>Appraise a potential red-vs-blue bout.</summary>
+    /// <summary>
+    /// The ability number the player's matchmaking desk works from: the player
+    /// promotion's scouted read (<see cref="Scouting.ScoutingService.PerceivedAbility(World?, Promotion, Fighter)"/>),
+    /// the same "Sct" figure the screens show. Never the true rating — two
+    /// fighters the scouts read the same are the same to this advisor. A world
+    /// with no player promotion (a headless harness) has no scout, so it falls
+    /// back to the rating itself.
+    /// </summary>
+    public static int ScoutedRead(World world, Fighter f) =>
+        world.Get(world.PlayerPromotion) is { } mine
+            ? Scouting.ScoutingService.PerceivedAbility(world, mine, f)
+            : FighterAbility.CurrentAbility(f);
+
+    /// <summary>Appraise a potential red-vs-blue bout, from the player's scouted reads (never true ability).</summary>
     public MatchupAppraisal Appraise(World world, FighterId redId, FighterId blueId)
     {
         var red = world.Get(redId);
@@ -77,8 +97,19 @@ public sealed class MatchmakingAdvisor
         if (red is null || blue is null)
             return new() { Competitiveness = 0, Appeal = 0, Stakes = Stakes.Showcase, TitleImplied = false, Summary = "—" };
 
-        int ovrR = FighterAbility.CurrentAbility(red);
-        int ovrB = FighterAbility.CurrentAbility(blue);
+        return Appraise(world, red, blue, ScoutedRead(world, red), ScoutedRead(world, blue));
+    }
+
+    /// <summary>Appraise with the scouted reads already in hand (a matchmaker scanning many pairs reads each fighter once).</summary>
+    internal MatchupAppraisal Appraise(World world, FighterId redId, FighterId blueId, int readRed, int readBlue) =>
+        world.Get(redId) is { } red && world.Get(blueId) is { } blue
+            ? Appraise(world, red, blue, readRed, readBlue)
+            : new() { Competitiveness = 0, Appeal = 0, Stakes = Stakes.Showcase, TitleImplied = false, Summary = "—" };
+
+    private MatchupAppraisal Appraise(World world, Fighter red, Fighter blue, int ovrR, int ovrB)
+    {
+        var redId = red.Id;
+        var blueId = blue.Id;
         int gap = Math.Abs(ovrR - ovrB);
         int competitiveness = Math.Clamp(100 - gap * 5, 0, 100);
 

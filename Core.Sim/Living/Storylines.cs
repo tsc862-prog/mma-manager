@@ -72,7 +72,7 @@ public static class Storylines
                 {
                     ev.Card.Remove(fight);
                     var stay = world.Get(stayId);
-                    var options = ReplacementPool(world, ev, fight, booked, stayId).Take(3)
+                    var options = PlayerShortlist(world, ev, fight, booked, stayId)
                         .Select(c => $"{c.FullName} ({c.Record}, {(c.Contract is null ? "free agent" : "our roster")})")
                         .ToList();
                     Mail.Post(world, date, MailCategory.General, "Matchmaking",
@@ -137,6 +137,22 @@ public static class Storylines
                         : "") + "Short notice, full danger.", ev.Promotion);
             }
         }
+    }
+
+    /// <summary>
+    /// The three names the player's matchmaker suggests for a pulled-out bout:
+    /// the same pool the AI draws from, ranked by the player's scouts' read
+    /// (id as the last word), never the truth.
+    /// </summary>
+    internal static List<Fighter> PlayerShortlist(World world, Event ev, Fight fight,
+        HashSet<FighterId> booked, FighterId stayId)
+    {
+        var scout = world.Get(world.PlayerPromotion)!;
+        return ReplacementPool(world, ev, fight, booked, stayId)
+            .OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, scout, c))
+            .ThenBy(c => c.Id.Value)
+            .Take(3)
+            .ToList();
     }
 
     // Who could plausibly save the bout: roster bodies first (free, familiar),
