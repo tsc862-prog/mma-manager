@@ -316,8 +316,14 @@ public static class Lifers
                 // A lifer whose house can't fix it can heal and re-break (fights
                 // rebuild loyalty, the grievance wears it back down): the headline
                 // runs once a year at most.
-                bool toldLately = world.News.Any(n => n.AboutFighter == f.Id && n.Headline.EndsWith(" is broken")
-                                                      && date.DayNumber - n.Date.DayNumber < 365);
+                // The news feed is capped, so it can't be the only memory: an AI
+                // org's deal also carries the mark (its poach-warning flag is the
+                // player's circling alert, so the player's own deals don't use it).
+                var deal = f.Contract;
+                bool toldLately = (!mine && deal.PoachWarned)
+                    || world.News.Any(n => n.AboutFighter == f.Id && n.Headline.EndsWith(" is broken")
+                                           && date.DayNumber - n.Date.DayNumber < 365);
+                if (!mine) deal.PoachWarned = true;
                 if ((Notable(world, f) || mine) && !toldLately)
                     Living.News.Post(world, date, NewsCategory.Milestone,
                         $"{f.FullName}'s bond with {org.Abbreviation} is broken",
