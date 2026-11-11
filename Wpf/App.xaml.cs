@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -480,22 +480,29 @@ public partial class App : Application
             return;
         }
 
-        // Offscreen screenshot of the Book Event screen:
-        // `MmaManager.Wpf --renderbooking [width height] [--floating] [--founded] [--poster] <path>`.
-        // width x height is the whole screen (desk + taskbar). By default the app
-        // window is maximized on it; --floating opens it as a real launch does
-        // (its default size, shrunk to fit the desk). --founded renders a freshly
-        // founded promotion's first day (no fighters, no cards) instead of the
-        // big org with a full card; --poster opens the poster tab.
+        // Offscreen screenshot of the Card Desk (Book Event):
+        // `MmaManager.Wpf --renderbooking [W H] [--floating] [--founded] [--event] [--bouts N]
+        //  [--maincard N] [--picker suggest|division|replace|local] [--room] [--propose]
+        //  [--table] [--poster] [--confirm] <path>`.
+        // W x H is the whole screen (desk + taskbar); the app is maximized on it,
+        // or floating at its default size with --floating. The big org (AFC) by
+        // default: a card at the top tier it can stage, filled the way a player
+        // would (the whole card proposed and booked; --bouts N keeps the first N).
+        // --founded: a freshly founded promotion on day one (no fighters, no card;
+        // --event puts its first card on the calendar). --maincard N sets the
+        // split; --picker opens the opponent picker in a mode (division: a
+        // pairing compared; replace: change a corner of the co-main); --room the
+        // room chooser; --propose an undercard proposal; --table / --poster the
+        // other views; --confirm also draws the Cancel question.
         if (e.Args.Contains("--renderbooking"))
         {
             try
             {
                 int at = Array.IndexOf(e.Args, "--renderbooking");
                 bool sized = e.Args.Length > at + 2 && int.TryParse(e.Args[at + 1], out _) && int.TryParse(e.Args[at + 2], out _);
-                int argW = sized ? int.Parse(e.Args[at + 1]) : 2600;
-                int argH = sized ? int.Parse(e.Args[at + 2]) : 1040;
-                bool floating = e.Args.Contains("--floating");
+                int W = sized ? int.Parse(e.Args[at + 1]) : 1600;
+                int H = sized ? int.Parse(e.Args[at + 2]) : 950;
+                string? Arg(string flag) { int i = Array.IndexOf(e.Args, flag); return i >= 0 && i + 1 < e.Args.Length ? e.Args[i + 1] : null; }
                 bool founded = e.Args.Contains("--founded");
                 var win = new MainWindow();
                 var vm = (MainViewModel)win.DataContext;
@@ -512,87 +519,110 @@ public partial class App : Application
                             Region = MmaManager.Core.Model.Region.Europe,
                         },
                     }, "You founded New Wave Fighting.");
+                    if (e.Args.Contains("--event")) bk.NewEventCommand.Execute(null);
                 }
                 else
                 {
+                    bk.SelectedTier = bk.Tiers.Last();
                     bk.NewEventCommand.Execute(null);
-                    foreach (var div in bk.Divisions.ToList())
+                    int keep = int.TryParse(Arg("--bouts"), out var nb) ? nb : int.MaxValue;
+                    if (keep > 0)
                     {
-                        bk.SelectedDivision = div;
-                        if (bk.RedOptions.Count > 0)
-                        {
-                            bk.SelectedRed = bk.RedOptions[0];
-                            if (bk.BlueOptions.Count > 0) { bk.SelectedBlue = bk.BlueOptions[0]; bk.AddBoutCommand.Execute(null); }
-                        }
+                        bk.ProposeWholeCardCommand.Execute(null);
+                        int k = 0;
+                        foreach (var p in bk.Proposed) p.IsChecked = k++ < keep;
+                        bk.BookProposedCommand.Execute(null);
                     }
-                    bk.SelectedDivision = bk.Divisions.FirstOrDefault();
-                    if (bk.RedOptions.Count > 0)
-                    {
-                        bk.SelectedRed = bk.RedOptions[0];
-                        bk.SuggestOpponentCommand.Execute(null);   // populate the appraisal strip
-                    }
+                    if (int.TryParse(Arg("--maincard"), out var mc))
+                        bk.SelectedMainCard = bk.MainCardOptions.FirstOrDefault(o => o.Value == mc) ?? bk.SelectedMainCard;
                 }
+                switch (Arg("--picker"))
+                {
+                    case "suggest": bk.OpenNextSlotCommand.Execute(null); break;
+                    case "division":
+                        bk.OpenNextSlotCommand.Execute(null);
+                        bk.PickMode = PickMode.Division;
+                        var div = bk.Divisions.FirstOrDefault(d => { bk.SelectedDivision = d; return bk.RedOptions.Count >= 2; });
+                        if (div is not null)
+                        {
+                            bk.PickLadderCommand.Execute(bk.Ladder.First(l => l.Available));
+                            if (bk.Ladder.FirstOrDefault(l => l.Available) is { } opp) bk.PickLadderCommand.Execute(opp);
+                        }
+                        break;
+                    case "ladder":
+                        bk.OpenNextSlotCommand.Execute(null);
+                        bk.PickMode = PickMode.Division;
+                        bk.Divisions.FirstOrDefault(d => { bk.SelectedDivision = d; return bk.RedOptions.Count >= 2; });
+                        break;
+                    case "replace":
+                        if ((bk.Bouts.Skip(1).FirstOrDefault() ?? bk.Bouts.FirstOrDefault()) is { } target) bk.ReplaceCornerCommand.Execute(target);
+                        break;
+                    case "local":
+                        bk.OpenNextSlotCommand.Execute(null);
+                        bk.PickMode = PickMode.Local;
+                        break;
+                }
+                if (e.Args.Contains("--room")) bk.ChangeRoomCommand.Execute(null);
+                if (e.Args.Contains("--propose")) bk.ProposeUndercardCommand.Execute(null);
+                if (e.Args.Contains("--table")) bk.View = DeskView.Table;
+                if (e.Args.Contains("--poster")) bk.View = DeskView.Poster;
                 vm.NavigateTo(MmaManager.Wpf.ViewModels.Tab.BookEvent);
 
                 var root = (FrameworkElement)win.Content;
                 if (root is System.Windows.Controls.Panel panel) panel.Background = new SolidColorBrush(Color.FromRgb(0x16, 0x19, 0x1E));
-                int W = argW, H = argH;   // defaults to an ultrawide-window size
                 var size = new Size(W, H);
-                root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
-                if (floating && vm.Desktop.Windows.FirstOrDefault(w => w.Spec.Id == "book") is { } book)
+                void Layout()
                 {
-                    // As a real launch: floating at the app's default size, fitted to the desk.
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                }
+                Layout();
+                if (e.Args.Contains("--floating") && vm.Desktop.Windows.FirstOrDefault(w => w.Spec.Id == "book") is { } book)
+                {
                     book.IsMaximized = false;
                     book.X = 46; book.Y = 26; book.W = book.Spec.W; book.H = book.Spec.H;
                     vm.Desktop.FitToArea(book);
                     Console.WriteLine($"RENDERBOOKING floating window {book.W:0}x{book.H:0} on a {vm.Desktop.Area.Width:0}x{vm.Desktop.Area.Height:0} desk");
-                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
                 }
-                if (e.Args.Contains("--poster"))
-                    foreach (var view in FindAll<MmaManager.Wpf.Views.BookingView>(root)) view.ShowPosterTab();
-                // Drain the dispatcher so the DataGrid's deferred star-column sizing runs,
-                // then lay out again — otherwise the * column collapses in the offscreen pass.
-                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
-                    System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
-                root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
-                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
-                    System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
-                root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                // Faces decode on worker threads; the still waits for them.
+                var t = System.Diagnostics.Stopwatch.StartNew();
+                do
+                {
+                    Layout();
+                    System.Threading.Thread.Sleep(2);
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => { }));
+                } while (Portraits.PendingThumbs > 0 && t.ElapsedMilliseconds < 15000);
+                Layout();
 
-                // Read the card back: is every fighter's name whole (no word wider
-                // than the room it has), and do the card's columns fit its width?
                 foreach (var view in FindAll<MmaManager.Wpf.Views.BookingView>(root))
                 {
-                    var nameStyle = view.FindResource("CornerName");
-                    var grid = FindAll<System.Windows.Controls.DataGrid>(view).First(g => g.Name == "CardGrid");
-                    int names = 0, cut = 0;
-                    double dpi = VisualTreeHelper.GetDpi(grid).PixelsPerDip;
-                    foreach (var tb in FindAll<System.Windows.Controls.TextBlock>(grid).Where(t => t.Style == nameStyle && t.ActualWidth > 0))
+                    // Read the screen back: anything cut short that shouldn't be?
+                    int trimmed = 0;
+                    foreach (var tb in FindAll<System.Windows.Controls.TextBlock>(view).Where(x => x.IsVisible && x.ActualWidth > 0 && x.TextTrimming != TextTrimming.None))
                     {
-                        names++;
-                        var face = new Typeface(tb.FontFamily, tb.FontStyle, tb.FontWeight, tb.FontStretch);
                         string text = new System.Windows.Documents.TextRange(tb.ContentStart, tb.ContentEnd).Text;
-                        double widest = text.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                            .Max(word => new FormattedText(word, System.Globalization.CultureInfo.CurrentUICulture,
-                                FlowDirection.LeftToRight, face, tb.FontSize, Brushes.White, dpi).WidthIncludingTrailingWhitespace);
-                        if (widest > tb.ActualWidth + 0.5) { cut++; Console.WriteLine($"  CUT: '{text}' needs {widest:0} px, has {tb.ActualWidth:0}"); }
+                        if (text.Length == 0) continue;
+                        var face = new Typeface(tb.FontFamily, tb.FontStyle, tb.FontWeight, tb.FontStretch);
+                        double need = new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, face, tb.FontSize,
+                            Brushes.White, VisualTreeHelper.GetDpi(tb).PixelsPerDip).WidthIncludingTrailingWhitespace;
+                        if (tb.TextWrapping == TextWrapping.NoWrap && need > tb.ActualWidth + 1) { trimmed++; Console.WriteLine($"  TRIMMED ({need:0} > {tb.ActualWidth:0}): {text}"); }
                     }
-                    double cols = grid.Columns.Sum(c => c.ActualWidth);
-                    var matchup = (System.Windows.Controls.DataGridTemplateColumn)grid.Columns.First(c => (string)c.Header == "Matchup");
-                    Console.WriteLine($"RENDERBOOKING screen {view.ActualWidth:0} px wide | card {grid.ActualWidth:0} px, columns {cols:0} px "
-                        + $"(matchup {matchup.ActualWidth:0}, {(matchup.CellTemplate == view.FindResource("MatchupSideBySide") ? "side by side" : "stacked")}) "
-                        + $"| names drawn {names}, cut {cut} | bouts {bk.Bouts.Count}, warnings {bk.Warnings.Count}");
+                    Console.WriteLine($"RENDERBOOKING screen {view.ActualWidth:0}x{view.ActualHeight:0} | event {bk.SelectedEvent?.Name} | bouts {bk.Bouts.Count} "
+                        + $"(main card {bk.MainCardRows.Count + (bk.HasMainEvent ? 1 : 0)}, prelims {bk.PrelimRows.Count}) | rail {bk.Rail} | view {bk.View} "
+                        + $"| missed terms {bk.Warnings.Count} | padding {(bk.HasPadding ? bk.PaddingBouts.Count : 0)} | trimmed lines {trimmed}");
                 }
+                if (bk.HasStatus) Console.WriteLine($"RENDERBOOKING status: {bk.Status}");
 
                 var rtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
                 rtb.Render(root);
                 var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
-                string p = e.Args.Length > 1 ? e.Args[^1] : "booking.png";
-                using (var fs = File.Create(p)) enc.Save(fs);
-                Console.WriteLine("RENDERBOOKING OK -> " + Path.GetFullPath(p));
+                string path = e.Args.Length > 1 ? e.Args[^1] : "booking.png";
+                using (var fs = File.Create(path)) enc.Save(fs);
+                Console.WriteLine("RENDERBOOKING OK -> " + Path.GetFullPath(path));
 
-                // --confirm: also draw the Cancel Event question (never shown as a
-                // dialog here) to <path>-confirm.png.
+                // --confirm: also draw the Cancel question (never shown as a dialog here) to <path>-confirm.png.
                 if (e.Args.Contains("--confirm") && bk.DescribeCancel() is var (head, body, detail))
                 {
                     var dlg = new MessageWindow(head, body, detail, severe: true, confirm: "Cancel the event", keep: "Keep the event");
@@ -603,7 +633,7 @@ public partial class App : Application
                     var drtb = new RenderTargetBitmap((int)dsize.Width, (int)dsize.Height, 96, 96, PixelFormats.Pbgra32);
                     drtb.Render(droot);
                     var denc = new PngBitmapEncoder(); denc.Frames.Add(BitmapFrame.Create(drtb));
-                    string dp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-confirm.png");
+                    string dp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, Path.GetFileNameWithoutExtension(path) + "-confirm.png");
                     using (var dfs = File.Create(dp)) denc.Save(dfs);
                     Console.WriteLine("RENDERBOOKING CONFIRM OK -> " + dp);
                 }
