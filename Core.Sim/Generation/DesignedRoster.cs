@@ -246,7 +246,7 @@ public static class DesignedRoster
         // The project needs more than one believer: Accra's Greco man headlines
         // beside Okafor as a matter of principle.
         new("Kofi", "Mensah", "The Fortress", Region.Africa, WeightClass.Welterweight, PrimaryStyle.ClinchFighter, 25, 62, 11, 3, "SCL", Popularity: 33, Country: "GHA", Loyalty: 60,
-            Bio: "Accra's contribution to the African project: a former Greco-Roman junior who believes the continent's scene should be built, not exported. He and Okafor headline SCL's biggest cards side by side as a matter of principle."),
+            Bio: "Accra's contribution to the African project: a former Greco-Roman junior who believes the continent's scene should be built, not exported. He and Okafor headline SCL's biggest cards side by side as a matter of principle. His uncle Kwabena held an AFC belt and came home with nothing else; Kofi has heard the story at every family dinner of his life."),
 
         // ============ The wider base — feeders and local halls, each with a face ============
         // GLF (US Midwest Regional): a beloved veteran gatekeeper-champ, and the undefeated
@@ -322,7 +322,7 @@ public static class DesignedRoster
         new("Roxanne", "Vance", "Riot", Region.NorthAmerica, WeightClass.Bantamweight, PrimaryStyle.Brawler, 25, 70, 8, 0, Popularity: 58, Country: "USA", Sex: Sex.Female,
             Bio: "The hottest free agent in the sport: an ex-punk-band roadie who accepted an internet troll's challenge on camera, knocked him cold, and turned the clip into a career. Eight fights, no losses, zero contracts signed."),
         new("Fatima", "Diallo", "The Gazelle", Region.Africa, WeightClass.Flyweight, PrimaryStyle.Striker, 22, 56, 6, 0, Popularity: 30, Country: "SEN", Sex: Sex.Female,
-            Bio: "Dakar's secret: a track-scholarship sprinter who found striking late and moves like nobody has told her the sport has limits. The scout who signs her first will look like a genius in three years."),
+            Bio: "Dakar's secret: a track-scholarship sprinter who found striking late and moves like nobody has told her the sport has limits. The scout who signs her first will look like a genius in three years. Rosalind Okoye has a file on her two inches thick; Margaux Bisset has her highlight reel on her phone."),
 
         // ============ Niche anchors — the lanes get institutions, not just a face ============
         // BLB, the Baltic big-man hall: a day-one HEAVYWEIGHT BLOOD FEUD — two wars
@@ -356,10 +356,10 @@ public static class DesignedRoster
             Bio: "The scouts' favorite whisper: a homeschooled Kansas kid raised on film study and farm work by an obsessive ex-fighter father. Four fights in, the tape already looks unfair."),
         // The dethroned AFC king on the wrong side of 35, chasing one more run.
         new("Brock", "Tanner", "The Reckoning", Region.NorthAmerica, WeightClass.LightHeavyweight, PrimaryStyle.Wrestler, 36, 74, 22, 9, Popularity: 61, Country: "USA",
-            Bio: "The dethroned AFC king, two surgeries past the reign, still certain the story has one more chapter. Every org in the sport has weighed the name against the mileage."),
+            Bio: "The dethroned AFC king, two surgeries past the reign, still certain the story has one more chapter. Every org in the sport has weighed the name against the mileage. He says this is the last year, and his surgeon agrees."),
         // The gatekeeper: beat him and you're somebody.
         new("Oskar", "Lindqvist", "The Test", Region.Europe, WeightClass.Welterweight, PrimaryStyle.Kickboxer, 33, 60, 14, 11, Popularity: 22, Country: "SWE",
-            Bio: "The sport's honest yardstick: twenty-five fights and a simple deal — beat Lindqvist and you're somebody; lose and you aren't. He has made more careers than most promoters."),
+            Bio: "The sport's honest yardstick: twenty-five fights and a simple deal — beat Lindqvist and you're somebody; lose and you aren't. He has made more careers than most promoters. He says this is his last year, and the exam has a closing date."),
         // Unbeaten and avoided — nobody wants to grapple him.
         new("Giorgi", "Tsereteli", "The Cliff", Region.Europe, WeightClass.Middleweight, PrimaryStyle.Grappler, 24, 66, 7, 0, Popularity: 26, Country: "GEO",
             Bio: "An unbeaten Georgian grappler managers cross the street to avoid — seven fights, no losses, and a growing list of men who regret the ground. Fluent in three languages; has declined to trash talk in any of them."),
@@ -368,7 +368,7 @@ public static class DesignedRoster
             Bio: "San Juan's guarantee: Delgado has never been in a boring fight and has the medical bills to prove it. Promoters love him; cutmen charge him double."),
         // The aging blade — past his prime, still dangerous, big name locally.
         new("Kazuki", "Hattori", "The Blade", Region.Asia, WeightClass.Bantamweight, PrimaryStyle.Striker, 34, 63, 18, 8, Popularity: 41, Country: "JPN",
-            Bio: "A former ICF title challenger from Nagoya on the far side of his prime, still carrying the counter right hand that made him famous. Japanese crowds buy tickets for the name; opponents still respect the blade."),
+            Bio: "A former ICF title challenger from Nagoya on the far side of his prime, still carrying the counter right hand that made him famous. Japanese crowds buy tickets for the name; opponents still respect the blade. He has said, publicly, that this is his last year and that he would like it to end in Tokyo."),
         // The Olympic wrestling medalist gone pro — undefeated and studiously avoided.
         new("Aslan", "Batyrov", "Gold", Region.Asia, WeightClass.Welterweight, PrimaryStyle.Wrestler, 24, 70, 6, 0, Popularity: 52, Country: "KAZ",
             Bio: "An Olympic wrestling gold medallist gone pro — the purest pedigree on the open market, studiously avoided by every ranked welterweight with a memory. The bidding war is a matter of time."),
@@ -545,6 +545,66 @@ public static class DesignedRoster
         };
 
     /// <summary>
+    /// Where a designed fighter's deal stands on day one, by last name: the number
+    /// of fights REMAINING on the contract the formula just signed. The formula
+    /// hands everyone an arbitrary stage; the stories need particular ones (the
+    /// courted champion on the last fight of his deal, the underpaid prospect one
+    /// call from gone). Applied after signing with no draw: the stage is read off
+    /// the contract the shared stream already produced, so no stream moves.
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> ContractStages { get; } =
+        new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["Mercer"] = 1,      // the Gulf's architects wait on the day his AFC deal runs out
+            ["Baranov"] = 1,     // Vanguard's offer lands as his Ironhold deal runs down
+            ["Kondo"] = 1,       // the house's future, and a Kanemura bid for the house's division
+            ["Nakamura"] = 3,    // "the next ones are the end of it"
+            ["Saengkham"] = 2,   // the ICF's offer and a cousin's pull from the river
+            ["Huanca"] = 1,      // CDC cannot pay him what is coming
+            ["Okafor"] = 1,      // renews first, or leaves only if the Sahara League goes under
+            ["Cole"] = 1,        // the first serious offer takes him
+            ["Pryor"] = 2,       // headlines for gas money
+            ["Tuilagi"] = 1,     // the islands' hope, a deal from the open market
+            ["Al-Marri"] = 1,    // reads every offer sheet that lands
+        };
+
+    /// <summary>
+    /// Heat a day-one feud starts at, keyed by the two LAST NAMES ("A|B", either
+    /// order). Cross-org feuds cool a few points a month, so a feud meant to
+    /// still be burning a year on starts hotter than the ordinary sixty.
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> RivalHeat { get; } =
+        new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["Rivas|Sales"] = 80,   // a belt left on the table, a grudge that outlasts the purse dispute
+            ["Cole|Pryor"] = 80,    // two unbeaten kids and two owners with something to prove
+        };
+
+    /// <summary>The starting heat for a feud between these two last names (60 unless authored).</summary>
+    public static int RivalHeatOf(string lastA, string lastB) =>
+        RivalHeat.TryGetValue($"{lastA}|{lastB}", out var h) || RivalHeat.TryGetValue($"{lastB}|{lastA}", out h) ? h : 60;
+
+    /// <summary>
+    /// The face of the company on day one, by org abbreviation to the fighter's
+    /// full name. Without this the AI crowns whoever is most popular on its first
+    /// monthly pass, which is not always the person the house is built around
+    /// (the AFC's most popular champion is not the one the Gulf is courting).
+    /// Set directly, with no news and no loyalty bump: it describes how things
+    /// already stand, not an event.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> Faces { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["AFC"] = "Dane Mercer",
+            ["VMMA"] = "Goran Vukovic",     // burned an AFC offer on camera
+            ["ICF"] = "Daichi Sato",        // means to retire in Japan
+            ["IFA"] = "Dmitri Volkov",      // a locker with his name welded on
+            ["GFC"] = "Rashid Al-Marri",    // the one name the money bought that sells tickets
+            ["KAC"] = "Rin Takeda",         // will never fight anywhere else
+            ["SCL"] = "Chidi Okafor",       // the Lion of Lagos, fighting for peanuts by choice
+        };
+
+    /// <summary>
     /// Why two authored fighters can't stand each other, in one line, keyed by the
     /// two LAST NAMES ("A|B", either order). The day-one feud headline reads the
     /// real record off the world (whether they have met, how it ended, where they
@@ -598,7 +658,7 @@ public static class DesignedRoster
         new("Paulo Bandeira", "Souza", RelationshipKind.Mentor, 68, "three generations of the academy, and now a fourth name"),
 
         // The friendships the sport already knows about.
-        new("Okafor", "Mensah", RelationshipKind.Friend, 80, "headline the continent's cards side by side, on principle"),
+        new("Okafor", "Kofi Mensah", RelationshipKind.Friend, 80, "headline the continent's cards side by side, on principle"),
         new("Takeda", "Kondo", RelationshipKind.Friend, 72, "the house's heart and the house's future, same locker room"),
         new("Halloran", "Barone", RelationshipKind.Friend, 55, "years of Midwest undercards between them"),
         new("Lindqvist", "Corrigan", RelationshipKind.Friend, 50, "the yardstick and the man who came back"),
@@ -613,5 +673,11 @@ public static class DesignedRoster
         new("Paulo Bandeira", "Wallace Bandeira", RelationshipKind.Family, 70, "uncle and nephew, on opposite sides of the Brazilian war"),
         new("Quispe", "Huanca", RelationshipKind.Friend, 60, "the condor and the hummingbird: same mountains, same gym bus"),
         new("Okonjo", "Okafor", RelationshipKind.Friend, 62, "Nigeria's two Lions, one at the AFC and one who stayed home"),
+
+        // The lost decade: the legends' people (A is the elder; full names where a surname is shared).
+        new("Fadi Haddad", "Yusuf Haddad", RelationshipKind.Family, 80, "uncle and nephew; the old Cedar and the new one"),
+        new("Teodor Lund", "Dahl", RelationshipKind.Mentor, 55, "the Oslo firefighter who took the lighthouse up on his offer"),
+        new("Kwabena Mensah", "Kofi Mensah", RelationshipKind.Family, 82, "uncle and nephew; the one who was exported, and the one who won't be"),
+        new("Ahn", "Kang", RelationshipKind.Mentor, 70, "the Korean who took the belt from Japan, in the corner of the one who promises to do it again"),
     };
 }

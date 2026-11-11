@@ -97,6 +97,7 @@ public sealed class MainViewModel : ObservableObject
         Camps.OnChanged = RefreshAll;       // a team deal / camp report moves the balance
         Booking.OnRunLive = RunLive;        // "run & watch" a card
         Booking.OpenContracts = () => NavigateTo(Tab.Contracts);   // empty roster: go sign someone
+        Booking.SimTonightCommand = SimTonightCommand;             // fight night's second door, on the card's header
         // Destructive booking actions ask first — in the interactive app only;
         // harness runs never open a dialog (null = go ahead as scripted).
         if (!HeadlessAutoBoot)

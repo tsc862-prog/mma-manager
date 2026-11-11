@@ -239,13 +239,18 @@ public class BigMoneyTests
             });
         var before = ev.Card.Select(f => f.Id).ToList();
 
-        // Hunt for the week the scale of bad luck tips.
+        // Hunt for the week the scale of bad luck tips. An AI card rolls on its
+        // own keyed stream (world seed, card, date) — not the week's shared one —
+        // so the hunt turns the world seed rather than the stream handed in.
         bool changed = false;
+        ulong seed = world.RngSeed;
         for (ulong s = 1; s < 400 && !changed; s++)
         {
+            world.RngSeed = SimRandom.Mix(0xCA3B, s);
             Storylines.RollCampWithdrawals(world, world.CurrentDate, new SimRandom(SimRandom.Mix(0xCA3B, s)));
             changed = !ev.Card.Select(f => f.Id).SequenceEqual(before);
         }
+        world.RngSeed = seed;
         Assert.True(changed, "the hunt should find a withdrawal");
 
         // Every bout on the card is either intact, replaced (new fight id, one

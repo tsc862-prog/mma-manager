@@ -101,6 +101,7 @@ public static class DesignedHomeCities
 
             // --- Legends (where they live now) -------------------------------
             ["Randall Boyd"] = "Las Vegas",           // runs Apex Combat Club
+            ["Danielle Cross"] = "Las Vegas",         // the Original: built the division where the AFC was born
             ["Nathan Kroll"] = "Chicago",             // runs Iron Range Wrestling
             ["Paulo Bandeira"] = "Rio de Janeiro",    // went home to Rio
             ["Hendrik Vos"] = "Amsterdam",            // holds the door at Low Country
@@ -115,6 +116,13 @@ public static class DesignedHomeCities
             ["Michiko Arai"] = "Tokyo",               // Kansai (Osaka isn't in the atlas)
             ["Petrus van Zyl"] = "Johannesburg",      // built Highveld
             ["Emeka Obiora"] = "Lagos",               // came back to Lagos
+            ["Fadi Haddad"] = "Amman",                 // Beirut is not in the atlas; the nearest Levant fight town
+            ["Damon Pruitt"] = "Las Vegas",           // Oklahoma is not in the atlas; the nearest fight town
+            ["Teodor Lund"] = "Stockholm",            // Bergen is not in the atlas
+            ["Kwabena Mensah"] = "Accra",             // came home with the belt and very little else
+            ["Elias Varga"] = "Warsaw",               // Debrecen is not in the atlas
+            ["Shinobu Tachikawa"] = "Tokyo",          // Tuesdays at the Kobudo Dojo
+            ["Seok-hwan Ahn"] = "Seoul",              // the crowd that still sings
         };
 
     /// <summary>The atlas city an authored person calls home, if the table names one the world has.</summary>

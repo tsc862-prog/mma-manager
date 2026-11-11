@@ -77,6 +77,14 @@ public static class DesignedLegends
             ["Michiko Arai"] = Disposition.CompanyMan,            // the same two thousand people, the house's whole reason
             ["Petrus van Zyl"] = Disposition.Student,             // checking his own arithmetic
             ["Emeka Obiora"] = Disposition.Warhorse,              // a bad hip and a bag of pads
+            // The lost decade (appended).
+            ["Fadi Haddad"] = Disposition.Mercenary,              // get the money first; fought for whoever paid
+            ["Damon Pruitt"] = Disposition.QuietProfessional,     // always said no, which is why anyone remembers
+            ["Teodor Lund"] = Disposition.QuietProfessional,      // a speech nobody translated
+            ["Kwabena Mensah"] = Disposition.Warhorse,            // nine years abroad, three defenses, nothing kept
+            ["Elias Varga"] = Disposition.Student,                // an audit, in the top game and at home
+            ["Shinobu Tachikawa"] = Disposition.CompanyMan,       // the dojo's Tuesdays
+            ["Seok-hwan Ahn"] = Disposition.Warhorse,             // three defenses, all of them booed
         };
 
     public static IReadOnlyList<DesignedLegend> All { get; } = new DesignedLegend[]
@@ -206,5 +214,37 @@ public static class DesignedLegends
             Reigns: Array.Empty<DesignedReign>(),
             HeadCoachOf: "Sahel Warriors",
             Bio: "Seventeen wins on four continents for money that never once got him home in comfort. Obiora came back to Lagos with a bad hip and a bag of pads, and the room he opened has a leaking roof and a waiting list."),
+
+        // ============ The lost decade — bridge reigns between the names on the posters ============
+        // Appended after the original table: row order feeds ids. Fadi Haddad holds no belt;
+        // he is the family's first lesson about money (see the GFC's Yusuf).
+        new("Fadi", "Haddad", "The Old Cedar", Region.MiddleEast, "LIB", WeightClass.Heavyweight, PrimaryStyle.Brawler,
+            AgeNow: 54, Wins: 22, Losses: 9, Popularity: 50,
+            Reigns: Array.Empty<DesignedReign>(),
+            Bio: "Beirut's first professional fighter of any kind, a dockyard heavyweight who fought on four continents for whoever was paying and taught his nephew Yusuf the only lesson he was sure of: get the money first. He calls the Gulf's purses 'what I was owed, paid to the wrong Haddad'."),
+        new("Damon", "Pruitt", "Sundown", Region.NorthAmerica, "USA", WeightClass.Lightweight, PrimaryStyle.Wrestler,
+            AgeNow: 41, Wins: 22, Losses: 6, Popularity: 60,
+            Reigns: new[] { new DesignedReign("AFC", WeightClass.Lightweight, 10, 5, 4) },
+            Bio: "The champion between Vasquez and Mercer that nobody puts on a poster. Pruitt won the vacant lightweight belt the year Vasquez retired and spent four defenses being asked whether he could have beaten him - he always said no, which is the only answer anyone remembers. He sells farm equipment in Oklahoma now and watches Mercer's fights with the sound off."),
+        new("Teodor", "Lund", "The Lighthouse", Region.Europe, "NOR", WeightClass.Heavyweight, PrimaryStyle.Kickboxer,
+            AgeNow: 45, Wins: 20, Losses: 7, Popularity: 62,
+            Reigns: new[] { new DesignedReign("AFC", WeightClass.Heavyweight, 12, 6, 3) },
+            Bio: "Boyd's successor and the tallest man ever to hold the AFC heavyweight belt - a Bergen ferry mechanic with a lighthouse keeper's hours and a kickboxer's jab. Three defenses, one retirement speech in Norwegian that nobody translated, and a standing invitation to any Oslo firefighter who wanted to learn the clinch. Henrik Dahl took him up on it."),
+        new("Kwabena", "Mensah", "The Export", Region.Africa, "GHA", WeightClass.Middleweight, PrimaryStyle.Striker,
+            AgeNow: 47, Wins: 21, Losses: 8, Popularity: 58,
+            Reigns: new[] { new DesignedReign("AFC", WeightClass.Middleweight, 13, 9, 3) },
+            Bio: "The first African to hold an AFC belt, and the warning every West African prospect gets told. Mensah won the middleweight title in his ninth year abroad, defended it three times, and came home to Accra with the belt and very little else - an agent, a manager and a promoter had taken the rest. His nephew Kofi will tell you that is why the scene has to be built, not exported."),
+        new("Elias", "Varga", "The Auditor", Region.Europe, "HUN", WeightClass.Welterweight, PrimaryStyle.Grappler,
+            AgeNow: 44, Wins: 23, Losses: 8, Popularity: 55,
+            Reigns: new[] { new DesignedReign("AFC", WeightClass.Welterweight, 11, 6, 3) },
+            Bio: "A Debrecen tax clerk who never once quit the day job, Varga won the welterweight belt Paulo Bandeira left behind and defended it three times between quarterly returns. Opponents called his top game an audit. He still files his own taxes and, he insists, everyone else's in the family."),
+        new("Shinobu", "Tachikawa", "Second Sun", Region.Asia, "JPN", WeightClass.Lightweight, PrimaryStyle.WellRounded,
+            AgeNow: 46, Wins: 24, Losses: 9, Popularity: 60,
+            Reigns: new[] { new DesignedReign("ICF", WeightClass.Lightweight, 13, 9, 2) },
+            Bio: "Matsuda's sparring partner for a decade and his successor for two defenses - the man who learned the hard way that a nation measures its lightweights against a ghost. He lost the belt in Seoul and has not been back to Korea since, which he says is a coincidence. He teaches the Kobudo Dojo's beginners on Tuesdays."),
+        new("Seok-hwan", "Ahn", "Han River", Region.Asia, "KOR", WeightClass.Lightweight, PrimaryStyle.Wrestler,
+            AgeNow: 43, Wins: 21, Losses: 6, Popularity: 66,
+            Reigns: new[] { new DesignedReign("ICF", WeightClass.Lightweight, 9, 4, 3) },
+            Bio: "The Korean who took the ICF lightweight belt out of Japan for the first time in its history, in front of a Seoul crowd that still sings about it. Three defenses, all of them in Tokyo and all of them booed. Ji-ho Kang was in the front row for the first one, and Ahn has been in his corner since."),
     };
 }

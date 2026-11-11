@@ -37,26 +37,41 @@ public static class Digest
         sb.AppendLine("THIS WEEK IN THE SPORT");
         foreach (var s in stories) sb.AppendLine($"  • {s.Headline}");
 
-        var upcoming = world.Events.Values
-            .Where(e => e.Status == EventStatus.Scheduled && e.Date > date && e.Date <= date.AddDays(14))
-            .OrderByDescending(e => world.Get(e.Promotion)?.Prestige.Value ?? 0)
-            .ThenBy(e => e.Date)
-            .Take(3)
+        // The notable cards of the next three weeks: the flagship nights first,
+        // then title fights and feuds, then the bigger houses — with what's on top.
+        var upcoming = ForwardCalendar.Upcoming(world, date.AddDays(1), date.AddDays(21))
+            .Where(c => c.MainEvent is not null)
+            .OrderByDescending(c => c.IsSignature)
+            .ThenByDescending(c => c.IsPlayer || ForwardCalendar.MeritsHeadline(world, c.Event))
+            .ThenByDescending(c => c.Promotion.Prestige.Value)
+            .ThenBy(c => c.Date).ThenBy(c => c.Event.Id.Value)
+            .Take(4)
+            .OrderBy(c => c.Date).ThenBy(c => c.Event.Id.Value)
             .ToList();
         if (upcoming.Count > 0)
         {
             sb.AppendLine();
             sb.AppendLine("ON THE CALENDAR");
-            foreach (var e in upcoming)
-                sb.AppendLine($"  • {e.Date:d MMM} — {e.Name}{(world.Get(e.Promotion) is { } p ? $" ({p.Abbreviation})" : "")}");
+            foreach (var c in upcoming)
+            {
+                string top = c.MainEventLabel(world) is { Length: > 0 } label
+                    ? $": {label}{(c.MainEvent!.IsTitleFight ? " (title)" : "")}" : "";
+                sb.AppendLine($"  • {c.Date:d MMM} — {c.Event.Name} ({c.Promotion.Abbreviation}){top}");
+            }
         }
 
         // One to watch: a young riser on a streak, rotated deterministically so
-        // the column doesn't fixate on a single name.
+        // the column doesn't fixate on a single name. The "ceiling" is the
+        // player's own scouting read projected forward by age (a 20-year-old
+        // reading 56 counts, a 24-year-old needs 62) — never true potential,
+        // which nobody in the world can see.
+        var mine = world.Get(world.PlayerPromotion)!;
         var prospect = world.Fighters.Values
             .Where(f => f.Status == FighterStatus.Active && !f.LocalTalent
-                && f.AgeOn(date) <= 24 && f.PotentialAbility.Value >= 68 && f.Record.CurrentStreak >= 3)
+                && f.AgeOn(date) <= 24 && f.Record.CurrentStreak >= 3
+                && Scouting.ScoutingService.PerceivedAbility(world, mine, f) + 2 * (25 - f.AgeOn(date)) >= 64)
             .OrderBy(f => (f.Id.Value * 31 + date.DayOfYear / 7) % 97)
+            .ThenBy(f => f.Id.Value)
             .FirstOrDefault();
         if (prospect is not null)
         {

@@ -47,6 +47,7 @@ public class CanonTests
         var keys = DesignedRoster.Dispositions.Keys
             .Concat(DesignedRoster.CampHomes.Keys)
             .Concat(DesignedRoster.PurseFactors.Keys)
+            .Concat(DesignedRoster.ContractStages.Keys)
             .Concat(DesignedRoster.All.Where(d => d.RivalOf is not null).Select(d => d.RivalOf!));
         foreach (var key in keys.Distinct())
         {
@@ -54,11 +55,13 @@ public class CanonTests
             Assert.True(n == 1, $"'{key}' names {n} designed fighters");
         }
 
-        // The only surname two authored people share today.
+        // The only surnames two authored people share: Paulo and Wallace Bandeira, and the two
+        // families (Haddad, Mensah) whose uncles are legends. Bonds name those by full name.
         var shared = DesignedRoster.All.Select(d => d.Last)
             .Concat(DesignedLegends.All.Select(l => l.Last))
             .GroupBy(x => x).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
-        Assert.Equal(new[] { "Bandeira" }, shared);
+        shared.Sort(StringComparer.Ordinal);
+        Assert.Equal(new[] { "Bandeira", "Haddad", "Mensah" }, shared);
     }
 
     [Theory]

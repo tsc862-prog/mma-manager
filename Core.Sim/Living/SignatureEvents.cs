@@ -22,9 +22,23 @@ public static class SignatureEvents
         ["RCS"] = (2, "RCS Carnaval de Combate"),
         ["CK"] = (9, "CK Reinado"),
         ["SCM"] = (12, "SCM Southern Summer"),
+        ["MFC"] = (11, "MFC Temple Fair Night"),     // the temple-fair circuit's night in the big house on the river
+        ["CPF"] = (12, "CPF Mountain Night"),        // the township heavyweights at the foot of Table Mountain
     };
 
     /// <summary>The signature name if this org's flagship month is NOW (else null).</summary>
     public static string? For(Promotion promo, DateOnly date) =>
         Signatures.TryGetValue(promo.Abbreviation, out var sig) && sig.Month == date.Month ? sig.Name : null;
+
+    /// <summary>The month this org's flagship runs in (null for an org without one).</summary>
+    public static int? MonthOf(Promotion promo) =>
+        Signatures.TryGetValue(promo.Abbreviation, out var sig) ? sig.Month : null;
+
+    /// <summary>This org's flagship name, whatever the month (null for an org without one).</summary>
+    public static string? NameOf(Promotion promo) =>
+        Signatures.TryGetValue(promo.Abbreviation, out var sig) ? sig.Name : null;
+
+    /// <summary>Is this card its promotion's flagship night ("ICF Emperor's New Year 2027")?</summary>
+    public static bool IsSignature(World world, Event ev) =>
+        world.Get(ev.Promotion) is { } promo && NameOf(promo) is { } name && ev.Name.StartsWith(name, StringComparison.Ordinal);
 }

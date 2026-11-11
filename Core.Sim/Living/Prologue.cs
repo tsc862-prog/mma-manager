@@ -31,6 +31,7 @@ public static class Prologue
         TurfWars(world, startDate, items);
         TheOldGuard(world, startDate, items);
         AuthoredStories(world, startDate, items);
+        items.AddRange(ForwardCalendar.PrologueItems(world, startDate));   // the shows already announced
 
         foreach (var i in items.OrderBy(i => i.Date).ThenBy(i => i.Head, StringComparer.Ordinal))
             News.Post(world, i.Date, i.Cat, i.Head, i.Body, i.Promo, i.About);

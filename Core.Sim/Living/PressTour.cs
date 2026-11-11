@@ -16,14 +16,29 @@ namespace MmaManager.Core.Sim.Living;
 /// </summary>
 public static class PressTour
 {
-    public static void RunWeekly(World world, DateOnly date, SimRandom rng)
+    private const ulong PressSalt = 0x9_3E55_70E7UL;
+
+    public static void RunWeekly(World world, DateOnly date, SimRandom shared)
     {
-        foreach (var ev in world.Events.Values)
+        foreach (var ev in world.Events.Values
+                     .Where(e => e.Status == EventStatus.Scheduled && e.Card.Count > 0)
+                     .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+                     .ToList())
         {
-            if (ev.Status != EventStatus.Scheduled || ev.Card.Count == 0) continue;
             int daysOut = ev.Date.DayNumber - date.DayNumber;
             if (daysOut is < 14 or >= 21) continue;
             if (world.Get(ev.Promotion) is not { } promo || promo.Prestige.Value < 15) continue;
+            // An AI house tours its FLAGSHIP nights and its superfights — the
+            // shows it sells for two months. Its ordinary fight nights, now on
+            // the calendar weeks ahead too, don't get a media cycle: the AI's
+            // gate has never carried a press-tour dividend on them, and handing
+            // every AI title card one would rewrite the business's finances.
+            if (ev.Promotion != world.PlayerPromotion && !SignatureEvents.IsSignature(world, ev) && !Storylines.IsSuperfight(ev))
+                continue;
+            // The player's pressers roll on the week's shared stream as they always
+            // have; an AI card (now on the calendar weeks ahead) rolls its own.
+            var rng = ev.Promotion == world.PlayerPromotion ? shared
+                : new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)ev.Id.Value * 0x2545F491UL ^ (ulong)date.DayNumber ^ PressSalt));
 
             var main = ev.Card[^1];
             if (world.Get(main.RedCorner) is not { } red || world.Get(main.BlueCorner) is not { } blue) continue;
