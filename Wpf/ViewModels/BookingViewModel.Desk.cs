@@ -35,8 +35,8 @@ public sealed partial class BookingViewModel
         MoveDownCommand = new RelayCommand<BillBout>(b => Move(b, -1));
         HeadlineCommand = new RelayCommand<BillBout>(Headline);
         RemoveBoutCommand = new RelayCommand<BillBout>(Remove);
-        ProposeUndercardCommand = new RelayCommand(() => Propose(wholeCard: false), () => SelectedEvent is not null);
-        ProposeWholeCardCommand = new RelayCommand(() => Propose(wholeCard: true), () => SelectedEvent is not null);
+        ProposeUndercardCommand = new RelayCommand(() => Propose(wholeCard: false), () => SelectedEvent is not null && HasRoster);
+        ProposeWholeCardCommand = new RelayCommand(() => Propose(wholeCard: true), () => SelectedEvent is not null && HasRoster);
         BookProposedCommand = new RelayCommand(BookProposed, () => Proposed.Any(p => p.IsChecked));
         PairCommand = new RelayCommand<IReadOnlyList<int>>(Pair);
         OpenPosterCommand = new RelayCommand(() => View = DeskView.Poster);
@@ -86,6 +86,8 @@ public sealed partial class BookingViewModel
     public bool IsRailRoom => _rail == DeskRail.Room;
     public bool IsRailPlan => _rail == DeskRail.Plan;
     public bool IsRailProposals => _rail == DeskRail.Proposals;
+    /// <summary>The table takes the whole width until the rail has something to say (the picker, a proposal...).</summary>
+    public bool ShowRail => !(_view == DeskView.Table && _rail == DeskRail.Night);
     /// <summary>The night stays on screen as one line while the rail is busy with something else.</summary>
     public bool ShowNightLine => _rail != DeskRail.Night && HasSelectedEvent && !HasNoEvents;
 
@@ -95,6 +97,7 @@ public sealed partial class BookingViewModel
         OnPropertyChanged(nameof(IsRailRoom)); OnPropertyChanged(nameof(IsRailPlan));
         OnPropertyChanged(nameof(IsRailProposals)); OnPropertyChanged(nameof(ShowNightLine));
         OnPropertyChanged(nameof(IsReplacing)); OnPropertyChanged(nameof(IsPickingSlot));
+        OnPropertyChanged(nameof(ShowRail));
     }
 
     private bool _planFromEmpty = true;
@@ -114,6 +117,7 @@ public sealed partial class BookingViewModel
         {
             if (!Set(ref _view, value)) return;
             OnPropertyChanged(nameof(ShowCardView)); OnPropertyChanged(nameof(ShowTableView)); OnPropertyChanged(nameof(ShowPosterView));
+            OnPropertyChanged(nameof(ShowRail));
             if (value == DeskView.Table) RefreshTable();
             if (value == DeskView.Poster) RefreshPoster(force: true);
         }
@@ -162,6 +166,9 @@ public sealed partial class BookingViewModel
     public ObservableCollection<ProposalCard> NextSlotIdeas { get; } = new();
     public bool HasNextSlotIdeas => NextSlotIdeas.Count > 0;
     private BoutSlot _nextSlot = BoutSlot.MainEvent;
+    /// <summary>The open slot sits under the prelims (else under the main card).</summary>
+    public bool NextSlotIsPrelim => _nextSlot == BoutSlot.Prelim && HasMainEvent;
+    public bool NextSlotIsMainCard => _nextSlot != BoutSlot.Prelim && HasMainEvent;
     private string _nextSlotLabel = "";
     public string NextSlotLabel { get => _nextSlotLabel; private set => Set(ref _nextSlotLabel, value); }
     private string _nextSlotHint = "";
@@ -321,10 +328,12 @@ public sealed partial class BookingViewModel
         {
             PaddingLine = $"A card runs at least {CardFiller.MinCardBouts} bouts. As booked it has {n}, so on the night the house adds "
                           + $"{pad.Bouts.Count} below yours, about {pad.Cost} all in. This is automatic for now.";
+            // Which of your fighters the house would pick is its own choice, not
+            // something our scouts have read, so the preview names the division only.
             foreach (var fb in pad.Bouts)
                 PaddingBouts.Add(fb.LocalFiller || fb.Red is null || fb.Blue is null
                     ? $"Local vs local · {FighterRow.Pretty(fb.WeightClass.ToString())}"
-                    : $"{w.Get(fb.Red.Value)?.LastName} vs {w.Get(fb.Blue.Value)?.LastName} · {FighterRow.Pretty(fb.WeightClass.ToString())}");
+                    : $"Two of yours · {FighterRow.Pretty(fb.WeightClass.ToString())}");
         }
         else PaddingLine = "";
 
@@ -369,7 +378,6 @@ public sealed partial class BookingViewModel
 
         // Why it sells: public facts only.
         var sells = new List<DeskTag>();
-        if (mainEv && Tagline.Length > 0) sells.Add(new DeskTag(Title(Tagline), CardTone.Warn));
         if (fight.IsTitleFight) sells.Add(new DeskTag(red.IsChampion || blue.IsChampion ? "Title fight" : "For the vacant belt", CardTone.Warn));
         else if (a.Stakes == Stakes.TitleEliminator) sells.Add(new DeskTag($"Eliminator · {red.Rank} vs {blue.Rank}", CardTone.Info));
         else if (red.HasRank && blue.HasRank && !r.LocalTalent && !b.LocalTalent) sells.Add(new DeskTag($"{red.Rank} vs {blue.Rank}", CardTone.Info));
@@ -433,6 +441,7 @@ public sealed partial class BookingViewModel
         OnPropertyChanged(nameof(HasHeadlineIdeas)); OnPropertyChanged(nameof(HasNextSlotIdeas));
         OnPropertyChanged(nameof(HasWarnings)); OnPropertyChanged(nameof(ShowNightLine));
         OnPropertyChanged(nameof(HasPartners)); OnPropertyChanged(nameof(HasRisks));
+        OnPropertyChanged(nameof(NextSlotIsPrelim)); OnPropertyChanged(nameof(NextSlotIsMainCard));
     }
 
     // Who has fought when (any promotion): one pass over the record, kept until the world moves.
@@ -519,20 +528,32 @@ public sealed partial class BookingViewModel
 
         // Partners and their terms.
         int missed = 0;
-        foreach (var pp in p.Partners)
+        // Trouble first: a deal that ends, then one that pays half, then the rest by what they pay.
+        var ordered = p.Partners
+            .OrderBy(pp => pp.GoneBeforeCard || pp.WouldWalk ? 0 : pp.AtRisk ? 1 : pp.HasClausesOnTheNight ? 2 : 3)
+            .ThenByDescending(pp => pp.FullFee.Amount);
+        foreach (var pp in ordered)
         {
-            var terms = pp.Terms.Select(t => new TermLine(t.Text, t.Status, t.Gap ?? "")).ToList();
-            missed += terms.Count(t => t.IsMissed);
+            var all = pp.Terms.Select(t => new TermLine(t.Text, t.Status, t.Gap ?? "")).ToList();
+            missed += all.Count(t => t.IsMissed);
+            // A partner whose every term holds folds to one line; the clauses show when one doesn't.
+            bool open = pp.AtRisk || pp.GoneBeforeCard || pp.HasClausesOnTheNight;
+            var terms = open ? all.Where(t => !t.IsMet).ToList() : new List<TermLine>();
+            bool noFee = pp.FullFee.Amount == 0;
             string fee = pp.GoneBeforeCard ? "Gone before this card: pays nothing"
+                : noFee ? (pp.IsMedia ? "Carries the card; no rights fee" : "No fee")
                 : pp.AtRisk ? $"Pays half: {pp.ExpectedFee} of {pp.FullFee}"
                 : $"{pp.FullFee} a show";
             string strikes = pp.StrikesBeforeCard == 0 ? "No strikes"
                 : pp.PendingStrikes > 0 ? $"{pp.StrikesBeforeCard} of {pp.StrikeLimit} strikes by fight night"
                 : $"{pp.Strikes} of {pp.StrikeLimit} strikes";
+            int met = all.Count(t => t.IsMet);
             string verdict = pp.GoneBeforeCard ? "The calendar ends this deal before the card airs."
                 : pp.WouldWalk ? "A miss on this card ends the deal."
-                : terms.Count == 0 ? "No terms: pays when the show goes ahead."
-                : pp.AtRisk ? "" : pp.HasClausesOnTheNight ? "Everything you can set is met; the rest is judged on the night." : "Every term met.";
+                : all.Count == 0 ? "No terms: pays when the show goes ahead."
+                : pp.AtRisk ? (noFee ? "A miss still earns a strike." : "")
+                : pp.HasClausesOnTheNight ? (met > 0 ? $"{met} term{(met == 1 ? "" : "s")} met; the rest is judged on the night." : "Judged on the night.")
+                : met == 1 ? $"Its term is met: {all[0].Text}." : $"All {met} terms met.";
             Partners.Add(new PartnerLine
             {
                 Name = pp.Partner, Kind = pp.IsMedia ? "Media" : "Sponsor", Fee = fee, Strikes = strikes,
@@ -567,14 +588,26 @@ public sealed partial class BookingViewModel
 
         NightLine = n == 0 ? "No bouts yet: the night is priced once there's a main event."
             : $"{HouseHeadline}{(p.Capacity is { } c3 && p.Attendance < c3 ? $" of {c3:N0}" : "")}"
-              + (p.PpvBuys > 0 ? $" · ≈{p.PpvBuys:N0} PPV" : "")
-              + $" · {NetRange} all in";
+              + (p.PpvBuys > 0 ? $" · ≈{(p.PpvBuys >= 10_000 ? $"{p.PpvBuys / 1000:N0}k" : $"{p.PpvBuys:N0}")} PPV" : "")
+              + $" · {Compact(p.NetLow)} to {Compact(p.NetHigh)} all in";
         OnPropertyChanged(nameof(HasPartners)); OnPropertyChanged(nameof(HasRisks));
     }
 
     /// <summary>"+$75,144" / "−$9,696" (a real minus, never accounting brackets).</summary>
     public static string Signed(Money m) =>
         (m.Amount < 0 ? "−" : "+") + Math.Abs(m.Amount).ToString("C0", CultureInfo.GetCultureInfo("en-US"));
+
+    /// <summary>"+$21.3M", "−$4.2k", "+$850": a figure for a one-line summary.</summary>
+    public static string Compact(Money m)
+    {
+        decimal a = Math.Abs(m.Amount);
+        string sign = m.Amount < 0 ? "−" : "+";
+        var inv = CultureInfo.InvariantCulture;
+        return a >= 1_000_000m ? $"{sign}${(a / 1_000_000m).ToString("0.0", inv)}M"
+            : a >= 10_000m ? $"{sign}${(a / 1_000m).ToString("0", inv)}k"
+            : a >= 1_000m ? $"{sign}${(a / 1_000m).ToString("0.0", inv)}k"
+            : $"{sign}${a.ToString("0", inv)}";
+    }
 
     private static string JoinAnd(IReadOnlyList<string> xs) =>
         xs.Count <= 1 ? string.Concat(xs) : string.Join(", ", xs.Take(xs.Count - 1)) + " and " + xs[^1];
@@ -716,6 +749,7 @@ public sealed partial class BookingViewModel
     {
         if (b is null) return;
         _replaceFight = b.Id;
+        ClearPairing();
         _replaceBlue = !b.Blue.IsChampion || b.Red.IsChampion;   // the challenger's corner by default
         if (b.Blue.Rank == "Local") _replaceBlue = true;
         _pickSlot = null;

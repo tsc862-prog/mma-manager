@@ -16,7 +16,7 @@ public partial class BookingView : UserControl
     public BookingView()
     {
         InitializeComponent();
-        SizeChanged += (_, e) => RailCol.Width = new GridLength(e.NewSize.Width < NarrowFrom ? 350 : 410);
+        SizeChanged += (_, e) => Rail.Width = e.NewSize.Width < NarrowFrom ? 350 : 410;
     }
 
     // The table's two selected fighters go to the picker as a pairing (by id).
