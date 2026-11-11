@@ -8,6 +8,14 @@ using MmaManager.Core.Sim.Org;
 // Modes:
 //   (default)            single 30-year sim with yearly breakdowns (seed 2026)
 //   compare <n> <years>  n seeds (1..n) x years, run in parallel, comparison report
+// Checking modes (simulation QA) live in Check/: invariants, scripted player, save/reload soak, determinism.
+if (args.Length > 0 && (args[0] == "check" || args[0] == "playcheck"))
+{ Environment.ExitCode = LongSim.Check.CheckModes.Run(args[0], args); return; }
+if (args.Length > 0 && args[0] == "determinism")
+{ Environment.ExitCode = LongSim.Check.CheckModes.Determinism(args); return; }
+if (args.Length > 0 && args[0] == "digest")
+{ Environment.ExitCode = LongSim.Check.CheckModes.Digest(args); return; }
+
 if (args.Length > 0 && args[0] == "fightlab") { FightLabMode.Run(args); return; }   // engine benchmark: FightLabMode.cs
 if (args.Length > 0 && args[0] == "compare")
 {
@@ -20,7 +28,8 @@ if (args.Length > 0 && args[0] == "compare")
 if (args.Length > 0 && args[0] == "diagnose")
 {
     RunDiagnose(args.Length > 1 ? ulong.Parse(args[1]) : 7UL,
-                args.Length > 2 ? int.Parse(args[2]) : 3);
+                args.Length > 2 ? int.Parse(args[2]) : 3,
+                args.Skip(3).ToArray());
     return;
 }
 
@@ -176,8 +185,13 @@ RunSingle(args.Length > 0 && ulong.TryParse(args[0], out var s) ? s : 2026UL,
 
 // ---------------------------------------------------------------------------
 // P&L trace of the designed mid-tier: why do ICF/VMMA/IFA bleed out?
-static void RunDiagnose(ulong seed, int years)
+// diagnose <seed> <years> [ABBR ...]: with org abbreviations, the detailed
+// trace for just those orgs (every ledger line, media deals and strikes,
+// dropped deals and why, acquisitions, houses vs rooms); without, the old
+// mid-tier summary.
+static void RunDiagnose(ulong seed, int years, string[] orgs)
 {
+    if (orgs.Length > 0) { LongSim.Diagnose.Detailed(seed, years, orgs); return; }
     var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
     world.PlayerPromotion = default;
     var tick = new WorldTick();
@@ -305,7 +319,7 @@ static void RunCompare(int seeds, int years)
             var firstLedger = op.Ledger.Count > 0 ? op.Ledger.Min(l => l.Date) : default;
             var o = new OrgAutopsy
             {
-                Seed = seed, Abbrev = op.Abbreviation, Startup = startup, Defunct = op.Defunct,
+                Seed = seed, Abbrev = op.Abbreviation, Startup = startup, Defunct = op.Defunct, Region = op.BaseRegion,
                 Founded = startup ? (firstLedger != default ? firstLedger : vit.First) : default,
                 Died = vit.DeathSeen != default ? vit.DeathSeen : (op.Defunct ? (op.Ledger.Count > 0 ? op.Ledger.Max(l => l.Date) : default) : default),
                 Tier = op.Defunct ? vit.TierLast : OrgSizing.SizeOf(op),
@@ -455,6 +469,8 @@ static void PrintDeaths(List<OrgAutopsy> orgs)
     Line("STARTUPS all", st);
     Line("STARTUPS died", st.Where(o => o.Defunct).ToList());
     Line("STARTUPS alive", st.Where(o => !o.Defunct).ToList());
+    Console.WriteLine("  STARTUPS by region (launched/defunct): " + string.Join(" · ",
+        Enum.GetValues<Region>().Select(r => $"{r} {st.Count(o => o.Region == r)}/{st.Count(o => o.Region == r && o.Defunct)}")));
     Console.WriteLine($"  STARTUPS roster: avg at first weekly sighting {(st.Count == 0 ? 0 : st.Average(o => o.Roster0)):0.0} (SAMPLED), avg in last live week / at end {(st.Count == 0 ? 0 : st.Average(o => o.RosterLast)):0.0} (SAMPLED)");
 }
 
@@ -532,6 +548,7 @@ sealed class OrgAutopsy
     public ulong Seed;
     public string Abbrev = "";
     public bool Startup, Defunct, Bought;
+    public Region Region;
     public DateOnly Founded, Died;
     public int Cards, Bouts, LocalBouts, Attendance, Roster0, RosterLast;
     public OrgSize Tier;

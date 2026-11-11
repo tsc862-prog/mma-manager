@@ -246,7 +246,7 @@ public static class DesignedRoster
         // The project needs more than one believer: Accra's Greco man headlines
         // beside Okafor as a matter of principle.
         new("Kofi", "Mensah", "The Fortress", Region.Africa, WeightClass.Welterweight, PrimaryStyle.ClinchFighter, 25, 62, 11, 3, "SCL", Popularity: 33, Country: "GHA", Loyalty: 60,
-            Bio: "Accra's contribution to the African project: a former Greco-Roman junior who believes the continent's scene should be built, not exported. He and Okafor headline SCL's biggest cards side by side as a matter of principle."),
+            Bio: "Accra's contribution to the African project: a former Greco-Roman junior who believes the continent's scene should be built, not exported. He and Okafor headline SCL's biggest cards side by side as a matter of principle. His uncle Kwabena held an AFC belt and came home with nothing else; Kofi has heard the story at every family dinner of his life."),
 
         // ============ The wider base — feeders and local halls, each with a face ============
         // GLF (US Midwest Regional): a beloved veteran gatekeeper-champ, and the undefeated
@@ -658,7 +658,7 @@ public static class DesignedRoster
         new("Paulo Bandeira", "Souza", RelationshipKind.Mentor, 68, "three generations of the academy, and now a fourth name"),
 
         // The friendships the sport already knows about.
-        new("Okafor", "Mensah", RelationshipKind.Friend, 80, "headline the continent's cards side by side, on principle"),
+        new("Okafor", "Kofi Mensah", RelationshipKind.Friend, 80, "headline the continent's cards side by side, on principle"),
         new("Takeda", "Kondo", RelationshipKind.Friend, 72, "the house's heart and the house's future, same locker room"),
         new("Halloran", "Barone", RelationshipKind.Friend, 55, "years of Midwest undercards between them"),
         new("Lindqvist", "Corrigan", RelationshipKind.Friend, 50, "the yardstick and the man who came back"),
@@ -673,5 +673,11 @@ public static class DesignedRoster
         new("Paulo Bandeira", "Wallace Bandeira", RelationshipKind.Family, 70, "uncle and nephew, on opposite sides of the Brazilian war"),
         new("Quispe", "Huanca", RelationshipKind.Friend, 60, "the condor and the hummingbird: same mountains, same gym bus"),
         new("Okonjo", "Okafor", RelationshipKind.Friend, 62, "Nigeria's two Lions, one at the AFC and one who stayed home"),
+
+        // The lost decade: the legends' people (A is the elder; full names where a surname is shared).
+        new("Fadi Haddad", "Yusuf Haddad", RelationshipKind.Family, 80, "uncle and nephew; the old Cedar and the new one"),
+        new("Teodor Lund", "Dahl", RelationshipKind.Mentor, 55, "the Oslo firefighter who took the lighthouse up on his offer"),
+        new("Kwabena Mensah", "Kofi Mensah", RelationshipKind.Family, 82, "uncle and nephew; the one who was exported, and the one who won't be"),
+        new("Ahn", "Kang", RelationshipKind.Mentor, 70, "the Korean who took the belt from Japan, in the corner of the one who promises to do it again"),
     };
 }

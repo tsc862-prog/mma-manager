@@ -491,6 +491,9 @@
                HeroPanel .... (ContentControl) the top band of a screen, washed in the org accent.
                               HeroLogo / Text.HeroName / Text.HeroQuote / Text.HeroDetail / HeroGap
                               tighten when the window is short (controls:Adaptive.IsCompact).
+               MomentCard ... (Border) The Moment's poster card over MomentScrim, with
+                              Text.MomentKicker / Text.Moment (the one huge line) /
+                              Text.MomentName / MomentGap; all tighten when compact.
                Chip ......... (Border) + Chip.Text: a small rounded tag ("City promotion").
                Avatar ....... (ContentControl; Content has Picture/HasPicture/Icon) a round face,
                               or a desk's icon on a disc.
@@ -501,6 +504,9 @@
                Button.Ghost    secondary action, outlined.
                Button.Link     inline text link ("All news ▸").
                Button.Chip     a small pill that follows something to its page (a name, "AFC", an event).
+               Button.Icon     a small square ghost button for a row's quiet actions (▲ ▼ ✕).
+               TabStrip ...... (ListBox) open documents side by side, one selected (the Card Desk's events).
+               ToneTagTemplate a fact pill for any Text + Tone (CardTone) item ("Bad blood · heat 60").
 
              FILTERS
                SearchBox ..... (TextBox) rounded field with a search icon; Tag = placeholder.
@@ -727,6 +733,64 @@
             </Style.Triggers>
         </Style>
 
+        <!-- THE MOMENT: one poster-like card over the dimmed desktop (Views/MomentView.xaml). -->
+        <SolidColorBrush x:Key="MomentScrim" Color="#E60A0C10" />
+        <Style x:Key="MomentCard" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource OrgAccentDim}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#1D222A" Offset="0" />
+                        <GradientStop Color="#13161B" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Text.MomentKicker" TargetType="TextBlock" BasedOn="{StaticResource Text.Kicker}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Foreground" Value="{DynamicResource OrgAccent}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="13" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- The one huge line ("AND NEW."): announcer words, never a stat. -->
+        <Style x:Key="Text.Moment" TargetType="TextBlock" BasedOn="{StaticResource Text.Display}">
+            <Setter Property="FontSize" Value="92" />
+            <Setter Property="LineHeight" Value="94" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+            <Setter Property="Margin" Value="-4,2,0,4" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="60" />
+                    <Setter Property="LineHeight" Value="62" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="Text.MomentName" TargetType="TextBlock" BasedOn="{StaticResource Text.Title}">
+            <Setter Property="FontSize" Value="26" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="20" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- A gap between moment sections that closes up on a short screen. -->
+        <Style x:Key="MomentGap" TargetType="FrameworkElement">
+            <Setter Property="Margin" Value="0,22,0,0" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="Margin" Value="0,10,0,0" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="Chip" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource Track}" />
             <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
@@ -797,6 +861,9 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -1350,6 +1417,98 @@
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Button.Icon: a small square ghost button for a row's quiet actions (move up, move down, remove). -->
+        <Style x:Key="Button.Icon" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" Background="Transparent" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource CardHover}" />
+                                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource OrgAccent}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource OrgAccent}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ToneTagTemplate: a small fact pill for anything with Text + Tone (CardTone): "Bad blood · heat 60", "Last fight on the deal". -->
+        <DataTemplate x:Key="ToneTagTemplate">
+            <Border x:Name="b" Background="{StaticResource Track}" CornerRadius="{StaticResource Radius.Pill}" Padding="8,2,8,3" Margin="0,0,6,6">
+                <TextBlock x:Name="t" Text="{Binding Text}" FontSize="12" Foreground="{StaticResource TextSoft}" TextTrimming="CharacterEllipsis" />
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Tone}" Value="Good"><Setter TargetName="b" Property="Background" Value="{StaticResource ToneGoodDim}" /><Setter TargetName="t" Property="Foreground" Value="{StaticResource ToneGood}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Warn"><Setter TargetName="b" Property="Background" Value="{StaticResource ToneWarnDim}" /><Setter TargetName="t" Property="Foreground" Value="{StaticResource ToneWarn}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Bad"><Setter TargetName="b" Property="Background" Value="{StaticResource ToneBadDim}" /><Setter TargetName="t" Property="Foreground" Value="{StaticResource ToneBad}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Info"><Setter TargetName="b" Property="Background" Value="{StaticResource ToneInfoDim}" /><Setter TargetName="t" Property="Foreground" Value="{StaticResource ToneInfo}" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- TabStrip (ListBox): documents open side by side, one selected (the Card Desk's events).
+             Give it an ItemTemplate; the selected tab carries an accent underline. -->
+        <Style x:Key="TabStrip" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox"><ItemsPresenter /></ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="b" Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                                            CornerRadius="{StaticResource Radius.Card}" Padding="12,6,14,7" Margin="0,0,6,6">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource TextSecondary}" /></Trigger>
+                                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource OrgAccent}" /></Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="b" Property="Background" Value="{DynamicResource OrgAccentDim}" />
+                                            <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource OrgAccent}" />
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
                 </Setter.Value>
             </Setter>
         </Style>

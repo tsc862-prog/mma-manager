@@ -98,6 +98,7 @@ public sealed class MainViewModel : ObservableObject
         Camps.OnChanged = RefreshAll;       // a team deal / camp report moves the balance
         Booking.OnRunLive = RunLive;        // "run & watch" a card
         Booking.OpenContracts = () => NavigateTo(Tab.Contracts);   // empty roster: go sign someone
+        Booking.SimTonightCommand = SimTonightCommand;             // fight night's second door, on the card's header
         // Destructive booking actions ask first — in the interactive app only;
         // harness runs never open a dialog (null = go ahead as scripted).
         if (!HeadlessAutoBoot)
@@ -128,6 +129,8 @@ public sealed class MainViewModel : ObservableObject
         };
         Planner.OpenMyCard = id => { Booking.SelectEvent(id); NavigateTo(Tab.BookEvent); };
         Planner.Navigate = NavigateTo;
+        Moments.OpenFighter = OpenFighter;
+        Moments.OpenEvent = id => OpenEventCommand.Execute(id);
         WireMail();
 
         RankingDivisions = new ObservableCollection<DivisionPick>(
@@ -331,6 +334,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The live broadcast of a just-run card.</summary>
     public WatchViewModel Watch { get; } = new();
+
+    /// <summary>The Moment: the full-desktop card after a big night on your own card.</summary>
+    public MomentsViewModel Moments { get; } = new();
 
     
 
@@ -590,6 +596,7 @@ public sealed class MainViewModel : ObservableObject
     {
         // Generate fighters to match real portraits from the pack.
         _world = new WorldBuilder().Build(options with { IdentityCatalog = ArtCatalog });
+        Moments.Dismiss();
         LastAdvance = summary;
         StatusText = "";   // the last career's results don't carry over
         IsGameStarted = true;
@@ -600,6 +607,7 @@ public sealed class MainViewModel : ObservableObject
     private void Advance(int weeks)
     {
         if (_world is null) return;
+        Moments.Dismiss();   // a moment never holds the clock: moving on takes it down
         int unreadBefore = _world.Mail.Count(m => !m.Read);
 
         // Fight night is a hard stop: a due card must be watched or simmed
@@ -683,6 +691,8 @@ public sealed class MainViewModel : ObservableObject
         StatusText = fin is null
             ? $"{ev.Name} is in the books — results are on the event page."
             : $"{ev.Name} is in the books — house {fin.Attendance:N0}, gate {fin.GateRevenue}.";
+        // The result is on the strip and the event page; a big night then takes the desk.
+        Moments.Offer(_world, ev);
     }
 
     // Run one of the player's booked cards now, with commentary, and open the
@@ -695,7 +705,7 @@ public sealed class MainViewModel : ObservableObject
         Autosave();
 
         // Headless harness runs drive Watch state directly (no window to show).
-        if (HeadlessAutoBoot) return;
+        if (HeadlessAutoBoot) { Moments.Offer(_world, ev); return; }
 
         var win = new WatchWindow { DataContext = this };
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
@@ -703,6 +713,10 @@ public sealed class MainViewModel : ObservableObject
         Watch.Start();
         win.ShowDialog();
         Watch.Pause();   // leaving the arena stops the broadcast clock
+
+        // Back on the desk after the broadcast: a big night takes the screen
+        // (never over the arena, which may still be mid-card when the player leaves).
+        Moments.Offer(_world, ev);
     }
 
     private void Save()
@@ -773,6 +787,7 @@ public sealed class MainViewModel : ObservableObject
         {
             _world = SaveGame.Load(path);
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
+            Moments.Dismiss();
             LastAdvance = $"Loaded {Path.GetFileName(path)}.";
             StatusText = "";   // the last career's results don't carry over
             IsGameStarted = true;

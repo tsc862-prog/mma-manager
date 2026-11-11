@@ -1,0 +1,78 @@
+name: SimQA
+
+# Simulation QA on GitHub's machines (the owner's PC is not trusted under load).
+# Start it by hand: gh workflow run simqa.yml -f ref=main -f seeds=20 -f years=10
+# Runs tools/longsim check (all-AI invariants), playcheck (scripted player) and the save/reload soak,
+# prints each report in the log and uploads them as an artifact. The job fails if any mode found a violation.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to check
+        required: true
+        default: main
+      seeds:
+        description: Seeds for check (1..N)
+        required: false
+        default: "20"
+      years:
+        description: Years per seed
+        required: false
+        default: "10"
+      play_seeds:
+        description: Seeds for playcheck (empty = same as seeds)
+        required: false
+        default: ""
+      soak_seeds:
+        description: Seeds for the --soak runs of both modes (0 to skip)
+        required: false
+        default: "4"
+      soak_years:
+        description: Years for the soak runs
+        required: false
+        default: "5"
+
+jobs:
+  simqa:
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build longsim
+        run: dotnet build tools/longsim/longsim.csproj -c Release -v q --nologo
+      - name: Run checks
+        shell: bash
+        env:
+          SEEDS: ${{ inputs.seeds }}
+          YEARS: ${{ inputs.years }}
+          PLAY_SEEDS: ${{ inputs.play_seeds }}
+          SOAK_SEEDS: ${{ inputs.soak_seeds }}
+          SOAK_YEARS: ${{ inputs.soak_years }}
+        run: |
+          set +e +o pipefail   # a mode that finds violations exits non-zero; keep going and report every mode
+          mkdir -p out
+          git rev-parse HEAD | tee out/commit.txt
+          [ -z "$PLAY_SEEDS" ] && PLAY_SEEDS="$SEEDS"
+          cd tools/longsim
+          fail=0
+          run() { name="$1"; shift; echo "===== $name ====="; dotnet run -c Release --no-build -- "$@" --quiet --samples 6 2>&1 | tee "../../out/$name.txt"; rc=${PIPESTATUS[0]}; echo "$name exit $rc" | tee -a ../../out/exitcodes.txt; if [ "$rc" != 0 ]; then fail=1; fi; }
+          run check "check" "$SEEDS" "$YEARS" --par 3
+          run playcheck "playcheck" "$PLAY_SEEDS" "$YEARS" --par 3
+          if [ "$SOAK_SEEDS" != "0" ]; then
+            mkdir -p "$RUNNER_TEMP/soak"
+            run check-soak "check" "$SOAK_SEEDS" "$SOAK_YEARS" --soak --par 3 --tmp "$RUNNER_TEMP/soak"
+            run playcheck-soak "playcheck" "$SOAK_SEEDS" "$SOAK_YEARS" --soak --par 3 --tmp "$RUNNER_TEMP/soak"
+          fi
+          run determinism "determinism" 2 3 --par 3
+          exit $fail
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simqa
+          path: out/

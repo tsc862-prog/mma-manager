@@ -30,6 +30,10 @@ on:
         description: Years per shoestring run
         required: false
         default: "12"
+      extra:
+        description: Extra longsim command lines run after compare, separated by ';' (e.g. "diagnose 8 4 AFC"); seeds 0 skips compare
+        required: false
+        default: ""
 
 jobs:
   refs:
@@ -66,14 +70,18 @@ jobs:
           dotnet-version: 8.0.x
       - name: Build longsim
         run: dotnet build tools/longsim/longsim.csproj -c Release -v q --nologo
+      - name: Commit
+        shell: bash
+        run: |
+          mkdir -p out
+          git rev-parse HEAD | tee out/commit.txt
       - name: Compare
+        if: ${{ inputs.seeds != '0' }}
         shell: bash
         env:
           SEEDS: ${{ inputs.seeds }}
           YEARS: ${{ inputs.years }}
         run: |
-          mkdir -p out
-          git rev-parse HEAD | tee out/commit.txt
           cd tools/longsim
           dotnet run -c Release --no-build -- compare "$SEEDS" "$YEARS" 2>&1 | tee "../../out/compare-${SEEDS}x${YEARS}.txt"
       - name: Shoestring
@@ -87,6 +95,22 @@ jobs:
           for s in $SHOE; do
             echo "===== shoestring $s $SHOE_YEARS ====="
             dotnet run -c Release --no-build -- shoestring "$s" "$SHOE_YEARS" 2>&1 | tee "../../out/shoestring-$s.txt"
+          done
+      - name: Extra
+        if: ${{ inputs.extra != '' }}
+        shell: bash
+        env:
+          EXTRA: ${{ inputs.extra }}
+        run: |
+          cd tools/longsim
+          i=0
+          IFS=';' read -ra CMDS <<< "$EXTRA"
+          for c in "${CMDS[@]}"; do
+            read -ra ARGV <<< "$c"
+            [ ${#ARGV[@]} -eq 0 ] && continue
+            i=$((i+1))
+            echo "===== $c ====="
+            dotnet run -c Release --no-build -- "${ARGV[@]}" 2>&1 | tee "../../out/extra-$i-$(echo "${ARGV[*]}" | tr -c 'A-Za-z0-9\n' '_').txt"
           done
       - name: Artifact name
         id: nm

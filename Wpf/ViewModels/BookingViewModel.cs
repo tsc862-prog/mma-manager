@@ -24,7 +24,7 @@ public sealed class CityPick
     public override string ToString() => Display;
 }
 
-/// <summary>A fighter as a pick in a booking combo box.</summary>
+/// <summary>A fighter as a pick in the matchmaker's lists (the ladder, the corners).</summary>
 public sealed class FighterPick
 {
     public FighterPick(Fighter f, World w, string rank)
@@ -32,56 +32,16 @@ public sealed class FighterPick
         Id = f.Id;
         Rank = rank;
         Display = $"{f.FullName}   Sct {FighterRow.Scouted(w, f)}   ({f.Record})";
-        Portrait = Portraits.For(f, w);
     }
     public FighterId Id { get; }
     public string Rank { get; }        // "C", "#3", or "NR"
     public string Display { get; }
-    public ImageSource Portrait { get; }
 }
 
 /// <summary>A main-card size choice ("Auto" fits whatever the media deal's window demands).</summary>
 public sealed record MainCardPick(int Value, string Label)
 {
     public override string ToString() => Label;
-}
-
-/// <summary>One booked bout in the card editor.</summary>
-public sealed class BoutRow
-{
-    public BoutRow(Fight f, World w, MatchmakingAdvisor advisor, string slot, bool isPrelim = false)
-    {
-        Id = f.Id;
-        Slot = slot;
-        IsPrelim = isPrelim;
-        IsMainEvent = slot == "Main event";
-        RedId = f.RedCorner.Value;
-        BlueId = f.BlueCorner.Value;
-        var red = w.Get(f.RedCorner);
-        var blue = w.Get(f.BlueCorner);
-        RedName = red?.FullName ?? "?";
-        BlueName = blue?.FullName ?? "?";
-        RedPortrait = red is null ? null : Portraits.For(red, w);
-        BluePortrait = blue is null ? null : Portraits.For(blue, w);
-        Division = FighterRow.Pretty(f.WeightClass.ToString());
-        Rounds = $"{f.ScheduledRounds} rd";
-        Stakes = f.IsTitleFight ? "★ Title" : advisor.Appraise(w, f.RedCorner, f.BlueCorner).StakesTag;
-    }
-    public FightId Id { get; }
-    public string Slot { get; }
-    public bool IsMainEvent { get; }
-    /// <summary>Corner fighter ids, for opening profiles straight off the card sheet.</summary>
-    public int RedId { get; }
-    public int BlueId { get; }
-    /// <summary>Below the broadcast window — cheaper exposure, less fame for the fighters.</summary>
-    public bool IsPrelim { get; }
-    public string RedName { get; }
-    public string BlueName { get; }
-    public ImageSource? RedPortrait { get; }
-    public ImageSource? BluePortrait { get; }
-    public string Division { get; }
-    public string Rounds { get; }
-    public string Stakes { get; }
 }
 
 /// <summary>One comparison line in the tale-of-the-tape panel.</summary>
@@ -96,33 +56,51 @@ public sealed class TaleRow
     public bool BlueBold => Edge > 0;
 }
 
-/// <summary>A player-promotion scheduled event in the upcoming list.</summary>
+/// <summary>A player-promotion scheduled event: one tab across the top of the desk.</summary>
 public sealed class EventBookingRow : ObservableObject
 {
-    public EventBookingRow(Event e)
+    public EventBookingRow(Event e, World w)
     {
         Model = e;
         Name = e.Name;
         Date = e.Date.ToString("ddd d MMM yyyy");
+        int days = e.Date.DayNumber - w.CurrentDate.DayNumber;
+        When = days <= 0 ? "tonight" : days < 14 ? $"in {days} days" : $"in {days / 7} weeks";
         _bouts = e.Card.Count;
     }
     public Event Model { get; }
     public string Name { get; }
     public string Date { get; }
+    public string When { get; }
 
     private int _bouts;
-    public int Bouts { get => _bouts; private set => Set(ref _bouts, value); }
+    public int Bouts { get => _bouts; private set { if (Set(ref _bouts, value)) OnPropertyChanged(nameof(Line)); } }
+    /// <summary>"Thu 29 Jan · in 4 weeks · 3 bouts".</summary>
+    public string Line => $"{Model.Date:ddd d MMM} · {When} · {(Bouts == 0 ? "empty" : Bouts == 1 ? "1 bout" : $"{Bouts} bouts")}";
 
-    /// <summary>Re-read the card size in place (no collection rebuild, so the list selection survives).</summary>
+    /// <summary>Re-read the card size in place (no collection rebuild, so the tab selection survives).</summary>
     public void SyncBoutCount() => Bouts = Model.Card.Count;
 }
 
+/// <summary>Which surface the desk's right-hand rail is showing.</summary>
+public enum DeskRail { Night, Picker, Room, Plan, Proposals }
+
+/// <summary>How the desk shows the card: the bill (default), the dense roster table, or the poster.</summary>
+public enum DeskView { Card, Table, Poster }
+
+/// <summary>The picker's ways in: the matchmaker's suggestions, a division's ladder, or a local opponent.</summary>
+public enum PickMode { Suggested, Division, Local }
+
 /// <summary>
-/// Drives the Book Event screen: create/cancel your promotion's scheduled cards
-/// and add bouts from your roster (validated through <see cref="PlayerBooking"/>).
-/// Events run automatically when you Advance past their date.
+/// Drives the Card Desk (the Book Event app). The fight card is the screen: the
+/// main event large, the rest stepping down, open slots offering the
+/// matchmaker's suggestions. A rail on the right shows the night (house, money,
+/// partner terms, risks), or the opponent picker, the room chooser, the
+/// new-card form or a bulk proposal. Every change goes through
+/// <see cref="PlayerBooking"/>; this class only asks the sim and draws what it
+/// says. Picks are held by id across refreshes.
 /// </summary>
-public sealed class BookingViewModel : ObservableObject
+public sealed partial class BookingViewModel : ObservableObject
 {
     private readonly PlayerBooking _booking = new();
     private readonly MatchmakingAdvisor _advisor = new();
@@ -133,18 +111,16 @@ public sealed class BookingViewModel : ObservableObject
         NewEventCommand = new RelayCommand(NewEvent, () => _world is not null);
         CancelEventCommand = new RelayCommand(CancelEvent, () => SelectedEvent is not null);
         AddBoutCommand = new RelayCommand(AddBout, () => SelectedEvent is not null && SelectedRed is not null && SelectedBlue is not null);
-        RemoveBoutCommand = new RelayCommand(RemoveBout, () => SelectedBout is not null && SelectedEvent is not null);
-        MoveBoutUpCommand = new RelayCommand(() => MoveBout(+1), () => SelectedBout is not null && SelectedEvent is not null);
-        MoveBoutDownCommand = new RelayCommand(() => MoveBout(-1), () => SelectedBout is not null && SelectedEvent is not null);
         SuggestOpponentCommand = new RelayCommand(SuggestOpponent, () => SelectedEvent is not null && SelectedRed is not null && BlueOptions.Count > 0);
         AddLocalBoutCommand = new RelayCommand(AddLocalBout, () => SelectedEvent is not null && SelectedRed is not null);
         // Watching is a fight-night privilege — a card can't be run before its date.
         RunLiveCommand = new RelayCommand(RunLive,
-            () => SelectedEvent is not null && Bouts.Count > 0
+            () => SelectedEvent is not null && SelectedEvent.Model.Card.Count > 0
                   && _world is not null && SelectedEvent.Model.Date <= _world.CurrentDate);
         OpenContractsCommand = new RelayCommand(() => OpenContracts?.Invoke());
         Divisions = new ObservableCollection<DivisionPick>();   // filled per-world: only divisions you have fighters in
         _rounds = 3;
+        InitDesk();
     }
 
     /// <summary>Empty-roster shortcut: the shell opens the Contracts screen.</summary>
@@ -162,12 +138,12 @@ public sealed class BookingViewModel : ObservableObject
     public ICommand NewEventCommand { get; }
     public ICommand CancelEventCommand { get; }
     public ICommand AddBoutCommand { get; }
-    public ICommand RemoveBoutCommand { get; }
-    public ICommand MoveBoutUpCommand { get; }
-    public ICommand MoveBoutDownCommand { get; }
     public ICommand SuggestOpponentCommand { get; }
     public ICommand AddLocalBoutCommand { get; }
     public ICommand RunLiveCommand { get; }
+
+    /// <summary>Fight night's other door (sim the card): the shell's command, handed in.</summary>
+    public ICommand? SimTonightCommand { get; set; }
 
     // --- Local fights: the small-org special ---------------------------------
     public PrimaryStyle[] LocalStyles { get; } = MmaManager.Core.Sim.Living.LocalScene.OfferedStyles;
@@ -196,7 +172,8 @@ public sealed class BookingViewModel : ObservableObject
     private string _reachLine = "";
     /// <summary>What the reach tier lets you book, and what the next tier opens.</summary>
     public string ReachLine { get => _reachLine; private set => Set(ref _reachLine, value); }
-    public ObservableCollection<BoutRow> Bouts { get; } = new();
+    /// <summary>The bill, top-billed: the main event first.</summary>
+    public ObservableCollection<BillBout> Bouts { get; } = new();
     public ObservableCollection<DivisionPick> Divisions { get; }
     public ObservableCollection<FighterPick> RedOptions { get; } = new();
     public ObservableCollection<FighterPick> BlueOptions { get; } = new();
@@ -211,7 +188,8 @@ public sealed class BookingViewModel : ObservableObject
     public EventTier SelectedTier { get => _selectedTier; set => Set(ref _selectedTier, value); }
 
     private string _status = "";
-    public string Status { get => _status; private set => Set(ref _status, value); }
+    public string Status { get => _status; private set { if (Set(ref _status, value)) OnPropertyChanged(nameof(HasStatus)); } }
+    public bool HasStatus => _status.Length > 0;
 
     private bool _statusIsError;
     /// <summary>Colors the status line: red for a refusal, green for a booking confirmation.</summary>
@@ -236,7 +214,10 @@ public sealed class BookingViewModel : ObservableObject
         // Sync the window selector to the event WITHOUT writing back through the setter.
         _mainCard = MainCardOptions.FirstOrDefault(o => o.Value == (_selectedEvent?.Model.MainCardFights ?? 0)) ?? MainCardOptions[0];
         OnPropertyChanged(nameof(SelectedMainCard));
-        OnPropertyChanged(nameof(HasSelectedEvent)); OnPropertyChanged(nameof(SelectedEventTitle));
+        OnPropertyChanged(nameof(HasSelectedEvent));
+        OnPropertyChanged(nameof(SelectedEventTitle));
+        // Another card: a half-built pick on the old one doesn't follow it.
+        if (_rail is DeskRail.Picker or DeskRail.Room or DeskRail.Proposals) Rail = DeskRail.Night;
         RefreshBouts(); RefreshRedOptions();
     }
 
@@ -248,43 +229,28 @@ public sealed class BookingViewModel : ObservableObject
     /// </summary>
     private bool _quiet;
 
-    /// <summary>What to tell the player on an empty card column ("" = the card has bouts).</summary>
-    public string CardHint =>
-        _world is null ? ""
-        : _selectedEvent is null
-            ? (UpcomingEvents.Count == 0
-                ? "No cards planned yet. Pick a date, card tier and host city under PLAN A NEW CARD, then press + Create Event."
-                : "Pick one of your upcoming events on the left to work on its card.")
-        : Bouts.Count == 0
-            ? (HasRoster
-                ? "No bouts on this card yet. Choose a division and both corners under BUILD A MATCHUP, then press Add Bout."
-                : "No bouts on this card yet — and no fighters to book. Sign fighters on the Contracts screen first.")
-            : "";
-    public bool HasCardHint => CardHint.Length > 0;
-
     /// <summary>The org has at least one active fighter to book (a founded promotion starts with none).</summary>
     public bool HasRoster => Divisions.Count > 0;
 
     private void RaiseHints()
     {
-        OnPropertyChanged(nameof(CardHint));
-        OnPropertyChanged(nameof(HasCardHint));
         OnPropertyChanged(nameof(HasRoster));
+        OnPropertyChanged(nameof(HasNoEvents));
+        OnPropertyChanged(nameof(HasSelectedEvent));
     }
     public bool HasSelectedEvent => _selectedEvent is not null;
+    /// <summary>No card planned at all: the desk opens on the new-card form.</summary>
+    public bool HasNoEvents => _world is not null && UpcomingEvents.Count == 0;
     public string SelectedEventTitle => _selectedEvent is null
         ? "No event selected"
         : $"{_selectedEvent.Name} — {_selectedEvent.Date}"
           + (_world is not null && _selectedEvent.Model.VenueId is { } vid && _world.Get(vid) is { } v && _world.Get(v.City) is { } c
               ? $"  ·  {v.Name}, {c.Name}" : "");
 
-    private BoutRow? _selectedBout;
-    public BoutRow? SelectedBout { get => _selectedBout; set => Set(ref _selectedBout, value); }
-
     // --- The broadcast window: how much of the card is the main card ---------
     public ObservableCollection<MainCardPick> MainCardOptions { get; } = new()
     {
-        new(0, "Auto (fit the deal)"), new(3, "3 fights"), new(4, "4 fights"),
+        new(0, "Auto"), new(3, "3 fights"), new(4, "4 fights"),
         new(5, "5 fights"), new(6, "6 fights"), new(7, "7 fights"), new(8, "8 fights"),
     };
 
@@ -297,20 +263,13 @@ public sealed class BookingViewModel : ObservableObject
             if (!Set(ref _mainCard, value) || value is null || SelectedEvent is null || _world is null) return;
             if (!_booking.SetMainCardSize(_world, SelectedEvent.Model, value.Value, out var err)) { Err(err ?? "Couldn't change the main card."); return; }
             RefreshBouts();
+            Ok(value.Value == 0 ? "The main card fits the broadcast deals again." : $"The main card is now the top {value.Value} fights.");
         }
     }
 
-    /// <summary>Contract clauses (sponsors + media) the card as booked would break.</summary>
+    /// <summary>Contract clauses (sponsors + media) the card as it will run would miss, one line each.</summary>
     public ObservableCollection<string> Warnings { get; } = new();
     public bool HasWarnings => Warnings.Count > 0;
-
-    /// <summary>One line for the warnings strip: how many terms the card breaks, and whose.</summary>
-    public string WarningSummary { get => _warningSummary; private set => Set(ref _warningSummary, value); }
-    private string _warningSummary = "";
-
-    private bool _showAllWarnings;
-    /// <summary>The warnings strip is folded to one line until the player opens it.</summary>
-    public bool ShowAllWarnings { get => _showAllWarnings; set => Set(ref _showAllWarnings, value); }
 
     private DivisionPick? _division;
     public DivisionPick? SelectedDivision { get => _division; set { if (Set(ref _division, value) && !_quiet) RefreshRedOptions(); } }
@@ -336,6 +295,10 @@ public sealed class BookingViewModel : ObservableObject
                 SelectedRounds = promo.Rules.TitleRounds;
         }
     }
+
+    private bool _canBeTitle;
+    /// <summary>The pairing could be for a belt (a champion is in it, or the belt is vacant).</summary>
+    public bool CanBeTitle { get => _canBeTitle; private set => Set(ref _canBeTitle, value); }
 
     // --- Live matchup appraisal (shown once both corners are chosen) ---------
     private bool _hasAppraisal;
@@ -371,7 +334,7 @@ public sealed class BookingViewModel : ObservableObject
     public string BlueHead { get => _blueHead; private set => Set(ref _blueHead, value); }
 
     private int _redCornerId;
-    /// <summary>The chosen red corner's fighter id (0 = none) — the walkout panel links to the profile.</summary>
+    /// <summary>The chosen red corner's fighter id (0 = none) — the comparison links to the profile.</summary>
     public int RedCornerId { get => _redCornerId; private set => Set(ref _redCornerId, value); }
 
     private int _blueCornerId;
@@ -392,10 +355,17 @@ public sealed class BookingViewModel : ObservableObject
         bool sameWorld = ReferenceEquals(world, _world);
         var keep = sameWorld ? Snapshot() : null;
         _world = world;
+        _lastFought = null;
 
         var today = world.CurrentDate.ToDateTime(TimeOnly.MinValue);
         var dropped = new List<string>();
-        if (!sameWorld) NewEventDate = today.AddDays(21);
+        if (!sameWorld)
+        {
+            NewEventDate = today.AddDays(21);
+            Rail = DeskRail.Night;
+            View = DeskView.Card;
+            Status = "";
+        }
         else if (DateOnly.FromDateTime(NewEventDate) <= world.CurrentDate)
         {
             NewEventDate = today.AddDays(21);
@@ -428,11 +398,11 @@ public sealed class BookingViewModel : ObservableObject
     }
 
     /// <summary>The player's picks on this screen, by id — never the row objects, which every refresh rebuilds.</summary>
-    private sealed record Picks(EventId? Event, FightId? Bout, DivisionPick? Division,
+    private sealed record Picks(EventId? Event, DivisionPick? Division,
         FighterId? Red, string? RedName, FighterId? Blue, string? BlueName, int Rounds, bool Title);
 
     private Picks Snapshot() => new(
-        _selectedEvent?.Model.Id, _selectedBout?.Id, _division,
+        _selectedEvent?.Model.Id, _division,
         _red?.Id, _red is null ? null : _world?.Get(_red.Id)?.FullName,
         _blue?.Id, _blue is null ? null : _world?.Get(_blue.Id)?.FullName,
         _rounds, _isTitle);
@@ -444,16 +414,20 @@ public sealed class BookingViewModel : ObservableObject
         if (keep?.Event is { } gone && ev is null)
             dropped.Add($"{_world?.Get(gone)?.Name ?? "the card you had open"} is no longer on your schedule");
         ev ??= UpcomingEvents.FirstOrDefault();
+        bool eventChanged = keep?.Event is { } was && ev?.Model.Id != was;
         _selectedEvent = ev;
         OnPropertyChanged(nameof(SelectedEvent));
-        OnEventChanged();   // rebuilds the card, the poster and the red-corner list once
+        if (eventChanged && _rail is DeskRail.Picker or DeskRail.Room or DeskRail.Proposals) _rail = DeskRail.Night;
+        _mainCard = MainCardOptions.FirstOrDefault(o => o.Value == (_selectedEvent?.Model.MainCardFights ?? 0)) ?? MainCardOptions[0];
+        OnPropertyChanged(nameof(SelectedMainCard));
+        OnPropertyChanged(nameof(SelectedEventTitle));
+        RefreshBouts();        // the card, the night, the poster, once
+        RefreshRedOptions();
 
-        if (keep is null) { RaiseHints(); return; }
+        if (keep is null) { AfterRestore(); return; }
 
         if (keep.Division is { } div && !Divisions.Contains(div))
             dropped.Add($"you no longer have anyone at {div}");
-
-        if (keep.Bout is { } bid) SelectedBout = Bouts.FirstOrDefault(b => b.Id == bid);
 
         if (keep.Red is { } rid && SelectedEvent is not null)
         {
@@ -474,6 +448,15 @@ public sealed class BookingViewModel : ObservableObject
 
         if (dropped.Count > 0)
             Err("Things changed since you last looked: " + string.Join("; ", dropped) + ".");
+        AfterRestore();
+    }
+
+    private void AfterRestore()
+    {
+        // No card at all: the desk opens on the new-card form.
+        if (UpcomingEvents.Count == 0 && _world is not null) Rail = DeskRail.Plan;
+        else if (_rail == DeskRail.Plan && SelectedEvent is not null && _planFromEmpty) Rail = DeskRail.Night;
+        RefreshRail();
         RaiseHints();
     }
 
@@ -530,7 +513,12 @@ public sealed class BookingViewModel : ObservableObject
         };
         ReachLine = MmaManager.Core.Sim.Org.OrgReach.Describe(_world, promo) + business;
         HasLocalOption = MmaManager.Core.Sim.Org.OrgSizing.SizeOf(promo) <= OrgSize.Regional;
+        PlayerLogo = Art.LogoFactory.ForPromotion(promo);
     }
+
+    private ImageSource? _playerLogo;
+    /// <summary>Your promotion's logo, for the card's header.</summary>
+    public ImageSource? PlayerLogo { get => _playerLogo; private set => Set(ref _playerLogo, value); }
 
     private void NewEvent()
     {
@@ -540,7 +528,9 @@ public sealed class BookingViewModel : ObservableObject
         var ev = _booking.CreateEvent(_world, date, name: null, tier: SelectedTier, city: SelectedCity?.Id);
         RefreshUpcoming();
         SelectedEvent = UpcomingEvents.FirstOrDefault(r => r.Model.Id == ev.Id);
-        Ok($"Created {ev.Name}. Add bouts below.");
+        Rail = DeskRail.Night;
+        View = DeskView.Card;
+        Ok($"{ev.Name} is on the calendar for {ev.Date:ddd d MMM}. Start with the main event.");
     }
 
     private void CancelEvent()
@@ -556,8 +546,15 @@ public sealed class BookingViewModel : ObservableObject
         _booking.CancelEvent(_world, ev);
         RefreshUpcoming();
         SelectedEvent = UpcomingEvents.FirstOrDefault();
+        if (UpcomingEvents.Count == 0) Rail = DeskRail.Plan;
+        RaiseHints();
         Ok($"{name} cancelled.");
     }
+
+    /// <summary>Harness hook: the cancel question for the selected event, as the dialog would ask it.</summary>
+    internal (string Heading, string Body, string? Detail)? DescribeCancel() =>
+        _world is null || SelectedEvent is null ? null
+        : CancelCost(SelectedEvent.Model) is var (b, d) ? ($"Cancel {SelectedEvent.Model.Name}?", b, d) : null;
 
     /// <summary>
     /// What cancelling throws away, told from what the model already holds —
@@ -566,11 +563,6 @@ public sealed class BookingViewModel : ObservableObject
     /// for a card that airs; a media deal's calendar clause is quoted as the
     /// contract states it, with the dates the player needs to judge it.
     /// </summary>
-    /// <summary>Harness hook: the cancel question for the selected event, as the dialog would ask it.</summary>
-    internal (string Heading, string Body, string? Detail)? DescribeCancel() =>
-        _world is null || SelectedEvent is null ? null
-        : CancelCost(SelectedEvent.Model) is var (b, d) ? ($"Cancel {SelectedEvent.Model.Name}?", b, d) : null;
-
     private (string Body, string? Detail) CancelCost(Event ev)
     {
         var w = _world!;
@@ -609,56 +601,34 @@ public sealed class BookingViewModel : ObservableObject
     private void AddBout()
     {
         if (_world is null || SelectedEvent is null || SelectedRed is null || SelectedBlue is null) return;
-        if (_booking.AddBout(_world, SelectedEvent.Model, SelectedRed.Id, SelectedBlue.Id, SelectedRounds, IsTitleBout, out var err))
+        var ev = SelectedEvent.Model;
+        string pairing = $"{_world.Get(SelectedRed.Id)?.LastName} vs {_world.Get(SelectedBlue.Id)?.LastName}";
+        if (_booking.AddBout(_world, ev, SelectedRed.Id, SelectedBlue.Id, SelectedRounds, IsTitleBout, out var err))
         {
+            var slot = _pickSlot ?? NextSlot(ev, ev.Card.Count - 1);
+            Place(ev, ev.Card[0].Id, slot);
             IsTitleBout = false;
-            RefreshBouts();
-            RefreshRedOptions();
-            RefreshUpcomingCounts();
-            Ok("Bout added.");
+            if (_rail == DeskRail.Picker) Rail = DeskRail.Night;
+            AfterCardChange();
+            ClearPairing();
+            Ok($"{pairing} is booked{SlotWords(slot)}.");
         }
         else Err(err ?? "Couldn't add that bout.");
-    }
-
-    private void RemoveBout()
-    {
-        if (SelectedEvent is null || SelectedBout is null) return;
-        _booking.RemoveBout(_world, SelectedEvent.Model, SelectedBout.Id);
-        RefreshBouts();
-        RefreshRedOptions();
-        RefreshUpcomingCounts();
-    }
-
-    /// <summary>
-    /// Rebill the selected fight: +1 moves it UP the bill (toward the main event —
-    /// which is the END of the sim's card list), -1 back down toward the prelims.
-    /// The booker decides what headlines; slots and the poster follow the order.
-    /// </summary>
-    private void MoveBout(int direction)
-    {
-        if (SelectedEvent is null || SelectedBout is null) return;
-        if (_world is null) return;
-        var card = SelectedEvent.Model.Card;
-        int i = card.FindIndex(f => f.Id == SelectedBout.Id);
-        int j = i + direction;
-        if (i < 0 || j < 0 || j >= card.Count) return;
-
-        if (!_booking.MoveBout(_world, SelectedEvent.Model, SelectedBout.Id, j, out var err)) { Err(err ?? "Couldn't move that bout."); return; }
-        var keep = SelectedBout.Id;
-        RefreshBouts();
-        SelectedBout = Bouts.FirstOrDefault(b => b.Id == keep);
-        Ok(direction > 0 ? "Moved up the bill." : "Moved down the bill.");
     }
 
     private void AddLocalBout()
     {
         if (_world is null || SelectedEvent is null || SelectedRed is null) return;
-        if (_booking.AddLocalBout(_world, SelectedEvent.Model, SelectedRed.Id, SelectedLocalStyle, SelectedRounds, out var err))
+        var ev = SelectedEvent.Model;
+        string who = _world.Get(SelectedRed.Id)?.LastName ?? "Your fighter";
+        if (_booking.AddLocalBout(_world, ev, SelectedRed.Id, SelectedLocalStyle, SelectedRounds, out var err))
         {
-            RefreshBouts();
-            RefreshRedOptions();
-            RefreshUpcomingCounts();
-            Ok("Local fight booked — an easy night, if your fighter shows up ready.");
+            var slot = _pickSlot ?? NextSlot(ev, ev.Card.Count - 1);
+            Place(ev, ev.Card[0].Id, slot);
+            if (_rail == DeskRail.Picker) Rail = DeskRail.Night;
+            AfterCardChange();
+            ClearPairing();
+            Ok($"{who} meets a local {FighterRow.Pretty(SelectedLocalStyle.ToString()).ToLowerInvariant()}{SlotWords(slot)}: an easy night, if {who} shows up ready.");
         }
         else Err(err ?? "Couldn't book the local fight.");
     }
@@ -668,137 +638,27 @@ public sealed class BookingViewModel : ObservableObject
     {
         UpcomingEvents.Clear();
         if (_world is null) return;
-        foreach (var e in _booking.UpcomingEvents(_world)) UpcomingEvents.Add(new EventBookingRow(e));
+        foreach (var e in _booking.UpcomingEvents(_world)) UpcomingEvents.Add(new EventBookingRow(e, _world));
         if (SelectedEvent is not null && UpcomingEvents.All(r => r.Model.Id != SelectedEvent.Model.Id))
             SelectedEvent = UpcomingEvents.FirstOrDefault();
         RaiseHints();
-    }
-
-    private void RefreshUpcomingCounts()
-    {
-        // Update the count on the existing row in place — rebuilding the collection
-        // would drop the ListBox selection and null out SelectedEvent mid-edit.
-        SelectedEvent?.SyncBoutCount();
-    }
-
-    private void RefreshBouts()
-    {
-        Bouts.Clear();
-        if (_world is null || SelectedEvent is null)
-        {
-            Projection = ""; ProjectionDetail = ""; Poster = null;
-            Warnings.Clear(); WarningSummary = ""; OnPropertyChanged(nameof(HasWarnings));
-            RaiseHints();
-            return;
-        }
-        // Billing order: the main event (last on the sim's card) tops the sheet.
-        // Fights below the broadcast window bill as prelims.
-        var ev = SelectedEvent.Model;
-        var card = ev.Card;
-        int firstMain = card.Count - ev.EffectiveMainCard;
-        for (int i = card.Count - 1; i >= 0; i--)
-        {
-            bool prelim = i < firstMain;
-            Bouts.Add(new BoutRow(card[i], _world, _advisor,
-                prelim ? $"Prelim {i + 1}" : CardBilling.Slot(i, card.Count), prelim));
-        }
-        RefreshWarnings();
-        RefreshProjection();
-        // The poster sells whatever the card currently is — it redraws live as
-        // the main event (and its story) changes under the matchmaker's hands.
-        Poster = Art.PosterFactory.For(_world, SelectedEvent.Model);
-        RaiseHints();
-    }
-
-    /// <summary>
-    /// Which contract clauses the card AS BOOKED would break — only the
-    /// structural ones the booker controls (window size, stars, locals, title,
-    /// rules); quality and attendance are judged on the night. An "Auto" window
-    /// can't break a max clause (it fits itself), so that check is skipped.
-    /// </summary>
-    private void RefreshWarnings()
-    {
-        Warnings.Clear();
-        var partners = new List<string>();
-        if (_world?.Get(_world.PlayerPromotion) is { } promo && SelectedEvent is { } sel && sel.Model.Card.Count > 0)
-        {
-            var ev = sel.Model;
-            bool auto = ev.MainCardFights == 0;
-            var deals = promo.SponsorDeals.Select(d => (d.Partner, d.Requirements))
-                .Concat(promo.MediaDeals
-                    .Where(d => d.Kind != MediaKind.PpvCarrier || ev.Tier >= EventTier.Ppv)
-                    .Select(d => (d.Partner, d.Requirements)));
-            foreach (var (partner, reqs) in deals)
-                foreach (var req in reqs)
-                {
-                    if (!Core.Sim.Finance.DealCompliance.IsStructural(req.Kind)) continue;
-                    if (auto && req.Kind == DealRequirementKind.MaxMainCard) continue;
-                    if (!Core.Sim.Finance.DealCompliance.Meets(_world, ev, req))
-                    {
-                        Warnings.Add($"{partner}: {Core.Sim.Finance.DealCompliance.Describe(req)}");
-                        if (!partners.Contains(partner)) partners.Add(partner);
-                    }
-                }
-        }
-        // Folded to one line: the count and whose terms; the clauses open on demand.
-        WarningSummary = Warnings.Count == 0 ? ""
-            : $"⚠  This card breaks {Warnings.Count} partner term{(Warnings.Count == 1 ? "" : "s")} "
-              + $"({string.Join(", ", partners)}) — missed terms cut that partner's pay and earn a strike.";
-        OnPropertyChanged(nameof(HasWarnings));
-    }
-
-    private ImageSource? _poster;
-    /// <summary>The auto-generated fight poster for the selected event (live preview).</summary>
-    public ImageSource? Poster { get => _poster; private set => Set(ref _poster, value); }
-
-    private string _projection = "";
-    /// <summary>The sim's box-office estimate for the card being built ("" = no event/bouts).</summary>
-    public string Projection { get => _projection; private set => Set(ref _projection, value); }
-
-    private string _projectionDetail = "";
-    /// <summary>What the estimate leaves out, said plainly so a media-funded card doesn't read as a loss.</summary>
-    public string ProjectionDetail { get => _projectionDetail; private set => Set(ref _projectionDetail, value); }
-
-    // The figures are Financials.Estimate's, shown as it returns them. The sim
-    // has no planned-card estimate of sponsor fees, media rights or the merch
-    // table (those are only computed when a card settles), so this line says
-    // so instead of guessing them — and isn't coloured as a profit or a loss.
-    private void RefreshProjection()
-    {
-        if (_world is null || SelectedEvent is null || SelectedEvent.Model.Card.Count == 0)
-        {
-            Projection = "";
-            ProjectionDetail = "";
-            return;
-        }
-
-        var est = Core.Sim.Booking.Financials.Estimate(_world, SelectedEvent.Model);
-        var boxOffice = est.GateRevenue + est.PayPerViewRevenue - est.ProductionCost - est.FighterPayroll;
-        Projection = $"{est.Attendance:N0} tickets  ·  gate {est.GateRevenue}"
-                     + (est.PayPerViewRevenue.Amount > 0 ? $"  ·  PPV {est.PayPerViewRevenue}" : "")
-                     + $"  ·  production {est.ProductionCost}  ·  payroll ≈{est.FighterPayroll}  →  box office {boxOffice}";
-        ProjectionDetail = "Gate & PPV only — sponsor fees, media rights and the merch table are paid on fight night and are not in this figure.";
     }
 
     private void RefreshRedOptions()
     {
         RedOptions.Clear();
         SelectedRed = null;
-        if (_world is null || SelectedEvent is null || SelectedDivision is not { } d) return;
+        if (_world is null || SelectedEvent is null || SelectedDivision is not { } d) { RebuildLadder(); return; }
         var pool = _booking.AvailableRoster(_world, SelectedEvent.Model, d.WeightClass, d.Sex);
         foreach (var (f, standing) in ScanOrder(pool))
             RedOptions.Add(new FighterPick(f, _world, standing.Label));
+        RebuildLadder();
     }
 
-    // The matchmaker's scan order — champ, #1, #2 … then the unranked — with the
-    // unranked ordered by YOUR scout's read (the Sct number on each pick), never
-    // the truth, and the id as the last word so the order is stable.
-    private IEnumerable<(Fighter F, FighterStanding S)> ScanOrder(IEnumerable<Fighter> pool) => pool
-        .Select(f => (F: f, S: _advisor.StandingOf(_world!, f.Id), Sct: FighterRow.Scouted(_world!, f)))
-        .OrderBy(x => x.S.Kind switch { Standing.Champion => 0, Standing.Ranked => x.S.Rank ?? 999, _ => 1000 })
-        .ThenByDescending(x => x.Sct)
-        .ThenBy(x => x.F.Id.Value)
-        .Select(x => (x.F, x.S));
+    // The matchmaker's scan order — champ, #1, #2 … then the unranked by YOUR
+    // scout's read (MatchmakingAdvisor.ByStanding: never the truth, id last).
+    private IEnumerable<(Fighter F, FighterStanding S)> ScanOrder(IEnumerable<Fighter> pool) =>
+        _advisor.ByStanding(_world!, pool).Select(f => (f, _advisor.StandingOf(_world!, f.Id)));
 
     private void RefreshBlueOptions()
     {
@@ -810,7 +670,8 @@ public sealed class BookingViewModel : ObservableObject
             foreach (var (f, standing) in ScanOrder(pool))
                 BlueOptions.Add(new FighterPick(f, _world, standing.Label));
         }
-        UpdateAppraisal();   // the red portrait shows the moment that corner is picked
+        UpdateAppraisal();   // the red corner shows the moment it is picked
+        RebuildLadder();
     }
 
     private void UpdateAppraisal()
@@ -825,6 +686,7 @@ public sealed class BookingViewModel : ObservableObject
         BlueHead = blue?.FullName ?? "";
         RedCornerId = red?.Id.Value ?? 0;
         BlueCornerId = blue?.Id.Value ?? 0;
+        OnPropertyChanged(nameof(HasPairing));
 
         if (_world is null || red is null || blue is null)
         {
@@ -833,6 +695,7 @@ public sealed class BookingViewModel : ObservableObject
             Competitiveness = 0;
             Appeal = 0;
             HeadToHead = "";
+            CanBeTitle = false;
             OnPropertyChanged(nameof(HasHeadToHead));
             Tape.Clear();
             return;
@@ -843,10 +706,16 @@ public sealed class BookingViewModel : ObservableObject
         Appeal = a.Appeal;
         HasAppraisal = true;
         IsTitleBout = a.TitleImplied;   // a belt can only be on the line when a champion is in the bout
+        CanBeTitle = a.TitleImplied || VacantBelt(red);
         HeadToHead = HeadToHeadLine(red, blue);
         OnPropertyChanged(nameof(HasHeadToHead));
         BuildTape(red, blue);
     }
+
+    // A vacant belt in this division: any two may fight for it (AddBout's rule).
+    private bool VacantBelt(Fighter f) =>
+        _world!.Get(_world.PlayerPromotion)?.Divisions.FirstOrDefault(d => d.Matches(f)) is { Title: { } tid }
+        && _world.Get(tid) is { CurrentChampion: null };
 
     // "They've met before" — the booker should never rebook a fight by accident.
     // Cheap: intersect the two bout histories first; only when they share a
@@ -868,12 +737,12 @@ public sealed class BookingViewModel : ObservableObject
         int blueWins = meetings.Count(x => x.Fight.Outcome!.Winner == blue.Id && !x.Fight.OverturnedNc);
         var last = meetings[^1];
         string lastLine = last.Fight.Outcome!.Winner is { } lw
-            ? $"last: {( _world.Get(lw)?.LastName ?? "?")} by {FighterRow.Pretty(last.Fight.Outcome.Method.ToString())}, {last.Date:MMM yyyy}"
+            ? $"last: {(_world.Get(lw)?.LastName ?? "?")} by {FighterRow.Pretty(last.Fight.Outcome.Method.ToString())}, {last.Date:MMM yyyy}"
             : $"last: {FighterRow.Pretty(last.Fight.Outcome.Method.ToString())}, {last.Date:MMM yyyy}";
         string series = meetings.Count == 1
             ? "They've fought before"
             : $"They've fought {meetings.Count} times ({red.LastName} {redWins}–{blueWins})";
-        return $"⚔ {series} — {lastLine}." + (meetings.Count >= 2 ? " This one's a trilogy-maker." : " The rematch sells itself.");
+        return $"{series} — {lastLine}." + (meetings.Count >= 2 ? " This one's a trilogy-maker." : " The rematch sells itself.");
     }
 
     private void BuildTape(Fighter r, Fighter b)
