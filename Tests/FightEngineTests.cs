@@ -72,6 +72,70 @@ public class FightEngineTests
     }
 
     [Fact]
+    public void StoredCard_CoversExactlyTheRoundsThatWereFought()
+    {
+        // In-round finish: the rounds before it. Doctor or corner between rounds: the round just
+        // fought too, with the stoppage stamped at the end of that round. Decision: every round.
+        var gen = new FighterGenerator(31);
+        var engine = new FightEngine();
+        int betweenRounds = 0, inRound = 0;
+        for (int i = 0; i < 6000; i++)
+        {
+            Fighter Make(int id) => gen.Generate(new FighterId(id), Today, new GenOptions
+            { Overall = 40 + (id * 7) % 45, Style = (PrimaryStyle)(id % 8), WeightClass = WeightClass.Heavyweight, WithRecord = false });
+            var a = Make(2 * i + 1); var b = Make(2 * i + 2);
+            var p = new FightParams { ScheduledRounds = 5, GeneratePlayByPlay = false };
+            var o = engine.Simulate(a, b, p, SimRandom.Mix(808, (ulong)i), out var detail);
+            int expected = detail is null ? 5 : o.EndRound - 1;
+            if (detail is "TKO: corner" or "TKO: doctor, between rounds")
+            {
+                expected = o.EndRound; betweenRounds++;
+                Assert.True(o.EndRound < 5);
+                Assert.Equal(p.RoundSeconds, o.EndTimeSeconds);
+            }
+            else if (detail is not null) inRound++;
+            Assert.Equal(expected, o.RoundScores!.Count);
+        }
+        Assert.True(betweenRounds > 10 && inRound > 1000, $"between rounds {betweenRounds}, in round {inRound}");
+    }
+
+    [Fact]
+    public void DrawsAndMajorityDecisions_AreReachable_AndAgreeWithTheCards()
+    {
+        var a = Make(1, 66, PrimaryStyle.WellRounded);
+        var b = Make(2, 66, PrimaryStyle.WellRounded);
+        // Every judged result agrees with the three cards: unanimous 3-0, split 2-1, majority
+        // two for the winner and one level, and a draw has no side on two cards.
+        int draws = 0, majority = 0, majorityDraws = 0;
+        for (uint s = 1; s <= 6000; s++)
+        {
+            var bout = new Bout(a, b, FightParams.FastThreeRound, new SimRandom(s));
+            var o = bout.Run();
+            if (bout.JudgeVotes is not { } v) continue;            // a finish
+            int red = v.Count(x => x == 0), blue = v.Count(x => x == 1), lvl = v.Count(x => x == -1);
+            int forWinner = o.Winner == a.Id ? red : blue, forLoser = o.Winner == a.Id ? blue : red;
+            switch (o.Method)
+            {
+                case FightMethod.UnanimousDecision: Assert.Equal(3, forWinner); break;
+                case FightMethod.SplitDecision: Assert.True(forWinner == 2 && forLoser == 1, $"split {red}-{blue}-{lvl}"); break;
+                case FightMethod.MajorityDecision:
+                    majority++;
+                    Assert.True(forWinner == 2 && lvl == 1, $"majority decision {red}-{blue}-{lvl}");
+                    break;
+                case FightMethod.Draw:
+                    draws++;
+                    Assert.Null(o.Winner);
+                    Assert.True(red < 2 && blue < 2, $"a draw with a side on two cards: {red}-{blue}-{lvl}");
+                    if (red + blue == 1) majorityDraws++;
+                    Assert.Equal(o.RoundScores!.Sum(x => x.Red), o.RoundScores!.Sum(x => x.Blue));   // a level card is stored
+                    break;
+                default: Assert.Fail($"judged fight ended {o.Method}"); break;
+            }
+        }
+        Assert.True(draws > 0 && majority > 0 && majorityDraws > 0, $"draws {draws} (majority draws {majorityDraws}), majority decisions {majority}");
+    }
+
+    [Fact]
     public void FinishRate_IsWithinRealisticBand()
     {
         var a = Make(1, 70, PrimaryStyle.WellRounded);

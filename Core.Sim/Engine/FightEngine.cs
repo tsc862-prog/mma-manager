@@ -20,6 +20,19 @@ public sealed class FightEngine
         Simulate(red, blue, options, new SimRandom(seed));
 
     /// <summary>
+    /// The lab's view: the same bout, plus how a finish happened ("referee, standing strikes",
+    /// "doctor", …). The detail is not part of <see cref="FightOutcome"/> (it is not saved);
+    /// the benchmark reads it to report the stoppage mix.
+    /// </summary>
+    internal FightOutcome Simulate(Fighter red, Fighter blue, FightParams options, ulong seed, out string? finishDetail)
+    {
+        var bout = new Bout(red, blue, options, new SimRandom(seed));
+        var o = bout.Run();
+        finishDetail = bout.FinishDetail;
+        return o;
+    }
+
+    /// <summary>
     /// Simulate a booked <see cref="Fight"/> within a world, resolving corners
     /// from the roster, deriving a reproducible seed from the world seed + fight
     /// id, and writing the result back onto the fight. Returns the outcome.
