@@ -44,14 +44,16 @@ public sealed class World
     /// </summary>
     public object? ArtCatalog { get; set; }
 
-    public Dictionary<FighterId, Fighter> Fighters { get; init; } = new();
-    public Dictionary<PromotionId, Promotion> Promotions { get; init; } = new();
-    public Dictionary<TitleId, Title> Titles { get; init; } = new();
-    public Dictionary<EventId, Event> Events { get; init; } = new();
-    public Dictionary<CountryId, Country> Countries { get; init; } = new();
-    public Dictionary<CityId, City> Cities { get; init; } = new();
-    public Dictionary<VenueId, Venue> Venues { get; init; } = new();
-    public Dictionary<CampId, Camp> Camps { get; init; } = new();
+    // The entity collections enumerate in ascending id order, always (EntityMap): the sim iterates
+    // them while it rolls, so their order must not depend on removals or on a save/load.
+    public EntityMap<FighterId, Fighter> Fighters { get; } = new();
+    public EntityMap<PromotionId, Promotion> Promotions { get; } = new();
+    public EntityMap<TitleId, Title> Titles { get; } = new();
+    public EntityMap<EventId, Event> Events { get; } = new();
+    public EntityMap<CountryId, Country> Countries { get; } = new();
+    public EntityMap<CityId, City> Cities { get; } = new();
+    public EntityMap<VenueId, Venue> Venues { get; } = new();
+    public EntityMap<CampId, Camp> Camps { get; } = new();
 
     /// <summary>World news feed, oldest first; the sim appends notable happenings.</summary>
     public List<NewsItem> News { get; init; } = new();
