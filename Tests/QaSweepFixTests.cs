@@ -292,3 +292,93 @@ public class QaSweepFixTests
         Assert.Equal(names.Count, names.Distinct().Count());
     }
 }
+
+/// <summary>
+/// A title fight that ends in a DRAW (possible once the engine scores draws): the champion keeps the belt and that
+/// counts as a defence, his champion's clause tops his deal up, the belt's prestige follows the contest, and the
+/// pair are left with a grudge hot enough for the matchmaker to book the rematch next. No engine needed.
+/// </summary>
+public class DrawnTitleFightTests
+{
+    private static (World World, Event Card, Fight Bout, Title Title, Fighter Champ, Fighter Challenger) DrawnTitleFight(ulong seed = 7)
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
+        var promo = world.Get(world.PlayerPromotion)!;
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(30));
+        var div = promo.Divisions.Where(d => d.Title is { } t && world.Get(t)?.CurrentChampion is not null && d.Rankings.Count > 0)
+            .OrderBy(d => (int)d.WeightClass).ThenBy(d => d.Sex).First();
+        var title = world.Get(div.Title!.Value)!;
+        var champ = world.Get(title.CurrentChampion!.Value)!;
+        var challenger = div.Rankings.Select(world.Get).First(c => c is not null && c.Id != champ.Id)!;
+        Assert.True(booking.AddBout(world, ev, champ.Id, challenger.Id, 5, titleFight: true, out var err), err);
+        var bout = ev.Card[0];
+        bout.Outcome = new FightOutcome { Winner = null, Loser = null, Method = FightMethod.Draw, EndRound = 5, EndTimeSeconds = 300 };
+        return (world, ev, bout, title, champ, challenger);
+    }
+
+    [Fact]
+    public void TheChampionRetainsAndTheReignCountsTheDefence()
+    {
+        var (world, ev, bout, title, champ, challenger) = DrawnTitleFight();
+        var reign = title.Lineage.Last(r => r.LostOn is null);
+        int defences = reign.Defenses, champDraws = champ.Record.Draws, reigns = title.Lineage.Count;
+        champ.Contract!.HasChampionsClause = true;
+        champ.Contract.FightsRemaining = 1;   // the last fight of his deal
+
+        ResultsProcessor.Apply(world, ev, bout);
+
+        Assert.Equal(champ.Id, title.CurrentChampion);
+        Assert.Equal(reigns, title.Lineage.Count);
+        Assert.Equal(defences + 1, reign.Defenses);
+        Assert.Null(reign.LostOn);
+        Assert.Equal(champDraws + 1, champ.Record.Draws);
+        Assert.Equal(0, champ.Record.CurrentStreak);
+        Assert.Equal(3, champ.Contract.FightsRemaining);   // topped up as after any successful defence
+        Assert.Contains(world.News, n => n.Headline.Contains("on a draw") && n.Headline.Contains(champ.FullName));
+    }
+
+    [Fact]
+    public void TheBeltsPrestigeFollowsADrawnContest()
+    {
+        var (world, ev, bout, title, champ, challenger) = DrawnTitleFight();
+        var promo = world.Get(ev.Promotion)!;
+        var div = promo.Divisions.First(d => d.Title == title.Id);
+        double contest = TitleCredibility.Contest(world, promo, div, title, world.Get(bout.RedCorner)!, world.Get(bout.BlueCorner)!);
+        int before = title.Prestige.Value;
+        title.Prestige = Math.Clamp(before + (contest >= before ? -20 : 20), 0, 100);   // well away from the contest
+        int set = title.Prestige.Value;
+
+        ResultsProcessor.Apply(world, ev, bout);
+        // pulled toward the level of the two who contested it (a sixth or so of the gap), as any title fight pulls it
+        Assert.True(Math.Abs(title.Prestige.Value - contest) < Math.Abs(set - contest), $"{set} -> {title.Prestige.Value}, contest {contest:0.0}");
+    }
+
+    [Fact]
+    public void ADrawnTitleFightLeavesAGrudgeTheMatchmakerBooksNext()
+    {
+        var (world, ev, bout, _, champ, challenger) = DrawnTitleFight();
+        world.Rivalries.RemoveAll(r => (r.A == champ.Id && r.B == challenger.Id) || (r.A == challenger.Id && r.B == champ.Id));
+        var shared = new MmaManager.Core.Sim.Rng.SimRandom(99);
+
+        ResultsProcessor.Apply(world, ev, bout);
+        Storylines.AfterEvent(world, ev, ev.Date, shared);
+
+        var feud = Storylines.RivalryBetween(world, champ.Id, challenger.Id);
+        Assert.NotNull(feud);
+        Assert.True(feud!.Intensity >= 40, $"a drawn title fight should leave a grudge past the rematch line (got {feud.Intensity})");
+    }
+
+    [Fact]
+    public void AVacantBeltStaysVacantAfterADraw()
+    {
+        var (world, ev, bout, title, champ, challenger) = DrawnTitleFight();
+        // vacate the belt first: a drawn fight for a vacant belt crowns nobody
+        title.Lineage.Last(r => r.LostOn is null).LostOn = world.CurrentDate;
+        title.CurrentChampion = null;
+        int reigns = title.Lineage.Count;
+        ResultsProcessor.Apply(world, ev, bout);
+        Assert.Null(title.CurrentChampion);
+        Assert.Equal(reigns, title.Lineage.Count);
+    }
+}

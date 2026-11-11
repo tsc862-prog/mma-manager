@@ -44,6 +44,7 @@ public static class ResultsProcessor
             // No upset without a winner, so locals just fade back to the scene.
             if (red.LocalTalent) red.Status = FighterStatus.Retired;
             if (blue.LocalTalent) blue.Status = FighterStatus.Retired;
+            if (!noContest) ApplyDrawnTitle(world, ev, fight, red, blue);
             return;
         }
 
@@ -227,6 +228,33 @@ public static class ResultsProcessor
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// A title fight that ends in a DRAW: the belt was contested (its prestige
+    /// follows the two who contested it, as any title fight's does) and the
+    /// champion keeps it — that is a defence, the reign counts it, and his
+    /// champion's clause tops the deal up as after any successful defence. A
+    /// vacant belt stays vacant. (Storylines makes the rematch likely.)
+    /// </summary>
+    private static void ApplyDrawnTitle(World world, Event ev, Fight fight, Fighter red, Fighter blue)
+    {
+        if (!fight.IsTitleFight || fight.Title is not { } titleId || world.Get(titleId) is not { } title) return;
+        if (world.Get(ev.Promotion) is not { } promo) return;
+        var division = promo.Divisions.FirstOrDefault(d => d.Title == titleId);
+
+        double contest = TitleCredibility.Contest(world, promo, division, title, red, blue);
+        title.Prestige = (int)Math.Round(title.Prestige.Value + (contest - title.Prestige.Value) * 0.15);
+
+        if (title.CurrentChampion is not { } champId || (champId != red.Id && champId != blue.Id)) return;
+        var champ = champId == red.Id ? red : blue;
+        var challenger = champ == red ? blue : red;
+        if (title.Lineage.LastOrDefault(r => r.LostOn is null) is { } reign) reign.Defenses++;
+        ContractLifecycle.ApplyChampionsClause(champ);
+        News.Post(world, ev.Date, NewsCategory.TitleDefense,
+            $"{champ.FullName} keeps the {title.Name} on a draw",
+            $"{challenger.FullName} took the champion all the way and the cards couldn't split them. The belt stays; the rematch writes itself.",
+            title.Promotion, champ.Id);
     }
 
     private static void ApplyTitleResult(Title title, Division? division, FighterId winner, FighterId loser, DateOnly date)
