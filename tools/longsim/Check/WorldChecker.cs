@@ -310,7 +310,7 @@ public sealed class WorldChecker
         }
 
         // names: PlayerBooking numbers a new card by counting the org's cards, so cancelling any but the newest reissues a live name
-        foreach (var g in world.Events.Values.Where(e => e.Promotion.Value != 0).GroupBy(e => (e.Promotion, e.Name)).Where(g => g.Count() > 1))
+        foreach (var g in world.Events.Values.Where(e => e.Promotion.Value != 0 && System.Text.RegularExpressions.Regex.IsMatch(e.Name, @"\s\d+$"))   // only the numbered scheme ("CFC 5"); a rematch headline such as "CHAMP VS CHAMP: A vs B" legitimately repeats.GroupBy(e => (e.Promotion, e.Name)).Where(g => g.Count() > 1))
         {
             _log.Checked("EVENT-NAME", 1);
             var evs = g.OrderBy(e => e.Id.Value).ToList();
@@ -332,7 +332,8 @@ public sealed class WorldChecker
                 {
                     var f = world.Get(id);
                     if (f is null) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:gone", $"{E(world, ev.Id)} books {F(world, id)}");
-                    else if (f.Status == FighterStatus.Retired) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:ret", $"{E(world, ev.Id)} books RETIRED {F(world, id)}");
+                    else if (f.Status == FighterStatus.Suspended && (f.SuspendedUntil is not { } su || su > ev.Date)) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:susp", $"{E(world, ev.Id)} ({P(world, ev.Promotion)}{(ev.Promotion == world.PlayerPromotion ? ", PLAYER card" : "")}) books SUSPENDED {F(world, id)} (until {f.SuspendedUntil:yyyy-MM-dd})");
+                    if (f is not null && f.Status == FighterStatus.Retired) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:ret", $"{E(world, ev.Id)} books RETIRED {F(world, id)}");
                     if (onScheduled.TryGetValue(id, out var other) && other.Id != ev.Id)
                         V("BOOK-SCHEDULED", $"{id.Value}:{other.Id.Value}-{ev.Id.Value}", $"{F(world, id)} is on two scheduled cards: {E(world, other.Id)} and {E(world, ev.Id)}");
                     else onScheduled[id] = ev;
@@ -345,7 +346,9 @@ public sealed class WorldChecker
                 {
                     if (fight.Title is not { } tid || world.Get(tid) is not { } title)
                         V("BOOK-SCHEDULED", $"e{ev.Id.Value}:f{fight.Id.Value}:notitle", $"title fight on {E(world, ev.Id)} points at a missing belt");
-                    else if (title.Promotion != ev.Promotion)
+                    else if (title.CurrentChampion is { } holder && holder != fight.RedCorner && holder != fight.BlueCorner)
+                    V("BOOK-SCHEDULED", $"e{ev.Id.Value}:f{fight.Id.Value}:champ", $"{E(world, ev.Id)} ({P(world, ev.Promotion)}{(ev.Promotion == world.PlayerPromotion ? ", PLAYER card" : "")}) has a title bout for {T(world, title.Id)} without its champion {F(world, holder)}");
+                else if (title.Promotion != ev.Promotion)
                         V("BOOK-SCHEDULED", $"e{ev.Id.Value}:f{fight.Id.Value}:belt", $"{E(world, ev.Id)} ({P(world, ev.Promotion)}) stages a fight for {T(world, title.Id)} which belongs to {P(world, title.Promotion)}");
                 }
             }
