@@ -177,7 +177,7 @@ public sealed class WorldTick
 
             // The scenes beyond the promotions: idle fighters take local fights,
             // and the wider combat-sports calendar (Olympics, world championships).
-            report.LocalFights += LocalCircuit.RunMonthly(world, after, rng);
+            LocalCircuit.RunMonthly(world, after, rng);   // staged now, fought on their dates (report.LocalFights counts them then)
             SpecialCircuit.RunMonthly(world, after, rng);
 
             // Off-cage drama: feuds flare on social media, fresh beefs start, and

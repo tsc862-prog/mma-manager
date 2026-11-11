@@ -113,7 +113,7 @@ public class SimQaFindingsTests
 
     // check seed 3, 2026-03-05 (and seed 1, 2026-10-29): MaybeSuperfight books a champ-vs-champ card 28 days out, then the
     // AI matchmaker builds that night's ordinary card with no knowledge of cards already scheduled, so the champions fight twice in a day.
-    [Fact(Skip = "SQA-03: Matchmaker.BuildCard ignores fighters already booked on another scheduled card (same-date double booking)")]
+    [Fact(Skip = "SQA-03: closed in the game by the forward calendar (every live caller passes the committed set, MaybeSuperfight checks IsCommitted); still open only in the 3-argument convenience overload this test calls, used by EventService.BookAndRun in tests - Matchmaker.BuildCard ignores fighters already booked on another scheduled card")]
     public void TheMatchmakerDoesNotBookSomeoneAlreadyOnAScheduledCard()
     {
         var world = Build(3);
