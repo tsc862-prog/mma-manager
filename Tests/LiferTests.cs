@@ -75,6 +75,11 @@ public class LiferTests
         var world = FoundedWorld(48);
         var lifer = Star(world, Disposition.CompanyMan, loyalty: 90);
         lifer.Designed = true;   // notable: the refusal makes the news
+        Backdate(lifer, days: 365);   // a deal that has run a while (a fresh one is too soon after the last story)
+        HireOne(world);
+        BookOnNextCard(world, lifer);  // ...and he's been kept busy and paid his worth: nothing to complain about
+        lifer.Contract!.PursePerFight = new FighterValuation().Evaluate(world, lifer).AskingPurse;
+        Assert.True(Lifers.IsHolding(world, lifer), Lifers.BondOf(world, lifer).Grievance?.Reason);
 
         Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, world.CurrentDate));
         Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, world.CurrentDate.AddMonths(1)));
@@ -84,10 +89,17 @@ public class LiferTests
         Assert.Single(world.Mail, m => m.Subject.StartsWith($"{lifer.FullName} turned down"));
 
         // A new deal is a new contract: the next approach is news again.
+        // A new deal is a new contract — but a story only once the deal has run
+        // half a year, so a string of short deals can't spam the feed.
         Renew(world, lifer);
         lifer.Contract!.FightsRemaining = 0;
         Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, world.CurrentDate.AddMonths(3)));
+        Assert.Single(world.News, n => n.Headline.StartsWith($"{lifer.FullName} turns down"));
+        Renew(world, lifer);
+        lifer.Contract!.FightsRemaining = 0;
+        Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, world.CurrentDate.AddMonths(7)));
         Assert.Equal(2, world.News.Count(n => n.Headline.StartsWith($"{lifer.FullName} turns down")));
+        Assert.Contains(world.Mail, m => m.From == lifer.FullName && m.Subject.StartsWith($"{lifer.FullName} turned down"));
     }
 
     // --- His promotion fights to keep him ----------------------------------------------
@@ -155,6 +167,27 @@ public class LiferTests
         var (world, lifer) = HoldingLifer();
         world.Get(world.PlayerPromotion)!.Balance = new Money(-50_000m);
         AssertBroken(world, lifer, Lifers.GrievanceKind.OrgInTrouble, "in the red");
+    }
+
+    [Fact]
+    public void TheBond_IsReadable_WhyNotProtected_AndWhatRepairsIt()
+    {
+        var (world, lifer) = HoldingLifer();
+        var holding = Lifers.BondOf(world, lifer);
+        Assert.True(holding.IsLifer && holding.IsHolding && holding.KeepsFirstCall);
+        Assert.Null(holding.Grievance);
+        Assert.Null(holding.Repair);
+
+        lifer.Record.CurrentStreak = -4;
+        var hurt = Lifers.BondOf(world, lifer);
+        Assert.True(hurt.IsLifer);
+        Assert.False(hurt.IsHolding);
+        Assert.False(hurt.KeepsFirstCall);
+        Assert.Equal(Lifers.GrievanceKind.Skid, hurt.Grievance!.Kind);
+        Assert.Equal("get him a win", hurt.Repair);
+
+        lifer.Sex = Sex.Female;
+        Assert.Contains("have her wondering whether she needs", Lifers.BondOf(world, lifer).Grievance!.Reason);
     }
 
     [Fact]
@@ -309,8 +342,9 @@ public class LiferTests
 
         ContractLifecycle.Release(world, lifer);
 
+        // The promotion's decision is the headline; his grievance is the background.
         Assert.Contains(world.News, n => n.Headline.StartsWith($"{lifer.FullName} leaves {promo.Name}")
-                                         && n.Headline.Contains("straight losses") && n.Body.Contains("released him"));
+                                         && n.Headline.Contains("released him") && n.Body.Contains("straight losses"));
         Assert.Contains(world.Mail, m => m.Subject == $"{lifer.FullName} has left us");
     }
 
@@ -340,8 +374,8 @@ public class LiferTests
         Assert.Equal(MercenaryWorldFingerprint, Fingerprint(world));
     }
 
-    // Taken on main @ d313337 with the scenario above (see the PR for how).
-    private const string MercenaryWorldFingerprint = "D967706736319349";
+    // Taken on main @ 73ef5aa with the scenario above (see the PR for how).
+    private const string MercenaryWorldFingerprint = "DDCCC2B01FBB4B64";
 
     // --- Determinism ---------------------------------------------------------------------
 
@@ -457,7 +491,9 @@ public class LiferTests
         Assert.NotNull(g);
         Assert.Equal(kind, g!.Kind);
         Assert.Contains(reasonText, g.Reason);
-        Assert.Equal(1m, Lifers.HomeDiscount(world, f, world.PlayerPromotion));
+        // Only a pay grievance leaves the hometown terms in place — the renewal IS the raise.
+        if (kind == Lifers.GrievanceKind.Underpaid) Assert.True(Lifers.HomeDiscount(world, f, world.PlayerPromotion) < 1m);
+        else Assert.Equal(1m, Lifers.HomeDiscount(world, f, world.PlayerPromotion));
     }
 
     // The deal was signed long ago: replace it with an identical one dated back.

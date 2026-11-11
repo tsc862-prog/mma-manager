@@ -111,6 +111,53 @@ public static class Lifers
     public sealed record Grievance(GrievanceKind Kind, string Reason);
 
     /// <summary>
+    /// Everything another system needs to know about one fighter's bond, in one
+    /// read: is he a lifer at all (and how far over or under the bar), is he
+    /// protected right now, if not then why not, and what would repair it. Built
+    /// for the contracts screen, rival offers and authored storylines (the
+    /// underpaid champion, the courted champion on his last fight) — they should
+    /// read this rather than re-derive the rules.
+    /// </summary>
+    public sealed record Bond(
+        /// <summary>Over the lifer bar (<see cref="Threshold"/>).</summary>
+        bool IsLifer,
+        /// <summary>A lifer with no standing grievance: rivals are refused, he renews first and cheaply.</summary>
+        bool IsHolding,
+        /// <summary>His own promotion gets the first call and hometown terms at expiry.</summary>
+        bool KeepsFirstCall,
+        /// <summary>Loyalty plus company-man and face-of-the-company weight; the bar is <see cref="Threshold"/>.</summary>
+        int Score,
+        /// <summary>Why he isn't holding (null when nothing stands).</summary>
+        Grievance? Grievance,
+        /// <summary>What his promotion could do about it, in plain words (null when nothing is wrong).</summary>
+        string? Repair);
+
+    /// <summary>Read one fighter's bond with the promotion he is signed to (see <see cref="Bond"/>).</summary>
+    public static Bond BondOf(World world, Fighter f)
+    {
+        int score = Score(world, f);
+        bool lifer = IsLifer(world, f);
+        var g = f.Contract is null || f.Disposition == Disposition.Mercenary ? null : GrievanceOf(world, f, world.CurrentDate);
+        string? repair = g is not null ? RepairFor(g.Kind)
+            : !lifer && score >= Threshold - 15 && f.Disposition != Disposition.Mercenary
+                ? "a retention bonus (or the posters) would rebuild his loyalty past the lifer bar"
+                : null;
+        return new Bond(lifer, lifer && g is null,
+            lifer && g is not { Kind: not GrievanceKind.Underpaid },
+            score, g, repair is null ? null : Gendered(f, repair));
+    }
+
+    /// <summary>What repairs each grievance — the same conditions <see cref="GrievanceOf"/> stops reading.</summary>
+    public static string RepairFor(GrievanceKind kind) => kind switch
+    {
+        GrievanceKind.OrgInTrouble => "get the books back in the black",
+        GrievanceKind.PassedOver => "book him the title shot",
+        GrievanceKind.Benched => "put him on a card",
+        GrievanceKind.Underpaid => "re-sign him on a raise",
+        _ => "get him a win",
+    };
+
+    /// <summary>
     /// The first standing reason this fighter has to doubt his promotion, or null.
     /// Every condition is read off the live world (the books, the rankings, the
     /// cards, the contract, the record), so it reproduces across save and load and
@@ -287,8 +334,9 @@ public static class Lifers
             {
                 Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
                     $"{f.FullName} is unhappy",
-                    Gendered(f, $"One of our lifers has a grievance: {g.Reason}. Until it's fixed he's taking calls, and he won't give us "
-                    + "the hometown discount. Every month it stands wears his loyalty down.") + Voice(f, g.Kind, date),
+                    (Voice(f, g.Kind, date) is { Length: > 0 } v ? v.Trim() + " " : "")
+                    + Gendered(f, $"What's wrong: {g.Reason}. Until it's fixed he's taking calls and won't give us the hometown "
+                    + $"discount, and every month it stands wears his loyalty down. What would fix it: {RepairFor(g.Kind)}."),
                     aboutFighter: f.Id);
             }
         }
@@ -312,18 +360,62 @@ public static class Lifers
         c.PoachWarned = true;
         if (date.DayNumber - c.SignedOn.DayNumber < RefusalStoryGapDays) return;
         bool mine = from.Id == world.PlayerPromotion;
-        string quote = f.Disposition == Disposition.CompanyMan ? " " + Flavor.Quotes.Attributed(f, Flavor.Moment.Signed, date) : "";
+        string says = $"“{TurnDownLine(f, suitor, from, date)}”";
         if (Notable(world, f) || mine)
             Living.News.Post(world, date, NewsCategory.Signing,
                 $"{f.FullName} turns down {suitor.Abbreviation}",
-                $"{suitor.Name} came calling with the bigger stage; {f.FullName} is staying at {from.Abbreviation}.{quote}",
+                $"{suitor.Name} came calling with the bigger stage; {f.FullName} is staying at {from.Abbreviation}. {says} — {f.FullName}",
                 from.Id, f.Id);
+        // The fighter tells the player himself — no go-between.
         if (mine)
-            Living.Mail.Post(world, date, MailCategory.General, "Matchmaking",
+            Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
                 $"{f.FullName} turned down {suitor.Abbreviation}",
-                Gendered(f, $"{suitor.Name} made a run at {f.FullName} and he told them no — he's ours. Keep him happy and the giants "
-                + "can call all they like.") + quote,
+                $"{says} {suitor.Name} made the call; the answer was no.",
                 aboutFighter: f.Id);
+    }
+
+    // The lifer's own words when a bigger promotion calls — chosen by who he is
+    // and picked by hash off his id and the date (no RNG; stable across save and
+    // load). A company man speaks through the shared voice engine's signing lines,
+    // which were written for exactly this ("worth more than a bidding war").
+    private static string TurnDownLine(Fighter f, Promotion suitor, Promotion home, DateOnly date)
+    {
+        if (f.Disposition == Disposition.CompanyMan)
+            return Flavor.Quotes.Say(f, Flavor.Moment.Signed, date).Trim('“', '”', '"');
+        string[] pool = f.Disposition switch
+        {
+            Disposition.Loudmouth or Disposition.Showman => new[]
+            {
+                $"{suitor.Abbreviation} wants me? Course they do. They can watch me on {home.Abbreviation} cards like everybody else.",
+                $"I built my name at {home.Abbreviation}. I'm not lending it to anybody.",
+            },
+            Disposition.Hothead => new[]
+            {
+                $"Tell {suitor.Abbreviation} to stop calling. I've got a job.",
+                $"I don't jump ship because somebody waves a cheque. Ask anyone at {home.Abbreviation}.",
+            },
+            Disposition.Warhorse => new[]
+            {
+                $"The fights I want are here. {suitor.Abbreviation} can wait.",
+                $"{home.Abbreviation} gave me every fight I asked for. That's worth more than a bigger room.",
+            },
+            Disposition.Student => new[]
+            {
+                $"Everything I've built is in this gym and this promotion. I'm not starting over for {suitor.Abbreviation}.",
+                $"It was a good offer. It wasn't the right one. I'm staying at {home.Abbreviation}.",
+            },
+            _ => new[]
+            {
+                $"I heard them out. I'm staying at {home.Abbreviation}.",
+                $"{home.Abbreviation} has been good to me. That's the whole answer.",
+            },
+        };
+        unchecked
+        {
+            uint h = (uint)f.Id.Value * 2654435761u ^ (uint)date.DayNumber * 0x9E3779B1u ^ 0x7E1Fu;
+            h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12;
+            return pool[(int)(h % (uint)pool.Length)];
+        }
     }
 
     // --- When a lifer does leave ---------------------------------------------------

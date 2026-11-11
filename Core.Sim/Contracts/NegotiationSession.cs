@@ -62,7 +62,7 @@ public sealed class NegotiationSession
             AgentToughness >= 70 ? "hard-nosed representation" :
             AgentToughness >= 45 ? "a firm but fair agent" : "an easygoing camp";
         OpeningLine = Lifers.Gendered(fighter, string.Format(
-            _home < 1m ? "\"{0} isn't going anywhere, and everybody knows it. Make it fair and he stays — he won't squeeze you.\"" :
+            _home < 1m ? "\"I'm not going anywhere, and everybody knows it. Make it fair and I'll sign — I won't squeeze you.\"" :
             AgentToughness >= 70 ? "\"Let's not waste anyone's time — you know what {1} is worth, and so do we.\"" :
             AgentToughness >= 45 ? "\"We're open to the right deal. Put real numbers in front of us and {0} signs.\"" :
             "\"{0} likes what you're building over there. Make it fair and we're done by lunch.\"",
