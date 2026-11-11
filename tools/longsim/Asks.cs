@@ -22,7 +22,7 @@ namespace LongSim;
 public static class Asks
 {
     private sealed record Row(int Snap, ulong Seed, Fighter F, int Ca, string Tier, int Decisive, decimal Legacy, decimal Live,
-        decimal Paid, PublicStanding.Facts Pub, int Age);
+        decimal Paid, PublicStanding.Facts Pub, int Age, string Sheet);
 
     public static void Run(string[] args)
     {
@@ -71,20 +71,24 @@ public static class Asks
         if (csv is not null)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("snap,seed,id,ca,pa,age,w,l,d,streak,fin,pop,mom,tier,contract_stage,stage,results,honours,proof,rep,bouts_read,idle,legacy,live,paid,champ,disp");
+            sb.AppendLine("snap,seed,id,ca,pa,w,l,d,streak,fin,pop,mom,disp,age,tier,contract_stage,stage,results,honours,proof,rep,share,bouts_read,idle,legacy,live,paid,champ");
             foreach (var r in all.OrderBy(r => r.Seed).ThenBy(r => r.Snap).ThenBy(r => r.F.Id.Value))
             {
                 var f = r.F; var p = r.Pub;
-                sb.AppendLine(string.Join(",", r.Snap, r.Seed, f.Id.Value, r.Ca, f.PotentialAbility.Value, r.Age, f.Record.Wins, f.Record.Losses,
-                    f.Record.Draws, f.Record.CurrentStreak, f.Record.WinsByKo + f.Record.WinsBySubmission, f.Intangibles.Popularity.Value,
-                    f.Momentum, r.Tier, p.ContractStage, p.Stage.ToString("0.00"), p.Results.ToString("0.00"), p.Honours.ToString("0.00"),
-                    p.Proof.ToString("0.00"), p.Reputation.ToString("0.00"), p.BoutsRead, p.DaysIdle, r.Legacy, r.Live, r.Paid,
-                    0, (int)f.Disposition));
+                sb.AppendLine(string.Join(",", r.Snap, r.Seed, f.Id.Value, r.Ca, r.Sheet, r.Age,
+                    r.Tier, p.ContractStage, p.Stage.ToString("0.00"), p.Results.ToString("0.00"), p.Honours.ToString("0.00"),
+                    p.Proof.ToString("0.00"), p.Reputation.ToString("0.00"), p.WinShare.ToString("0.000"), p.BoutsRead, p.DaysIdle,
+                    r.Legacy, r.Live, r.Paid, p.Champion ? 1 : 0));
             }
             File.WriteAllText(csv, sb.ToString());
             Console.WriteLine($"\nwrote {all.Count} rows to {csv}");
         }
     }
+
+    // The fighter's sheet as of the snapshot (the Fighter object keeps changing after it).
+    private static string Sheet(Fighter f) => string.Join(",", f.PotentialAbility.Value, f.Record.Wins, f.Record.Losses,
+        f.Record.Draws, f.Record.CurrentStreak, f.Record.WinsByKo + f.Record.WinsBySubmission, f.Intangibles.Popularity.Value,
+        f.Momentum, (int)f.Disposition);
 
     private static void Snapshot(World world, ulong seed, int snap, ConcurrentBag<Row> rows)
     {
@@ -95,7 +99,7 @@ public static class Asks
             string tier = org is null ? "FA" : OrgSizing.Label(OrgSizing.SizeOf(org));
             rows.Add(new Row(snap, seed, f, FighterAbility.CurrentAbility(f), tier, f.Record.Wins + f.Record.Losses,
                 LegacyAsk(world, f), val.Evaluate(world, f).AskingPurse.Amount, f.Contract?.PursePerFight.Amount ?? 0m,
-                PublicStanding.Read(world, f), f.AgeOn(world.CurrentDate)));
+                PublicStanding.Read(world, f), f.AgeOn(world.CurrentDate), Sheet(f)));
         }
     }
 

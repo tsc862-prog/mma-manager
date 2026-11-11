@@ -12,26 +12,32 @@ namespace MmaManager.Core.Sim.Contracts;
 /// builds every asking price from this, so the price itself can't tell anyone
 /// what fog of war hides.
 ///
-/// The reputation is an estimate on the ability scale (0-100) — "what the
+/// The reputation is an estimate on the ability scale (0-100) of "what the
 /// sport takes him to be":
 /// <code>
-///   read       = stage + results + honours − age − rust
+///   read       = 53 + 0.78 × (stage − 50) + results + honours + youth + draw − rust
 ///   reputation = 40 + (read − 40) × (0.35 + 0.65 × proof)
 /// </code>
 /// <list type="bullet">
 /// <item><b>stage</b>: <see cref="StageLevel"/> of the promotions he fought for
-/// in his last <see cref="RecentBouts"/> bouts (newest weighs most) blended
-/// evenly with the stage he is signed to now; an unsigned fighter is blended
-/// with the open market's level instead (nobody has put him on a card).</item>
-/// <item><b>results</b>: how dominant his sheet is — recent bouts weighted by
-/// recency and by the opponent's own public record, blended with the career —
-/// up to +9 for a fighter who keeps winning, down to −5 for one who keeps
-/// losing; title-fight wins and finishes add a little.</item>
-/// <item><b>honours</b>: a belt he holds (5 + 0.07 × the belt's prestige), a
-/// belt he held in the last four years, a top-three ranking.</item>
+/// in his last <see cref="RecentBouts"/> bouts (newest weighs most), blended
+/// evenly with the stage he is signed to now; an unsigned fighter is nudged
+/// toward the open market's floor instead.</item>
+/// <item><b>results</b>: 14 × (win share − 0.55), the share mixing his recent
+/// bouts (weighted by recency and by the opponent's own public record) with
+/// the career; up to +4 more for a near-perfect sheet; 0.4 a fight of his
+/// current run (−4 to +6); a little for title-fight wins.</item>
+/// <item><b>honours</b>: a belt he holds (3 + 0.06 × the belt's prestige), one he
+/// held in the last four years (1 + 0.02 × prestige), a top-three ranking (+1).</item>
+/// <item><b>youth</b>: 0.5 a year under 28 (to +4), the same off over it (to −6).
+/// <b>draw</b>: 0.1 a point of popularity over 35 (−3 to +5). <b>rust</b>: up
+/// to −6 after a year and a quarter out.</item>
 /// <item><b>proof</b>: how many decisive bouts back it up (full at 8). A blank
-/// sheet is read mostly as an unknown.</item>
+/// sheet is read mostly as an unknown (40).</item>
 /// </list>
+/// The weights were fitted against the simulated world (true ability on these
+/// public facts, all fighters with 8+ decisive bouts, five years in); the fit
+/// lives in the PR, never in the game.
 /// </summary>
 public static class PublicStanding
 {
@@ -92,7 +98,7 @@ public static class PublicStanding
         // --- Stage: where he fights. The current contract is the freshest
         // public verdict (a promotion signed him to fight at that level); the
         // stages of his recent bouts are the rest of the story. Nobody signing
-        // him is a verdict too: an unsigned fighter is read halfway toward the
+        // him is a (weak) verdict too: an unsigned fighter is nudged toward the
         // open market's floor.
         int contractStage = f.Contract is { } c && world.Get(c.Promotion) is { } cp ? cp.Prestige.Value : 0;
         double stageSum = 0, stageW = 0;
@@ -117,11 +123,13 @@ public static class PublicStanding
         }
         double stage = stageW > 0 ? stageSum / stageW : Unknown;
 
-        // --- Results: how dominant the sheet is. Recent bouts count most, and
-        // a win over a fighter with a long winning record counts for more
-        // than one over a novice (opponents read off THEIR public sheet, never
-        // their ratings, and never through their own reputation).
-        double recentWon = 0, recentAll = 0, titleWins = 0, finishes = 0, wins = 0;
+        // --- Results: the win share. Recent bouts count most, and a win over a
+        // fighter with a long winning record counts for more than one over a
+        // novice (opponents read off THEIR public sheet, never their ratings,
+        // and never through their own reputation). Blended with the career and
+        // with the current run; a sheet that is nearly all wins reads as a
+        // level of its own.
+        double recentWon = 0, recentAll = 0, titleWins = 0;
         for (int i = 0; i < bouts.Count; i++)
         {
             var b = bouts[i];
@@ -133,21 +141,19 @@ public static class PublicStanding
             if (b.Won)
             {
                 recentWon += weight;
-                wins++;
-                if (b.Finish) finishes++;
                 if (b.Title) titleWins++;
             }
         }
         int decisive = f.Record.Wins + f.Record.Losses;
         double career = decisive == 0 ? 0.5 : f.Record.Wins / (double)decisive;
-        double share = recentAll > 0 ? 0.6 * (recentWon / recentAll) + 0.4 * career : career;
-        double results = share >= 0.55
-            ? DominanceBonus * Math.Pow((share - 0.55) / 0.45, 1.5)
-            : -LosingPenalty * (0.55 - share) / 0.55;
-        results += Math.Min(2, titleWins) * 1.0;
-        if (wins >= 3) results += Math.Clamp((finishes / wins - 0.5) * 2, -0.5, 1);
+        double share = recentAll > 0 ? 0.5 * (recentWon / recentAll) + 0.5 * career : career;
+        double results = WinShareWeight * (share - 0.55)
+                       + Math.Max(0, share - 0.8) * 20          // a near-perfect sheet: up to +4 more
+                       + 0.4 * Math.Clamp(f.Record.CurrentStreak, -4, 6)
+                       + Math.Min(2, titleWins) * 0.75;
 
-        // --- Honours: a belt held, a belt held lately, a contender's ranking.
+        // --- Honours: a belt held (the belt's own prestige says how much it
+        // proves), a belt held lately, a top-three ranking.
         double honours = 0;
         bool champion = false;
         foreach (var t in world.Titles.Values)
@@ -155,28 +161,31 @@ public static class PublicStanding
             if (t.CurrentChampion == f.Id)
             {
                 champion = true;
-                honours = Math.Max(honours, 5 + t.Prestige.Value * 0.07);
+                honours = Math.Max(honours, 3 + t.Prestige.Value * 0.06);
             }
             else if (t.Lineage.Any(r => r.Champion == f.Id && r.LostOn is { } lost && lost > date.AddYears(-4)))
-                honours = Math.Max(honours, 1.5 + t.Prestige.Value * 0.03);   // a recent former champion
+                honours = Math.Max(honours, 1 + t.Prestige.Value * 0.02);   // a recent former champion
         }
         if (!champion && f.Contract is { } cc && world.Get(cc.Promotion) is { } org
             && org.Divisions.FirstOrDefault(d => d.Matches(f)) is { } div)
         {
             int rank = div.Rankings.IndexOf(f.Id);
-            if (rank is >= 0 and < 3) honours += 1.5;
+            if (rank is >= 0 and < 3) honours += 1;
         }
 
-        // --- Age and rust: the market knows fighters slow down, and that a
-        // fighter nobody has seen in a year and a half is a question mark.
+        // --- Age, draw and rust: the market knows young fighters are still
+        // getting better and old ones slowing down, that a following usually
+        // means something, and that a fighter nobody has seen in a year and a
+        // half is a question mark.
         int age = f.AgeOn(date);
-        double ageDrag = age > 34 ? (age - 34) * 0.6 : 0;
+        double youth = Math.Clamp((28 - age) * 0.5, -6, 4);
+        double draw = Math.Clamp((f.Intangibles.Popularity.Value - 35) * 0.1, -3, 5);
         int idle = bouts.Count > 0 ? date.DayNumber - bouts[0].Date.DayNumber : -1;
         double rust = idle > 450 ? Math.Min(6, (idle - 450) / 120.0) : 0;
 
         // --- Proof: a blank sheet is a guess; a long one is a reputation.
         double proof = Math.Min(1.0, (decisive + f.Record.Draws * 0.5) / 8.0);
-        double read = stage + results + honours - ageDrag - rust;
+        double read = ReadBase + StageSlope * (stage - 50) + results + honours + youth + draw - rust;
         double reputation = Unknown + (read - Unknown) * (0.35 + 0.65 * proof);
 
         return new Facts
@@ -187,14 +196,21 @@ public static class PublicStanding
         };
     }
 
+    /// <summary>The read of an ordinary sheet (a .550 record, 28, an average draw) on a stage that reads 50.</summary>
+    public const double ReadBase = 53;
+
+    /// <summary>
+    /// How much of a stage difference shows up in the read. Under one: a stage
+    /// says a lot, but within any stage there's the whole spread from its stars to
+    /// its filler, and the rest of the sheet has to say which he is.
+    /// </summary>
+    public const double StageSlope = 0.78;
+
+    /// <summary>Ability points per unit of win share (a .800 sheet reads ~3.5 over a .550 one, a .300 one ~3.5 under).</summary>
+    public const double WinShareWeight = 14;
+
     /// <summary>How hard an unsigned fighter's stage read is pulled toward the open market's floor (weight relative to his bouts).</summary>
-    public const double FreeAgentDrag = 0.5;
-
-    /// <summary>The most a dominant sheet adds to the stage read (a near-perfect win share).</summary>
-    public const double DominanceBonus = 9;
-
-    /// <summary>The most a losing sheet takes off the stage read (a winless one).</summary>
-    public const double LosingPenalty = 5;
+    public const double FreeAgentDrag = 0.2;
 
     /// <summary>The public reputation alone (see <see cref="Read"/>).</summary>
     public static double Reputation(World world, Fighter f) => Read(world, f).Reputation;

@@ -141,7 +141,8 @@ public class BigMoneyTests
         var world = Build();
         // A star hits free agency.
         var star = world.Fighters.Values.First(f => f.Status == FighterStatus.Active
-            && !f.LocalTalent && f.Record.TotalBouts >= 6 && f.Contract is not null);
+            && !f.LocalTalent && f.Record.TotalBouts >= 6 && f.Contract is not null
+            && !world.Titles.Values.Any(t => t.CurrentChampion == f.Id));   // a draw, not a reigning champion's price
         star.Contract = null;
         star.Intangibles.Popularity = 80;
 
