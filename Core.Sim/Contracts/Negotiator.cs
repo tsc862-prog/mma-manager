@@ -207,11 +207,6 @@ public sealed class Negotiator
         Org.OrgSizing.SizeOf(promo) >= OrgSize.National;
 
     /// <summary>
-    /// The discovered local's thank-you: a real discount for the org that gave
-    /// them the shot, while the career is still young. The open market pays the
-    /// hometown-hype price; the discoverer pays about half.
-    /// </summary>
-    /// <summary>
     /// What a fighter knocks off his ask for THIS promotion personally: the
     /// discoverer's gratitude (<see cref="GratitudeFactor"/>, 0.55) or a lifer's
     /// hometown discount (<see cref="Lifers.HomeDiscount"/>, 0.50-0.60),
@@ -226,6 +221,11 @@ public sealed class Negotiator
     public static decimal TableDiscount(World world, Fighter f, PromotionId promo) =>
         Math.Min(GratitudeFactor(f, promo), Lifers.HomeDiscount(world, f, promo));
 
+    /// <summary>
+    /// The discovered local's thank-you: a real discount for the org that gave
+    /// them the shot, while the career is still young. The open market pays the
+    /// hometown-hype price; the discoverer pays about half.
+    /// </summary>
     public static decimal GratitudeFactor(Fighter f, PromotionId promo) =>
         f.DiscoveredBy == promo && f.Record.TotalBouts <= 5 ? 0.55m : 1m;
 

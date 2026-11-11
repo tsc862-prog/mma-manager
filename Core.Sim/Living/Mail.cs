@@ -52,7 +52,10 @@ public static class Mail
             // Rivals sniff around your good fighters when their deals run low —
             // said only when a real suitor exists (the poaching market's own
             // check, on the rival's read), never off his true ability.
+            // (A lifer who turned a rival down on this deal hears nothing here,
+            // as WarnExpiring stays silent: his notice comes at expiry.)
             string poaching = Contracts.PoachingService.HasSuitor(world, f)
+                              && f.Contract.BondNoticeOn != Contract.RefusalTold
                 ? " Rival promotions are already circling — lock them up before they walk."
                 : "";
             Post(world, date, MailCategory.ContractAlert, "Matchmaking",

@@ -27,11 +27,17 @@ public class ContractHygieneTests
     public void CirclingLine_IsNotWrittenOffTrueAbility_WhenNoRivalWantsHim()
     {
         var world = Build();
-        // The player's best fighter by TRUE ability — the old line fired on that alone.
-        var f = world.RosterOf(world.PlayerPromotion)
-            .Where(x => x.Status == FighterStatus.Active && x.Contract is not null)
-            .OrderByDescending(FighterAbility.CurrentAbility).ThenBy(x => x.Id.Value).First();
-        f.Contract!.FightsRemaining = 1;
+        // A fighter whose TRUE ability is 70+ (the old line fired on that alone),
+        // put on the player's books, down to his last fight.
+        var f = world.Fighters.Values
+            .Where(x => x.Status == FighterStatus.Active && FighterAbility.CurrentAbility(x) >= 70)
+            .OrderBy(x => x.Id.Value).First();
+        Assert.True(FighterAbility.CurrentAbility(f) >= 70);
+        f.Contract = new Contract
+        {
+            Promotion = world.PlayerPromotion, SignedOn = world.CurrentDate.AddDays(-400),
+            PursePerFight = new Money(20_000m), FightsRemaining = 1,
+        };
         // No market at all: every rival is gone.
         foreach (var p in world.Promotions.Values.Where(p => p.Id != world.PlayerPromotion)) p.Defunct = true;
 
@@ -84,9 +90,11 @@ public class ContractHygieneTests
     // A fresh crop of affordable free agents: turn the first few in each class
     // into unknown debutants (the cheapest pros on the market), so a small new
     // house has someone it can afford to sign.
-    private static void SeedDebutants(World world, int perClass)
+    private static void SeedDebutants(World world, int perClass) => SeedDebutants(world, perClass, Core3);
+
+    private static void SeedDebutants(World world, int perClass, IEnumerable<WeightClass> classes)
     {
-        foreach (var wc in Core3)
+        foreach (var wc in classes)
             foreach (var f in world.FreeAgents().Where(f => f.WeightClass == wc && f.Sex == Sex.Male
                                                             && f.Status == FighterStatus.Active)
                          .OrderBy(f => f.Id.Value).Take(perClass).ToList())
@@ -167,23 +175,59 @@ public class ContractHygieneTests
     }
 
     [Fact]
-    public void Startup_RanksOnItsOwnRead_NotTrueAbility()
+    public void Startup_ChoosesOnItsOwnRead_NotTrueAbility()
     {
         var world = Build();
         var promo = NewStartup(world, Region.NorthAmerica);
-        SeedDebutants(world, 8);
-        // The signing order follows the house's read (home region first), so a
-        // prospect it overrates goes ahead of a better man it underrates.
-        var signed = WorldEvents.StockStartup(world, promo, promo.BaseRegion, Core3, world.CurrentDate, new SimRandom(5));
-        foreach (var wc in Core3)
+        SeedDebutants(world, 8, new[] { WeightClass.Welterweight, WeightClass.Middleweight });
+
+        // Lightweight: every free agent a cheap debutant from the home region,
+        // so only the house's READ separates them.
+        var lw = world.FreeAgents().Where(f => f.WeightClass == WeightClass.Lightweight && f.Sex == Sex.Male
+                                               && f.Status == FighterStatus.Active).ToList();
+        foreach (var f in lw)
         {
-            var inClass = signed.Where(f => f.WeightClass == wc).ToList();
-            var expected = inClass
-                .OrderByDescending(f => f.Nationality == promo.BaseRegion ? 1 : 0)
-                .ThenByDescending(f => Core.Sim.Scouting.ScoutingService.PerceivedAbility(world, promo, f))
-                .ThenBy(f => f.Id.Value).Select(f => f.Id).ToList();
-            Assert.Equal(expected, inClass.Select(f => f.Id).ToList());
+            f.Record.Wins = f.Record.Losses = f.Record.Draws = f.Record.NoContests = 0;
+            f.Record.CurrentStreak = 0; f.Momentum = 0; f.Intangibles.Popularity = 5;
+            f.Nationality = promo.BaseRegion;
         }
+        int Read(Fighter f) => Core.Sim.Scouting.ScoutingService.PerceivedAbility(world, promo, f);
+        int Truth(Fighter f) => FighterAbility.CurrentAbility(f);
+        // A pair the truth and the read disagree on: X is truly better, the house rates Y higher.
+        var pair = (from x in lw from y in lw
+                    where Truth(x) > Truth(y) && Read(y) > Read(x)
+                    orderby Truth(x) - Truth(y) descending, x.Id.Value, y.Id.Value
+                    select (X: x, Y: y)).First();
+
+        var order = WorldEvents.StartupCandidates(world, promo, promo.BaseRegion, WeightClass.Lightweight);
+        Assert.True(order.IndexOf(pair.Y) < order.IndexOf(pair.X), "the house's read, not the truth, sets the order");
+
+        // And the choice follows it: with only these two affordable, plus two more
+        // so the division can open, the startup offers Y first.
+        var keep = order.Where(f => f == pair.X || f == pair.Y).Concat(order.Where(f => f != pair.X && f != pair.Y).Take(2)).ToList();
+        foreach (var f in lw.Where(f => !keep.Contains(f))) { f.Record.Wins = 30; f.Intangibles.Popularity = 90; }
+        var signed = WorldEvents.StockStartup(world, promo, promo.BaseRegion, Core3, world.CurrentDate, new SimRandom(5));
+        var lwSigned = signed.Where(f => f.WeightClass == WeightClass.Lightweight).ToList();
+        if (lwSigned.Contains(pair.X)) Assert.Contains(pair.Y, lwSigned);
+        if (lwSigned.Contains(pair.X) && lwSigned.Contains(pair.Y))
+            Assert.True(lwSigned.IndexOf(pair.Y) < lwSigned.IndexOf(pair.X));
+    }
+
+    [Fact]
+    public void Startup_WithOnlyOneStaffableDivision_DoesNotLaunch()
+    {
+        var world = Build();
+        var promo = NewStartup(world, Region.NorthAmerica);
+        // Plenty of cheap bodies at lightweight, nobody affordable anywhere else.
+        foreach (var f in world.FreeAgents()) { f.Record.Wins = 30; f.Intangibles.Popularity = 90; }
+        SeedDebutants(world, 12, new[] { WeightClass.Lightweight });
+        var a = new SimRandom(31);
+        var b = new SimRandom(31);
+
+        var signed = WorldEvents.StockStartup(world, promo, promo.BaseRegion, Core3, world.CurrentDate, a);
+
+        Assert.Empty(signed);   // one weight class is not a card
+        Assert.Equal(b.NextULong(), a.NextULong());
     }
 
     [Fact]
@@ -292,8 +336,36 @@ public class ContractHygieneTests
         decimal buyouts = -buyer.Ledger.Where(e => e.Category == FinanceCategory.ContractBuyout
                                                    && e.Description.Contains($"{target.Abbreviation} merger"))
             .Sum(e => e.Amount.Amount);
-        Assert.InRange(buyouts, 900m, 1_100m);   // the whole price, rounded per head
-        Assert.InRange(bankBefore - buyer.Balance.Amount + cashIn, 900m, 1_100m);
+        // The cut share what the deal can spare, never more; the owners keep their slice.
+        Assert.True(buyouts <= price.Amount * (1m - Acquisitions.SellerKeeps));
+        Assert.True(buyouts >= price.Amount * (1m - Acquisitions.SellerKeeps) - 200m);
+        // The purchase is always on the books, and the buyer's outlay is exactly the price.
+        var acq = buyer.Ledger.Single(e => e.Category == FinanceCategory.Acquisition && e.Amount.Amount < 0
+                                           && e.Description.StartsWith($"Acquisition of {target.Name}"));
+        Assert.Equal(-(price.Amount - buyouts), acq.Amount.Amount);
+        Assert.Equal(price.Amount, bankBefore - buyer.Balance.Amount + cashIn);
+    }
+
+    [Fact]
+    public void CirclingLine_StaysSilent_ForALiferWhoAlreadyTurnedTheRivalDown()
+    {
+        var world = Build();
+        world.PlayerPromotion = world.Promotions.Values
+            .Where(p => !p.Defunct && OrgSizing.SizeOf(p) == OrgSize.Regional)
+            .OrderBy(p => p.Id.Value).First().Id;
+        var f = world.RosterOf(world.PlayerPromotion)
+            .Where(x => x.Status == FighterStatus.Active && x.Contract is not null && x.Record.CurrentStreak >= 0)
+            .OrderBy(x => x.Id.Value).First();
+        f.Contract!.FightsRemaining = 1;
+        f.Loyalty = 20;
+        f.Intangibles.Popularity = 100;
+        f.Contract.BondNoticeOn = Contract.RefusalTold;   // he said no on this deal; WarnExpiring stays silent too
+        Assert.True(PoachingService.HasSuitor(world, f));
+
+        Mail.MonthlyReview(world, world.CurrentDate);
+
+        var mail = world.Mail.Single(m => m.Category == MailCategory.ContractAlert && m.AboutFighter == f.Id);
+        Assert.DoesNotContain(Circling, mail.Body);
     }
 
     // --- (5) a finished deal lapses without a reputation hit ---------------------

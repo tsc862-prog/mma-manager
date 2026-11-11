@@ -135,6 +135,37 @@ public class AskingQuoteTests
     }
 
     [Fact]
+    public void TheFightersAnswer_UsesTheBiggerDiscount_NotTheProduct()
+    {
+        var w = Founded();
+        var promo = w.Get(w.PlayerPromotion)!;
+        var f = w.FreeAgents().Where(x => x.Status == FighterStatus.Active && x.Record.TotalBouts <= 5)
+                 .OrderBy(x => x.Id.Value).First();
+        f.DiscoveredBy = promo.Id;
+        SignToPlayer(w, f, purse: 500m, fights: 3);
+        f.Disposition = Disposition.CompanyMan;
+        f.Loyalty = 90;
+        f.Record.CurrentStreak = 1;
+        decimal home = Lifers.HomeDiscount(w, f, promo.Id), grateful = Negotiator.GratitudeFactor(f, promo.Id);
+        Assert.True(home < 1m && grateful < 1m);
+        var exp = new FighterValuation().Evaluate(w, f);
+        bool excl = Negotiator.WantsExclusivity(promo);
+        decimal terms = excl ? 1m : Negotiator.NonExclusiveMoneyFactor;
+
+        ContractOffer At(decimal personal) => new()
+        {
+            Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, Fights = exp.DesiredFights,
+            PursePerFight = new Money(Math.Ceiling(exp.AskingPurse.Amount * terms * personal)),
+            WinBonus = new Money(Math.Ceiling(exp.AskingWinBonus.Amount * terms * personal)),
+            SigningBonus = new Money(Math.Ceiling(exp.AskingPurse.Amount * terms * personal)),
+        };
+
+        var n = new Negotiator();
+        Assert.Equal(NegotiationVerdict.Accept, n.Evaluate(w, f, At(Math.Min(home, grateful)), exp).Verdict);
+        Assert.NotEqual(NegotiationVerdict.Accept, n.Evaluate(w, f, At(home * grateful), exp).Verdict);
+    }
+
+    [Fact]
     public void TheQuote_FollowsTheTermsOnTheTable()
     {
         var w = Founded();

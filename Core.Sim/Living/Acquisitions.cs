@@ -19,6 +19,9 @@ public static class Acquisitions
 {
     private const int CooldownMonths = 12;
 
+    /// <summary>The share of the price the selling owners keep however deep the guarantees run.</summary>
+    public const decimal SellerKeeps = 0.10m;
+
     /// <summary>
     /// Is this org quietly FOR SALE? In the red outright — or thin-banked while
     /// its band is diluted (a crowded market grinding a marginal player down is
@@ -198,25 +201,30 @@ public static class Acquisitions
         }
 
         // The money. The guarantees are the SELLER's debts, so they are settled
-        // out of the purchase price before the old owners see a cent: the buyer
+        // out of the purchase price before the old owners are paid: the buyer
         // writes one cheque for the asking price, and the cut fighters are paid
-        // from it first. A company whose guarantees exceed its price is
-        // underwater — its cut fighters share the whole price pro rata, as
-        // creditors of a sinking company do. Paying them on top of the price
+        // from it first. A company whose guarantees exceed what the deal can
+        // spare is underwater — its cut fighters share that pro rata, as
+        // creditors of a sinking company do — and the owners still walk away
+        // with SellerKeeps of the price: no seller signs a deal that leaves
+        // them nothing, and the books always show the purchase. Paying them on top of the price
         // instead bankrupted the flagship in 5 of 40 seeds (it bought a
         // Continental and owed $14-45M for the roster it had no room for).
         decimal owedAll = cutLoose.Sum(x => x.Owed);
-        decimal settle = Math.Min(owedAll, price.Amount);
+        decimal settle = Math.Min(owedAll, price.Amount * (1m - SellerKeeps));
         decimal paidOut = 0m;
         foreach (var (f, owed) in cutLoose)
         {
-            decimal share = owedAll <= 0 ? 0m : Math.Round(owed * settle / owedAll);
+            // Rounded DOWN per head, so the shares never add up past the pot.
+            decimal share = owedAll <= 0 ? 0m : Math.Floor(owed * settle / owedAll);
             paidOut += share;
             Finance.Ledger.Expense(buyer, date, FinanceCategory.ContractBuyout, new Money(share),
                 $"Contract buyout — {f.FullName} ({target.Abbreviation} merger)");
         }
         Finance.Ledger.Expense(buyer, date, FinanceCategory.Acquisition,
-            new Money(Math.Max(0m, price.Amount - paidOut)), $"Acquisition of {target.Name}");
+            new Money(price.Amount - paidOut),
+            paidOut > 0 ? $"Acquisition of {target.Name} (plus {new Money(paidOut)} of its guarantees, paid from the price)"
+                        : $"Acquisition of {target.Name}");
 
         // Nobody fights under the old banner now: its contender lists go with it.
         foreach (var d in target.Divisions) d.Rankings.Clear();

@@ -264,6 +264,9 @@ public static class WorldEvents
     /// <summary>A startup launches only with at least this many signings across the divisions it opens.</summary>
     public const int StartupMinRoster = 8;
 
+    /// <summary>A startup launches only with at least this many staffed divisions: one weight class is not a card.</summary>
+    public const int StartupMinDivisions = 2;
+
     /// <summary>The share of its opening bank a startup will spend on signing bonuses, all told.</summary>
     public const decimal StartupSigningBonusShare = 0.15m;
 
@@ -288,7 +291,8 @@ public static class WorldEvents
     /// <see cref="StartupSigningsPerDivision"/> per division. The deals are drawn
     /// up first and signed only where they staff a division
     /// (<see cref="StartupMinPerDivision"/>) and the whole roster can run cards
-    /// (<see cref="StartupMinRoster"/>); otherwise nobody signs and the list is
+    /// (<see cref="StartupMinRoster"/> fighters across at least
+    /// <see cref="StartupMinDivisions"/> divisions); otherwise nobody signs and the list is
     /// empty — the free-agent market prices most journeymen far above a new
     /// small hall's budget, and a promotion launched with two fighters only
     /// paid overhead until it went bankrupt.
@@ -305,14 +309,10 @@ public static class WorldEvents
         decimal bonusPot = Math.Max(0m, promo.Balance.Amount) * StartupSigningBonusShare;
 
         var plan = new List<(Fighter Fighter, ContractOffer Offer)>();
+        int opened = 0;
         foreach (var wc in classes)
         {
-            var pool = world.FreeAgents()
-                .Where(f => f.WeightClass == wc && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
-                .OrderByDescending(f => f.Nationality == home ? 1 : 0)
-                .ThenByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
-                .ThenBy(f => f.Id.Value)
-                .ToList();
+            var pool = StartupCandidates(world, promo, home, wc);
             var division = new List<(Fighter, ContractOffer)>();
             decimal budget = foundingCap * StartupDivisionBudgetCaps;
             foreach (var fa in pool)
@@ -344,11 +344,12 @@ public static class WorldEvents
                 budget -= purse;
                 division.Add((fa, offer));
             }
-            if (division.Count >= StartupMinPerDivision) plan.AddRange(division);
+            if (division.Count >= StartupMinPerDivision) { plan.AddRange(division); opened++; }
+            else bonusPot += division.Sum(d => d.Item2.SigningBonus.Amount);   // the dropped division's bonuses go back in the pot
         }
 
         var signed = new List<Fighter>();
-        if (plan.Count < StartupMinRoster) return signed;
+        if (plan.Count < StartupMinRoster || opened < StartupMinDivisions) return signed;
         foreach (var (fa, offer) in plan)
         {
             rng.NextULong();   // the founding path's per-signing draw, kept (see summary)
@@ -357,6 +358,20 @@ public static class WorldEvents
         }
         return signed;
     }
+
+    /// <summary>
+    /// The free agents a startup considers for one division, best first by its
+    /// OWN read (home region first, ties on id). <see cref="StockStartup"/>
+    /// offers in exactly this order until the division is full or its budget
+    /// is spent, so this order IS the choice.
+    /// </summary>
+    internal static List<Fighter> StartupCandidates(World world, Promotion promo, Region home, WeightClass wc) =>
+        world.FreeAgents()
+            .Where(f => f.WeightClass == wc && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
+            .OrderByDescending(f => f.Nationality == home ? 1 : 0)
+            .ThenByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
+            .ThenBy(f => f.Id.Value)
+            .ToList();
 
     // --- helpers -------------------------------------------------------------
 
