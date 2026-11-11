@@ -50,6 +50,12 @@ internal sealed class Bout
     private const double DoctorStop = 0.3;
     /// <summary>Below this health between rounds, a corner may pull its fighter [ss].</summary>
     private const double CornerHealth = 30;
+    /// <summary>
+    /// Women's strike power relative to men's in the same division (Side.DivisionPower): fewer
+    /// women's bouts end by KO/TKO. It scales strike damage, and through Power^2 the flash-KO
+    /// odds too (0.88^2 = 0.77), so it compounds there.
+    /// </summary>
+    private const double WomensPower = 0.88;
     // Submissions: the tap roll's offset (was 48), the extra cost from the bottom, the help a hurt opponent gives.
     // From the bottom, Flexibility is most of the threat (SubFlex per point; was 0.05).
     private const double SubOffset = 58, SubBottomPenalty = 16, SubHurtBonus = 12, SubFlex = 0.25;
@@ -1080,6 +1086,10 @@ internal sealed class Bout
         FinishDetail = detail;
     }
 
+    /// <summary>For the lab and tests (not saved): each judge's vote on a decision — 0 red, 1 blue,
+    /// -1 a level card; null when the fight was finished.</summary>
+    internal int[]? JudgeVotes { get; private set; }
+
     /// <summary>How the fight was finished, for the lab (not saved): null for a decision.</summary>
     internal string? FinishDetail { get; private set; }
 
@@ -1145,7 +1155,7 @@ internal sealed class Bout
         var judgeRed = new int[3, _rounds];
         var judgeBlue = new int[3, _rounds];
         var vote = new int[3];          // 0 = red, 1 = blue, -1 = level
-        var level = new bool[3];        // the per-round card itself is level (tie broken on raw merit)
+        var level = new bool[3];        // this judge's card totals are level (he votes draw: vote = -1)
         for (int j = 0; j < 3; j++)
         {
             int totA = 0, totB = 0;
@@ -1166,8 +1176,11 @@ internal sealed class Bout
         }
 
         int endTime = (int)RoundSeconds;
+        JudgeVotes = vote;
 
-        if (cardsA == cardsB)
+        // A win needs at least two cards. 1-1-1 is a split draw; 1-0 with two level cards is a
+        // majority draw; three level cards is a unanimous draw. A draw stores a level card.
+        if (Math.Max(cardsA, cardsB) < 2)
         {
             if (Logging) Say("The judges' scorecards: it's a draw.");
             return Decision(null, null, FightMethod.Draw, endTime, StoredCard(judgeRed, judgeBlue, StoredJudge(vote, level, -1)));
@@ -1185,19 +1198,18 @@ internal sealed class Bout
     }
 
     /// <summary>
-    /// Which judge's card is stored (and shown): the FIRST judge, in judge order, who voted
-    /// for the official winner with a card that is not level; failing that, the first judge
-    /// who voted for the winner at all (a level card won on the raw-merit tie-break). For a
-    /// draw (<paramref name="winSide"/> = -1): the first level card, else judge 1.
+    /// Which judge's card is stored (and shown): for a win, the FIRST judge, in judge order, who
+    /// voted for the official winner (his card is never level: a level card is a draw vote).
+    /// For a draw (<paramref name="winSide"/> = -1): the first level card — every draw has at
+    /// least one, since a draw means no side has two cards.
     /// </summary>
     private static int StoredJudge(int[] vote, bool[] level, int winSide)
     {
         if (winSide < 0)
         {
-            for (int j = 0; j < 3; j++) if (vote[j] == -1 || level[j]) return j;
+            for (int j = 0; j < 3; j++) if (level[j]) return j;
             return 0;
         }
-        for (int j = 0; j < 3; j++) if (vote[j] == winSide && !level[j]) return j;
         for (int j = 0; j < 3; j++) if (vote[j] == winSide) return j;
         return 0;
     }
@@ -1268,7 +1280,7 @@ internal sealed class Bout
                 WeightClass.LightHeavyweight => 1.10,
                 _ => 1.16,
             };
-            return f.Sex == Sex.Female ? w * 0.88 : w;
+            return f.Sex == Sex.Female ? w * WomensPower : w;
         }
 
         /// <summary>Strike-damage multiplier (see <see cref="DivisionPower"/>).</summary>

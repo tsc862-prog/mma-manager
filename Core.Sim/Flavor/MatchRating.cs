@@ -26,8 +26,8 @@ public static class MatchRating
                      + (finish ? 22 : 0)
                      + (finish && o.EndRound >= 3 ? 6 : 0);   // a war that ends late
 
-        // A split decision means it was competitive to the wire.
-        if (o.Method is FightMethod.SplitDecision or FightMethod.MajorityDecision) score += 8;
+        // A split or majority decision, or a draw, means it was competitive to the wire.
+        if (o.Method is FightMethod.SplitDecision or FightMethod.MajorityDecision or FightMethod.Draw) score += 8;
 
         return (int)Math.Clamp(score, 0, 100);
     }

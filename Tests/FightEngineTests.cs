@@ -104,20 +104,35 @@ public class FightEngineTests
     {
         var a = Make(1, 66, PrimaryStyle.WellRounded);
         var b = Make(2, 66, PrimaryStyle.WellRounded);
-        var engine = new FightEngine();
-        int draws = 0, majority = 0;
-        for (uint s = 1; s <= 4000; s++)
+        // Every judged result agrees with the three cards: unanimous 3-0, split 2-1, majority
+        // two for the winner and one level, and a draw has no side on two cards.
+        int draws = 0, majority = 0, majorityDraws = 0;
+        for (uint s = 1; s <= 6000; s++)
         {
-            var o = engine.Simulate(a, b, FightParams.FastThreeRound, new SimRandom(s));
-            if (o.Method == FightMethod.Draw)
+            var bout = new Bout(a, b, FightParams.FastThreeRound, new SimRandom(s));
+            var o = bout.Run();
+            if (bout.JudgeVotes is not { } v) continue;            // a finish
+            int red = v.Count(x => x == 0), blue = v.Count(x => x == 1), lvl = v.Count(x => x == -1);
+            int forWinner = o.Winner == a.Id ? red : blue, forLoser = o.Winner == a.Id ? blue : red;
+            switch (o.Method)
             {
-                draws++;
-                Assert.Null(o.Winner);
-                Assert.Equal(o.RoundScores!.Sum(x => x.Red), o.RoundScores!.Sum(x => x.Blue));   // a level card is stored
+                case FightMethod.UnanimousDecision: Assert.Equal(3, forWinner); break;
+                case FightMethod.SplitDecision: Assert.True(forWinner == 2 && forLoser == 1, $"split {red}-{blue}-{lvl}"); break;
+                case FightMethod.MajorityDecision:
+                    majority++;
+                    Assert.True(forWinner == 2 && lvl == 1, $"majority decision {red}-{blue}-{lvl}");
+                    break;
+                case FightMethod.Draw:
+                    draws++;
+                    Assert.Null(o.Winner);
+                    Assert.True(red < 2 && blue < 2, $"a draw with a side on two cards: {red}-{blue}-{lvl}");
+                    if (red + blue == 1) majorityDraws++;
+                    Assert.Equal(o.RoundScores!.Sum(x => x.Red), o.RoundScores!.Sum(x => x.Blue));   // a level card is stored
+                    break;
+                default: Assert.Fail($"judged fight ended {o.Method}"); break;
             }
-            if (o.Method == FightMethod.MajorityDecision) majority++;
         }
-        Assert.True(draws > 0 && majority > 0, $"draws {draws}, majority decisions {majority}");
+        Assert.True(draws > 0 && majority > 0 && majorityDraws > 0, $"draws {draws} (majority draws {majorityDraws}), majority decisions {majority}");
     }
 
     [Fact]
