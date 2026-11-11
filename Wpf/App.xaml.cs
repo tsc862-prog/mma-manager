@@ -884,6 +884,62 @@ public partial class App : Application
                     Console.WriteLine($"RENDERAPP letter: '{letter?.Subject}' from {letter?.Sender} — actions: {string.Join(" | ", letter?.Actions.Select(a => a.Text) ?? Array.Empty<string>())}");
                     Layout();
                 }
+                // --talks <fa|lifer|unhappy>: put someone across the Contracts table (or on the
+                // Fighter Profile, when that's the app): the top free agent, or one of our own
+                // made a holding lifer (a company man at loyalty 90) — "unhappy" also puts the
+                // books in the red, the grievance he can read.
+                if (e.Args.Contains("--talks"))
+                {
+                    string mode = e.Args[Array.IndexOf(e.Args, "--talks") + 1];
+                    var w = vm.LiveWorld!;
+                    MmaManager.Core.Model.Fighter? who = null;
+                    if (mode == "fa")
+                        who = vm.Contracts.FreeAgents.Select(r => w.Get(r.Id)).FirstOrDefault(f => f is not null);
+                    else
+                    {
+                        foreach (var f in w.RosterOf(w.PlayerPromotion)
+                                     .Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is { FightsRemaining: > 0 })
+                                     .OrderBy(f => f.Id.Value))
+                        {
+                            f.Disposition = MmaManager.Core.Model.Disposition.CompanyMan;
+                            f.Loyalty = 90;
+                            if (MmaManager.Core.Sim.Contracts.Lifers.IsHolding(w, f)) { who = f; break; }
+                        }
+                        if (mode == "unhappy") w.Get(w.PlayerPromotion)!.Balance = new MmaManager.Core.Model.Money(-50_000m);
+                    }
+                    if (who is not null)
+                    {
+                        if (appId == "fighter") vm.OpenFighter(who.Id.Value);
+                        else vm.Contracts.OpenTalksWith(who.Id);
+                    }
+                    Layout();
+                    Console.WriteLine($"RENDERAPP talks ({mode}): {who?.FullName ?? "nobody"} — {vm.Contracts.Asking}");
+                    // --room: also draw the negotiating room for him, as it opens, to <path>-room.png.
+                    if (e.Args.Contains("--room") && who is not null && w.Get(w.PlayerPromotion) is { } mine)
+                    {
+                        var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(w, who);
+                        var session = new MmaManager.Core.Sim.Contracts.NegotiationSession(w, who, mine, exp);
+                        var roomVm = new NegotiationViewModel(w, who, mine, exp, session, renewal: who.Contract?.Promotion == mine.Id);
+                        var roomWin = new NegotiationWindow { DataContext = roomVm };
+                        var roomRoot = (FrameworkElement)roomWin.Content;
+                        roomWin.Content = null;
+                        var roomSize = new Size(roomWin.Width is > 0 and var rw ? rw : 900, roomWin.Height is > 0 and var rh ? rh : 760);
+                        var host = new System.Windows.Controls.Border
+                        {
+                            Background = (Brush)Current.Resources["Bg"] ?? Brushes.Black,
+                            Child = roomRoot, DataContext = roomVm,
+                        };
+                        host.Measure(roomSize); host.Arrange(new Rect(roomSize)); host.UpdateLayout();
+                        var roomBmp = new RenderTargetBitmap((int)roomSize.Width, (int)roomSize.Height, 96, 96, PixelFormats.Pbgra32);
+                        roomBmp.Render(host);
+                        var roomEnc = new PngBitmapEncoder(); roomEnc.Frames.Add(BitmapFrame.Create(roomBmp));
+                        string roomPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(e.Args[^1]))!,
+                            Path.GetFileNameWithoutExtension(e.Args[^1]) + "-room.png");
+                        using (var fs = File.Create(roomPath)) roomEnc.Save(fs);
+                        Console.WriteLine($"RENDERAPP room -> {roomPath}: their purse {roomVm.TheirPurse}; {roomVm.AskWhy}");
+                        roomWin.Close();
+                    }
+                }
                 WaitThumbs("before the still");
                 foreach (var wall in FindAll<MmaManager.Wpf.Controls.CardWall>(root))
                     Console.WriteLine($"RENDERAPP card wall: {wall.Lines.Count} lines x {wall.Columns} columns, {wall.ActualWidth:0}x{wall.ActualHeight:0} px, "
