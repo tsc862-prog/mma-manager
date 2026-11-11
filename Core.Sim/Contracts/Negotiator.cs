@@ -296,7 +296,8 @@ public sealed class Negotiator
 
         decimal gate = attendance * (55m + prestige * 1.4m);
         decimal production = 10_000m + attendance * 12m + (venue?.Rent.Amount ?? 0m);
-        decimal cap = Math.Max(1_500m, Math.Round((gate - production) * FoundingPayrollShare / 22m / 500m) * 500m);
+        // The same floor as PurseCap: the smallest halls already sit on it.
+        decimal cap = Math.Max(2_000m, Math.Round((gate - production) * FoundingPayrollShare / 22m / 500m) * 500m);
         return Math.Min(cap, PurseCap(world, promo));
     }
 

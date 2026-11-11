@@ -245,6 +245,9 @@ public static class WorldEvents
     /// <summary>A free agent asking more than this multiple of the founding cap isn't worth the new house's call.</summary>
     public const decimal StartupAskCeiling = 2m;
 
+    /// <summary>The share of its opening bank a startup will spend on signing bonuses, all told.</summary>
+    public const decimal StartupSigningBonusShare = 0.15m;
+
     private static readonly Contracts.Negotiator StartupNegotiator = new();
     private static readonly Contracts.FighterValuation StartupValuation = new();
 
@@ -254,8 +257,13 @@ public static class WorldEvents
     /// brand-new house scouts poorly, so it misjudges), home region first; skips
     /// anyone asking more than <see cref="StartupAskCeiling"/>x what it can pay
     /// (<see cref="Contracts.Negotiator.FoundingPurseCap"/>) and anyone with a
-    /// public bidding war running; offers the rest the opening number capped at
-    /// the founding budget, and signs only those who accept, via
+    /// public bidding war running; offers the rest his asking purse (rounded UP
+    /// to the market's $500 step — at a $1,500 ask, rounding down is a lowball
+    /// he counters) capped at the founding budget, a win bonus of up to three
+    /// quarters of it, and the smallest signing bonus he'd call real when he
+    /// wants one, while the bonus pot (<see cref="StartupSigningBonusShare"/> of
+    /// the bank) lasts — a shoestring can't pay the established houses' half-
+    /// purse bonus — and signs only those whose answer is Accept, via
     /// <see cref="Contracts.ContractLifecycle.Sign"/>. Up to
     /// <see cref="StartupSigningsPerDivision"/> per division.
     ///
@@ -268,8 +276,7 @@ public static class WorldEvents
         DateOnly date, SimRandom rng)
     {
         decimal foundingCap = Contracts.Negotiator.FoundingPurseCap(world, promo);
-        decimal fullCap = Contracts.Negotiator.PurseCap(world, promo);
-        decimal stretch = fullCap > 0 ? foundingCap / fullCap : 1m;
+        decimal bonusPot = Math.Max(0m, promo.Balance.Amount) * StartupSigningBonusShare;
 
         var signed = new List<Fighter>();
         foreach (var wc in classes)
@@ -290,8 +297,20 @@ public static class WorldEvents
                 var ask = Contracts.Negotiator.EffectiveAskingPurse(world, promo, fa, exp);
                 if (ask.Amount > foundingCap * StartupAskCeiling) continue;
 
-                var offer = StartupNegotiator.AiOpeningOffer(world, promo, fa, exp, stretch);
+                decimal purse = Math.Min(Up500(ask.Amount), foundingCap);
+                decimal signing = exp.WantsSigningBonus ? Up500(ask.Amount * 0.5m * Contracts.Negotiator.SigningBonusMinFraction) : 0m;
+                if (signing > bonusPot) continue;
+                var offer = new ContractOffer
+                {
+                    Fighter = fa.Id, Promotion = promo.Id,
+                    PursePerFight = new Money(purse),
+                    WinBonus = new Money(Math.Min(exp.AskingWinBonus.Amount, Up500(purse * 0.75m))),
+                    SigningBonus = new Money(signing),
+                    Fights = exp.DesiredFights,
+                    Exclusive = Contracts.Negotiator.WantsExclusivity(promo),
+                };
                 if (StartupNegotiator.Evaluate(world, fa, offer, exp).Verdict != NegotiationVerdict.Accept) continue;
+                bonusPot -= offer.SigningBonus.Amount;
 
                 rng.NextULong();   // the founding path's per-signing draw, kept (see summary)
                 Contracts.ContractLifecycle.Sign(world, fa, offer, date);
@@ -303,6 +322,8 @@ public static class WorldEvents
     }
 
     // --- helpers -------------------------------------------------------------
+
+    private static decimal Up500(decimal amount) => Math.Ceiling(amount / 500m) * 500m;
 
     private static string Pretty(Region r) => r switch
     {
