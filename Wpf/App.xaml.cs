@@ -612,16 +612,35 @@ public partial class App : Application
 
                 foreach (var view in FindAll<MmaManager.Wpf.Views.BookingView>(root))
                 {
-                    // Read the screen back: anything cut short that shouldn't be?
+                    // Read the screen back: any one-line text that needs more room than it
+                    // has? Trimmed text ends in "..."; unwrapped, untrimmed text is simply
+                    // cut off at its edge (the "This is automatic for nc" kind), so both are
+                    // counted. Each run is measured in its own font, size and weight.
                     int trimmed = 0;
-                    foreach (var tb in FindAll<System.Windows.Controls.TextBlock>(view).Where(x => x.IsVisible && x.ActualWidth > 0 && x.TextTrimming != TextTrimming.None))
+                    foreach (var tb in FindAll<System.Windows.Controls.TextBlock>(view).Where(x => Shown(x, view) && x.ActualWidth > 0 && x.TextWrapping == TextWrapping.NoWrap))
                     {
-                        string text = new System.Windows.Documents.TextRange(tb.ContentStart, tb.ContentEnd).Text;
-                        if (text.Length == 0) continue;
-                        var face = new Typeface(tb.FontFamily, tb.FontStyle, tb.FontWeight, tb.FontStretch);
-                        double need = new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, face, tb.FontSize,
-                            Brushes.White, VisualTreeHelper.GetDpi(tb).PixelsPerDip).WidthIncludingTrailingWhitespace;
-                        if (tb.TextWrapping == TextWrapping.NoWrap && need > tb.ActualWidth + 1) { trimmed++; Console.WriteLine($"  TRIMMED ({need:0} > {tb.ActualWidth:0}): {text}"); }
+                        double dpi = VisualTreeHelper.GetDpi(tb).PixelsPerDip, need = 0;
+                        foreach (var run in tb.Inlines.OfType<System.Windows.Documents.Run>())
+                        {
+                            if (string.IsNullOrEmpty(run.Text)) continue;
+                            var face = new Typeface(run.FontFamily, run.FontStyle, run.FontWeight, run.FontStretch);
+                            need += new FormattedText(run.Text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, face, run.FontSize,
+                                Brushes.White, dpi).WidthIncludingTrailingWhitespace;
+                        }
+                        // An unwrapped line wider than its slot keeps its full ActualWidth and
+                        // is clipped by layout, so the room is the slot the parent gave it.
+                        var slot = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(tb);
+                        double room = Math.Min(tb.ActualWidth, slot.Width - tb.Margin.Left - tb.Margin.Right);
+                        need = Math.Max(need, tb.ActualWidth);
+                        if (Environment.GetEnvironmentVariable("DESK_DEBUG") is { Length: > 0 } dbg
+                            && new System.Windows.Documents.TextRange(tb.ContentStart, tb.ContentEnd).Text.Contains(dbg))
+                            Console.WriteLine($"  DEBUG need {need:0} actual {tb.ActualWidth:0} slot {slot.Width:0} wrap {tb.TextWrapping}");
+                        if (need > room + 1)
+                        {
+                            trimmed++;
+                            string text = new System.Windows.Documents.TextRange(tb.ContentStart, tb.ContentEnd).Text;
+                            Console.WriteLine($"  {(tb.TextTrimming == TextTrimming.None ? "CLIPPED" : "TRIMMED")} ({need:0} > {room:0}): {text}");
+                        }
                     }
                     Console.WriteLine($"RENDERBOOKING screen {view.ActualWidth:0}x{view.ActualHeight:0} | event {bk.SelectedEvent?.Name} | bouts {bk.Bouts.Count} "
                         + $"(main card {bk.MainCardRows.Count + (bk.HasMainEvent ? 1 : 0)}, prelims {bk.PrelimRows.Count}) | rail {bk.Rail} | view {bk.View} "
@@ -1454,6 +1473,15 @@ public partial class App : Application
     private static double UiCpuMs() { GetThreadTimes(GetCurrentThread(), out _, out _, out long k, out long u); return (k + u) / 10_000.0; }
 
     // Harness helper: every element of a type under a visual root.
+    // Drawn on screen: it and every parent up to the root are Visible. (IsVisible is always false
+    // offscreen, where no PresentationSource exists, so the harness can't use it.)
+    private static bool Shown(UIElement e, DependencyObject root)
+    {
+        for (DependencyObject? n = e; n is not null && !ReferenceEquals(n, root); n = VisualTreeHelper.GetParent(n))
+            if (n is UIElement u && u.Visibility != Visibility.Visible) return false;
+        return true;
+    }
+
     private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)

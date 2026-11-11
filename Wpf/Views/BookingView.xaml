@@ -569,7 +569,7 @@
 
                     <!-- the prelims -->
                     <StackPanel Visibility="{Binding HasPrelims, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Margin="2,4,0,6">
+                        <TextBlock Margin="2,4,0,6" TextWrapping="Wrap">
                             <Run Text="PRELIMS" FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondary}" /><Run Text="   " /><Run Text="{Binding PrelimNote, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" FontSize="12" />
                         </TextBlock>
                         <ItemsControl ItemsSource="{Binding PrelimRows}" ItemTemplate="{StaticResource BoutRowTemplate}" Focusable="False" />
@@ -583,7 +583,7 @@
                     <Border Style="{StaticResource Panel}" Padding="14,10" Margin="0,4,0,8"
                             Visibility="{Binding HasPadding, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock>
+                            <TextBlock TextWrapping="Wrap">
                                 <Run Text="ON THE NIGHT" FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondary}" /><Run Text="   " /><Run Text="{Binding PaddingLine, Mode=OneWay}" Foreground="{StaticResource TextSoft}" FontSize="12.5" />
                             </TextBlock>
                             <ItemsControl ItemsSource="{Binding PaddingBouts}" Margin="0,8,0,-6" Focusable="False">

@@ -328,12 +328,12 @@ public sealed partial class BookingViewModel
         {
             PaddingLine = $"A card runs at least {CardFiller.MinCardBouts} bouts. As booked it has {n}, so on the night the house adds "
                           + $"{pad.Bouts.Count} below yours, about {pad.Cost} all in. This is automatic for now.";
-            // Which of your fighters the house would pick is its own choice, not
-            // something our scouts have read, so the preview names the division only.
+            // The house pairs your fighters on our scouts' read (the same pick the night makes),
+            // so roster pairs are named; local pairs are unnamed slots until fight night.
             foreach (var fb in pad.Bouts)
                 PaddingBouts.Add(fb.LocalFiller || fb.Red is null || fb.Blue is null
                     ? $"Local vs local · {FighterRow.Pretty(fb.WeightClass.ToString())}"
-                    : $"Two of yours · {FighterRow.Pretty(fb.WeightClass.ToString())}");
+                    : $"{w.Get(fb.Red.Value)?.LastName} vs {w.Get(fb.Blue.Value)?.LastName} · {FighterRow.Pretty(fb.WeightClass.ToString())}");
         }
         else PaddingLine = "";
 
