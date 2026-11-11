@@ -723,7 +723,8 @@ public partial class App : Application
 
         // One app on the desktop at a real screen size, maximised or floating at its
         // default window size: `MmaManager.Wpf --renderapp <appId> <W> <H> [--founded]
-        // [--floating] [--months N] [--card] [--table] <path>`. Big org (AFC) by default, a
+        // [--floating] [--months N] [--card] [--cards N] [--table] <path>` (the Planner adds
+        // --agenda, --scope <name>, --select <days|card|clash>). Big org (AFC) by default, a
         // month into the career; --founded = a newly founded shoestring promotion
         // on day one; --card books a next card first; --table flips the Roster to its Table view.
         if (e.Args.Contains("--renderapp"))
@@ -764,6 +765,31 @@ public partial class App : Application
                         {
                             bk.SelectedRed = bk.RedOptions[0];
                             if (bk.BlueOptions.Count > 0) { bk.SelectedBlue = bk.BlueOptions[0]; bk.AddBoutCommand.Execute(null); }
+                        }
+                    }
+                    vm.Contracts.OnChanged?.Invoke();
+                }
+                if (e.Args.Contains("--cards"))
+                {
+                    // Several cards of yours ahead (the Planner's state): N cards a month apart,
+                    // three weeks out first, each filled the way --card fills one.
+                    int n = int.Parse(e.Args[Array.IndexOf(e.Args, "--cards") + 1]);
+                    var bk = vm.Booking;
+                    var today = vm.LiveWorld!.CurrentDate.ToDateTime(TimeOnly.MinValue);
+                    for (int k = 0; k < n; k++)
+                    {
+                        bk.NewEventDate = today.AddDays(19 + 30 * k);
+                        bk.NewEventCommand.Execute(null);
+                        int bouts = 0;
+                        foreach (var div in bk.Divisions.ToList())
+                        {
+                            if (bouts >= 5 - k) break;      // later cards are thinner (still being built)
+                            bk.SelectedDivision = div;
+                            if (bk.RedOptions.Count > 0)
+                            {
+                                bk.SelectedRed = bk.RedOptions[0];
+                                if (bk.BlueOptions.Count > 0) { bk.SelectedBlue = bk.BlueOptions[0]; bk.AddBoutCommand.Execute(null); bouts++; }
+                            }
                         }
                     }
                     vm.Contracts.OnChanged?.Invoke();
@@ -839,6 +865,7 @@ public partial class App : Application
                 else if (appId == "fighters") vm.FightersPage.Attach(vm.LiveWorld!, new Dictionary<MmaManager.Core.Model.FightId, (MmaManager.Core.Model.Fight, MmaManager.Core.Model.Event)>());
                 else if (appId == "news") vm.News.Attach(vm.LiveWorld!);
                 else if (appId == "inbox") vm.Mail.Attach(vm.LiveWorld!);
+                else if (appId == "planner") vm.Planner.Attach(vm.LiveWorld!);
                 long attach = clock.ElapsedMilliseconds;
                 if (appId == "fighters")
                     Console.WriteLine($"RENDERAPP fighters index (scouted read for every active fighter) {vm.FightersPage.LastIndexMs} ms, filter {vm.FightersPage.LastFilterMs} ms; {vm.FightersPage.CountLine}");
@@ -939,6 +966,36 @@ public partial class App : Application
                         Console.WriteLine($"RENDERAPP room -> {roomPath}: their purse {roomVm.TheirPurse}; {roomVm.AskWhy}");
                         roomWin.Close();
                     }
+                }
+                // The Planner's states: --agenda (the list), --scope <Just mine|Near me|Everywhere|Flagships>,
+                // --select <days ahead | card | clash> (a picked date: N days out, your first card's
+                // date, or the first date whose clash window holds a card that would cost the house).
+                if (appId == "planner")
+                {
+                    var pl = vm.Planner;
+                    pl.Wanted();
+                    if (e.Args.Contains("--agenda")) pl.ShowAgenda = true;
+                    if (e.Args.Contains("--scope")) pl.Scope = e.Args[Array.IndexOf(e.Args, "--scope") + 1];
+                    if (e.Args.Contains("--select"))
+                    {
+                        string what = e.Args[Array.IndexOf(e.Args, "--select") + 1];
+                        var w = vm.LiveWorld!;
+                        var today = w.CurrentDate;
+                        DateOnly? pick = null;
+                        if (what == "card")
+                            pick = MmaManager.Core.Sim.Living.ForwardCalendar.Upcoming(w, today, promotion: w.PlayerPromotion).FirstOrDefault()?.Date;
+                        else if (what == "clash")
+                        {
+                            for (int d = 1; d < 60 && pick is null; d++)
+                                if (MmaManager.Core.Sim.Living.ForwardCalendar.RivalCardsNear(w, w.PlayerPromotion, today.AddDays(d)).Rivals.Any(r => r.Charged))
+                                    pick = today.AddDays(d);
+                        }
+                        else pick = today.AddDays(int.Parse(what));
+                        pl.Selected = pick;
+                        Console.WriteLine($"RENDERAPP planner picked {pick:ddd d MMM yyyy}: {pl.ClashLine}");
+                    }
+                    Layout();
+                    Console.WriteLine($"RENDERAPP planner: {pl.Headline} / {pl.Subline}; {pl.Days.Count} squares, {pl.Agenda.Count} agenda rows, {pl.HeadsUp.Count} heads-up, {pl.Flagships.Count} flagships");
                 }
                 WaitThumbs("before the still");
                 foreach (var wall in FindAll<MmaManager.Wpf.Controls.CardWall>(root))

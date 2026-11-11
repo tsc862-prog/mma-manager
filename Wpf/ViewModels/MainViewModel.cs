@@ -29,6 +29,7 @@ public static class Tab
     public const int Notes = 16;
     public const int Media = 17;   // the Media desk: rights deals + the in-house platform
     public const int Orgs = 18;    // the Organizations pages (every promotion in the sport)
+    public const int Planner = 19; // the calendar: your cards, your deadlines, the world's announced cards
 }
 
 /// <summary>
@@ -118,6 +119,15 @@ public sealed class MainViewModel : ObservableObject
         News.OpenFighterCommand = OpenFighterCommand;             // follow a story to its people
         News.OpenOrgCommand = OpenOrgCommand;
         News.OpenEventCommand = OpenEventCommand;
+        // The Planner's doors: plan a card on a date (Book Event's plan form), open
+        // one of your cards on the booking desk, or jump to the app a deadline belongs to.
+        Planner.PlanCardOn = date =>
+        {
+            Booking.NewEventDate = date.ToDateTime(TimeOnly.MinValue);
+            NavigateTo(Tab.BookEvent);
+        };
+        Planner.OpenMyCard = id => { Booking.SelectEvent(id); NavigateTo(Tab.BookEvent); };
+        Planner.Navigate = NavigateTo;
         WireMail();
 
         RankingDivisions = new ObservableCollection<DivisionPick>(
@@ -315,6 +325,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The Organizations app (full org pages for every promotion).</summary>
     public OrgsViewModel OrgsPage { get; } = new();
+
+    /// <summary>The Planner (your calendar and the world's announced cards).</summary>
+    public PlannerViewModel Planner { get; } = new();
 
     /// <summary>The live broadcast of a just-run card.</summary>
     public WatchViewModel Watch { get; } = new();
@@ -927,6 +940,7 @@ public sealed class MainViewModel : ObservableObject
         MyRoster.Attach(_world);
         Notes.Attach(_world);
         OrgsPage.Attach(_world);
+        Planner.Attach(_world);
         RefreshDeskNotes(player);
     }
 
