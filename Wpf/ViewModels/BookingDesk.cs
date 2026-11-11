@@ -235,7 +235,11 @@ public sealed class PartnerLine
 }
 
 /// <summary>A risk the desk can see coming, in plain words.</summary>
-public sealed record RiskLine(string Text, CardTone Tone, string Icon);
+public sealed record RiskLine(string Text, CardTone Tone, string Icon, string Detail = "")
+{
+    /// <summary>The full list behind a folded line (the tooltip), or the text itself.</summary>
+    public string Tip => Detail.Length > 0 ? Detail : Text;
+}
 
 /// <summary>A row of the dense roster table (the Table view): one of your fighters for this card's date.</summary>
 public sealed class DeskTableRow

@@ -605,18 +605,39 @@ public sealed partial class BookingViewModel
                 BookingRiskKind.RoomTooBig => (CardTone.Warn, "Building"),
                 _ => (CardTone.Warn, "Warning"),
             };
+            if (r.Kind == BookingRiskKind.RivalCardClash) continue;   // folded into one line below
             Risks.Add(new RiskLine(r.Text, tone, icon));
+        }
+
+        // The box office cuts the house once if ANY card clashes, so the clashes are
+        // one risk, not one per card (presentation only: the sim returns one per card).
+        var clashes = p.Risks.Where(r => r.Kind == BookingRiskKind.RivalCardClash).ToList();
+        if (clashes.Count == 1)
+            Risks.Add(new RiskLine(clashes[0].Text, CardTone.Warn, "Calendar"));
+        else if (clashes.Count > 1)
+        {
+            var w = _world!;
+            var names = p.ClashingCards.OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+                .Select(e => $"{e.Name}{(w.Get(e.Promotion)?.Abbreviation is { } ab && !e.Name.StartsWith(ab) ? $" ({ab})" : "")}").ToList();
+            if (names.Count == 0) names = clashes.Select(c => c.Text).ToList();
+            string shown = string.Join(", ", names.Take(2)) + (names.Count > 2 ? $", +{names.Count - 2}" : "");
+            Risks.Add(new RiskLine(
+                $"{names.Count} rival cards within {Financials.ClashWindowDays} days ({shown}): together they cost about {Financials.ClashPenalty:P0} of the house.",
+                CardTone.Warn, "Calendar", string.Join("\n", names)));
         }
 
         // Rival cards announced near ours that the house doesn't charge for: public
         // information only, never a cost (the charged ones are clashes, in the risks).
         AlsoThatWeek.Clear();
-        foreach (var rc in p.NearbyRivalCards.Where(r => !r.Charged).OrderBy(r => r.Card.Date))
+        var also = p.NearbyRivalCards.Where(r => !r.Charged).OrderBy(r => r.Card.Date).ToList();
+        foreach (var rc in also.Take(3))
         {
             string main = rc.Card.MainEventLabel(_world!);
             AlsoThatWeek.Add($"{rc.Card.Event.Name} ({rc.Card.Promotion.Abbreviation}), {rc.Card.Date:ddd d MMM}"
                              + (main.Length > 0 ? $": {main}" : "") + (rc.Card.TitleOnTheLine ? ", a belt on the line" : ""));
         }
+        if (also.Count > 3)
+            AlsoThatWeek.Add($"+{also.Count - 3} more: " + string.Join(", ", also.Skip(3).Select(rc => rc.Card.Event.Name)));
         OnPropertyChanged(nameof(HasAlsoThatWeek));
 
         NightLine = n == 0 ? "No bouts yet"
