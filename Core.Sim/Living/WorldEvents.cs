@@ -324,9 +324,13 @@ public static class WorldEvents
                 var ask = Contracts.Negotiator.EffectiveAskingPurse(world, promo, fa, exp);
                 if (ask.Amount > foundingCap * StartupAskCeiling) continue;
 
-                // His asking purse (rounded UP to the $500 step), within what is
-                // left of the division's budget.
-                decimal purse = Up500(ask.Amount);
+                // His asking purse (rounded UP to the $500 step from the
+                // unrounded figure: the quoted ask is rounded to the nearest
+                // step, and a $1,200 ask quoted as $1,000 is a lowball he
+                // counters), within what is left of the division's budget.
+                decimal purse = Up500(exp.AskingPurse.Amount
+                    * (Contracts.Negotiator.WantsExclusivity(promo) ? 1m : Contracts.Negotiator.NonExclusiveMoneyFactor)
+                    * Contracts.Negotiator.TableDiscount(world, fa, promo.Id));
                 if (purse > budget) continue;
                 decimal signing = exp.WantsSigningBonus ? Up500(ask.Amount * 0.5m * Contracts.Negotiator.SigningBonusMinFraction) : 0m;
                 if (signing > bonusPot) continue;

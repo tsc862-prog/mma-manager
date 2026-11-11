@@ -142,6 +142,9 @@ public class SolvencyGateTests
         var star = world.RosterOf(afc.Id).First(f =>
             f.Sex == Sex.Male
             && !world.Titles.Values.Any(t => t.CurrentChampion == f.Id)
+            && f.AgeOn(world.CurrentDate) < 35           // no sunset retirement at expiry
+            && world.RosterOf(afc.Id).Count(x => x.WeightClass == f.WeightClass && x.Sex == f.Sex && x.Status != FighterStatus.Retired)
+               <= OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(afc))   // not trimmed as hoarded depth
             && RosterPolicy.Wants(world, afc, f)
             && valuation.Evaluate(world, f).AskingPurse.Amount > distressCeiling
             && negotiator.Evaluate(world, f,
