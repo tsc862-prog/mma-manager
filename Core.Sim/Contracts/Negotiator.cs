@@ -60,8 +60,7 @@ public sealed class Negotiator
         // a LIFER takes less to stay where he belongs (see Lifers).
         decimal factor = (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                        * (offer.ChampionsClause ? ChampionsClausePremium : 1m)
-                       * GratitudeFactor(f, offer.Promotion)
-                       * Lifers.HomeDiscount(world, f, offer.Promotion);
+                       * TableDiscount(world, f, offer.Promotion);
         decimal asked = AskMoney(exp) * factor;
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
 
@@ -177,8 +176,7 @@ public sealed class Negotiator
         // The org that discovered them pitches at the gratitude rate.
         bool exclusive = WantsExclusivity(promo);
         decimal ask = exp.AskingPurse.Amount * (exclusive ? 1m : NonExclusiveMoneyFactor)
-                                             * GratitudeFactor(f, promo.Id)
-                                             * Lifers.HomeDiscount(world, f, promo.Id);
+                                             * TableDiscount(world, f, promo.Id);
         var purse = new Money(RoundTo(Math.Min(ask, cap), 500m));
         var winBonus = new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, 500m)));
 
@@ -209,6 +207,21 @@ public sealed class Negotiator
         Org.OrgSizing.SizeOf(promo) >= OrgSize.National;
 
     /// <summary>
+    /// What a fighter knocks off his ask for THIS promotion personally: the
+    /// discoverer's gratitude (<see cref="GratitudeFactor"/>, 0.55) or a lifer's
+    /// hometown discount (<see cref="Lifers.HomeDiscount"/>, 0.50-0.60),
+    /// whichever is bigger — they do NOT stack. Both say "I owe this place", and
+    /// multiplied they reached 0.275 of his ask. So the personal factor is never
+    /// below 0.50; with a non-exclusive deal the whole table factor bottoms out
+    /// at 0.40 of his open-market ask. Every table reads this one number: the
+    /// AI's opening offer, the fighter's answer (<see cref="Evaluate"/>), the
+    /// player's room (<see cref="NegotiationSession"/>) and the quoted ask
+    /// (<see cref="AskingQuote"/>).
+    /// </summary>
+    public static decimal TableDiscount(World world, Fighter f, PromotionId promo) =>
+        Math.Min(GratitudeFactor(f, promo), Lifers.HomeDiscount(world, f, promo));
+
+    /// <summary>
     /// The discovered local's thank-you: a real discount for the org that gave
     /// them the shot, while the career is still young. The open market pays the
     /// hometown-hype price; the discoverer pays about half.
@@ -237,8 +250,7 @@ public sealed class Negotiator
     public static Money EffectiveAskingPurse(World world, Promotion promo, Fighter f, ContractExpectations exp) =>
         new(RoundTo(exp.AskingPurse.Amount
             * (WantsExclusivity(promo) ? 1m : NonExclusiveMoneyFactor)
-            * GratitudeFactor(f, promo.Id)
-            * Lifers.HomeDiscount(world, f, promo.Id), 500m));
+            * TableDiscount(world, f, promo.Id), 500m));
 
     /// <summary>
     /// The biggest per-fight purse a promotion's economics support, derived from
@@ -260,6 +272,45 @@ public sealed class Negotiator
         decimal production = 10_000m + attendance * 12m + (venue?.Rent.Amount ?? 0m);
         // A full card is ~16 purses + 8 win bonuses at 0.75 → ~22 purse-units.
         return Math.Max(2_000m, Math.Round((gate - production) * 0.9m / 22m / 500m) * 500m);
+    }
+
+    /// <summary>The headliner draw a brand-new promotion can expect: a known local name, not a star.</summary>
+    public const int FoundingHeadlinerDraw = 40;
+
+    /// <summary>The share of a new promotion's net gate it can put into purses and still pay the rent and the staff.</summary>
+    public const decimal FoundingPayrollShare = 0.75m;
+
+    /// <summary>
+    /// The per-fight purse a promotion founded mid-game can afford on its opening
+    /// cards. <see cref="PurseCap"/> prices an ESTABLISHED house; a startup has no
+    /// following yet, and the box office (<see cref="Booking.Financials"/>) is
+    /// fanbase-driven, so its first gates come in at roughly half of that. Pricing
+    /// the founding roster at the established cap had the startups that died
+    /// paying ~$175k a card in purses against ~$125k gates and folding inside
+    /// half a year. This projects the opening house the way settlement does
+    /// (prestige, a modest headliner's draw, the founding buzz at home, the
+    /// city's appetite for the sport and the market share it splits) and leaves
+    /// room for overhead. Public numbers only: nothing about any fighter. Never
+    /// above <see cref="PurseCap"/>.
+    /// </summary>
+    public static decimal FoundingPurseCap(World world, Promotion promo)
+    {
+        int prestige = promo.Prestige.Value;
+        var home = promo.HomeCity ?? Geography.WorldMap.AnchorCity(world, promo.BaseRegion)?.Id;
+        int cityPop = home is { } hc ? Geography.Reputation.OrgInCity(promo, hc) : 0;
+        int regionPop = Geography.Reputation.OrgInRegion(world, promo, promo.BaseRegion);
+        double interest = home is { } ic ? Geography.MmaInterest.Factor(Geography.MmaInterest.InCity(world, ic), 0.4) : 1.0;
+        double market = Org.MarketShare.Factor(world, promo);
+        decimal attendance = (decimal)((190 + prestige * 38 + FoundingHeadlinerDraw * 30 + cityPop * 78 + regionPop * 14)
+                                       * interest * market);
+        var venue = Geography.WorldMap.PickVenue(world, promo);
+        if (venue is not null) attendance = Math.Min(attendance, venue.Capacity);
+
+        decimal gate = attendance * (55m + prestige * 1.4m);
+        decimal production = 10_000m + attendance * 12m + (venue?.Rent.Amount ?? 0m);
+        // The same floor as PurseCap: the smallest halls already sit on it.
+        decimal cap = Math.Max(2_000m, Math.Round((gate - production) * FoundingPayrollShare / 22m / 500m) * 500m);
+        return Math.Min(cap, PurseCap(world, promo));
     }
 
     /// <summary>One offer's per-fight worth, all levers blended — shared by AI bidding and the player's negotiating room.</summary>

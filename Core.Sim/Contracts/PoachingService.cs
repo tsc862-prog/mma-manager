@@ -107,6 +107,18 @@ public static class PoachingService
         return true;
     }
 
+    /// <summary>
+    /// Whether a real rival is after this fighter right now: some promotion on a
+    /// bigger stage than his own, solvent, with room in his division, that would
+    /// pursue him on ITS OWN read (the same gates <see cref="TryPoach"/> uses). A
+    /// public fact about the market — who is calling — never his true ability.
+    /// A holding lifer doesn't count: he says no to the call.
+    /// </summary>
+    public static bool HasSuitor(World world, Fighter f) =>
+        f.Contract is { } c && world.Get(c.Promotion) is { } holder
+        && BestSuitor(world, holder, f) is not null
+        && !Lifers.IsHolding(world, f);
+
     // The most prestigious org on a bigger stage that runs this fighter's division
     // AND would actually want them — talent that fits what a promotion at that level
     // is looking for, not a blanket fame gate.

@@ -19,6 +19,9 @@ public static class Acquisitions
 {
     private const int CooldownMonths = 12;
 
+    /// <summary>The share of the price the selling owners keep however deep the guarantees run.</summary>
+    public const decimal SellerKeeps = 0.10m;
+
     /// <summary>
     /// Is this org quietly FOR SALE? In the red outright — or thin-banked while
     /// its band is diluted (a crowded market grinding a marginal player down is
@@ -148,7 +151,6 @@ public static class Acquisitions
     /// </summary>
     public static void Execute(World world, Promotion buyer, Promotion target, DateOnly date, Money price)
     {
-        Finance.Ledger.Expense(buyer, date, FinanceCategory.Acquisition, price, $"Acquisition of {target.Name}");
         if (target.Balance.Amount > 0)
             Finance.Ledger.Income(buyer, date, FinanceCategory.Acquisition,
                 new Money(target.Balance.Amount), $"{target.Abbreviation} cash reserves acquired");
@@ -158,6 +160,7 @@ public static class Acquisitions
         var champions = new HashSet<FighterId>(
             target.Titles.Select(t => world.Get(t)?.CurrentChampion).Where(c => c is not null).Select(c => c!.Value));
         int carried = 0, released = 0;
+        var cutLoose = new List<(Fighter Fighter, decimal Owed)>();
         foreach (var f in world.RosterOf(target.Id).OrderByDescending(f => champions.Contains(f.Id) ? 1 : 0)
                      .ThenByDescending(f => Ability.FighterAbility.CurrentAbility(f)).ToList())
         {
@@ -186,11 +189,40 @@ public static class Acquisitions
             }
             else
             {
+                // A fighter cut loose in the merger is owed what is left on his
+                // guaranteed deal, as any release pays (ContractLifecycle.Release).
+                if (f.Contract is { } dropped && f.Status != FighterStatus.Retired
+                    && ContractLifecycle.GuaranteedOwed(dropped).Amount > 0)
+                    cutLoose.Add((f, ContractLifecycle.GuaranteedOwed(dropped).Amount));
                 Contracts.Lifers.OnLeaving(world, f, target, $"he was cut loose when {buyer.Name} bought {target.Name}", date);
                 f.Contract = null;
                 released++;
             }
         }
+
+        // The money. The guarantees are the SELLER's debts, so they are settled
+        // out of the purchase price before the old owners are paid: the buyer
+        // writes one cheque for the asking price, and the cut fighters are paid
+        // from it first. A company whose guarantees exceed what the deal can
+        // spare is underwater — its cut fighters share that pro rata, as
+        // creditors of a sinking company do — and the owners still walk away
+        // with SellerKeeps of the price: no seller signs a deal that leaves
+        // them nothing, and the books always show the purchase. Paying them on top of the price
+        // instead bankrupted the flagship in 5 of 40 seeds (it bought a
+        // Continental and owed $14-45M for the roster it had no room for).
+        decimal owedAll = cutLoose.Sum(x => x.Owed);
+        decimal settle = Math.Min(owedAll, price.Amount * (1m - SellerKeeps));
+        decimal paidOut = 0m;
+        foreach (var (f, owed) in cutLoose)
+        {
+            // Rounded DOWN per head, so the shares never add up past the pot.
+            decimal share = owedAll <= 0 ? 0m : Math.Floor(owed * settle / owedAll);
+            paidOut += share;
+            Finance.Ledger.Expense(buyer, date, FinanceCategory.ContractBuyout, new Money(share),
+                $"Contract buyout — {f.FullName} ({target.Abbreviation} merger)");
+        }
+        Finance.Ledger.Expense(buyer, date, FinanceCategory.Acquisition,
+            new Money(price.Amount - paidOut), $"Acquisition of {target.Name}");   // the guarantees paid from the price are the "(… merger)" buyout lines
 
         // Nobody fights under the old banner now: its contender lists go with it.
         foreach (var d in target.Divisions) d.Rankings.Clear();
