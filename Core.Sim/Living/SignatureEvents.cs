@@ -22,6 +22,8 @@ public static class SignatureEvents
         ["RCS"] = (2, "RCS Carnaval de Combate"),
         ["CK"] = (9, "CK Reinado"),
         ["SCM"] = (12, "SCM Southern Summer"),
+        ["MFC"] = (11, "MFC Temple Fair Night"),     // the temple-fair circuit's night in the big house on the river
+        ["CPF"] = (12, "CPF Mountain Night"),        // the township heavyweights at the foot of Table Mountain
     };
 
     /// <summary>The signature name if this org's flagship month is NOW (else null).</summary>
