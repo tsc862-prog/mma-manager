@@ -470,7 +470,7 @@
              desktop, so layouts reflow with the WINDOW width, never the screen.
 
              TOKENS
-               Type ......... Text.Kicker (11 caps label) · Text.Caption (12) ·
+               Type ......... Text.Kicker (11 caps label) · Text.Caption (12) · Text.Note (12, collapses when empty) ·
                               Text.Secondary (12.5) · Text.Body (13.5) · Text.Heading (15) ·
                               Text.Title (19) · Text.Display (30, the one big name on a screen) ·
                               Text.Quote (15, a person talking)
@@ -595,6 +595,16 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <!-- Text.Note: a wrapping caption that collapses when it has nothing to say (a hint under a button). -->
+        <Style x:Key="Text.Note" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="None" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="Text.Secondary" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="12.5" />
