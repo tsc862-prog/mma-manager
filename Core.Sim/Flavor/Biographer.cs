@@ -259,8 +259,10 @@ public static class Biographer
             .Where(f => f is not null)
             .OrderByDescending(f => FighterAbility.CurrentAbility(f!))
             .FirstOrDefault();
-        if (champ is not null)
-            sb.Append($"Its marquee attraction is {champ.FullName}. ");
+        // The face of the company, when the house has one, IS its marquee attraction.
+        var marquee = Franchise.FaceOf(world, promo) ?? champ;
+        if (marquee is not null)
+            sb.Append($"Its marquee attraction is {marquee.FullName}. ");
 
         int rep = promo.Reputation.Value;
         if (rep >= 65) sb.Append("It has a name for treating its fighters right");
