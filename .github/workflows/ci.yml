@@ -22,6 +22,6 @@ jobs:
       - name: Build
         run: dotnet build MmaManager.sln -c Release -v q --nologo
       - name: Test
-        run: dotnet test MmaManager.sln -c Release --no-build -v q --nologo
+        run: dotnet test MmaManager.sln -c Release --no-build -v q --nologo --logger "console;verbosity=normal"
       - name: Build longsim
         run: dotnet build tools/longsim/longsim.csproj -c Release -v q --nologo

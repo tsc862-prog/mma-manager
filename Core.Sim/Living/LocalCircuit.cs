@@ -110,7 +110,7 @@ public static class LocalCircuit
         // records, streaks, fame, discoveries — but no box office and no standing.
         foreach (var fight in ev.Card)
         {
-            Engine.Simulate(fight, world, new FightParams { ScheduledRounds = 3, RoundSeconds = 300 });
+            Engine.Simulate(fight, world, new FightParams { ScheduledRounds = 3, RoundSeconds = 300, GeneratePlayByPlay = false });   // nobody reads club-show commentary
             ResultsProcessor.Apply(world, ev, fight);
             AfterBout(world, ev, fight);
         }

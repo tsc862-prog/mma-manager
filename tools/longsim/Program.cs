@@ -240,12 +240,49 @@ static void RunCompare(int seeds, int years)
         var res = new SeedResult { Seed = seed };
         var deadAtYear = new Dictionary<string, int>();
 
+        var startDate = world.CurrentDate;   // day-one back-dated history is excluded from the rates below
+        NewsItem? lastSeen = world.News.Count > 0 ? world.News[^1] : null;
+
         for (int yr = 1; yr <= years; yr++)
         {
-            tick.AdvanceWeeks(world, 52);
+            // AdvanceWeeks is just AdvanceWeek in a loop, so stepping one week at a
+            // time is identical to 52 at once -- and lets us sample the news feed
+            // every week, well inside its 1000-item cap.
+            for (int w = 0; w < 52; w++)
+            {
+                tick.AdvanceWeeks(world, 1);
+                int from = 0;
+                if (lastSeen is not null)
+                {
+                    int idx = -1;
+                    for (int i = world.News.Count - 1; i >= 0; i--)
+                        if (ReferenceEquals(world.News[i], lastSeen)) { idx = i; break; }
+                    if (idx < 0) res.NewsOverflow++;   // cap trimmed past our marker within one week: undercount
+                    from = idx + 1;
+                }
+                for (int i = from; i < world.News.Count; i++)
+                {
+                    var n = world.News[i];
+                    if (n.Category != NewsCategory.Withdrawal) continue;
+                    if (n.Headline.Contains(" steps in for ")) res.CampWithdrawalsSaved++;
+                    else if (n.Body.StartsWith("Injured in camp")) res.CampWithdrawalsLost++;
+                    else if (n.Body.StartsWith("Pulled with")) res.FightWeekPullouts++;
+                }
+                if (world.News.Count > 0) lastSeen = world.News[^1];
+            }
             foreach (var p in world.Promotions.Values.Where(p => p.Defunct))
                 deadAtYear.TryAdd(p.Abbreviation, yr);
         }
+
+        // Durable, from event/fight state (events are never pruned for AI orgs).
+        var simEvents = world.Events.Values.Where(e => e.Date > startDate).ToList();
+        var doneEvents = simEvents.Where(e => e.Status == EventStatus.Completed && e.Card.Count > 0).ToList();
+        res.Superfights = doneEvents.Count(e => e.Name.StartsWith("CHAMP VS CHAMP"));
+        res.WeightMisses = doneEvents.Sum(e => e.Card.Count(f => f.WeightMissBy is not null));
+        res.CancelledEvents = simEvents.Count(e => e.Status == EventStatus.Cancelled);
+        res.CompletedEvents = doneEvents.Count;
+        res.TitleMainEvents = doneEvents.Count(e => e.Card[^1].IsTitleFight || e.Card[^1].Title is not null);
+        res.Years = years;
 
         var live = world.Promotions.Values.Where(p => !p.Defunct).ToList();
         var tiers = live.GroupBy(p => OrgSizing.SizeOf(p)).ToDictionary(g => g.Key, g => g.Count());
@@ -312,6 +349,28 @@ static void RunCompare(int seeds, int years)
     Console.WriteLine($"  AFC #1 in {all.Count(r => r.TopOrgs.StartsWith("AFC"))}/{seeds} seeds");
     Console.WriteLine($"  zombie orgs (roster<=1): avg {all.Average(r => r.Zombies):0.0}");
     Console.WriteLine($"  IFA in the red after Y{years}: {all.Count(r => r.IfaBalance < 0)}/{seeds}");
+
+    // Per-year rates, averaged over seeds (min..max across seeds in brackets).
+    string Rate(Func<SeedResult, int> pick)
+    {
+        var v = all.Select(r => (double)pick(r) / Math.Max(1, r.Years)).ToList();
+        return $"{v.Average(),6:0.00}/yr  [{v.Min():0.00}..{v.Max():0.00}]";
+    }
+    Console.WriteLine();
+    Console.WriteLine("  --- per-year rates, world-wide, AI orgs (day-one history excluded) ---");
+    Console.WriteLine($"  completed events (DURABLE: Event.Status):                    {Rate(r => r.CompletedEvents)}");
+    Console.WriteLine($"  superfights, champ-vs-champ (DURABLE: completed events named 'CHAMP VS CHAMP'): {Rate(r => r.Superfights)}");
+    Console.WriteLine($"  cancelled events (DURABLE: Event.Status = Cancelled; incl. never-booked, collapsed cards, solvency/acquisition): {Rate(r => r.CancelledEvents)}");
+    Console.WriteLine($"  weight misses (DURABLE: Fight.WeightMissBy on completed cards): {Rate(r => r.WeightMisses)}");
+    Console.WriteLine($"  camp withdrawals, bout lost (HEADLINE-SAMPLED weekly, no durable trace): {Rate(r => r.CampWithdrawalsLost)}");
+    Console.WriteLine($"  camp withdrawals, replaced by a stand-in (HEADLINE-SAMPLED weekly):      {Rate(r => r.CampWithdrawalsSaved)}");
+    Console.WriteLine($"  fight-week pullouts, bout lost (HEADLINE-SAMPLED weekly, no durable trace): {Rate(r => r.FightWeekPullouts)}");
+    Console.WriteLine($"  bouts lost before fight night = camp-lost + fight-week pullouts (weight misses NOT lost: bout goes ahead at catchweight): {Rate(r => r.CampWithdrawalsLost + r.FightWeekPullouts)}");
+    int totDone = all.Sum(r => r.CompletedEvents);
+    Console.WriteLine($"  completed cards with a title fight on top (DURABLE; weight-miss title fights are un-flagged so slightly undercounted): " +
+        $"{100.0 * all.Sum(r => r.TitleMainEvents) / Math.Max(1, totDone):0.0}% of {totDone}");
+    if (all.Sum(r => r.NewsOverflow) > 0)
+        Console.WriteLine($"  WARNING: news sampler lost its place {all.Sum(r => r.NewsOverflow)} time(s); headline-sampled rates are undercounts");
 }
 
 static void RunSingle(ulong seed, int years)
@@ -371,4 +430,6 @@ sealed class SeedResult
     public string Pyramid = "", TopOrgs = "";
     public double AvgPop;
     public decimal IfaBalance;
+    public int Years, Superfights, WeightMisses, CancelledEvents, CompletedEvents, TitleMainEvents;
+    public int CampWithdrawalsLost, CampWithdrawalsSaved, FightWeekPullouts, NewsOverflow;
 }
