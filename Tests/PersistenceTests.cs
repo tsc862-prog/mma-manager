@@ -147,9 +147,11 @@ public class PersistenceTests
     [Fact]
     public void EveryWorldDictionary_KeepsItsEnumerationOrderAcrossTheSave()
     {
-        // The sim iterates these dictionaries. After a removal a new entry reuses the freed
-        // slot, so enumeration order stops matching id order; the save must keep it. Scramble
-        // EVERY dictionary on World so reading any table in id order would fail here.
+        // The sim iterates these dictionaries, so the save must keep their enumeration order. Try to
+        // scramble EVERY dictionary on World (remove the first and last, add them back newest-first).
+        // A plain Dictionary (GlobalRankings) reuses the freed slots and really is scrambled, so reading
+        // that table in key order would fail here. An EntityMap (the entity collections) refuses to be
+        // scrambled: it stays in id order, before and after the load.
         var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 5 });
         var dicts = typeof(World).GetProperties()
             .Where(p => typeof(System.Collections.IDictionary).IsAssignableFrom(p.PropertyType) && p.Name != nameof(World.IdCounters))
@@ -166,7 +168,10 @@ public class PersistenceTests
             d.Remove(firstKey);          // freed last, so reused first
             d.Add(lastKey, lastVal);
             d.Add(firstKey, firstVal);
-            Assert.True(Equals(d.Keys.Cast<object>().First(), lastKey), $"premise: {p.Name} should now enumerate its newest key first");
+            if (p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(EntityMap<,>))
+                Assert.True(Equals(d.Keys.Cast<object>().First(), firstKey), $"{p.Name} must stay in id order after removals");
+            else
+                Assert.True(Equals(d.Keys.Cast<object>().First(), lastKey), $"premise: {p.Name} should now enumerate its newest key first");
         }
 
         var loaded = RoundTrip(world);
