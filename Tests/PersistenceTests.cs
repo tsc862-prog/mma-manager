@@ -147,9 +147,11 @@ public class PersistenceTests
     [Fact]
     public void EveryWorldDictionary_KeepsItsEnumerationOrderAcrossTheSave()
     {
-        // The sim iterates these dictionaries. After a removal a new entry reuses the freed
-        // slot, so enumeration order stops matching id order; the save must keep it. Scramble
-        // EVERY dictionary on World so reading any table in id order would fail here.
+        // The sim iterates these dictionaries, so the save must keep their enumeration order. Try to
+        // scramble EVERY dictionary on World (remove the first and last, add them back newest-first).
+        // A plain Dictionary (GlobalRankings) reuses the freed slots and really is scrambled, so reading
+        // that table in key order would fail here. An EntityMap (the entity collections) refuses to be
+        // scrambled: it stays in id order, before and after the load.
         var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 5 });
         var dicts = typeof(World).GetProperties()
             .Where(p => typeof(System.Collections.IDictionary).IsAssignableFrom(p.PropertyType) && p.Name != nameof(World.IdCounters))
@@ -166,7 +168,10 @@ public class PersistenceTests
             d.Remove(firstKey);          // freed last, so reused first
             d.Add(lastKey, lastVal);
             d.Add(firstKey, firstVal);
-            Assert.True(Equals(d.Keys.Cast<object>().First(), lastKey), $"premise: {p.Name} should now enumerate its newest key first");
+            if (p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(EntityMap<,>))
+                Assert.True(Equals(d.Keys.Cast<object>().First(), firstKey), $"{p.Name} must stay in id order after removals");
+            else
+                Assert.True(Equals(d.Keys.Cast<object>().First(), lastKey), $"premise: {p.Name} should now enumerate its newest key first");
         }
 
         var loaded = RoundTrip(world);
@@ -394,19 +399,17 @@ public class PersistenceTests
 
         new WorldTick().AdvanceWeeks(straight, 12);
         new WorldTick().AdvanceWeeks(resumed, 12);
-        // A slot freed in the MIDDLE of a dictionary is reused by the never-saved world's next entry but
-        // not by the compact loaded one, so enumeration ORDER differs (inherent to Dictionary; see the
-        // skipped strict test below). Everything else, i.e. every value the sim produced, must match.
-        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60, ignoreKeyOrder: holeInTheMiddle);
+        // A slot freed in the MIDDLE of the world's collections must not change their enumeration order
+        // (World's EntityMap keeps id order), so the compare is strict, key order included.
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "After the player's cancel/remove paths a loaded world diverged from a never-saved one:\n" + PersistenceGraph.Describe(diffs));
     }
 
-    [Fact(Skip = "Known, not fixable in Persistence: after PlayerBooking.CancelEvent / ReleaseLocals remove a non-newest entry "
-        + "(Core.Sim/Booking/PlayerBooking.cs:139 Events.Remove, :147 Fighters.Remove) the never-saved Dictionary reuses the freed slot "
-        + "while a loaded one is compact, so World.Events/Fighters enumerate in a different order (reproduced: Events key order differs at "
-        + "3832, Fighters at 6188; every value still matched). world-sim must iterate by id wherever order feeds a roll "
-        + "(Core.Sim has ~31 `Fighters.Values` sites); strict key-order equality cannot be restored.")]
+    // After PlayerBooking.CancelEvent / ReleaseLocals remove a non-newest entry, a plain Dictionary reused
+    // the freed slot while a loaded one was compact, so the two enumerated differently. World's entity
+    // collections are EntityMaps now: always id order, so strict key-order equality holds.
+    [Fact]
     public void PlayerPaths_WithAHoleInTheMiddle_EnumerateInTheSameOrderAsANeverSavedWorld()
     {
         var straight = PlayerWorld(21, holeInTheMiddle: true);
