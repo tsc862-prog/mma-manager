@@ -9,9 +9,8 @@ public partial class PlannerView : UserControl
     public PlannerView()
     {
         InitializeComponent();
-        // The planner builds only once its window exists (and on every refresh after).
-        Loaded += (_, _) => (DataContext as MainViewModel)?.Planner.Wanted();
-        DataContextChanged += (_, _) => { if (IsLoaded) (DataContext as MainViewModel)?.Planner.Wanted(); };
+        // The planner builds only once its window has been opened (and on every refresh after).
+        DataContextChanged += (_, _) => (DataContext as MainViewModel)?.Planner.Wanted();
     }
 }
 

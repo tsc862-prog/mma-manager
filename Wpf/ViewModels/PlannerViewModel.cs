@@ -43,12 +43,13 @@ public sealed class PlannerViewModel : ObservableObject
     private readonly PlayerBooking _booking = new();
     private World? _world;
     private bool _wanted;
+    private bool _browsed;   // the player turned the page (the grid stops following the clock)
 
     public PlannerViewModel()
     {
-        PrevMonthCommand = new RelayCommand(() => Month = Month.AddMonths(-1));
-        NextMonthCommand = new RelayCommand(() => Month = Month.AddMonths(1));
-        ThisMonthCommand = new RelayCommand(() => { Month = FirstMonth; Selected = null; });
+        PrevMonthCommand = new RelayCommand(() => { _browsed = true; Month = Month.AddMonths(-1); });
+        NextMonthCommand = new RelayCommand(() => { _browsed = true; Month = Month.AddMonths(1); });
+        ThisMonthCommand = new RelayCommand(() => { Selected = null; _browsed = false; Month = DefaultMonth; });
         SelectDayCommand = new RelayCommand<DayCell>(d =>
         {
             if (d is null) return;
@@ -87,6 +88,10 @@ public sealed class PlannerViewModel : ObservableObject
     public string MonthTitle => Month.ToString("MMMM yyyy");
     private DateOnly FirstMonth => _world is null ? Month : new DateOnly(_world.CurrentDate.Year, _world.CurrentDate.Month, 1);
     private DateOnly LastMonth => FirstMonth.AddMonths(MonthsAhead - 1);
+    /// <summary>Where the grid opens: this month, or next month once this one is in its last week
+    /// (time moves a week at a time, so a nearly spent month would open on a page of the past).</summary>
+    private DateOnly DefaultMonth => _world is { } w && w.CurrentDate.Day > DateTime.DaysInMonth(w.CurrentDate.Year, w.CurrentDate.Month) - 7
+        ? FirstMonth.AddMonths(1) : FirstMonth;
     private DateOnly Clamp(DateOnly m) => _world is null ? m : m < FirstMonth ? FirstMonth : m > LastMonth ? LastMonth : m;
 
     private DateOnly? _selected;
@@ -97,7 +102,7 @@ public sealed class PlannerViewModel : ObservableObject
         set
         {
             if (!Set(ref _selected, value)) return;
-            if (value is { } d && (d.Year != Month.Year || d.Month != Month.Month) && _world is not null) Month = d;
+            if (value is { } d && (d.Year != Month.Year || d.Month != Month.Month) && _world is not null) { _browsed = true; Month = d; }
             foreach (var c in Days) c.IsSelected = c.Date == value;
             BuildSelection();
         }
@@ -185,10 +190,11 @@ public sealed class PlannerViewModel : ObservableObject
     {
         bool sameWorld = ReferenceEquals(world, _world);
         _world = world;
-        if (!sameWorld) { _month = FirstMonth; _selected = null; OnPropertyChanged(nameof(Month)); OnPropertyChanged(nameof(MonthTitle)); }
+        if (!sameWorld) { _month = DefaultMonth; _selected = null; OnPropertyChanged(nameof(Month)); OnPropertyChanged(nameof(MonthTitle)); }
         else
         {
-            _month = Clamp(_month);
+            // A page the player turned to stays put; otherwise the grid follows the clock.
+            _month = _browsed ? Clamp(_month) : DefaultMonth;
             OnPropertyChanged(nameof(MonthTitle));
             if (_selected is { } s && s < world.CurrentDate) _selected = null;
         }
@@ -534,7 +540,7 @@ public sealed class PlannerViewModel : ObservableObject
                 Date = b,
                 Icon = "Check",
                 Short = $"{f.LastName} cleared",
-                Text = $"{f.FullName} cleared to fight",
+                Text = $"{f.FirstName} {f.LastName} cleared to fight",
                 Detail = f.Status == FighterStatus.Suspended ? "His suspension ends." : $"Back from {why}.",
                 Tone = CardTone.Good,
                 FighterId = id,

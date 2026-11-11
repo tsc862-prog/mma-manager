@@ -724,7 +724,7 @@ public partial class App : Application
         // One app on the desktop at a real screen size, maximised or floating at its
         // default window size: `MmaManager.Wpf --renderapp <appId> <W> <H> [--founded]
         // [--floating] [--months N] [--card] [--cards N] [--table] <path>` (the Planner adds
-        // --agenda, --scope <name>, --select <days|card|clash>). Big org (AFC) by default, a
+        // --agenda, --scope <name>, --select <days|card|clash>, --injure). Big org (AFC) by default, a
         // month into the career; --founded = a newly founded shoestring promotion
         // on day one; --card books a next card first; --table flips the Roster to its Table view.
         if (e.Args.Contains("--renderapp"))
@@ -973,6 +973,26 @@ public partial class App : Application
                 if (appId == "planner")
                 {
                     var pl = vm.Planner;
+                    if (e.Args.Contains("--injure"))
+                    {
+                        // Harness only: hurt a few of your unbooked fighters (returns two to eight weeks
+                        // out) so the "cleared to fight" markers have something to show.
+                        var w = vm.LiveWorld!;
+                        int k = 0;
+                        foreach (var f in w.RosterOf(w.PlayerPromotion).Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active
+                                     && !MmaManager.Core.Sim.Living.ForwardCalendar.IsCommitted(w, f.Id)).OrderBy(f => f.Id.Value).Take(3))
+                        {
+                            var back = w.CurrentDate.AddDays(14 + 21 * k++);
+                            f.CurrentInjury = new MmaManager.Core.Model.Injury
+                            {
+                                Severity = MmaManager.Core.Model.InjurySeverity.Moderate, Description = k == 1 ? "broken hand" : k == 2 ? "torn meniscus" : "cut over the eye",
+                                OccurredOn = w.CurrentDate, ExpectedReturn = back,
+                            };
+                            f.Status = MmaManager.Core.Model.FighterStatus.Injured;
+                            f.ReadyToFightOn = back;
+                        }
+                        vm.Contracts.OnChanged?.Invoke();
+                    }
                     pl.Wanted();
                     if (e.Args.Contains("--agenda")) pl.ShowAgenda = true;
                     if (e.Args.Contains("--scope")) pl.Scope = e.Args[Array.IndexOf(e.Args, "--scope") + 1];

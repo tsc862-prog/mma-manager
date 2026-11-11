@@ -191,7 +191,8 @@
                                 <DataTemplate>
                                     <DockPanel Margin="0,2,0,0">
                                         <controls:Icon DockPanel.Dock="Left" Kind="Warning" Width="13" Height="13" Brush="{StaticResource ToneWarn}" Margin="0,2,5,0" VerticalAlignment="Top" />
-                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
+                                                   TextTrimming="WordEllipsis" MaxHeight="48" ToolTip="{Binding}" />
                                     </DockPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -327,7 +328,8 @@
                         <TextBlock Text="{Binding DateLine}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold"
                                    Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
                         <TextBlock Text="{Binding Text}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" TextTrimming="WordEllipsis" MaxHeight="48"
+                                   ToolTip="{Binding Detail}" />
                     </StackPanel>
                 </DockPanel>
             </Button>
@@ -381,7 +383,7 @@
                             AutomationProperties.Name="Next month">
                         <controls:Icon Kind="ChevronRight" Width="16" Height="16" Brush="{StaticResource TextPrimary}" />
                     </Button>
-                    <Button Style="{StaticResource Button.Link}" Content="This month" Command="{Binding ThisMonthCommand}" Margin="8,0,0,0" ToolTip="Back to this month (Home)" />
+                    <Button Style="{StaticResource Button.Link}" Content="Now" Command="{Binding ThisMonthCommand}" Margin="8,0,0,0" ToolTip="Back to the coming weeks (Home)" />
                 </StackPanel>
                 <Border Style="{StaticResource Segmented}" Margin="0,0,14,6" VerticalAlignment="Center" ToolTip="Which of the sport's announced cards to show. A card that costs one of your houses always shows.">
                     <StackPanel Orientation="Horizontal">
@@ -459,7 +461,7 @@
                             <Button Style="{StaticResource Button.Soft}" Content="{Binding MineHereText}" Command="{Binding OpenCardCommand}" CommandParameter="{Binding MineHereId}"
                                     Visibility="{Binding HasMineHere, Converter={StaticResource BoolToVis}}"
                                     Margin="0,10,0,4" HorizontalAlignment="Stretch" ToolTip="Open this card on the booking desk" />
-                            <TextBlock Text="{Binding PlanHint}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <TextBlock Text="{Binding PlanHint}" Style="{StaticResource BondLineText}" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,6" />
 
                             <TextBlock Text="ON THIS DAY" Style="{StaticResource Text.Kicker}" Margin="0,8,0,6" Visibility="{Binding HasDayItems, Converter={StaticResource BoolToVis}}" />
                             <ItemsControl ItemsSource="{Binding DayItems}" ItemTemplateSelector="{StaticResource RailSelector}" Focusable="False" />
