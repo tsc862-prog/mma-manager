@@ -50,6 +50,20 @@
             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
         </Style>
 
+        <!-- One of your fighters' bond with you, in a line (Lifers.BondOf via AskText.Bond);
+             collapses when there is nothing to say. -->
+        <Style x:Key="BondLineText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="#9FB6C9" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- A content card: the standard panel chrome for screen sections. -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />

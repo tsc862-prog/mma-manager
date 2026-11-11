@@ -25,9 +25,9 @@ public sealed class FreeAgentRow
         RecordSort = FighterRow.RecordKey(f.Record);
         Fights = f.Record.TotalBouts;
         Hometown = HometownOf(f, w);
-        // The ask AT YOUR TERMS (a small hall's non-exclusive deal runs ~20%
-        // under the exclusive rate) — so this column, the negotiating table
-        // and the purse on the signed deal all quote the same number.
+        // The ask AT YOUR TABLE (AskingQuote: a small hall's non-exclusive deal
+        // runs ~20% under the market rate) — so this column, the negotiating
+        // room and the purse on the signed deal all quote the same number.
         Ask = effectiveAsk.ToString();
         AskSort = effectiveAsk.Amount;
         Portrait = Portraits.For(f, w);
@@ -197,6 +197,10 @@ public sealed class ContractsViewModel : ObservableObject
     private string _asking = "";
     public string Asking { get => _asking; private set => Set(ref _asking, value); }
 
+    private string _bondLine = "";
+    /// <summary>One of your fighters' bond with you ("Lifer, but unhappy: ... To fix it: ..."); "" for anyone else.</summary>
+    public string BondLine { get => _bondLine; private set => Set(ref _bondLine, value); }
+
     private int _priMoney, _priTitle, _priLoyalty, _priHome;
     public int PriMoney { get => _priMoney; private set => Set(ref _priMoney, value); }
     public int PriTitle { get => _priTitle; private set => Set(ref _priTitle, value); }
@@ -283,14 +287,14 @@ public sealed class ContractsViewModel : ObservableObject
             shown = shown.Where(f => f.FullName.Contains(needle, StringComparison.OrdinalIgnoreCase)
                                      || FreeAgentRow.HometownOf(f, _world).Contains(needle, StringComparison.OrdinalIgnoreCase));
 
-        // Price every survivor at YOUR terms (the ask a non-exclusive hall
-        // actually pays), so the ask filter and the ask column agree.
+        // Price every survivor at the number YOUR negotiating room opens at, so
+        // the ask filter, the ask column and the room all agree.
         var mine = _world.Get(_world.PlayerPromotion);
         IEnumerable<(Fighter F, ContractExpectations Exp, Money Ask)> priced = shown
             .Select(f =>
             {
                 var exp = _valuation.Evaluate(_world, f);
-                return (f, exp, mine is null ? exp.AskingPurse : Negotiator.EffectiveAskingPurse(mine, f, exp));
+                return (f, exp, mine is null ? exp.AskingPurse : AskingQuote.For(_world, mine, f, exp).Purse);
             });
         if (AskCapChoices.First(c => c.Label == FaMaxAsk).Cap is { } askCap)
             priced = priced.Where(x => x.Ask.Amount <= askCap);
@@ -324,14 +328,16 @@ public sealed class ContractsViewModel : ObservableObject
         TargetSub = $"Scouted {FighterRow.Scouted(_world, f)} · {FighterRow.DivisionLabel(f.WeightClass, f.Sex)} · {f.Record}"
                     + $" · {FreeAgentRow.HometownOf(f, _world)}"
                     + (own ? $" · {f.Contract?.FightsRemaining ?? 0} fight(s) left" : " · free agent");
-        // Quote the ask at YOUR terms — a small hall deals non-exclusive and the
-        // fighter takes ~20% less, so the raw exclusive rate would read as a lie
-        // next to the market list and the deal that gets signed.
+        // Quote the number the negotiating room will open at — a small hall's
+        // non-exclusive rate, a lifer's hometown discount, a live deal's floor —
+        // with the real reason it differs from the market rate.
         var mine = _world.Get(_world.PlayerPromotion);
-        var effAsk = mine is null ? exp.AskingPurse : Negotiator.EffectiveAskingPurse(mine, f, exp);
-        Asking = $"Asking ~{effAsk} / fight, {exp.DesiredFights} fights"
-                 + (effAsk.Amount < exp.AskingPurse.Amount ? $" (non-exclusive — exclusive rate {exp.AskingPurse})" : "")
-                 + (exp.WantsSigningBonus ? ", wants a signing bonus" : "");
+        var quote = mine is null ? new AskingQuote(exp.AskingPurse, exp.AskingPurse, Array.Empty<string>())
+                                 : AskingQuote.For(_world, mine, f, exp);
+        Asking = $"Asking ~{quote.Purse} / fight, {exp.DesiredFights} fights"
+                 + (exp.WantsSigningBonus ? ", wants a signing bonus" : "")
+                 + AskText.Because(quote);
+        BondLine = own ? AskText.Bond(_world, f) : "";
         PriMoney = exp.Priorities.Money;
         PriTitle = exp.Priorities.TitleOpportunity;
         PriLoyalty = exp.Priorities.Loyalty;
@@ -444,6 +450,7 @@ public sealed class ContractsViewModel : ObservableObject
         TargetPortrait = null;
         TargetSub = "";
         Asking = "";
+        BondLine = "";
         PriMoney = PriTitle = PriLoyalty = PriHome = 0;
         OnPropertyChanged(nameof(IsOwnFighter));
     }

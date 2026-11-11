@@ -13,9 +13,9 @@ namespace MmaManager.Core.Sim.Contracts;
 /// through <see cref="ScoutingService.PerceivedAbility(World, Promotion, Fighter)"/>
 /// (the same "Scouted" number every screen shows), upside comes only from public
 /// facts (age, record, current run) and never from true potential, and the ask is
-/// the one this promotion will actually be quoted at its own terms
-/// (<see cref="Negotiator.EffectiveAskingPurse"/>: a small hall's non-exclusive
-/// rate, the discoverer's gratitude discount), the same figure the market row shows.
+/// the one this promotion's negotiating room will actually open at
+/// (<see cref="AskingQuote"/>: a small hall's non-exclusive rate), the same
+/// figure the market row shows.
 /// </summary>
 public static class SigningAdvisor
 {
@@ -32,7 +32,7 @@ public static class SigningAdvisor
     /// <param name="Reason">One line explaining the pick.</param>
     public sealed record Suggestion(Fighter Fighter, ContractExpectations Expectations, Money Ask, int Scouted, string Reason);
 
-    private readonly record struct Candidate(Fighter Fighter, ContractExpectations Expectations, Money Ask, int Scouted);
+    private readonly record struct Candidate(Fighter Fighter, ContractExpectations Expectations, Money Ask, int Scouted, string Why);
 
     public static Suggestion? Suggest(World world, Promotion promo) =>
         Suggest(world, promo, f => ScoutingService.PerceivedAbility(world, promo, f));
@@ -54,7 +54,8 @@ public static class SigningAdvisor
             .Select(f =>
             {
                 var exp = valuation.Evaluate(world, f);
-                return new Candidate(f, exp, Negotiator.EffectiveAskingPurse(promo, f, exp), abilityRead(f));
+                var quote = AskingQuote.For(world, promo, f, exp);
+                return new Candidate(f, exp, quote.Purse, abilityRead(f), quote.Why);
             })
             .ToList();
         if (market.Count == 0) return null;
@@ -121,17 +122,13 @@ public static class SigningAdvisor
             : f.Record.CurrentStreak >= 3 ? $", on a {f.Record.CurrentStreak}-fight win streak"
             : "";
 
-        return $"Scout's pick: {f.FullName} — {why}; scouted {c.Scouted}{extra}, {AskText(c, promo)}.";
+        return $"Scout's pick: {f.FullName} — {why}; scouted {c.Scouted}{extra}, {AskText(c)}.";
     }
 
-    // The ask this org will be quoted (the market row's figure); when its terms
-    // undercut the open-market exclusive rate, say why and name that rate too.
-    private static string AskText(Candidate c, Promotion promo)
-    {
-        if (c.Ask.Amount >= c.Expectations.AskingPurse.Amount) return $"asking ~{c.Ask}/fight";
-        var terms = new List<string>();
-        if (!Negotiator.WantsExclusivity(promo)) terms.Add("non-exclusive");
-        if (Negotiator.GratitudeFactor(c.Fighter, promo.Id) < 1m) terms.Add("discoverer's discount");
-        return $"asking ~{c.Ask}/fight ({string.Join(", ", terms)}; exclusive rate {c.Expectations.AskingPurse})";
-    }
+    // The ask this org will be quoted (the market row's and the room's figure);
+    // when it differs from the open-market rate, say why and name that rate too.
+    private static string AskText(Candidate c) =>
+        c.Why.Length == 0 || c.Ask == c.Expectations.AskingPurse
+            ? $"asking ~{c.Ask}/fight"
+            : $"asking ~{c.Ask}/fight ({c.Why}; market rate {c.Expectations.AskingPurse})";
 }
