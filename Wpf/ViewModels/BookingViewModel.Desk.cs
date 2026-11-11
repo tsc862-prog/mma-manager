@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Booking;
+using MmaManager.Core.Sim.Contracts;
 using MmaManager.Wpf.Mvvm;
 
 namespace MmaManager.Wpf.ViewModels;
@@ -25,7 +26,7 @@ public sealed partial class BookingViewModel
         OpenSlotCommand = new RelayCommand<string>(s => { if (Enum.TryParse<BoutSlot>(s, out var slot)) OpenPicker(slot); });
         OpenNextSlotCommand = new RelayCommand(() => OpenPicker(_nextSlot));
         ReplaceCornerCommand = new RelayCommand<BillBout>(OpenReplace);
-        ReplaceSideCommand = new RelayCommand<string>(s => { _replaceBlue = s == "Blue"; RefreshRail(); });
+        ReplaceSideCommand = new RelayCommand<string>(s => { _replaceBlue = s == "Blue"; _ask = null; RefreshRail(); RefreshSheet(); });
         ReplaceWithCommand = new RelayCommand<LadderEntry>(ReplaceWith);
         BookProposalCommand = new RelayCommand<ProposalCard>(BookProposal);
         PickLadderCommand = new RelayCommand<LadderEntry>(PickLadder);
@@ -40,6 +41,8 @@ public sealed partial class BookingViewModel
         BookProposedCommand = new RelayCommand(BookProposed, () => Proposed.Any(p => p.IsChecked));
         PairCommand = new RelayCommand<IReadOnlyList<int>>(Pair);
         OpenPosterCommand = new RelayCommand(() => View = DeskView.Poster);
+        InitFinder();
+        InitSheet();
     }
 
     public ICommand ShowRailCommand { get; private set; } = null!;
@@ -79,6 +82,7 @@ public sealed partial class BookingViewModel
             if (value != DeskRail.Picker) { _pickSlot = null; _replaceFight = null; }
             RaiseRail();
             RefreshRail();
+            RefreshSheet();
         }
     }
     public bool IsRailNight => _rail == DeskRail.Night;
@@ -253,6 +257,7 @@ public sealed partial class BookingViewModel
         RefreshRedOptions();
         SelectedEvent?.SyncBoutCount();
         if (_view == DeskView.Table) RefreshTable();
+        RefreshSheet();
     }
 
     private void RefreshBouts()
@@ -353,9 +358,9 @@ public sealed partial class BookingViewModel
             : _nextSlot == BoutSlot.Prelim ? "Add a prelim, or let the matchmaker propose the undercard."
             : "Pick a pairing below, or open the picker for the whole division.";
         if (n == 0)
-            foreach (var s in _booking.Suggest(w, ev, BoutSlot.MainEvent, 3)) HeadlineIdeas.Add(Card(s, BoutSlot.MainEvent));
+            foreach (var s in _booking.Suggest(w, ev, BoutSlot.MainEvent, 3)) HeadlineIdeas.Add(Card(s, BoutSlot.MainEvent, night: true));
         else
-            foreach (var s in _booking.Suggest(w, ev, _nextSlot, 2)) NextSlotIdeas.Add(Card(s, _nextSlot));
+            foreach (var s in _booking.Suggest(w, ev, _nextSlot, 2)) NextSlotIdeas.Add(Card(s, _nextSlot, night: true));
         if (n > 0 && NextSlotIdeas.Count == 0 && HasRoster)
             NextSlotHint = HasLocalOption
                 ? "Nobody else of yours can be paired on this date. Open the picker for a local opponent, or sign more fighters."
@@ -791,6 +796,7 @@ public sealed partial class BookingViewModel
         if (SelectedEvent is null) return;
         _replaceFight = null;
         _pickSlot = slot;
+        _ask = null;
         ClearPairing();
         if (_rail != DeskRail.Picker) { _rail = DeskRail.Picker; RaiseRail(); }
         else RaiseRail();
@@ -803,6 +809,7 @@ public sealed partial class BookingViewModel
     {
         if (b is null) return;
         _replaceFight = b.Id;
+        _ask = null;
         ClearPairing();
         _replaceBlue = !b.Blue.IsChampion || b.Red.IsChampion;   // the challenger's corner by default
         if (b.Blue.Rank == "Local") _replaceBlue = true;
@@ -825,23 +832,76 @@ public sealed partial class BookingViewModel
         RebuildLadder();
     }
 
-    private ProposalCard Card(BoutProposal s, BoutSlot slot)
+    private ProposalCard Card(BoutProposal s, BoutSlot slot, bool night = false)
     {
         var w = _world!;
-        var host = SelectedEvent?.Model is { } ev && Core.Sim.Geography.WorldMap.CityOf(w, ev) is { } c ? c : (CityId?)null;
+        var ev = SelectedEvent?.Model;
+        var host = ev is not null && Core.Sim.Geography.WorldMap.CityOf(w, ev) is { } c ? c : (CityId?)null;
         var r = w.Get(s.Red)!;
         var b = w.Get(s.Blue)!;
+        var rx = FactsFor(r.Id);
+        var bx = FactsFor(b.Id);
+
+        // On your contracts: the deal running out, a grievance this booking fixes, a long lay-off.
+        var notes = new List<DeskTag>();
+        foreach (var x in new[] { rx, bx }.OfType<FighterFacts>())
+        {
+            string who = x.F.LastName;
+            if (x.IsLifer && x.Grievance is { Kind: Lifers.GrievanceKind.Benched })
+                notes.Add(new DeskTag($"{who}: unhappy on the shelf, this fixes it", CardTone.Good));
+            else if (x.IsLifer && x.Grievance is { Kind: Lifers.GrievanceKind.PassedOver })
+                notes.Add(s.TitleFight ? new DeskTag($"{who}: the title shot he's owed", CardTone.Good) : new DeskTag($"{who}: wants the title shot instead", CardTone.Warn));
+            else if (x.NeedsFight) notes.Add(new DeskTag($"{who}: back after {x.ShelfDays / 30} months", CardTone.Good));
+            if (x.LastOfDeal) notes.Add(new DeskTag($"{who}: last fight of deal", CardTone.Warn));
+        }
+        decimal show = (r.Contract?.PursePerFight.Amount ?? 0) + (b.Contract?.PursePerFight.Amount ?? 0);
+        decimal win = Math.Max(r.Contract?.WinBonus.Amount ?? 0, b.Contract?.WinBonus.Amount ?? 0);
+
+        // What it does to the night: the sim's projection with the bout, against without.
+        string effect = "";
+        var tone = CardTone.Neutral;
+        if (night && ev is not null && _projection is { } before)
+        {
+            var after = _booking.ProjectWith(w, ev, s.Red, s.Blue, s.Rounds, s.TitleFight, slot);
+            var d = after.Net - before.Net;
+            int seats = after.Attendance - before.Attendance;
+            effect = ev.Card.Count == 0
+                ? $"Night: {after.Attendance:N0} in the house · {Compact(after.Net)} expected"
+                : $"Night: {Compact(d)} expected" + (seats != 0 ? $" · {(seats > 0 ? "+" : "−")}{Math.Abs(seats):N0} seats" : "");
+            int met = after.Partners.Sum(p => p.Terms.Count(t => t.Status == TermStatus.Met)) - (ev.Card.Count == 0 ? 0 : before.Partners.Sum(p => p.Terms.Count(t => t.Status == TermStatus.Met)));
+            if (met > 0) effect += $" · meets {met} more partner term{(met == 1 ? "" : "s")}";
+            tone = (ev.Card.Count == 0 ? after.Net : d).Amount >= 0 ? CardTone.Good : CardTone.Bad;
+        }
+
         return new ProposalCard
         {
             Desk = this, Proposal = s, Slot = slot,
-            Red = new BillCorner(r, w, _advisor, hostCity: host),
-            Blue = new BillCorner(b, w, _advisor, hostCity: host),
+            Red = new BillCorner(r, w, _advisor, hostCity: host) { Summary = CornerLine(rx, r) },
+            Blue = new BillCorner(b, w, _advisor, hostCity: host) { Summary = CornerLine(bx, b) },
             Division = FighterRow.DivisionLabel(s.WeightClass, r.Sex),
             Reason = s.Reason,
             Terms = (s.TitleFight ? "Title fight · " : "") + $"{s.Rounds} rounds",
-            Read = s.Appraisal.Summary,
+            Read = s.Appraisal.Competitiveness >= 70 ? "a toss-up on our reads" : s.Appraisal.Competitiveness >= 45 ? "competitive on our reads"
+                : s.Appraisal.Competitiveness >= 25 ? "a clear favourite on our reads" : "lopsided on our reads",
             SlotLabel = slot switch { BoutSlot.MainEvent => "Main event", BoutSlot.CoMain => "Co-main", BoutSlot.MainCard => "Main card", _ => "Prelim" },
+            Cost = $"{Short(new Money(show))} to show, up to {Short(new Money(win))} to win",
+            Notes = notes,
+            NightEffect = effect,
+            NightTone = tone,
         };
+    }
+
+    // "#1 · 21-6-0 · W5 · fought 4 mo ago · Elite 81": one corner in a line.
+    private static string CornerLine(FighterFacts? x, Fighter f)
+    {
+        if (x is null) return f.Record.ToString();
+        var bits = new List<string>();
+        if (x.Standing.Kind != Standing.Unranked) bits.Add(x.Standing.Kind == Standing.Champion ? "Champion" : x.Standing.Label);
+        bits.Add(f.Record.ToString());
+        if (StreakText(x.Streak) is { Length: > 0 } st) bits.Add(st);
+        bits.Add(x.IdleDays is null ? "debut" : $"fought {AgoShort(x.IdleDays)}");
+        bits.Add(ReadWords.Read(x.Read));
+        return string.Join(" · ", bits);
     }
 
     /// <summary>Rebuild whatever the rail shows (cheap surfaces are rebuilt on every refresh).</summary>
@@ -892,7 +952,7 @@ public sealed partial class BookingViewModel
         };
         if (_pickMode == PickMode.Suggested)
         {
-            foreach (var s in _booking.Suggest(w, ev, slot, 8)) Suggestions.Add(Card(s, slot));
+            foreach (var s in _booking.Suggest(w, ev, slot, 8)) Suggestions.Add(Card(s, slot, night: true));
             SuggestionsEmpty = !HasRoster
                 ? "You have no fighters to pair yet. Sign two in the same division, or put one of yours against the local scene."
                 : "No pairing fits this slot: nobody else in your divisions is ready and unbooked on this date. Try a division by hand"
@@ -902,82 +962,116 @@ public sealed partial class BookingViewModel
         RebuildLadder();
     }
 
-    /// <summary>The ladder: your fighters in the chosen division, ready first, the rest greyed with why.</summary>
+    /// <summary>
+    /// The finder's list: your roster (any division, the scope is a filter), or,
+    /// once a corner is chosen or a corner is being changed, the opponents for
+    /// that fighter ranked by how good the fight is. Ready first, the rest greyed
+    /// with why and when they return. Searches and chips filter the same facts.
+    /// </summary>
     private void RebuildLadder()
     {
         Ladder.Clear();
         _elsewhere = null;
-        OnPropertyChanged(nameof(HasRedPick));
-        OnPropertyChanged(nameof(HasPairing));
+        RaiseFinder();
+        RefreshNeeds();
         if (_world is null || SelectedEvent is null || _rail != DeskRail.Picker) { OnPropertyChanged(nameof(HasLadder)); return; }
+        if (IsPickingSlot && PickSuggested) { OnPropertyChanged(nameof(HasLadder)); return; }   // the suggestions show instead
         var w = _world;
         var ev = SelectedEvent.Model;
+        var facts = Facts();
 
+        FighterId? stayId = null;
         if (_replaceFight is { } fid)
         {
             var fight = ev.Card.FirstOrDefault(f => f.Id == fid);
             if (fight is null) { OnPropertyChanged(nameof(HasLadder)); return; }
-            var stay = _replaceBlue ? fight.RedCorner : fight.BlueCorner;
-            var stayF = w.Get(stay);
-            var pool = _booking.EligibleOpponents(w, ev, stay);
-            foreach (var f in _advisor.ByStanding(w, pool))
+            stayId = _replaceBlue ? fight.RedCorner : fight.BlueCorner;
+        }
+        else if (SelectedRed is { } red) stayId = red.Id;
+
+        if (stayId is { } stay)
+        {
+            // Opponents: same division and sex, ranked by the fight they'd make.
+            var me = w.Get(stay);
+            if (me is null) { OnPropertyChanged(nameof(HasLadder)); return; }
+            var slot = _pickSlot ?? _nextSlot;
+            var outgoing = _replaceFight is { } rf && ev.Card.FirstOrDefault(f => f.Id == rf) is { } bout
+                ? (bout.RedCorner == stay ? bout.BlueCorner : bout.RedCorner) : (FighterId?)null;
+            var pool = facts.Values.Where(x => x.F.Id != stay && x.F.Id != outgoing && x.F.WeightClass == me.WeightClass && x.F.Sex == me.Sex);
+            var appraisals = new Dictionary<FighterId, (MatchupAppraisal A, BoutProposal? P)>();
+            // A new bout: the matchmaker's own read of each pair (PlayerBooking.Suggest). Changing a
+            // corner keeps a booked bout (its slot, its belt), so it reads the appraisal alone.
+            bool replacing = _replaceFight is not null;
+            foreach (var x in pool)
+                appraisals[x.F.Id] = (_advisor.Appraise(w, stay, x.F.Id), replacing ? null : MatchmakerPick(ev, slot, stay, x.F.Id));
+            // The matchmaker's own pairings first, by his score; the pairs he wouldn't make himself
+            // (a champion outside a title fight, teammates, friends) after them.
+            double Score(FighterFacts x) => appraisals[x.F.Id] is var (a, p)
+                ? p?.Score ?? (0.5 * a.Competitiveness + 0.5 * a.Appeal - (replacing ? 0 : 1000)) : -2000;
+            var current = _replaceFight is not null ? _ask?.Incoming : SelectedBlue?.Id;
+            var meFacts = FactsFor(stay);
+            foreach (var x in Filter(pool, Score))
             {
-                string why = BookedElsewhereName(f, ev) is { } other ? $"Booked on {other}" : "";
-                var a = _advisor.Appraise(w, stay, f.Id);
-                Ladder.Add(new LadderEntry(f, w, this, _advisor.StandingOf(w, f.Id).Label,
-                    $"vs {stayF?.LastName}: {a.Summary}", why.Length == 0, why) { Command = ReplaceWithCommand });
+                var (a, p) = appraisals[x.F.Id];
+                bool pickable = x.Ready && (_replaceFight is not null || BlueOptions.Any(o => o.Id == x.F.Id));
+                var row = Row(x, OpponentWhy(me, x.F, a, p), _replaceFight is not null ? PreviewReplaceCommand : PickLadderCommand,
+                    cost: x.F.Contract is { } c ? $"{Short(c.PursePerFight)} + {Short(c.WinBonus)} to win" : "");
+                Ladder.Add(Clone(row, pickable, current == x.F.Id));
             }
-            LadderTitle = $"Who could face {stayF?.LastName ?? "them"} instead";
-            LadderEmpty = $"Nobody else in {stayF?.LastName}'s division is ready and unbooked on {ev.Date:d MMM}.";
+            LadderTitle = _replaceFight is not null ? $"Who could face {me.LastName} instead" : $"Opponents for {me.FirstName} {me.LastName}";
+            LadderEmpty = FinderChips.Any(c => c.IsOn) || _search.Length > 0
+                ? "Nobody matches. Clear the search or a filter."
+                : $"Nobody else at {FighterRow.DivisionLabel(me.WeightClass, me.Sex)} on your roster.";
             OnPropertyChanged(nameof(HasLadder));
             return;
         }
 
-        if (SelectedDivision is not { } d)
+        if (!HasRoster)
         {
             LadderTitle = "";
-            LadderEmpty = HasRoster ? "Pick a division."
-                : "You have no fighters yet. Every bout needs one of yours, even against a local: sign a fighter on the Contracts desk first.";
+            LadderEmpty = "You have no fighters yet. Every bout needs one of yours, even against a local: sign a fighter on the Contracts desk first.";
             OnPropertyChanged(nameof(HasLadder));
             return;
         }
-        var everyone = w.RosterOf(w.PlayerPromotion)
-            .Where(f => f.Status != FighterStatus.Retired && f.WeightClass == d.WeightClass && f.Sex == d.Sex).ToList();
-        if (SelectedRed is null)
-        {
-            var ready = RedOptions.Select(o => w.Get(o.Id)).OfType<Fighter>().ToList();
-            foreach (var f in ready)
-            {
-                string? other = BookedElsewhereName(f, ev);
-                Ladder.Add(new LadderEntry(f, w, this, _advisor.StandingOf(w, f.Id).Label, DealLine(f),
-                    other is null, other is null ? "" : $"Booked on {other}") { Command = PickLadderCommand });
-            }
-            AddUnavailable(everyone.Where(f => ready.All(r => r.Id != f.Id)), ev);
-            LadderTitle = $"{d.Label}: pick the first corner";
-            LadderEmpty = $"You have nobody at {d.Label}.";
-        }
-        else
-        {
-            var red = w.Get(SelectedRed.Id);
-            var opp = BlueOptions.Select(o => w.Get(o.Id)).OfType<Fighter>().ToList();
-            foreach (var f in opp)
-            {
-                string? other = BookedElsewhereName(f, ev);
-                var a = _advisor.Appraise(w, SelectedRed.Id, f.Id);
-                Ladder.Add(new LadderEntry(f, w, this, _advisor.StandingOf(w, f.Id).Label, a.Summary,
-                    other is null, other is null ? "" : $"Booked on {other}") { Command = PickLadderCommand });
-            }
-            AddUnavailable(everyone.Where(f => f.Id != SelectedRed.Id && opp.All(o => o.Id != f.Id)), ev);
-            LadderTitle = $"Opponents for {red?.LastName}";
-            LadderEmpty = $"Nobody else at {d.Label} is ready on {ev.Date:d MMM}.";
-        }
+        // Browsing: the roster, any division unless the scope says otherwise.
+        var scope = _scope?.Division;
+        var browse = facts.Values.Where(x => scope is null || (x.F.WeightClass == scope.WeightClass && x.F.Sex == scope.Sex));
+        foreach (var x in Filter(browse))
+            Ladder.Add(Clone(Row(x, "", PickLadderCommand), x.Ready, false, canFind: x.Ready));
+        LadderTitle = _pickMode == PickMode.Local ? "Pick your fighter for the local bout" : "Pick the first corner";
+        LadderEmpty = FinderChips.Any(c => c.IsOn) || _search.Length > 0 ? "Nobody matches. Clear the search or a filter." : "Nobody in this division.";
         OnPropertyChanged(nameof(HasLadder));
     }
 
-    private void AddUnavailable(IEnumerable<Fighter> fighters, Event ev)
+    // A row with the picker's state on it (pickable, the current pick).
+    private LadderEntry Clone(LadderEntry e, bool available, bool current, bool canFind = false) =>
+        new(_world!.Get(e.FighterId)!, _world, this, e.Rank, e.Line, available, e.Why)
+        {
+            Command = e.Command, DisplayName = e.DisplayName, Nickname = e.Nickname, Division = e.Division, Streak = e.Streak,
+            StreakTone = e.StreakTone, LastFoughtText = e.LastFoughtText, Draw = e.Draw, Purse = e.Purse, Cost = e.Cost,
+            Flag = e.Flag, Tip = e.Tip, IsCurrent = current, CanFindOpponent = canFind,
+        };
+
+    // Why this opponent, in a few words: ranks, a rematch, a feud, how even, a home draw.
+    private string OpponentWhy(Fighter me, Fighter opp, MatchupAppraisal a, BoutProposal? p)
     {
-        foreach (var f in _advisor.ByStanding(_world!, fighters))
-            Ladder.Add(new LadderEntry(f, _world!, this, _advisor.StandingOf(_world!, f.Id).Label, "", false, Unavailable(f, ev)));
+        var w = _world!;
+        var bits = new List<string>();
+        var sm = _advisor.StandingOf(w, me.Id);
+        var so = _advisor.StandingOf(w, opp.Id);
+        if (a.Stakes == Stakes.TitleFight) bits.Add(p is not null || _replaceFight is not null ? "title fight" : "a champion defends only against contenders");
+        else if (sm.Kind != Standing.Unranked && so.Kind != Standing.Unranked) bits.Add($"{sm.Label} vs {so.Label}");
+        else if (so.Kind != Standing.Unranked) bits.Add($"ranked {so.Label}");
+        if (me.BoutHistory.Intersect(opp.BoutHistory).Any()) bits.Add("rematch");
+        if (Core.Sim.Living.Storylines.RivalryBetween(w, me.Id, opp.Id) is { Intensity: >= 20 } feud) bits.Add(feud.Intensity >= 70 ? "bitter feud" : "feud");
+        bits.Add(a.Competitiveness >= 70 ? "even fight" : a.Competitiveness >= 45 ? "competitive" : a.Competitiveness >= 25 ? "clear favourite" : "mismatch");
+        if (SelectedEvent?.Model is { } ev && Core.Sim.Geography.WorldMap.CityOf(w, ev) is { } host && opp.HomeCity == host) bits.Add("home draw");
+        if (p is null || _replaceFight is not null)
+        {
+            if (opp.Camp is { } room && room == me.Camp) bits.Add("teammates");
+            else if (Core.Sim.Living.Bonds.WontFight(w, me.Id, opp.Id)) bits.Add("friends");
+        }
+        return string.Join(" · ", bits);
     }
 
     // Why a fighter can't be booked on this card, said plainly (model state only).
@@ -1027,8 +1121,7 @@ public sealed partial class BookingViewModel
         if (e is null || !e.Available) return;
         if (SelectedRed is null)
         {
-            SelectedRed = RedOptions.FirstOrDefault(o => o.Id == e.FighterId);
-            OnPropertyChanged(nameof(HasRedPick));
+            PickFirstCorner(e.FighterId);
         }
         else
         {
@@ -1039,17 +1132,23 @@ public sealed partial class BookingViewModel
 
     private void ReplaceWith(LadderEntry? e)
     {
-        if (_world is null || SelectedEvent is null || e is null || _replaceFight is not { } fid || !e.Available) return;
+        if (e is null || !e.Available) return;
+        ReplaceWith(e.FighterId);
+    }
+
+    private void ReplaceWith(FighterId incoming)
+    {
+        if (_world is null || SelectedEvent is null || _replaceFight is not { } fid) return;
         var ev = SelectedEvent.Model;
         var fight = ev.Card.FirstOrDefault(f => f.Id == fid);
         if (fight is null) return;
         var outgoing = _replaceBlue ? fight.BlueCorner : fight.RedCorner;
         string outName = _world.Get(outgoing)?.LastName ?? "?";
-        if (_booking.ReplaceFighter(_world, ev, fid, outgoing, e.FighterId, out var err, out _, out var note))
+        if (_booking.ReplaceFighter(_world, ev, fid, outgoing, incoming, out var err, out _, out var note))
         {
             Rail = DeskRail.Night;
             AfterCardChange();
-            Ok($"{_world.Get(e.FighterId)?.LastName} replaces {outName}." + (note is null ? "" : " " + note));
+            Ok($"{_world.Get(incoming)?.LastName} replaces {outName}." + (note is null ? "" : " " + note));
         }
         else Err(err ?? "Couldn't make that swap.");
     }
@@ -1213,48 +1312,50 @@ public sealed partial class BookingViewModel
         if (_world is null) return;
         var w = _world;
         var ev = SelectedEvent?.Model;
-        var lastFought = LastFought();
-        var roster = w.RosterOf(w.PlayerPromotion).Where(f => f.Status != FighterStatus.Retired)
-            .OrderBy(f => f.Sex).ThenBy(f => f.WeightClass).ToList();
-        foreach (var group in roster.GroupBy(f => (f.Sex, f.WeightClass)))
-            foreach (var f in _advisor.ByStanding(w, group))
+        // The finder's facts, search, scope and chips; the grid's own headers sort.
+        var scope = _scope?.Division;
+        var facts = Facts().Values.Where(x => scope is null || (x.F.WeightClass == scope.WeightClass && x.F.Sex == scope.Sex));
+        var shown = Filter(facts).OrderBy(x => x.F.Sex).ThenBy(x => x.F.WeightClass).ThenBy(x => x.RankSort).ThenByDescending(x => x.Read).ThenBy(x => x.F.Id.Value);
+        foreach (var x in shown)
+        {
+            var f = x.F;
+            var notes = new List<string>();
+            if (x.IsLifer && x.BookingHelps) notes.Add("unhappy lifer");
+            if (x.LastOfDeal) notes.Add("last fight on deal");
+            if (x.NeedsFight) notes.Add("needs a fight");
+            if (x.TitleDue) notes.Add("title due");
+            if (x.HomeCity) notes.Add("hometown");
+            if (x.Prospect) notes.Add("prospect");
+            var ff = f;
+            TableRows.Add(new DeskTableRow
             {
-                var st = _advisor.StandingOf(w, f.Id);
-                bool onCard = ev is not null && ev.Card.Any(x => x.RedCorner == f.Id || x.BlueCorner == f.Id);
-                string avail = ev is null ? (f.IsMatchReady(w.CurrentDate) ? "Ready" : "Not ready")
-                    : onCard ? $"On {ev.Name}" : Unavailable(f, ev) is var why && f.IsMatchReady(ev.Date) && BookedElsewhereName(f, ev) is null ? "Ready" : why;
-                var notes = new List<string>();
-                if (f.Contract is { FightsRemaining: <= 1 }) notes.Add("last fight on deal");
-                if (f.Record.CurrentStreak >= 3) notes.Add($"{f.Record.CurrentStreak} straight");
-                if (f.Record.CurrentStreak <= -3) notes.Add($"lost {-f.Record.CurrentStreak}");
-                bool known = lastFought.TryGetValue(f.Id, out var lf);
-                if (known && w.CurrentDate.DayNumber - lf.DayNumber > 270) notes.Add($"idle {(w.CurrentDate.DayNumber - lf.DayNumber) / 30} mo");
-                int read = FighterRow.Scouted(w, f);
-                var ff = f;
-                TableRows.Add(new DeskTableRow
-                {
-                    Id = f.Id.Value,
-                    Rank = st.Label,
-                    RankSort = st.Kind switch { Standing.Champion => 0, Standing.Ranked => st.Rank ?? 999, _ => 1000 },
-                    Name = f.FullName,
-                    Division = FighterRow.DivisionLabel(f.WeightClass, f.Sex),
-                    Record = f.Record.ToString(),
-                    RecordSort = FighterRow.RecordKey(f.Record),
-                    Read = read,
-                    ReadText = ReadWords.Read(read),
-                    Popularity = f.Intangibles.Popularity.Value,
-                    LastFought = known ? lf.ToString("MMM yyyy") : "—",
-                    LastFoughtSort = known ? lf.DayNumber : 0,
-                    FightsLeft = f.Contract?.FightsRemaining ?? 0,
-                    Morale = f.Morale.Value,
-                    Availability = avail,
-                    IsAvailable = avail == "Ready",
-                    OnThisCard = onCard,
-                    Notes = string.Join(" · ", notes),
-                    Face = new LazyFace(ready => Art.Portraits.Thumb(ff, w, ready)),
-                });
-            }
-        TableTitle = ev is null ? "Your roster" : $"Your roster for {ev.Date:d MMM} · {TableRows.Count(r => r.IsAvailable)} ready and unbooked";
+                Id = f.Id.Value,
+                Rank = x.Standing.Label,
+                RankSort = x.RankSort,
+                Name = $"{f.FirstName} {f.LastName}",
+                Division = FighterRow.DivisionLabel(f.WeightClass, f.Sex),
+                Record = f.Record.ToString(),
+                RecordSort = FighterRow.RecordKey(f.Record),
+                Streak = x.Streak > 0 ? $"W{x.Streak}" : x.Streak < 0 ? $"L{-x.Streak}" : "—",
+                StreakSort = x.Streak,
+                Read = x.Read,
+                ReadText = ReadWords.Read(x.Read),
+                Popularity = x.Popularity,
+                LastFought = x.IdleDays is { } d ? AgoShort(d) : "—",
+                LastFoughtSort = x.IdleDays ?? int.MaxValue,
+                Purse = f.Contract is { } c ? Short(c.PursePerFight) : "—",
+                PurseSort = f.Contract?.PursePerFight.Amount ?? 0,
+                Age = x.Age,
+                FightsLeft = x.FightsLeft,
+                Morale = f.Morale.Value,
+                Availability = x.OnCard && ev is not null ? $"On {ev.Name}" : x.Ready ? "Ready" : x.Why,
+                IsAvailable = x.Ready,
+                OnThisCard = x.OnCard,
+                Notes = string.Join(" · ", notes),
+                Face = new LazyFace(ready => Art.Portraits.Thumb(ff, w, ready)),
+            });
+        }
+        TableTitle = ev is null ? "Your roster" : $"Your roster for {ev.Date:d MMM} · {Facts().Values.Count(r => r.Ready)} ready and unbooked · {FinderCount}";
     }
 
     /// <summary>Pair two fighters picked in the table: the picker opens on that pairing to compare and book.</summary>

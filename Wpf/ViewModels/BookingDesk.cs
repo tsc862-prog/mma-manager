@@ -82,6 +82,10 @@ public sealed class BillCorner
     public string ReadText { get; }
     public string Facts { get; }
     public string Purse { get; }
+    /// <summary>The corner in one line for a suggestion row ("#1 · 21-6-0 · W5 · fought 4 mo ago · Elite 81").</summary>
+    public string Summary { get; init; } = "";
+    /// <summary>Last five results, oldest first, with method and opponent on hover.</summary>
+    public IReadOnlyList<FormChip> Form { get; init; } = Array.Empty<FormChip>();
     public bool AtHome { get; }
     /// <summary>Full-body art, drawn for the main event only.</summary>
     public ImageSource? BodyImage { get; }
@@ -139,6 +143,17 @@ public sealed class ProposalCard : ObservableObject
     public required string Read { get; init; }
     public string SlotLabel { get; init; } = "";
     public string Pairing => $"{Red.Short} vs {Blue.Short}";
+    /// <summary>"Kito Maina vs Sangwook Yoon": full names (two Whitlocks on one card read as one otherwise).</summary>
+    public string FullPairing => $"{Red.Name} vs {Blue.Name}";
+    /// <summary>What the two cost to book ("$84k to show, up to $42k to win").</summary>
+    public string Cost { get; init; } = "";
+    /// <summary>On your contracts: last fights of deals, grievances this booking fixes.</summary>
+    public IReadOnlyList<DeskTag> Notes { get; init; } = Array.Empty<DeskTag>();
+    public bool HasNotes => Notes.Count > 0;
+    /// <summary>What it does to the night's expected net ("+$1.2M net"), "" when not projected.</summary>
+    public string NightEffect { get; init; } = "";
+    public bool HasNightEffect => NightEffect.Length > 0;
+    public CardTone NightTone { get; init; }
 
     private bool _isChecked = true;
     /// <summary>Ticked to book in a bulk proposal.</summary>
@@ -185,6 +200,36 @@ public sealed class LadderEntry
     private LazyFace? _face;
     /// <summary>What a click does: pick a corner, or swap this fighter into a bout.</summary>
     public System.Windows.Input.ICommand? Command { get; init; }
+
+    // The finder's row: enough to choose without opening the profile.
+    /// <summary>"Diego Fuentes" (the nickname rides on its own line).</summary>
+    public string DisplayName { get => _display ?? Name; init => _display = value; }
+    private string? _display;
+    public string Nickname { get; init; } = "";
+    public bool HasNickname => Nickname.Length > 0;
+    public string Division { get; init; } = "";
+    /// <summary>"W3", "L2", "Won last" or "".</summary>
+    public string Streak { get; init; } = "";
+    public bool HasStreak => Streak.Length > 0;
+    public CardTone StreakTone { get; init; }
+    /// <summary>"45d ago", "5 mo ago", "debut".</summary>
+    public string LastFoughtText { get; init; } = "";
+    /// <summary>Popularity in words ("draws a crowd").</summary>
+    public string Draw { get; init; } = "";
+    /// <summary>"$12k purse" (your books).</summary>
+    public string Purse { get; init; } = "";
+    /// <summary>What this bout costs with him in it ("$24k + $24k to win"), opponent lists only.</summary>
+    public string Cost { get; init; } = "";
+    public bool HasCost => Cost.Length > 0;
+    /// <summary>The one flag worth a chip (last fight of deal, idle, title due, hometown, unhappy lifer).</summary>
+    public DeskTag? Flag { get; init; }
+    public bool HasFlag => Flag is not null;
+    /// <summary>Everything on the row in full, for the hover.</summary>
+    public string Tip { get; init; } = "";
+    /// <summary>The finder's current pick (the opponent being compared, the corner being previewed).</summary>
+    public bool IsCurrent { get; init; }
+    /// <summary>"Find him an opponent" shows on rows that can start a bout.</summary>
+    public bool CanFindOpponent { get; init; }
 }
 
 /// <summary>A room the card could run in (VenueOptions), in words.</summary>
@@ -251,11 +296,17 @@ public sealed class DeskTableRow
     public required string Division { get; init; }
     public required string Record { get; init; }
     public required int RecordSort { get; init; }
+    public string Streak { get; init; } = "—";
+    public int StreakSort { get; init; }
     public required int Read { get; init; }
     public required string ReadText { get; init; }
     public required int Popularity { get; init; }
+    /// <summary>"45d ago" (sorts by days idle).</summary>
     public required string LastFought { get; init; }
     public required int LastFoughtSort { get; init; }
+    public string Purse { get; init; } = "—";
+    public decimal PurseSort { get; init; }
+    public int Age { get; init; }
     public required int FightsLeft { get; init; }
     public required int Morale { get; init; }
     public required string Availability { get; init; }
