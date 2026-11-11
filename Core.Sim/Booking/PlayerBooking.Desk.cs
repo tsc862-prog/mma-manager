@@ -313,13 +313,18 @@ public sealed partial class PlayerBooking
     /// would hold, the gate and PPV it would take, production with rent, and the
     /// box office (gate + PPV − production − rent; purses are the same in every
     /// room). <see cref="VenueOption.SimPick"/> marks the room the sim would choose
-    /// (<see cref="WorldMap.PickVenueIn"/>); <see cref="VenueOption.Selected"/> the current one.
+    /// (<see cref="Financials.BestRoom"/> once a bout is on the card, else
+    /// <see cref="WorldMap.PickVenueIn"/>); <see cref="VenueOption.Selected"/> the current one.
     /// </summary>
     public IReadOnlyList<VenueOption> VenueOptions(World world, Event ev)
     {
         var promo = world.Get(ev.Promotion);
         if (!IsMine(world, ev) || promo is null || WorldMap.CityOf(world, ev) is not { } city) return Array.Empty<VenueOption>();
-        var simPick = WorldMap.PickVenueIn(world, promo, city)?.Id;
+        // The room an AI booker would put this card in: the same picker the
+        // calendar uses for AI cards (most net at the door for this headliner).
+        var simPick = ev.Card.Count > 0
+            ? Financials.BestRoom(world, ev, world.Venues.Values.Where(v => v.City == city))?.Id
+            : WorldMap.PickVenueIn(world, promo, city)?.Id;   // nothing booked yet: the fanbase estimate
         var list = new List<VenueOption>();
         int demand = -1;
         foreach (var v in world.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Capacity).ThenBy(v => v.Id.Value))

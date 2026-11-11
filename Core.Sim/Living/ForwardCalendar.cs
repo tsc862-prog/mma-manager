@@ -345,6 +345,7 @@ public static class ForwardCalendar
         {
             ev = events.CreateEvent(world, promo.Id, $"{promo.Abbreviation} Fight Night {number}", when, top,
                 Geography.WorldMap.PickTourStop(world, promo, when));
+            FitRoom(world, ev);   // announced in the room this headliner fills (the night re-checks)
         }
 
         foreach (var m in top) { committed.Add(m.Red); committed.Add(m.Blue); }
@@ -744,23 +745,31 @@ public static class ForwardCalendar
     /// If the card's announcement made the news (and so named the room), the
     /// move is a headline too, so the announcement and the result never disagree.
     /// </summary>
+    /// <summary>
+    /// Put an AI card in the room of its city that nets most at the door for
+    /// THIS card (<see cref="Booking.Financials.BestRoom"/>): the same picker at
+    /// announcement (headliner known) and again on fight night. True when the
+    /// room changed. PickVenueIn's estimate, used before, leaves out the main
+    /// event's pull, the brand campaign and the belt, so it under-roomed every
+    /// big draw: the AFC sold out 4,200 seats in Las Vegas with ~21,000 wanting
+    /// in and a 21,200 arena across town, about $16M of gate lost a quarter.
+    /// </summary>
+    internal static bool FitRoom(World world, Event ev)
+    {
+        if (ev.Card.Count == 0 || ev.VenueId is not { } current || world.Get(current) is not { } room) return false;
+        var fit = Booking.Financials.BestRoom(world, ev, world.Venues.Values.Where(v => v.City == room.City));
+        if (fit is null || fit.Id == current) return false;
+        ev.VenueId = fit.Id;
+        ev.Venue = fit.Name;
+        if (world.Get(fit.City) is { } city) ev.Region = city.Region;
+        return true;
+    }
+
     private static void RefreshVenue(World world, Promotion promo, Event ev)
     {
         if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;
         if (ev.VenueId is not { } current || world.Get(current) is not { } room) return;
-        // Fitted to the CARD, not to a guess: the house this card would draw in
-        // each of the town's rooms, at its ticket price, less production and
-        // rent. PickVenueIn's estimate (still used to announce the card a month
-        // out, before its headliner is certain) leaves out the main event's
-        // pull, the brand campaign and the belt, so it under-roomed every big
-        // draw: the AFC sold out 4,200 seats in Las Vegas with ~21,000 wanting
-        // in and a 21,200 arena across town, about $16M of gate lost a quarter.
-        var fit = Booking.Financials.BestRoom(world, ev,
-            world.Venues.Values.Where(v => v.City == room.City));
-        if (fit is null || fit.Id == current) return;
-        ev.VenueId = fit.Id;
-        ev.Venue = fit.Name;
-        if (world.Get(fit.City) is { } city) ev.Region = city.Region;
+        if (!FitRoom(world, ev) || world.Get(ev.VenueId!.Value) is not { } fit) return;
         // A card whose announcement made the news named its room: say it moved.
         if (MeritsHeadline(world, ev, AuthoredBookingOn(world, ev) is not null))
             News.Post(world, ev.Date, NewsCategory.General,
