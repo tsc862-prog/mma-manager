@@ -20,6 +20,23 @@ public static class Financials
     /// half the win bonuses (winners unknown). Lets the booker see whether a
     /// card makes money BEFORE committing to it.
     /// </summary>
+    /// <summary>How close (days either side) another card has to be to count as counter-programming.</summary>
+    public const int CounterProgrammingDays = 3;
+
+    /// <summary>The attendance cut a counter-programmed card takes (a flat 8%, however many rivals).</summary>
+    public const double CounterProgrammingPenalty = 0.08;
+
+    /// <summary>
+    /// The cards that count as counter-programming against a show on this date:
+    /// ANY other promotion's card (anywhere in the world, scheduled or already
+    /// run, and the promotion-less local-circuit nights too) within
+    /// <see cref="CounterProgrammingDays"/> days. The rule as it stands has no
+    /// region test, so with a world calendar this busy it nearly always fires.
+    /// </summary>
+    public static IEnumerable<Event> ClashingEvents(World world, PromotionId promotion, DateOnly date, EventId? except = null) =>
+        world.Events.Values.Where(o => o.Id != except && o.Promotion != promotion
+            && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - date.DayNumber) <= CounterProgrammingDays);
+
     public static EventFinancials Estimate(World world, Event ev)
     {
         var fin = Compute(world, ev);
@@ -76,9 +93,8 @@ public static class Financials
         // trinket adds a line to the poster.
         if (main is { IsTitleFight: true, Title: { } beltId } && world.Get(beltId) is { } belt)
             drawPower += (int)(belt.Prestige.Value * 0.3);
-        bool clash = world.Events.Values.Any(o => o.Id != ev.Id && o.Promotion != ev.Promotion
-            && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - ev.Date.DayNumber) <= 3);
-        double counterProgramming = clash ? -0.08 : 0;
+        bool clash = ClashingEvents(world, ev.Promotion, ev.Date, ev.Id).Any();
+        double counterProgramming = clash ? -CounterProgrammingPenalty : 0;
 
         // Head-to-head market split: sharing a region with same-or-bigger promotions
         // carves up the fanbase, so each gets a thinner house.

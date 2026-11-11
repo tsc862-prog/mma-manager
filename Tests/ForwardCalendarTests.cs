@@ -410,8 +410,72 @@ public class ForwardCalendarTests
         Assert.NotNull(clash);
         Assert.NotEmpty(clash!.Card);   // the flagship still goes ahead, headlined by the ordinary choice
         Assert.DoesNotContain(clash.Card, f => f.RedCorner == suwaidi.Id || f.BlueCorner == suwaidi.Id);
-        Assert.DoesNotContain(world.News, n => n.Headline.Contains("Dudaev vs Al-Suwaidi"));
         Assert.Null(ForwardCalendar.AuthoredBookingOn(world, clash));
+        // The fight that can't happen is called off in the news, and nobody is
+        // substituted into it: the card is headlined by something else entirely.
+        Assert.DoesNotContain(world.News, n => n.Headline.StartsWith("GFC sets Dudaev vs Al-Suwaidi"));
+        var off = Assert.Single(world.News, n => n.Headline.StartsWith("Off: Dudaev vs Al-Suwaidi"));
+        Assert.Contains("Khalid Al-Suwaidi is no longer an active fighter", off.Body);
+    }
+
+    [Fact]
+    public void EveryAuthoredBooking_ResolvesToDesignedFightersOfItsPromotion()
+    {
+        var world = Build();
+        foreach (var row in DesignedBookings.All)
+        {
+            var promo = world.Promotions.Values.FirstOrDefault(p => p.Abbreviation == row.Org);
+            Assert.True(promo is not null, $"{row.Org} isn't a promotion");
+            foreach (var name in new[] { row.Red, row.Blue }.OfType<string>())
+            {
+                var f = world.Fighters.Values.FirstOrDefault(x => x.Designed && $"{x.FirstName} {x.LastName}" == name);
+                Assert.True(f is not null, $"{name} isn't a designed fighter");
+                Assert.Equal(promo!.Id, f!.Contract?.Promotion);
+                Assert.Equal(row.Wc, f.WeightClass);
+                Assert.Equal(row.Sex, f.Sex);
+            }
+            // A flagship row names the org's real flagship.
+            if (row.EventName is { } show) Assert.Equal(show, SignatureEvents.NameOf(promo!));
+            Assert.InRange(row.Order, 0, 1);
+        }
+    }
+
+    [Fact]
+    public void AnAuthoredNumberedCard_IsAnnouncedOnTheTablesSchedule()
+    {
+        // Quispe vs Huanca: CDC, ~day 21, announced 21 days ahead. Friends refuse
+        // each other on an ordinary card; an authored booking is the exception.
+        var world = Build();
+        var cdc = world.Promotions.Values.First(p => p.Abbreviation == "CDC");
+        var (night, rows) = ForwardCalendar.BookedNights(world, cdc).Single();
+        Assert.True(Math.Abs(night.DayNumber - world.StartDate.AddDays(21).DayNumber) <= 14);
+        Assert.True(ForwardCalendar.IsShowWeek(cdc, night));
+        var tick = new WorldTick();
+        while (world.CurrentDate < night && !AiScheduled(world).Any(e => e.Promotion == cdc.Id && e.Date == night)) tick.AdvanceWeek(world);
+        var card = AiScheduled(world).First(e => e.Promotion == cdc.Id && e.Date == night);
+        var names = new[] { card.Card[^1].RedCorner, card.Card[^1].BlueCorner }.Select(id => world.Get(id)!.LastName).ToList();
+        Assert.Contains("Quispe", names);
+        Assert.Contains("Huanca", names);
+        Assert.NotNull(ForwardCalendar.AuthoredBookingOn(world, card));
+    }
+
+    [Fact]
+    public void RivalCardsNear_ListsTheClash_AndTheRealPenalty()
+    {
+        var world = Build();
+        var player = world.PlayerPromotion;
+        var date = AiScheduled(world).First().Date;
+        var (rivals, penalty) = ForwardCalendar.RivalCardsNear(world, player, date);
+        Assert.NotEmpty(rivals);
+        Assert.All(rivals, c =>
+        {
+            Assert.NotEqual(player, c.Promotion.Id);
+            Assert.InRange(Math.Abs(c.Date.DayNumber - date.DayNumber), 0, Financials.CounterProgrammingDays);
+        });
+        Assert.Equal(Financials.CounterProgrammingPenalty, penalty);
+        // Narrowed to a region, only that region's cards.
+        var asia = ForwardCalendar.RivalCardsNear(world, player, date, Region.Asia).Rivals;
+        Assert.All(asia, c => Assert.Equal(Region.Asia, c.Region));
     }
 
     // --- the feed ----------------------------------------------------------------
