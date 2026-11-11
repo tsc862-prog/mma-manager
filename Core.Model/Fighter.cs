@@ -265,6 +265,20 @@ public sealed class Contract
     /// warning fires once per contract. Persisted, so a load does not repeat it.
     /// </summary>
     public bool PoachWarned { get; set; }
+
+    /// <summary>
+    /// The lifer layer's memory for this deal (Core.Sim Contracts.Lifers): when his
+    /// bond last made the news. Null = nothing told on this deal. A BREAK sets the
+    /// date it was told and is not told again until the grievance clears (he is
+    /// holding again, which empties it). A refusal of a rival is marked with
+    /// <see cref="RefusalTold"/> (no date needed — one refusal story per deal),
+    /// and a later break still gets told over it. Persisted, so a load neither
+    /// repeats nor forgets a story.
+    /// </summary>
+    public DateOnly? BondNoticeOn { get; set; }
+
+    /// <summary>The <see cref="BondNoticeOn"/> mark for "his refusal of a rival was told on this deal".</summary>
+    public static readonly DateOnly RefusalTold = DateOnly.MinValue;
 }
 
 public sealed class Injury

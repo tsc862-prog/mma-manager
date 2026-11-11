@@ -170,6 +170,7 @@ public static class Acquisitions
                 && (champions.Contains(f.Id)
                     || have < OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(buyer)) + 2))
             {
+                Contracts.Lifers.OnLeaving(world, f, target, $"{target.Name} was sold to {buyer.Name}", date, buyer.Id);
                 f.Contract = new Contract
                 {
                     Promotion = buyer.Id, SignedOn = date, Type = c.Type,
@@ -185,6 +186,7 @@ public static class Acquisitions
             }
             else
             {
+                Contracts.Lifers.OnLeaving(world, f, target, $"he was cut loose when {buyer.Name} bought {target.Name}", date);
                 f.Contract = null;
                 released++;
             }

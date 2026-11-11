@@ -80,6 +80,7 @@ public static class Solvency
         int released = 0;
         foreach (var f in world.RosterOf(promo.Id).ToList())
         {
+            Contracts.Lifers.OnLeaving(world, f, promo, $"{promo.Name} closed its doors", date);
             f.Contract = null;   // the company is broke — nobody gets a payout
             released++;
         }
