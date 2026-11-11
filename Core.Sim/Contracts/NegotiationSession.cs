@@ -38,7 +38,7 @@ public sealed class NegotiationSession
     private readonly double _floorFrac;       // the fraction of the ask they'll never go under
     private readonly double _concessionRate;  // how much of the gap they give per credible round
     private double _demandFrac = 1.0;         // where their number sits now, as a fraction of the ask
-    private readonly decimal _home;           // a lifer's hometown discount at his own promotion's table (else 1)
+    private readonly decimal _home;           // his personal discount at this table: a lifer's hometown rate or a discovered local's gratitude (Negotiator.TableDiscount; else 1)
     private readonly Money? _liveFloor;       // a renewal of a live deal never goes under its show money (see Negotiator.LivePurseFloor)
 
     public NegotiationSession(World world, Fighter fighter, Promotion promo, ContractExpectations exp)
@@ -52,7 +52,7 @@ public sealed class NegotiationSession
         var rep = new ContractOffer { Fighter = fighter.Id, Promotion = promo.Id };
         _appeal = Negotiator.Appeal(world, fighter, rep, exp);
         _floorFrac = 1.0 - _appeal * 0.25;    // a dream situation is worth ~25% off the ask
-        _home = Lifers.HomeDiscount(world, fighter, promo.Id);
+        _home = Negotiator.TableDiscount(world, fighter, promo.Id);
         _liveFloor = Negotiator.LivePurseFloor(fighter, promo.Id);
 
         AgentToughness = FighterValuation.AgentToughness(fighter);
@@ -64,7 +64,7 @@ public sealed class NegotiationSession
             AgentToughness >= 70 ? "hard-nosed representation" :
             AgentToughness >= 45 ? "a firm but fair agent" : "an easygoing camp";
         OpeningLine = Lifers.Gendered(fighter, string.Format(
-            _home < 1m ? "\"I'm not going anywhere, and everybody knows it. Make it fair and I'll sign — I won't squeeze you.\"" :
+            Lifers.HomeDiscount(world, fighter, promo.Id) < 1m ? "\"I'm not going anywhere, and everybody knows it. Make it fair and I'll sign — I won't squeeze you.\"" :
             AgentToughness >= 70 ? "\"Let's not waste anyone's time — you know what {1} is worth, and so do we.\"" :
             AgentToughness >= 45 ? "\"We're open to the right deal. Put real numbers in front of us and {0} signs.\"" :
             "\"{0} likes what you're building over there. Make it fair and we're done by lunch.\"",

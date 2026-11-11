@@ -45,6 +45,7 @@ public static class FighterLink
             GlobalRankRow g => g.FighterId,
             FreeAgentRow fa => fa.Id.Value,
             MyContractRow mc => mc.Id.Value,
+            DeskTableRow dt => dt.Id,
             _ => null,
         };
         if (id is not { } fighterId || fighterId == 0) return;

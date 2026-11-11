@@ -23,8 +23,8 @@ public static class ResultsProcessor
 
         red.BoutHistory.Add(fight.Id);
         blue.BoutHistory.Add(fight.Id);
-        DecrementContract(red);
-        DecrementContract(blue);
+        DecrementContract(red, ev);
+        DecrementContract(blue, ev);
 
         // Getting booked by your own org builds loyalty; winning and (especially) a
         // title shot build more. Neglect eats it back (see WorldTick's monthly decay).
@@ -295,9 +295,13 @@ public static class ResultsProcessor
         }
     }
 
-    private static void DecrementContract(Fighter f)
+    // A deal counts down only on its holder's own cards — the same bouts
+    // ContractLifecycle.FightsServed counts as served. A non-exclusive
+    // moonlighter's local-circuit night (nobody's show) or another promotion's
+    // card is his own business and leaves the home deal where it was.
+    private static void DecrementContract(Fighter f, Event ev)
     {
-        if (f.Contract is { } c && c.FightsRemaining > 0) c.FightsRemaining--;
+        if (f.Contract is { } c && c.Promotion == ev.Promotion && c.FightsRemaining > 0) c.FightsRemaining--;
     }
 
     // A fighter slowly warms to the org that keeps them busy and gives them the big
