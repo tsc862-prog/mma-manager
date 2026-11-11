@@ -32,25 +32,28 @@ public static class Storylines
             .Where(e => e.Status == EventStatus.Scheduled
                 && e.Date.DayNumber - date.DayNumber is > 6 and <= 35
                 && world.Get(e.Promotion) is not null)
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
             .ToList();
         if (upcoming.Count == 0) return;
 
         // Who's already spoken for — a replacement can't be double-booked.
-        var booked = new HashSet<FighterId>(world.Events.Values
-            .Where(e => e.Status == EventStatus.Scheduled)
-            .SelectMany(e => e.Card)
-            .SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
+        var booked = ForwardCalendar.Committed(world);
 
         foreach (var ev in upcoming)
         {
+            // The player's cards roll on the week's shared stream as they always
+            // have. Every AI card (the forward calendar keeps dozens in this
+            // window) rolls on its own keyed stream, so they add no draw to it.
+            var r = ev.Promotion == world.PlayerPromotion ? rng
+                : new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)ev.Id.Value * 0x2545F491UL ^ (ulong)date.DayNumber ^ CampWithdrawalSalt));
             foreach (var fight in ev.Card.ToList())
             {
                 FighterId? outId = null;
                 foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
                 {
                     if (world.Get(id) is not { Status: FighterStatus.Active } f) continue;
-                    if (!rng.Chance(0.008)) continue;
-                    int weeks = rng.Range(2, 8);
+                    if (!r.Chance(0.008)) continue;
+                    int weeks = r.Range(2, 8);
                     f.CurrentInjury = new Injury
                     {
                         Severity = InjurySeverity.Minor,
@@ -89,69 +92,140 @@ public static class Storylines
                 }
 
                 // The AI saves the bout if anyone plausible will take the call.
-                var sub = ReplacementPool(world, ev, fight, booked, stayId).FirstOrDefault();
-                if (sub is null)
-                {
-                    ev.Card.Remove(fight);
-                    News.Post(world, date, NewsCategory.Withdrawal,
-                        $"{hurtF.FullName} withdraws from {ev.Name}", "Injured in camp; no replacement was found and the bout is off.", ev.Promotion);
-                    continue;
-                }
-
-                if (sub.Contract is null)
-                {
-                    // A free agent takes the short-notice call at a premium — the
-                    // phone call that makes careers.
-                    var ask = new FighterValuation().Evaluate(world, sub).AskingPurse;
-                    ContractLifecycle.Sign(world, sub, new ContractOffer
-                    {
-                        Fighter = sub.Id, Promotion = ev.Promotion,
-                        PursePerFight = new Money(Math.Round(ask.Amount * 1.25m / 100m) * 100m),
-                        Fights = 1, Exclusive = false,
-                    }, date);
-                }
-
-                bool champOut = fight.IsTitleFight && fight.Title is { } tid
-                    && world.Get(tid)?.CurrentChampion == hurt;
-                bool subRanked = world.Get(ev.Promotion) is { } promo
-                    && promo.Divisions.Any(d => d.Matches(sub) && d.Rankings.Take(8).Contains(sub.Id));
-                bool beltStaysOn = fight.IsTitleFight && !champOut && subRanked;
-
-                var replacement = new Fight
-                {
-                    Id = world.NewFightId(),
-                    RedCorner = fight.RedCorner == hurt ? sub.Id : fight.RedCorner,
-                    BlueCorner = fight.BlueCorner == hurt ? sub.Id : fight.BlueCorner,
-                    WeightClass = fight.WeightClass,
-                    ScheduledRounds = fight.ScheduledRounds,
-                    IsTitleFight = beltStaysOn,
-                    Title = beltStaysOn ? fight.Title : null,
-                };
-                ev.Card[ev.Card.IndexOf(fight)] = replacement;
-                booked.Add(sub.Id);
-
-                News.Post(world, date, NewsCategory.Withdrawal,
-                    $"{sub.FullName} steps in for {hurtF.FullName} at {ev.Name}",
-                    (champOut ? "The champion is out and the belt is off the card — the show goes on. "
-                        : fight.IsTitleFight && !beltStaysOn ? "The title leaves the line with the challenger — the stand-in fights for pride and position. "
-                        : "") + "Short notice, full danger.", ev.Promotion);
+                if (!SaveBout(world, ev, fight, hurt, booked, date, "Injured in camp"))
+                    ForwardCalendar.RestoreHeadliner(world, ev);
             }
         }
     }
 
+    private const ulong CampWithdrawalSalt = 0xCA4F_3A11UL;
+
+    /// <summary>The name prefix of a champ-vs-champ super-card (a one-off, outside the regular calendar).</summary>
+    public const string SuperfightPrefix = "CHAMP VS CHAMP";
+
+    public static bool IsSuperfight(Event ev) => ev.Name.StartsWith(SuperfightPrefix, StringComparison.Ordinal);
+
+    /// <summary>
+    /// A corner is OUT of an AI card with time still on the clock: the
+    /// matchmaker saves the bout with a roster body or a free agent on a
+    /// one-fight deal if anyone plausible will take the call (true), otherwise
+    /// the bout is off (false). A champion out takes the belt off the card; a
+    /// challenger's stand-in keeps it on the line only if he's a ranked name.
+    /// <paramref name="cause"/> is the news's reason ("Injured in camp", "has
+    /// left for AFC"...). The feed only hears about it when it matters.
+    /// </summary>
+    internal static bool SaveBout(World world, Event ev, Fight fight, FighterId outId,
+        HashSet<FighterId> booked, DateOnly date, string cause)
+    {
+        var outF = world.Get(outId);
+        string outName = outF?.FullName ?? "A fighter";
+        var stayId = fight.RedCorner == outId ? fight.BlueCorner : fight.RedCorner;
+        bool loud = Newsworthy(world, ev, fight);
+        string reason = Reason(outF, cause);
+
+        var sub = ReplacementPool(world, ev, fight, booked, stayId).FirstOrDefault();
+        if (sub is null)
+        {
+            ev.Card.Remove(fight);
+            if (loud)
+                News.Post(world, date, NewsCategory.Withdrawal,
+                    $"{outName} {(cause.StartsWith("Injured") ? "withdraws from" : "is off")} {ev.Name}",
+                    $"{reason}; no replacement was found and the bout is off.", ev.Promotion);
+            return false;
+        }
+
+        if (sub.Contract is null)
+        {
+            // A free agent takes the short-notice call at a premium — the
+            // phone call that makes careers.
+            var ask = new FighterValuation().Evaluate(world, sub).AskingPurse;
+            ContractLifecycle.Sign(world, sub, new ContractOffer
+            {
+                Fighter = sub.Id, Promotion = ev.Promotion,
+                PursePerFight = new Money(Math.Round(ask.Amount * 1.25m / 100m) * 100m),
+                Fights = 1, Exclusive = false,
+            }, date);
+        }
+
+        // The belt is the champion's to defend: if he's the one out — or has
+        // already walked away from it — it comes off the card.
+        var belt = fight.IsTitleFight && fight.Title is { } tid ? world.Get(tid) : null;
+        bool champOut = belt is not null && (belt.CurrentChampion == outId || belt.CurrentChampion is null && belt.Lineage.LastOrDefault()?.Champion == outId);
+        bool subRanked = world.Get(ev.Promotion) is { } promo
+            && promo.Divisions.Any(d => d.Matches(sub) && d.Rankings.Take(8).Contains(sub.Id));
+        bool beltStaysOn = fight.IsTitleFight && !champOut && subRanked;
+
+        var replacement = new Fight
+        {
+            Id = world.NewFightId(),
+            RedCorner = fight.RedCorner == outId ? sub.Id : fight.RedCorner,
+            BlueCorner = fight.BlueCorner == outId ? sub.Id : fight.BlueCorner,
+            WeightClass = fight.WeightClass,
+            ScheduledRounds = fight.ScheduledRounds,
+            IsTitleFight = beltStaysOn,
+            Title = beltStaysOn ? fight.Title : null,
+        };
+        ev.Card[ev.Card.IndexOf(fight)] = replacement;
+        booked.Add(sub.Id);
+
+        if (loud || Newsworthy(world, ev, replacement))
+            News.Post(world, date, NewsCategory.Withdrawal,
+                $"{sub.FullName} steps in for {outName} at {ev.Name}",
+                (cause.StartsWith("Injured") ? "" : reason + ". ")
+                + (champOut ? "The champion is out and the belt is off the card — the show goes on. "
+                    : fight.IsTitleFight && !beltStaysOn ? "The title leaves the line with the challenger — the stand-in fights for pride and position. "
+                    : "") + "Short notice, full danger.", ev.Promotion);
+        return true;
+    }
+
+    /// <summary>
+    /// A bout comes off a card with no time to save it (fight week, or both
+    /// corners gone): scrapped, the bill reshuffled by the caller.
+    /// </summary>
+    internal static void ScrapBout(World world, Event ev, Fight fight, FighterId outId, DateOnly date, string cause)
+    {
+        bool loud = Newsworthy(world, ev, fight);
+        ev.Card.Remove(fight);
+        if (!loud) return;
+        var outF = world.Get(outId);
+        News.Post(world, date, NewsCategory.Withdrawal,
+            $"{outF?.FullName ?? "A fighter"} is off {ev.Name}",
+            $"{Reason(outF, cause)}; there's no time to find a replacement and the bout is scrapped.", ev.Promotion, outId);
+    }
+
+    // "Injured in camp" / "Jae-won Seo has left for VMMA".
+    private static string Reason(Fighter? f, string cause) =>
+        cause.StartsWith("Injured") || f is null ? cause : $"{f.FullName} {cause}";
+
+    // The feed hears about a lost bout when it matters: always on the player's
+    // card, otherwise when it's a title fight or one of the announced top two
+    // bouts of a card the sport is watching, or involves a known name.
+    private static bool Newsworthy(World world, Event ev, Fight fight)
+    {
+        if (ev.Promotion == world.PlayerPromotion) return true;
+        int at = ev.Card.IndexOf(fight);
+        bool top = at >= 0 && at >= ev.Card.Count - 2;
+        if ((fight.IsTitleFight || top) && ForwardCalendar.MeritsHeadline(world, ev)) return true;
+        return (world.Get(fight.RedCorner)?.Intangibles.Popularity.Value ?? 0) >= 55
+            || (world.Get(fight.BlueCorner)?.Intangibles.Popularity.Value ?? 0) >= 55;
+    }
+
     // Who could plausibly save the bout: roster bodies first (free, familiar),
     // then free agents hungry for the call — same division, healthy, unbooked.
+    // (On an AI card, nobody on a spent deal: his contract ends before the bout.)
     private static IEnumerable<Fighter> ReplacementPool(World world, Event ev, Fight fight,
         HashSet<FighterId> booked, FighterId opponent)
     {
         if (world.Get(ev.Promotion) is not { } promo) return Enumerable.Empty<Fighter>();
         var div = promo.Divisions.FirstOrDefault(d =>
             d.WeightClass == fight.WeightClass && world.Get(opponent) is { } o && d.Matches(o));
+        bool ai = ev.Promotion != world.PlayerPromotion;
 
         bool Fits(Fighter c) => c.Status == FighterStatus.Active && !c.LocalTalent
             && c.Id != opponent && !booked.Contains(c.Id)
             && c.IsMatchReady(ev.Date)
             && (div?.Matches(c) ?? c.WeightClass == fight.WeightClass)
+            && !(ai && c.Contract is { FightsRemaining: <= 0 })
             && world.BiddingWars.All(w => w.Fighter != c.Id);
 
         var roster = world.RosterOf(promo.Id).Where(Fits);
@@ -463,9 +537,11 @@ public static class Storylines
 
                 var when = date.AddDays(28);
                 if (!challenger.IsMatchReady(when) || !champ.IsMatchReady(when)) continue;
+                // A champion already announced for a card is spoken for.
+                if (ForwardCalendar.IsCommitted(world, challengerId) || ForwardCalendar.IsCommitted(world, champId)) continue;
 
                 var ev = new Booking.EventService().CreateEvent(world, promo.Id,
-                    $"CHAMP VS CHAMP: {champ.LastName} vs {challenger.LastName}", when,
+                    $"{SuperfightPrefix}: {champ.LastName} vs {challenger.LastName}", when,
                     new[] { new Booking.Matchup(champId, challengerId, upperClass, 5, true, upTid) });
                 ev.Tier = Org.OrgPerks.MaxEventTier(promo);
 

@@ -43,7 +43,6 @@ public sealed class WorldTickReport
 /// </summary>
 public sealed class WorldTick
 {
-    private const int DivisionTarget = 10;     // AI card size — bigger cards keep the deeper rosters busy (prelims soak the extra)
     private const int NewgenBaseline = 4;      // young intake beyond replacing outflow — the base of the pyramid stays wide
 
     private readonly Matchmaker _matchmaker;
@@ -92,7 +91,10 @@ public sealed class WorldTick
         var report = new WorldTickReport { Date = after };
 
         report.Healed = Lifecycle.HealReturning(world, after);
-        AutoBookAiEvents(world, after);     // AI promotions schedule their own cards
+        // The world's clock: AI promotions announce their shows weeks ahead,
+        // fill the undercards as the dates close in, and take anyone who has
+        // left, retired or been suspended off the cards they were booked on.
+        ForwardCalendar.RunWeekly(world, after, _matchmaker, _events);
 
         // The weeks before a card have their own stories: camp injuries force
         // withdrawals (and short-notice saves), the press tours sell the big
@@ -214,64 +216,13 @@ public sealed class WorldTick
 
             // Refresh the cross-org and pound-for-pound rankings.
             GlobalRankings.Recompute(world);
+
+            // The month's exits (expiries, cuts, retirements, washouts, sales,
+            // closures) come off the calendar tonight, not next week.
+            ForwardCalendar.Audit(world, after);
         }
 
         return report;
-    }
-
-    // AI-run promotions matchmake and schedule their own cards on a staggered
-    // monthly cadence. The PLAYER promotion is excluded — the player books it.
-    private void AutoBookAiEvents(World world, DateOnly date)
-    {
-        var ai = world.Promotions.Values
-            .Where(p => p.Id != world.PlayerPromotion && !p.Defunct)
-            .OrderBy(p => p.Id.Value)
-            .ToList();
-        if (ai.Count == 0) return;
-        int weekIndex = date.DayNumber / 7;
-
-        for (int i = 0; i < ai.Count; i++)
-        {
-            var promo = ai[i];
-            // Staggered fixed cadence per org — a rival closing down doesn't
-            // make the survivors suddenly run weekly shows. The big leagues run
-            // BIWEEKLY (that's what keeps a 20+-deep division active — every
-            // fighter still gets ~2 fights a year); everyone else monthly.
-            int period = Org.OrgSizing.SizeOf(promo) >= OrgSize.Continental ? 2 : 4;
-            if (weekIndex % period != i % period) continue;
-            // The big leagues also run BIGGER cards (a real PPV bill is 12-14
-            // bouts) — between cadence and card size, a 20+-deep division keeps
-            // its whole roster in rotation.
-            int cardSize = Org.OrgSizing.SizeOf(promo) >= OrgSize.Continental ? 13 : DivisionTarget;
-            var card = _matchmaker.BuildCard(world, promo.Id, targetFights: cardSize);
-            if (card.Count == 0) continue;
-
-            int number = world.Events.Values.Count(e => e.Promotion == promo.Id) + 1;
-            var stop = Geography.WorldMap.PickTourStop(world, promo, date);
-
-            // The calendar's traditions: a designed org's flagship annual show
-            // lands in its signature month — biggest stage the org can put on,
-            // and the world knows the date is coming.
-            if (SignatureEvents.For(promo, date) is { } signature
-                && !world.Events.Values.Any(e => e.Promotion == promo.Id
-                    && e.Date.Year == date.Year && e.Name.StartsWith(signature)))
-            {
-                // A tradition has an ADDRESS. The flagship goes home — the big
-                // house in the org's own town — rather than wherever the tour
-                // happened to be that week (ICF's New Year show belongs in the
-                // Tokyo dome its lore has always claimed it runs in).
-                var home = promo.HomeCity ?? stop;
-                var flagship = _events.CreateEvent(world, promo.Id, $"{signature} {date.Year}", date, card, home, biggestRoom: true);
-                flagship.Tier = Org.OrgPerks.MaxEventTier(promo);
-                News.Post(world, date, NewsCategory.Milestone,
-                    $"The tradition returns: {flagship.Name}",
-                    $"{promo.Name}'s flagship night of the year is set"
-                    + (flagship.Venue is { } room ? $" — back at {room}." : "."), promo.Id);
-                continue;
-            }
-
-            _events.CreateEvent(world, promo.Id, $"{promo.Abbreviation} Fight Night {number}", date, card, stop);
-        }
     }
 
     // A promotion that hasn't run a card in this long starts to fade from the
@@ -361,7 +312,12 @@ public sealed class WorldTick
     private void RunEventCore(World world, Event ev, SimRandom rng, bool playByPlay, WorldTickReport? report)
     {
         if (ev.Card.Count == 0) { ev.Status = EventStatus.Cancelled; return; }   // never booked — a non-event
+        // Fight night's last word on an AI card: only fighters signed to the
+        // promotion (or its local filler), none retired, suspended or booked
+        // elsewhere, and no belt on a bout it can't be on.
+        ForwardCalendar.GuardAtRun(world, ev);
         Storylines.RollPullouts(world, ev, ev.Date, rng);
+        ForwardCalendar.RestoreHeadliner(world, ev);             // AI cards: a lost main event leaves a proper headliner
         Storylines.RollWeightMisses(world, ev, ev.Date, rng);   // weigh-in day: fines, catchweights, stripped champs
         if (ev.Card.Count == 0)
         {

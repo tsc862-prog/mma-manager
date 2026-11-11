@@ -351,6 +351,10 @@ public sealed class WorldBuilder
 
         GlobalRankings.Recompute(world);
 
+        // We join mid-story: every AI house's next shows are already announced.
+        // (A world built without a past has no story to be in the middle of.)
+        if (o.GenerateHistory) Living.ForwardCalendar.SeedOpening(world);
+
         // Last: the sport reports on the world that was just built, so day one
         // opens on a feed with eighteen months of history in it instead of a
         // blank page. Everything in it is derived from what actually exists.
