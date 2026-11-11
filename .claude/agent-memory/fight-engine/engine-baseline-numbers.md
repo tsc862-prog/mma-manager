@@ -6,7 +6,7 @@ metadata:
 ---
 
 ## After step 3 (branch engine/stoppages-scoring, PR #37, code commit 107ba21)
-Golden master: results e6c94a818fcb451f, scorecards 462d2ea204d03f97.
+Golden master (after review fix: 1-0-2 is a majority draw): results 1500083f690f02f2, scorecards e286d0b0b0908954. Lab MD 1.5 / draw 2.1 (3 rds); in-world MD 1.2 / draw 1.6 - draws above target is structural (1-1-1 split draws), narrowing the 10-10 band does not fix it.
 FightLab scale 2 (seed 2026): 3 rds finish 36.2 (KO 10.3 TKO 11.6 SUB 14.3; UD 50.3 SD 10.0 MD 2.2 Draw 1.4), 5 rds 55.4;
 men 37.8 / women 27.0; M HW 44.3 vs M Straw 29.3; KD 0.50/fight; 10-8 3.8%; MatchRating mean 45.7; upset curve unchanged (13-17 85.3, 18-22 91.0).
 Style spread grew 15.7 -> 19.7 pp (Wrestler +4, Kickboxer -4, BJJ -2): decisions without knockdown 10-8s favour control.
@@ -16,7 +16,7 @@ World drift vs like-for-like base: active 2428 -> 2405 (-1%, likely KO/TKO losse
 Key constants (Bout.cs): KdOffset 71, KdHealth 0 (knockdowns no longer tied to accumulated damage - front-loads finishes),
 OutOffset 47, FlashBase 0.0045, StopOffset 22 / StopHealth 50, PounceStopOffset 45, SubOffset 58, SubBottomPenalty 16 with SubFlex 0.25
 (keeps Flexibility above the relevance floor), CutOpen 0.04 / CutWorsen 0.5, division power 0.86 (straw) .. 1.16 (HW), women x0.88.
-MatchRating knockdown weight 12 -> 30, finish bonus 20 -> 22 (holds the star distribution).
+MatchRating knockdown weight 12 -> 30, finish bonus 20 -> 22, +4 for going the distance, draw gets the +8 competitive bonus. The +4 was needed: without it in-world card quality (MinCardQuality, feeds TV/sponsor clauses) fell ~2 pts and bankruptcies rose 5 -> 14. With it: all cards 51.5 (base 51.4), International 48.9 (49.2). Always check card quality in-world when changing ratings or knockdown rates.
 
 Dead ends: lab matched-pair finish rate UNDER-predicts the world (world has mismatches and locals, which stoppages hit harder):
 lab proxy 38.4 vs base 38.0 still came out +2.2 pp in-world. Always calibrate with a CI compare run, not the lab.
