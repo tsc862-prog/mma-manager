@@ -11,30 +11,57 @@ namespace MmaManager.Core.Sim.Contracts;
 /// </summary>
 public sealed class Negotiator
 {
-    private const decimal PpvPointValue = 800m;   // rough per-fight worth of one PPV point
     private const int Patience = 2;               // counters before walking away
     public const decimal NonExclusiveMoneyFactor = 0.80m;   // a non-exclusive deal comes ~20% cheaper
     public const decimal ChampionsClausePremium = 1.08m;    // a champion's clause is a leash they charge to wear
 
+    /// <summary>
+    /// The most PPV points one deal can carry. A point is 1% of the promotion's
+    /// pay-per-view take on a card he fights on (paid at settlement, see
+    /// <see cref="Booking.Financials"/>); ten is a superstar's cut.
+    /// </summary>
+    public const int MaxPpvPoints = 10;
+
+    /// <summary>
+    /// How often a contracted performance bonus actually pays: about one fight in
+    /// eight. A card pays three awards (two Fight of the Night, one Performance)
+    /// across 12-24 fighters; this sits at the low end so the bonus is never
+    /// credited above what it really pays on a full card.
+    /// </summary>
+    public const decimal PerformanceBonusOdds = 0.12m;
+
+    /// <summary>A fighter who wants a signing bonus wants a real one: at least this share of the bonus he quoted.</summary>
+    public const decimal SigningBonusMinFraction = 0.25m;
+
+    /// <summary>A live deal can only be torn up for less show money once he's lost this many in a row.</summary>
+    public const int RestructureSkid = 3;
+
     public NegotiationResponse Evaluate(World world, Fighter f, ContractOffer offer, ContractExpectations exp)
     {
-        decimal offered = MoneyValue(offer);
+        decimal offered = MoneyValue(world, offer);
         // A non-exclusive deal is cheaper: the fighter keeps their outside earnings
         // (they can fight elsewhere / moonlight), so they'll take less from this org.
         // A champion's clause runs the other way — it costs a premium to include.
         // And GRATITUDE is real: a discovered local deals cheap with the org that
         // gave them the shot (everyone else pays the hometown-hype price), and
         // a LIFER takes less to stay where he belongs (see Lifers).
-        decimal asked = AskMoney(exp) * (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
-                                      * (offer.ChampionsClause ? ChampionsClausePremium : 1m)
-                                      * GratitudeFactor(f, offer.Promotion)
-                                      * Lifers.HomeDiscount(world, f, offer.Promotion);
+        decimal factor = (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
+                       * (offer.ChampionsClause ? ChampionsClausePremium : 1m)
+                       * GratitudeFactor(f, offer.Promotion)
+                       * Lifers.HomeDiscount(world, f, offer.Promotion);
+        decimal asked = AskMoney(exp) * factor;
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
 
         double appeal = Appeal(world, f, offer, exp);
         double threshold = 1.0 - appeal * 0.25;    // a dream situation is worth ~25% off the ask
-        bool signingOk = !exp.WantsSigningBonus || offer.SigningBonus.Amount > 0 || appeal > 0.5;
+        // "Wants a signing bonus" means a real one — a token dollar isn't it.
+        decimal signingQuote = exp.AskingPurse.Amount * 0.5m * factor;
+        bool signingOk = !exp.WantsSigningBonus || appeal > 0.5
+                         || (offer.SigningBonus.Amount > 0 && offer.SigningBonus.Amount >= signingQuote * SigningBonusMinFraction);
         bool lengthOk = Math.Abs(offer.Fights - exp.DesiredFights) <= 1;
+        // He won't tear up a live deal to be paid less show money (unless he's skidding).
+        if (LivePurseFloor(f, offer.Promotion) is { } floor && offer.PursePerFight.Amount < floor.Amount)
+            return new(NegotiationVerdict.Reject, null, $"I'm signed at {floor} a fight. I'm not tearing that up for less.");
 
         if (ratio >= threshold && signingOk && lengthOk)
             return new(NegotiationVerdict.Accept, null, "Happy with the deal.");
@@ -43,8 +70,20 @@ public sealed class Negotiator
         if (ratio < 0.7 || offer.Round >= Patience)
             return new(NegotiationVerdict.Reject, null, RejectReason(ratio, signingOk, lengthOk));
 
-        return new(NegotiationVerdict.Counter, BuildCounter(offer, exp, threshold), CounterReason(ratio, signingOk, lengthOk));
+        return new(NegotiationVerdict.Counter, BuildCounter(world, offer, exp, threshold), CounterReason(ratio, signingOk, lengthOk));
     }
+
+    /// <summary>
+    /// The show money a renewal may not go under: his live deal's purse, when he
+    /// is still under a deal with fights left at <paramref name="promo"/> and not
+    /// on a <see cref="RestructureSkid"/>-fight losing run. Null when anything
+    /// goes — a deal that has run out is re-priced at today's market, and a
+    /// skidding fighter will take a cut to stay employed. A raise is always fine
+    /// (the lifer's "tear it up and re-sign on a raise" repair).
+    /// </summary>
+    public static Money? LivePurseFloor(Fighter f, PromotionId promo) =>
+        f.Contract is { FightsRemaining: > 0 } c && c.Promotion == promo && f.Record.CurrentStreak > -RestructureSkid
+            ? c.PursePerFight : null;
 
     /// <summary>
     /// Would the fighter leave their current org for this poacher's offer? Same
@@ -84,7 +123,7 @@ public sealed class Negotiator
         };
 
         decimal asked = AskMoney(exp) * (decimal)leavePrice * askFactor;
-        double ratio = asked <= 0 ? 2.0 : (double)(MoneyValue(offer) / asked);
+        double ratio = asked <= 0 ? 2.0 : (double)(MoneyValue(world, offer) / asked);
         double bar = 0.70 - Appeal(world, f, offer, exp) * 0.15;   // the bigger stage tempts
         return ratio >= bar ? offer : null;
     }
@@ -204,12 +243,55 @@ public sealed class Negotiator
     }
 
     /// <summary>One offer's per-fight worth, all levers blended — shared by AI bidding and the player's negotiating room.</summary>
-    public static decimal MoneyValue(ContractOffer o)
+    public static decimal MoneyValue(World world, ContractOffer o)
     {
         decimal signingPerFight = o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount;
-        return o.PursePerFight.Amount + 0.5m * o.WinBonus.Amount + signingPerFight
-             + 0.25m * o.PerformanceBonus.Amount + o.PpvPoints * PpvPointValue;
+        return o.PursePerFight.Amount + 0.5m * o.WinBonus.Amount + signingPerFight + UpsideValue(world, o);
     }
+
+    /// <summary>
+    /// What the contingent levers are worth per fight, at what they really pay.
+    /// A performance bonus pays only on a Fight/Performance of the Night (about
+    /// <see cref="PerformanceBonusOdds"/> of fights), and no fighter counts a
+    /// lottery ticket bigger than his show money. PPV points are worth what this
+    /// promotion's pay-per-views actually take (<see cref="PpvPointValue"/>) —
+    /// nothing at all where there's no pay-per-view.
+    /// </summary>
+    public static decimal UpsideValue(World world, ContractOffer o)
+    {
+        decimal perf = PerformanceBonusOdds * Math.Max(0m, Math.Min(o.PerformanceBonus.Amount, o.PursePerFight.Amount));
+        int points = Math.Clamp(o.PpvPoints, 0, MaxPpvPoints);
+        return perf + (points > 0 ? points * PpvPointValue(world, o.Promotion) : 0m);
+    }
+
+    /// <summary>
+    /// What one PPV point is worth to a fighter per fight at this promotion: 1%
+    /// of its average pay-per-view take per card over the past year (every card
+    /// counts, so a promotion that runs one PPV in four is priced at a quarter of
+    /// it). Zero when it has no PPV carrier signed, or no pay-per-view history —
+    /// a fighter is shown the buys, not the promise. Read off the promotion's own
+    /// settled books: public numbers, nothing about any fighter's ability.
+    /// </summary>
+    public static decimal PpvPointValue(World world, PromotionId promoId)
+    {
+        if (world.Get(promoId) is not { } promo || !Finance.MediaService.HasPpvCarrier(promo)) return 0m;
+        var since = world.CurrentDate.AddDays(-365);
+        decimal take = 0m;
+        int cards = 0;
+        foreach (var ev in world.Events.Values)
+        {
+            if (ev.Promotion != promoId || ev.Status != EventStatus.Completed || ev.Date <= since
+                || ev.Financials is not { } fin) continue;
+            take += fin.PayPerViewRevenue.Amount;
+            cards++;
+        }
+        return cards == 0 ? 0m : take / cards / 100m;
+    }
+
+    /// <summary>A contract's PPV cut of one card's pay-per-view take (the promotion's share), paid at settlement.</summary>
+    public static Money PpvCut(Contract c, Money ppvRevenue) =>
+        c.PpvPoints <= 0 || ppvRevenue.Amount <= 0 ? Money.Zero
+            : new Money(Math.Round(ppvRevenue.Amount * Math.Min(c.PpvPoints, MaxPpvPoints) / 100m));
 
     /// <summary>The ask on the same per-fight scale as <see cref="MoneyValue"/>.</summary>
     public static decimal AskMoney(ContractExpectations e) =>
@@ -237,7 +319,7 @@ public sealed class Negotiator
         return Math.Clamp(title * 0.45 + loyalty * 0.3 + home * 0.15 + bonds * 0.1, 0, 1);
     }
 
-    private ContractOffer BuildCounter(ContractOffer offer, ContractExpectations exp, double threshold)
+    private ContractOffer BuildCounter(World world, ContractOffer offer, ContractExpectations exp, double threshold)
     {
         int fights = exp.DesiredFights;
         decimal winBonus = exp.AskingWinBonus.Amount;
@@ -248,8 +330,7 @@ public sealed class Negotiator
         decimal targetMoney = (decimal)threshold * AskMoney(exp) * (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                             * (offer.ChampionsClause ? ChampionsClausePremium : 1m);
         decimal signingPerFight = fights > 0 ? signing / fights : signing;
-        decimal purse = targetMoney - 0.5m * winBonus - signingPerFight
-                      - 0.25m * offer.PerformanceBonus.Amount - offer.PpvPoints * PpvPointValue;
+        decimal purse = targetMoney - 0.5m * winBonus - signingPerFight - UpsideValue(world, offer);
         purse = Math.Max(exp.AskingPurse.Amount * 0.6m, RoundTo(purse, 500m));
 
         return new ContractOffer

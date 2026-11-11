@@ -13,19 +13,56 @@ public static class ContractLifecycle
     private static readonly Negotiator Negotiator = new();
     private static readonly FighterValuation Valuation = new();
 
+    /// <summary>Loyalty a renewal adds — once per deal, and only for one at least half served (<see cref="HalfServed"/>).</summary>
+    public const int RenewalLoyalty = 5;
+
+    /// <summary>
+    /// Whether a deal has been at least half worked: the bouts he has fought
+    /// since it was signed are at least the fights it has left (served over
+    /// served-plus-remaining is a half or more). A deal that has run out counts
+    /// as fully served. Derived from the cards and the contract alone — no
+    /// stored length — so it reproduces across save and load.
+    /// </summary>
+    public static bool HalfServed(World world, Fighter f, Contract c) =>
+        c.FightsRemaining <= 0 || FightsServed(world, f, c) >= c.FightsRemaining;
+
+    /// <summary>
+    /// Bouts he has fought since this deal was signed (completed cards dated
+    /// after the signing day — the same bouts that burned fights off it). A
+    /// fight on the signing day itself is not counted, so a deal signed that
+    /// morning can never look served.
+    /// </summary>
+    public static int FightsServed(World world, Fighter f, Contract c)
+    {
+        int served = 0;
+        foreach (var ev in world.Events.Values)
+        {
+            if (ev.Status != EventStatus.Completed || ev.Date <= c.SignedOn) continue;
+            foreach (var fight in ev.Card)
+                if (fight.Outcome is not null && (fight.RedCorner == f.Id || fight.BlueCorner == f.Id)) served++;
+        }
+        return served;
+    }
+
     /// <summary>Sign (or re-sign) a fighter to an accepted offer, paying the signing bonus and slotting them into the division.</summary>
     public static void Sign(World world, Fighter f, ContractOffer offer, DateOnly on)
     {
         bool renewal = f.Contract?.Promotion == offer.Promotion;
+        // Re-upping deepens loyalty a touch — but only for a deal he has actually
+        // worked: the one being replaced must be at least half served. The new
+        // deal starts at zero served, so a run of same-day renewals earns the +5
+        // once, not sixteen times (the lifer back door).
+        bool earnedRenewal = renewal && f.Contract is { } live && HalfServed(world, f, live);
         // Signing away from a live deal is still leaving the old org (callers
         // normally clear it first; this keeps the old books clean if one doesn't).
         if (f.Contract is { } old && !renewal)
             LeavePromotion(world, f, old.Promotion, on,
                 $"{world.Get(offer.Promotion)?.Name ?? "a rival"} signed him away", offer.Promotion, hisChoice: true);
         f.Contract = offer.ToContract(on);
+        f.Contract.PpvPoints = Math.Clamp(offer.PpvPoints, 0, Negotiator.MaxPpvPoints);
         BiddingWars.OnSigned(world, f, offer.Promotion, on);   // a signature ends any public war over them
-        // A move to a new org starts the loyalty clock over; re-upping deepens it a touch.
-        f.Loyalty = renewal ? Math.Min(100, f.Loyalty + 5) : 20;
+        // A move to a new org starts the loyalty clock over.
+        f.Loyalty = !renewal ? 20 : earnedRenewal ? Math.Min(100, f.Loyalty + RenewalLoyalty) : f.Loyalty;
         if (world.Get(offer.Promotion) is not { } promo) return;
 
         Finance.Ledger.Expense(promo, on, FinanceCategory.SigningBonus, offer.SigningBonus, $"Signing bonus — {f.FullName}");
