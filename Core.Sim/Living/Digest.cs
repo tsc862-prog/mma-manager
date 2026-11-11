@@ -37,18 +37,27 @@ public static class Digest
         sb.AppendLine("THIS WEEK IN THE SPORT");
         foreach (var s in stories) sb.AppendLine($"  • {s.Headline}");
 
-        var upcoming = world.Events.Values
-            .Where(e => e.Status == EventStatus.Scheduled && e.Date > date && e.Date <= date.AddDays(14))
-            .OrderByDescending(e => world.Get(e.Promotion)?.Prestige.Value ?? 0)
-            .ThenBy(e => e.Date)
-            .Take(3)
+        // The notable cards of the next three weeks: the flagship nights first,
+        // then title fights and feuds, then the bigger houses — with what's on top.
+        var upcoming = ForwardCalendar.Upcoming(world, date.AddDays(1), date.AddDays(21))
+            .Where(c => c.MainEvent is not null)
+            .OrderByDescending(c => c.IsSignature)
+            .ThenByDescending(c => c.IsPlayer || ForwardCalendar.MeritsHeadline(world, c.Event))
+            .ThenByDescending(c => c.Promotion.Prestige.Value)
+            .ThenBy(c => c.Date).ThenBy(c => c.Event.Id.Value)
+            .Take(4)
+            .OrderBy(c => c.Date).ThenBy(c => c.Event.Id.Value)
             .ToList();
         if (upcoming.Count > 0)
         {
             sb.AppendLine();
             sb.AppendLine("ON THE CALENDAR");
-            foreach (var e in upcoming)
-                sb.AppendLine($"  • {e.Date:d MMM} — {e.Name}{(world.Get(e.Promotion) is { } p ? $" ({p.Abbreviation})" : "")}");
+            foreach (var c in upcoming)
+            {
+                string top = c.MainEventLabel(world) is { Length: > 0 } label
+                    ? $": {label}{(c.MainEvent!.IsTitleFight ? " (title)" : "")}" : "";
+                sb.AppendLine($"  • {c.Date:d MMM} — {c.Event.Name} ({c.Promotion.Abbreviation}){top}");
+            }
         }
 
         // One to watch: a young riser on a streak, rotated deterministically so
