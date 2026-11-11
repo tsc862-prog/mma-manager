@@ -25,8 +25,9 @@ namespace MmaManager.Core.Sim.Living;
 /// world's clock reaches their date (<see cref="RunDue"/>, which draws no RNG:
 /// the bouts seed off their fight ids). On the night anyone who can no longer
 /// fight it — retired, suspended, hurt, signed to an exclusive deal, booked on
-/// a promotion's card — comes off it; the pros who fought get the normal
-/// post-fight recovery.
+/// a promotion's card — comes off it; the pros who fought get a short layoff
+/// (<see cref="LocalRecoveryDays"/>). A staged club card does NOT commit its
+/// fighters: it loses to any promotion that books one of them (<see cref="YieldTo"/>).
 /// </summary>
 public static class LocalCircuit
 {
@@ -157,8 +158,52 @@ public static class LocalCircuit
             .ToList();
         if (staged.Count == 0) return;
         var promoted = OnPromotionCards(world);
-        foreach (var ev in staged) Prune(world, ev, promoted);
+        foreach (var ev in staged)
+        {
+            Prune(world, ev, promoted);
+            if (ev.Card.Count == 0) world.Events.Remove(ev.Id);   // fell through entirely: the hall is never booked
+        }
     }
+
+    /// <summary>
+    /// A promotion has just booked these fighters (or one of them signed an
+    /// exclusive deal): a club card loses to a promotion, so each comes off any
+    /// staged local card at once — the bout is dropped and an unfought local
+    /// goes back to the scene. Draws no RNG. It removes nothing from the
+    /// world's collections (callers may be enumerating them): the local is
+    /// retired, as a local is after any bout, and a card left empty is removed
+    /// by the end-of-tick <see cref="Audit"/> (or on its night) and charged as
+    /// nobody's clash meanwhile.
+    /// </summary>
+    public static void YieldTo(World world, IEnumerable<FighterId> fighters)
+    {
+        List<Event>? staged = null;
+        foreach (var e in world.Events.Values)
+            if (e.Status == EventStatus.Scheduled && IsLocalCard(e)) (staged ??= new()).Add(e);
+        if (staged is null) return;
+        var taken = fighters.ToHashSet();
+        foreach (var ev in staged)
+        {
+            foreach (var fight in ev.Card.Where(f => taken.Contains(f.RedCorner) || taken.Contains(f.BlueCorner)).ToList())
+            {
+                ev.Card.Remove(fight);
+                foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
+                    if (world.Get(id) is { LocalTalent: true } local && local.BoutHistory.Count == 0)
+                        local.Status = FighterStatus.Retired;
+            }
+        }
+    }
+
+    /// <summary>A promotion has just booked this card's corners: they come off any staged club card.</summary>
+    public static void YieldTo(World world, IEnumerable<Fight> bouts) =>
+        YieldTo(world, bouts.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
+
+    /// <summary>
+    /// The layoff after a club fight: a week (two if he was knocked out) — a
+    /// short, low-level bout keeps nobody from fighting twice in a week, and
+    /// doesn't take a free agent off the promotions' short-notice market for a month.
+    /// </summary>
+    public const int LocalRecoveryDays = 7;
 
     // Fight night, small-hall edition: the real engine, the real consequences —
     // records, streaks, fame, discoveries, the post-fight layoff — but no box
@@ -174,7 +219,11 @@ public static class LocalCircuit
             if (fight.Outcome is { } o)
                 foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
                     if (world.Get(id) is { LocalTalent: false, Status: FighterStatus.Active } pro)
-                        InjuryModel.ScheduleRoutineRecovery(pro, o, id, ev.Date);
+                    {
+                        bool koed = o.Loser == id && o.Method is FightMethod.Knockout or FightMethod.TechnicalKnockout;
+                        var ready = ev.Date.AddDays(koed ? 2 * LocalRecoveryDays : LocalRecoveryDays);
+                        if (pro.ReadyToFightOn is not { } r || r < ready) pro.ReadyToFightOn = ready;
+                    }
             AfterBout(world, ev, fight);
         }
         ev.Status = EventStatus.Completed;

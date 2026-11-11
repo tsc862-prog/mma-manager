@@ -110,6 +110,7 @@ public sealed partial class PlayerBooking
             IsTitleFight = titleFight,
             Title = title,
         });
+        Living.LocalCircuit.YieldTo(world, new[] { red, blue });   // your booking beats a staged club card
         return true;
     }
 
@@ -143,6 +144,7 @@ public sealed partial class PlayerBooking
             ScheduledRounds = rounds,
             IsTitleFight = false,
         });
+        Living.LocalCircuit.YieldTo(world, new[] { red });
         return true;
     }
 

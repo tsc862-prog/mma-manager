@@ -80,7 +80,7 @@ public static class InjuryModel
     }
 
     /// <summary>The rest a fighter needs after a clean bout — before they can be booked again.</summary>
-    internal static void ScheduleRoutineRecovery(Fighter f, FightOutcome o, FighterId id, DateOnly date)
+    private static void ScheduleRoutineRecovery(Fighter f, FightOutcome o, FighterId id, DateOnly date)
     {
         double weeks = 3;                          // a base camp-and-recover turnaround
         if (o.EndRound >= 3) weeks += 1;           // a long, draining fight

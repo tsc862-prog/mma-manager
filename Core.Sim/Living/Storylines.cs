@@ -173,6 +173,7 @@ public static class Storylines
             Title = beltStaysOn ? fight.Title : null,
         };
         ev.Card[ev.Card.IndexOf(fight)] = replacement;
+        LocalCircuit.YieldTo(world, new[] { sub.Id });   // the short-notice call beats a club card
         booked.Add(sub.Id);
 
         if (loud || Newsworthy(world, ev, replacement))

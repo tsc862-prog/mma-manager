@@ -157,7 +157,23 @@ public class QaSweepFixTests
     [Fact]
     public void ABeltWonOnOneOfThePlayersCardsComesOffALaterCardsBoutAtOnce()
     {
-        var world = Build(7);
+        // The vacant-belt bout can be pulled (a fight-week pullout) or drawn on a given seed: run several and
+        // require the scenario to have really happened on at least one.
+        int crowned = 0;
+        foreach (var seed in new ulong[] { 7, 8, 9, 10 })
+            if (BeltWonOnFirstCard(seed) is { } laterBout)
+            {
+                crowned++;
+                Assert.False(laterBout.IsTitleFight);
+                Assert.Null(laterBout.Title);
+            }
+        Assert.True(crowned > 0, "no seed crowned a champion on the first card");
+    }
+
+    // Returns the later card's bout when the first card crowned a champion, else null.
+    private static Fight? BeltWonOnFirstCard(ulong seed)
+    {
+        var world = Build(seed);
         var promo = world.Get(world.PlayerPromotion)!;
         var booking = new PlayerBooking();
         var div = promo.Divisions.First(d => d.Sex == Sex.Male && d.Title is not null);
@@ -174,10 +190,7 @@ public class QaSweepFixTests
         var laterBout = later.Card[0];
 
         new WorldTick().RunEventLive(world, first, playByPlay: false);
-        if (title.CurrentChampion is null) return;   // the vacant-belt bout was pulled or drawn on this seed: nothing to check
-
-        Assert.False(laterBout.IsTitleFight);
-        Assert.Null(laterBout.Title);
+        return title.CurrentChampion is null ? null : laterBout;
     }
 
     // --- 2. The local circuit runs on its dates ------------------------------
@@ -199,13 +212,18 @@ public class QaSweepFixTests
                 sawStaged = true;
                 Assert.True(ev.Date >= world.CurrentDate.AddDays(-7));
                 foreach (var b in ev.Card)
-                    if (world.Get(b.RedCorner) is { LocalTalent: false } pro)
-                        Assert.True(ForwardCalendar.IsCommitted(world, pro.Id), "a staged local card commits its fighters");
+                    foreach (var id in new[] { b.RedCorner, b.BlueCorner })
+                        if (world.Get(id) is { LocalTalent: false } pro)
+                        {
+                            // a staged club card commits nobody, and loses to any promotion that books its fighters
+                            Assert.True(ForwardCalendar.CommittedTo(world, pro.Id) is null,
+                                $"{pro.FullName} is on a staged club card and a promotion's card");
+                        }
             }
         }
         Assert.True(sawStaged, "no local card was ever on the calendar at a week's end");
 
-        // Nobody fights a club show and a promotion's card within two weeks of each other, and the pros got their layoff.
+        // Nobody fights a club show and another card within a week of each other, and the pros got their layoff.
         var dates = new Dictionary<FighterId, List<(DateOnly Date, bool Local, EventId Id)>>();
         foreach (var ev in world.Events.Values.Where(e => e.Status == EventStatus.Completed && e.Date >= world.StartDate))
             foreach (var b in ev.Card)
@@ -216,7 +234,7 @@ public class QaSweepFixTests
         {
             if (world.Get(id) is not { LocalTalent: false }) continue;
             foreach (var a in list.Where(x => x.Local))
-                foreach (var b in list.Where(x => x.Id != a.Id && Math.Abs(x.Date.DayNumber - a.Date.DayNumber) < 14))
+                foreach (var b in list.Where(x => x.Id != a.Id && Math.Abs(x.Date.DayNumber - a.Date.DayNumber) < LocalCircuit.LocalRecoveryDays))
                     clashes.Add($"{world.Get(id)!.FullName}: {a.Date} local and {b.Date}");
         }
         Assert.True(clashes.Count == 0, string.Join("; ", clashes.Take(5)));
@@ -224,7 +242,7 @@ public class QaSweepFixTests
         var ran = world.Events.Values.Where(e => LocalCircuit.IsLocalCard(e) && e.Status == EventStatus.Completed).OrderBy(e => e.Id.Value).First();
         var foughtThere = ran.Card.Select(b => world.Get(b.RedCorner)).Where(f => f is { LocalTalent: false }).ToList();
         Assert.NotEmpty(foughtThere);
-        Assert.All(foughtThere, f => Assert.True(f!.ReadyToFightOn is { } r && r > ran.Date || f.Status != FighterStatus.Active,
+        Assert.All(foughtThere, f => Assert.True(f!.ReadyToFightOn is { } r && r >= ran.Date.AddDays(LocalCircuit.LocalRecoveryDays) || f.Status != FighterStatus.Active,
             $"{f.FullName} has no layoff after {ran.Name} {ran.Date}"));
     }
 
@@ -249,9 +267,60 @@ public class QaSweepFixTests
         if (pro.Contract is not null) ContractLifecycle.Release(world, pro);
         ContractLifecycle.Sign(world, pro, new ContractOffer { Fighter = pro.Id, Promotion = org.Id, PursePerFight = new Money(5_000m), Fights = 3, Exclusive = true }, world.CurrentDate);
 
+        Assert.DoesNotContain(bout, staged.Card);   // at once, on signing
+        if (world.Get(local) is { LocalTalent: true } l) Assert.Equal(FighterStatus.Retired, l.Status);   // an unfought local went back to the scene
         LocalCircuit.Audit(world);
+        if (staged.Card.Count == 0) Assert.DoesNotContain(staged.Id, world.Events.Keys);   // an emptied club card is never left on the calendar
+    }
+
+    // Find a staged club card with a pro on it (all-AI world, seed 1).
+    private static (World World, Event Staged, Fight Bout, Fighter Pro) StagedClubBout()
+    {
+        var world = Build(1);
+        world.PlayerPromotion = default;
+        var tick = new WorldTick();
+        for (int w = 0; w < 12; w++)
+        {
+            tick.AdvanceWeek(world);
+            foreach (var ev in world.Events.Values.Where(e => LocalCircuit.IsLocalCard(e) && e.Status == EventStatus.Scheduled).OrderBy(e => e.Id.Value))
+                foreach (var b in ev.Card)
+                    if (world.Get(b.RedCorner) is { LocalTalent: false, Contract: null } pro)
+                        return (world, ev, b, pro);
+        }
+        throw new InvalidOperationException("no staged club bout with a free agent in twelve weeks");
+    }
+
+    [Fact]
+    public void ThePlayerCanSignAndBookAFighterStagedOnAClubCard()
+    {
+        var (world, staged, bout, pro) = StagedClubBout();
+        var promo = world.Promotions.Values.Where(p => !p.Defunct && p.Divisions.Any(d => d.Matches(pro))).OrderBy(p => p.Id.Value).First();
+        world.PlayerPromotion = promo.Id;
+        promo.IsPlayerControlled = true;
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, staged.Date);   // the same night as the club card
+        Assert.False(ForwardCalendar.IsCommitted(world, pro.Id), "a staged club card must not commit its fighter");
+
+        ContractLifecycle.Sign(world, pro, new ContractOffer { Fighter = pro.Id, Promotion = promo.Id, PursePerFight = new Money(5_000m), Fights = 3 }, world.CurrentDate);
+        Assert.DoesNotContain(bout, staged.Card);   // exclusive deal: off the club card at once
+        var opp = booking.EligibleOpponents(world, ev, pro.Id).FirstOrDefault(o => !ForwardCalendar.IsCommitted(world, o.Id));
+        Assert.NotNull(opp);
+        Assert.True(booking.AddBout(world, ev, pro.Id, opp!.Id, 3, false, out var err), err);
+    }
+
+    [Fact]
+    public void AnAiCardBookingAFighterTakesHimOffHisClubCardAtOnce()
+    {
+        var (world, staged, bout, pro) = StagedClubBout();
+        pro.Contract = null;
+        var org = world.Promotions.Values.Where(p => !p.Defunct && p.Divisions.Any(d => d.Matches(pro))).OrderBy(p => p.Id.Value).First();
+        var foe = world.Fighters.Values.Where(f => f.Id != pro.Id && !f.LocalTalent && f.Status == FighterStatus.Active
+                && f.WeightClass == pro.WeightClass && f.Sex == pro.Sex).OrderBy(f => f.Id.Value).First();
+        new EventService().CreateEvent(world, org.Id, "Test night", staged.Date.AddDays(3),
+            new[] { new Matchup(pro.Id, foe.Id, pro.WeightClass, 3, false, null) });
+
         Assert.DoesNotContain(bout, staged.Card);
-        if (world.Get(local) is { LocalTalent: true } l) Assert.NotEmpty(l.BoutHistory);   // an unfought local went back to the scene
+        Assert.DoesNotContain(staged.Card, b => b.RedCorner == pro.Id || b.BlueCorner == pro.Id);
     }
 
     // --- 3. Stipends ---------------------------------------------------------

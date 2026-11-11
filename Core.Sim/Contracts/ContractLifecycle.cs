@@ -74,6 +74,7 @@ public static class ContractLifecycle
                 $"{world.Get(offer.Promotion)?.Name ?? "a rival"} signed him away", offer.Promotion, hisChoice: true);
         f.Contract = offer.ToContract(on);
         f.Contract.PpvPoints = Math.Clamp(offer.PpvPoints, 0, Negotiator.MaxPpvPoints);
+        if (f.Contract.IsExclusive) Living.LocalCircuit.YieldTo(world, new[] { f.Id });   // his promotion's fights only, from today
         BiddingWars.OnSigned(world, f, offer.Promotion, on);   // a signature ends any public war over them
         // A move to a new org starts the loyalty clock over.
         f.Loyalty = !renewal ? 20 : earnedRenewal ? Math.Min(100, f.Loyalty + RenewalLoyalty) : f.Loyalty;

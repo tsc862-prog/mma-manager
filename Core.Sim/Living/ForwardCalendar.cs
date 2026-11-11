@@ -556,6 +556,7 @@ public static class ForwardCalendar
                 fights[i].Title = under[i].Title;
             }
             ev.Card.InsertRange(0, fights);
+            LocalCircuit.YieldTo(world, fights);   // a promotion's booking beats a club card
             foreach (var m in under) { committed.Add(m.Red); committed.Add(m.Blue); }
         }
     }
@@ -724,7 +725,7 @@ public static class ForwardCalendar
         {
             if (e.Id == ev.Id) continue;
             bool first = e.Status == EventStatus.Completed ? e.Date == ev.Date
-                       : e.Status == EventStatus.Scheduled
+                       : e.Status == EventStatus.Scheduled && !LocalCircuit.IsLocalCard(e)   // a club card loses to us
                          && ((e.Promotion == world.PlayerPromotion && world.Get(e.Promotion) is not null) || e.Date < ev.Date);
             if (!first) continue;
             foreach (var f in e.Card) { elsewhere.Add(f.RedCorner); elsewhere.Add(f.BlueCorner); }
@@ -928,22 +929,26 @@ public static class ForwardCalendar
 
     // --- Reading the calendar -----------------------------------------------
 
-    /// <summary>Every fighter booked on any scheduled card, anywhere.</summary>
+    /// <summary>
+    /// Every fighter booked on any scheduled PROMOTION card, anywhere. A staged
+    /// local-circuit card commits nobody: it loses to a promotion that books
+    /// one of its fighters (<see cref="LocalCircuit.YieldTo(World, IEnumerable{FighterId})"/>).
+    /// </summary>
     public static HashSet<FighterId> Committed(World world)
     {
         var set = new HashSet<FighterId>();
         foreach (var e in world.Events.Values)
         {
-            if (e.Status != EventStatus.Scheduled) continue;
+            if (e.Status != EventStatus.Scheduled || LocalCircuit.IsLocalCard(e)) continue;
             foreach (var f in e.Card) { set.Add(f.RedCorner); set.Add(f.BlueCorner); }
         }
         return set;
     }
 
-    /// <summary>The scheduled card this fighter is committed to (other than <paramref name="except"/>), if any.</summary>
+    /// <summary>The scheduled promotion card this fighter is committed to (other than <paramref name="except"/>), if any (staged club cards don't count).</summary>
     public static Event? CommittedTo(World world, FighterId fighter, EventId? except = null) =>
         world.Events.Values
-            .Where(e => e.Status == EventStatus.Scheduled && e.Id != except
+            .Where(e => e.Status == EventStatus.Scheduled && e.Id != except && !LocalCircuit.IsLocalCard(e)
                         && e.Card.Any(f => f.RedCorner == fighter || f.BlueCorner == fighter))
             .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
             .FirstOrDefault();

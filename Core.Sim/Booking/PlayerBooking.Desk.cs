@@ -303,6 +303,7 @@ public sealed partial class PlayerBooking
         // An unfought local minted for this booking goes back into the scene.
         if (world.Get(outgoing) is { LocalTalent: true } jobber && jobber.BoutHistory.Count == 0)
             world.Fighters.Remove(outgoing);
+        Living.LocalCircuit.YieldTo(world, new[] { incoming });   // your booking beats a staged club card
         return true;
     }
 
