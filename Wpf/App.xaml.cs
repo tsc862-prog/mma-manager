@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -519,12 +519,26 @@ public partial class App : Application
                             Region = MmaManager.Core.Model.Region.Europe,
                         },
                     }, "You founded New Wave Fighting.");
+                    // --sign N: the first signings, at their asking price, as a player would.
+                    if (int.TryParse(Arg("--sign"), out var sign))
+                    {
+                        var ct = vm.Contracts;
+                        for (int i = 0; i < sign && ct.FreeAgents.Count > 0; i++)
+                        {
+                            ct.SelectedFreeAgent = ct.FreeAgents[0];
+                            if (!ct.SignAtTheirTerms()) Console.WriteLine("RENDERBOOKING could not sign " + ct.TargetName);
+                        }
+                        vm.Contracts.OnChanged?.Invoke();
+                    }
                     if (e.Args.Contains("--event")) bk.NewEventCommand.Execute(null);
                 }
                 else
                 {
                     bk.SelectedTier = bk.Tiers.Last();
                     bk.NewEventCommand.Execute(null);
+                }
+                if (bk.SelectedEvent is not null && (!founded || Arg("--bouts") is not null))
+                {
                     int keep = int.TryParse(Arg("--bouts"), out var nb) ? nb : int.MaxValue;
                     if (keep > 0)
                     {

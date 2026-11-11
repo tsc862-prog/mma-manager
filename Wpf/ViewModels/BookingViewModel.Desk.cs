@@ -355,7 +355,7 @@ public sealed partial class BookingViewModel
             foreach (var s in _booking.Suggest(w, ev, _nextSlot, 2)) NextSlotIdeas.Add(Card(s, _nextSlot));
 
         BuildNight(p, ev, promo);
-        foreach (var partner in p.Partners)
+        foreach (var partner in n == 0 ? Array.Empty<PartnerProjection>() : p.Partners)
             foreach (var t in partner.Terms.Where(t => t.Status == TermStatus.Missed))
                 Warnings.Add($"{partner.Partner}: {t.Text}{(t.Gap is { } g ? $" ({g})" : "")}");
 
@@ -535,8 +535,21 @@ public sealed partial class BookingViewModel
         foreach (var pp in ordered)
         {
             var all = pp.Terms.Select(t => new TermLine(t.Text, t.Status, t.Gap ?? "")).ToList();
-            missed += all.Count(t => t.IsMissed);
             // A partner whose every term holds folds to one line; the clauses show when one doesn't.
+            // An empty card isn't judged yet: the partners fold until there's a bout.
+            if (n == 0 && !pp.GoneBeforeCard)
+            {
+                Partners.Add(new PartnerLine
+                {
+                    Name = pp.Partner, Kind = pp.IsMedia ? "Media" : "Sponsor",
+                    Fee = pp.FullFee.Amount == 0 ? "No rights fee" : $"{pp.FullFee} a show",
+                    Strikes = pp.StrikesBeforeCard == 0 ? "No strikes" : $"{pp.StrikesBeforeCard} of {pp.StrikeLimit} strikes",
+                    Tone = CardTone.Neutral, Terms = Array.Empty<TermLine>(),
+                    Verdict = all.Count == 0 ? "No terms." : "Wants: " + string.Join("; ", all.Select(t => t.Text)) + ".",
+                });
+                continue;
+            }
+            missed += all.Count(t => t.IsMissed);
             bool open = pp.AtRisk || pp.GoneBeforeCard || pp.HasClausesOnTheNight;
             var terms = open ? all.Where(t => !t.IsMet).ToList() : new List<TermLine>();
             bool noFee = pp.FullFee.Amount == 0;
@@ -563,6 +576,7 @@ public sealed partial class BookingViewModel
         }
         PartnersSummary = p.Partners.Count == 0
             ? "No sponsors or broadcasters yet. Partners come through the Media desk."
+            : n == 0 ? "They judge the card once it has bouts. What each wants:"
             : missed == 0 ? $"{p.Partners.Count} partner{(p.Partners.Count == 1 ? "" : "s")}: no term missed by the card as it stands."
             : $"{missed} term{(missed == 1 ? "" : "s")} missed: that partner pays half and adds a strike.";
         TermsShortLine = missed == 0 ? "" : $"{missed} partner term{(missed == 1 ? "" : "s")} short";
@@ -586,7 +600,7 @@ public sealed partial class BookingViewModel
             Risks.Add(new RiskLine(r.Text, tone, icon));
         }
 
-        NightLine = n == 0 ? "No bouts yet: the night is priced once there's a main event."
+        NightLine = n == 0 ? "No bouts yet"
             : $"{HouseHeadline}{(p.Capacity is { } c3 && p.Attendance < c3 ? $" of {c3:N0}" : "")}"
               + (p.PpvBuys > 0 ? $" · ≈{(p.PpvBuys >= 10_000 ? $"{p.PpvBuys / 1000:N0}k" : $"{p.PpvBuys:N0}")} PPV" : "")
               + $" · {Compact(p.NetLow)} to {Compact(p.NetHigh)} all in";
@@ -740,7 +754,7 @@ public sealed partial class BookingViewModel
         ClearPairing();
         if (_rail != DeskRail.Picker) { _rail = DeskRail.Picker; RaiseRail(); }
         else RaiseRail();
-        _pickMode = HasRoster || !HasLocalOption ? PickMode.Suggested : PickMode.Local;
+        _pickMode = PickMode.Suggested;
         OnPropertyChanged(nameof(PickSuggested)); OnPropertyChanged(nameof(PickDivision)); OnPropertyChanged(nameof(PickLocal));
         RefreshRail();
     }
@@ -879,7 +893,14 @@ public sealed partial class BookingViewModel
             return;
         }
 
-        if (SelectedDivision is not { } d) { LadderEmpty = "Pick a division."; OnPropertyChanged(nameof(HasLadder)); return; }
+        if (SelectedDivision is not { } d)
+        {
+            LadderTitle = "";
+            LadderEmpty = HasRoster ? "Pick a division."
+                : "You have no fighters yet. Every bout needs one of yours, even against a local: sign a fighter on the Contracts desk first.";
+            OnPropertyChanged(nameof(HasLadder));
+            return;
+        }
         var everyone = w.RosterOf(w.PlayerPromotion)
             .Where(f => f.Status != FighterStatus.Retired && f.WeightClass == d.WeightClass && f.Sex == d.Sex).ToList();
         if (SelectedRed is null)
