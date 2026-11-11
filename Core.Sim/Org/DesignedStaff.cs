@@ -95,7 +95,7 @@ public static class DesignedStaff
 
         // On the market — the people a smart owner hires before somebody else does.
         new("Rosalind Okoye", StaffRole.Scouting, 81,
-            "Left a giant's scouting department over a fighter they refused to sign. He is a champion now, elsewhere, and she has never mentioned it once."),
+            "Left Vanguard's scouting department after it refused to sign a Nigerian welterweight off a university mat. He is the AFC champion now, and she has never mentioned it once. She has kept a file on Fatima Diallo since early in Diallo's career."),
         new("Dr. Anton Vrba", StaffRole.Medical, 77,
             "Spent a decade in ringside medicine in three countries, then a year off after a bad night he doesn't discuss."),
         new("Marguerite Lavoie", StaffRole.Marketing, 74,
