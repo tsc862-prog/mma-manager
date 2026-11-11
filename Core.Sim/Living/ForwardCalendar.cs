@@ -699,7 +699,8 @@ public static class ForwardCalendar
     /// </summary>
     internal static void GuardAtRun(World world, Event ev)
     {
-        if (ev.Promotion == world.PlayerPromotion || world.Get(ev.Promotion) is null) return;
+        if (ev.Promotion == world.PlayerPromotion || world.Get(ev.Promotion) is not { } promo) return;
+        RefreshVenue(world, promo, ev);
 
         // Spoken for elsewhere: a card that already ran today, the player's
         // held cards, and anything that comes before this one. (A later card
@@ -726,6 +727,25 @@ public static class ForwardCalendar
             else CheckBelt(world, ev, fight);
         }
         // (The caller restores a headliner if the announced main event is gone.)
+    }
+
+    /// <summary>
+    /// The room is fitted to the draw the promotion has ON THE NIGHT, as it was
+    /// when AI cards were booked on the day. A card announced a month ahead
+    /// keeps its city, but moves to the room that now fits its following: a
+    /// startup announced in its first week would otherwise be stuck in a
+    /// thousand-seat club while twice that many want in (that capped every new
+    /// promotion's gate and killed them faster). Flagships keep their big
+    /// house, and superfights keep the room they were booked into a month out.
+    /// </summary>
+    private static void RefreshVenue(World world, Promotion promo, Event ev)
+    {
+        if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;
+        if (ev.VenueId is not { } current || world.Get(current) is not { } room) return;
+        if (Geography.WorldMap.PickVenueIn(world, promo, room.City) is not { } fit || fit.Id == current) return;
+        ev.VenueId = fit.Id;
+        ev.Venue = fit.Name;
+        if (world.Get(fit.City) is { } city) ev.Region = city.Region;
     }
 
     // --- Reading the calendar -----------------------------------------------

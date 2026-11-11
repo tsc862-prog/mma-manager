@@ -676,6 +676,59 @@ public class ForwardCalendarTests
         Assert.True(checkedOrgs >= 10);
     }
 
+    [Fact]
+    public void APromotionFoundedMidGame_RunsAtTheOldCadence_AndBooksTheRoomItsDrawFits()
+    {
+        // Stand a startup up the way WorldEvents does (a shoestring City house
+        // stocked from the free-agent market) a few months into the game.
+        var world = Build(seed: 4);
+        world.PlayerPromotion = default;
+        var tick = new WorldTick();
+        tick.AdvanceWeeks(world, 10);
+        var founded = world.CurrentDate;
+        var promo = new Promotion
+        {
+            Id = world.NewPromotionId(), Name = "Test Startup", Abbreviation = "TST",
+            BaseRegion = Region.Europe, Balance = new Money(200_000m), Prestige = 8, Reputation = 50,
+        };
+        promo.TierClearance = OrgSizing.SizeOf(promo);
+        world.Promotions[promo.Id] = promo;
+        var classes = new[] { WeightClass.Lightweight, WeightClass.Welterweight };
+        var signed = new List<Fighter>();
+        var rng = new MmaManager.Core.Sim.Rng.SimRandom(42);
+        foreach (var wc in classes)
+            foreach (var fa in world.FreeAgents().Where(f => f.WeightClass == wc && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
+                         .OrderBy(f => f.Id.Value).Take(12).ToList())
+            {
+                fa.Contract = PromotionSetup.SignContract(world, promo, founded, fa, rng);
+                signed.Add(fa);
+            }
+        PromotionSetup.ConfigureDivisions(world, promo, signed, classes, founded, 15, null, Sex.Male);
+        Assert.Equal(OrgSize.City, OrgSizing.SizeOf(promo));
+
+        // The old same-day booker's rule: one card on each of the org's show
+        // weeks from the first tick after founding (it has the roster to fill them).
+        int ShowWeeks(int weeks) => Enumerable.Range(1, weeks).Count(w => ForwardCalendar.IsShowWeek(promo, founded.AddDays(7 * w)));
+        int Ran(int weeks) => world.Events.Values.Count(e => e.Promotion == promo.Id && e.Status == EventStatus.Completed
+                                                             && e.Date <= founded.AddDays(7 * weeks));
+        tick.AdvanceWeeks(world, 26);
+        if (!promo.Defunct) Assert.InRange(Ran(26), ShowWeeks(26) - 1, ShowWeeks(26) + 1);
+        tick.AdvanceWeeks(world, 26);
+        if (!promo.Defunct) Assert.InRange(Ran(52), ShowWeeks(52) - 1, ShowWeeks(52) + 1);
+
+        var cards = world.Events.Values.Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Completed).OrderBy(e => e.Date).ToList();
+        Assert.NotEmpty(cards);
+        // No card before the first tick after founding (the old booker's earliest).
+        Assert.True(cards[0].Date >= founded.AddDays(7));
+        // Each card ran in the room its draw fitted on the night, not the one
+        // guessed when it was announced: the same pick the old same-day booker made.
+        foreach (var e in cards)
+        {
+            var room = world.Get(e.VenueId!.Value)!;
+            Assert.True(e.Financials!.Attendance <= room.Capacity);
+        }
+    }
+
     // --- the player ----------------------------------------------------------------
 
     [Fact]
