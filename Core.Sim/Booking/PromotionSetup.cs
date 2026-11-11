@@ -18,10 +18,15 @@ public static class PromotionSetup
     /// by seed score), and rank the rest as contenders. Fighters are matched to
     /// divisions by their own weight class.
     /// </summary>
+    // With three bouts on the record HistoryBuilder stages the belt on the third,
+    // after two real fights; with one, the belt lands in the pro debut.
+    private const int MinBoutsForADayOneBelt = 3;
+
     public static void ConfigureDivisions(
         World world, Promotion promo, IReadOnlyCollection<Fighter> roster,
         IEnumerable<WeightClass> classes, DateOnly on, int rankingsDepth,
-        IReadOnlyDictionary<WeightClass, FighterId>? designedChampions = null, Sex sex = Sex.Male)
+        IReadOnlyDictionary<WeightClass, FighterId>? designedChampions = null, Sex sex = Sex.Male,
+        bool dayOneBuild = false)
     {
         foreach (var wc in classes)
         {
@@ -35,11 +40,22 @@ public static class PromotionSetup
             if (byMerit.Count == 0) continue;
 
             // The champion (kept out of the contender list); the rest rank.
+            // A belt isn't won on debut: the day-one champion is the best seed who
+            // has actually fought a few times and won (HistoryBuilder stages the
+            // reign inside their record — a one-fight career puts it in the pro
+            // debut, a winless one leaves no night to stage it on at all). Only a
+            // division with no such fighter crowns a novice. Applied only in the
+            // day-one build (dayOneBuild, passed by WorldBuilder's men's and women's
+            // passes) at the local stages, whose rosters RosterNativity reshapes and
+            // where a 1-0 kid can top the seed list. Every other caller (mid-game
+            // startups, LeagueBuilder) and the big stages keep the plain top seed.
+            bool local = dayOneBuild && RosterNativity.IsLocalStage(promo.Prestige.Value);
             var champion = designedChampions is not null
                            && designedChampions.TryGetValue(wc, out var cid)
                            && byMerit.FirstOrDefault(f => f.Id == cid) is { } dc
                 ? dc
-                : byMerit[0];
+                : (local ? byMerit.FirstOrDefault(f => f.Record.TotalBouts >= MinBoutsForADayOneBelt && f.Record.Wins >= 2) : null)
+                  ?? byMerit[0];
             var title = CreateTitle(world, promo, wc, sex, champion, on);
             division.Title = title.Id;
 
