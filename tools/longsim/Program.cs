@@ -355,8 +355,17 @@ static void RunCompare(int seeds, int years)
                 var red = world.Get(f.RedCorner);
                 res.Bouts.Add(new BoutRow(o.Method, f.ScheduledRounds, red?.Sex ?? Sex.Male, f.WeightClass, IsLocal(world, f),
                     o.EndRound, o.Stats.Values.Sum(s => s.KnockdownsScored),
-                    o.RoundScores?.Count(s => Math.Min(s.Red, s.Blue) <= 8) ?? 0, o.RoundScores?.Count ?? 0));
+                    o.RoundScores?.Count(s => Math.Min(s.Red, s.Blue) <= 8) ?? 0, o.RoundScores?.Count ?? 0,
+                    MmaManager.Core.Sim.Flavor.MatchRating.Of(f)));
             }
+        // Card quality exactly as DealCompliance's MinCardQuality reads it: the average MatchRating
+        // of the bouts that ran. Tier is the promotion's size at the end of the run (SAMPLED).
+        foreach (var e in doneEvents)
+        {
+            var ran = e.Card.Where(f => f.Outcome is not null).ToList();
+            if (ran.Count == 0 || world.Get(e.Promotion) is not { } op) continue;
+            res.Cards.Add(new CardRow(OrgSizing.SizeOf(op), ran.Average(f => (double)MmaManager.Core.Sim.Flavor.MatchRating.Of(f))));
+        }
         var retiredInRun = world.Fighters.Values.Where(f => f.Status == FighterStatus.Retired && !retiredAtStart.Contains(f.Id) && !f.LocalTalent).ToList();
         res.RetiredInRun = retiredInRun.Count;
         res.RetiredCareerBouts = retiredInRun.Count == 0 ? 0 : retiredInRun.Average(f => (double)f.Record.TotalBouts);
@@ -451,6 +460,7 @@ static void RunCompare(int seeds, int years)
     Console.WriteLine($"  pro retirements during the run (DURABLE: Status = Retired, not retired on day one, not local): {Rate(r => r.RetiredInRun)}; " +
         $"their career bouts avg {all.Average(r => r.RetiredCareerBouts):0.0}");
     PrintFightMix(all.SelectMany(r => r.Bouts).ToList());
+    PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     if (all.Sum(r => r.NewsOverflow) > 0)
         Console.WriteLine($"  WARNING: news sampler lost its place {all.Sum(r => r.NewsOverflow)} time(s); headline-sampled rates are undercounts");
@@ -492,6 +502,35 @@ static void PrintFightMix(List<BoutRow> b)
             string.Join("  ", Enumerable.Range(1, 3).Select(r => $"R{r} {100.0 * three.Count(x => Fin(x.Method) && x.EndRound == r) / three.Count:0.0}%")));
     int rounds = b.Sum(x => x.CardRounds);
     Console.WriteLine($"  knockdowns per bout {b.Average(x => x.Knockdowns):0.00}; 10-8 share of stored-card rounds {100.0 * b.Sum(x => x.TenEights) / Math.Max(1, rounds):0.0}%");
+    foreach (var r in new[] { 3, 5 })
+    {
+        var g = b.Where(x => x.Rounds == r).Select(x => (double)x.Rating).ToList();
+        if (g.Count > 0) Console.WriteLine($"  fight rating (MatchRating), {r} rounds: {Dist(g)}");
+    }
+}
+
+// mean and p10/p25/median/p75/p90 of a sample
+static string Dist(List<double> v)
+{
+    v.Sort();
+    double Q(double q) => v[Math.Clamp((int)Math.Round(q * (v.Count - 1)), 0, v.Count - 1)];
+    return $"n={v.Count} mean {v.Average():0.0}  p10 {Q(0.1):0.0} p25 {Q(0.25):0.0} median {Q(0.5):0.0} p75 {Q(0.75):0.0} p90 {Q(0.9):0.0}";
+}
+
+// Card quality as DealCompliance.MinCardQuality reads it (average MatchRating of the bouts that ran).
+static void PrintCardQuality(List<CardRow> cards)
+{
+    Console.WriteLine();
+    Console.WriteLine("  --- CARD QUALITY (DURABLE: avg MatchRating per completed card, as MinCardQuality reads it; tier = promotion size at end, SAMPLED) ---");
+    void Line(string label, List<CardRow> g)
+    {
+        if (g.Count == 0) return;
+        double P(double t) => 100.0 * g.Count(c => c.Quality >= t) / g.Count;
+        Console.WriteLine($"  {label,-14} {Dist(g.Select(c => c.Quality).ToList())}  | clears 40: {P(40):0.0}%  42: {P(42):0.0}%  45: {P(45):0.0}%  50: {P(50):0.0}%");
+    }
+    Line("all cards", cards);
+    foreach (var t in Enum.GetValues<OrgSize>().Reverse())
+        Line(OrgSizing.Label(t), cards.Where(c => c.Tier == t).ToList());
 }
 
 static void PrintDeaths(List<OrgAutopsy> orgs)
@@ -584,11 +623,13 @@ sealed class SeedResult
     public int Years, Superfights, WeightMisses, CancelledEvents, CompletedEvents, TitleMainEvents;
     public int CampWithdrawalsLost, CampWithdrawalsSaved, FightWeekPullouts, NewsOverflow;
     public List<BoutRow> Bouts = new();
+    public List<CardRow> Cards = new();
     public int RetiredInRun;
     public double RetiredCareerBouts;
 }
 
-readonly record struct BoutRow(FightMethod Method, int Rounds, Sex Sex, WeightClass Class, bool Local, int EndRound, int Knockdowns, int TenEights, int CardRounds);
+readonly record struct BoutRow(FightMethod Method, int Rounds, Sex Sex, WeightClass Class, bool Local, int EndRound, int Knockdowns, int TenEights, int CardRounds, int Rating);
+readonly record struct CardRow(OrgSize Tier, double Quality);
 
 sealed class OrgVitals
 {
