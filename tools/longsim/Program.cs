@@ -242,6 +242,7 @@ static void RunCompare(int seeds, int years)
 
         var startDate = world.CurrentDate;   // day-one back-dated history is excluded from the rates below
         var dayOneOrgs = world.Promotions.Keys.ToHashSet();
+        var retiredAtStart = world.Fighters.Values.Where(f => f.Status == FighterStatus.Retired).Select(f => f.Id).ToHashSet();
         var seenOrg = new Dictionary<PromotionId, OrgVitals>();
         NewsItem? lastSeen = world.News.Count > 0 ? world.News[^1] : null;
 
@@ -332,6 +333,20 @@ static void RunCompare(int seeds, int years)
         res.TitleMainEvents = doneEvents.Count(e => e.Card[^1].IsTitleFight || e.Card[^1].Title is not null);
         res.Years = years;
 
+        // In-world fight outcomes (DURABLE: every bout on a completed card after day one).
+        foreach (var e in doneEvents)
+            foreach (var f in e.Card)
+            {
+                if (f.Outcome is not { } o) continue;
+                var red = world.Get(f.RedCorner);
+                res.Bouts.Add(new BoutRow(o.Method, f.ScheduledRounds, red?.Sex ?? Sex.Male, f.WeightClass, IsLocal(world, f),
+                    o.EndRound, o.Stats.Values.Sum(s => s.KnockdownsScored),
+                    o.RoundScores?.Count(s => Math.Min(s.Red, s.Blue) <= 8) ?? 0, o.RoundScores?.Count ?? 0));
+            }
+        var retiredInRun = world.Fighters.Values.Where(f => f.Status == FighterStatus.Retired && !retiredAtStart.Contains(f.Id) && !f.LocalTalent).ToList();
+        res.RetiredInRun = retiredInRun.Count;
+        res.RetiredCareerBouts = retiredInRun.Count == 0 ? 0 : retiredInRun.Average(f => (double)f.Record.TotalBouts);
+
         var live = world.Promotions.Values.Where(p => !p.Defunct).ToList();
         var tiers = live.GroupBy(p => OrgSizing.SizeOf(p)).ToDictionary(g => g.Key, g => g.Count());
         var afc = world.Promotions.Values.First(p => p.Abbreviation == "AFC");
@@ -419,6 +434,9 @@ static void RunCompare(int seeds, int years)
     int totDone = all.Sum(r => r.CompletedEvents);
     Console.WriteLine($"  completed cards with a title fight on top (DURABLE; weight-miss title fights are un-flagged so slightly undercounted): " +
         $"{100.0 * all.Sum(r => r.TitleMainEvents) / Math.Max(1, totDone):0.0}% of {totDone}");
+    Console.WriteLine($"  pro retirements during the run (DURABLE: Status = Retired, not retired on day one, not local): {Rate(r => r.RetiredInRun)}; " +
+        $"their career bouts avg {all.Average(r => r.RetiredCareerBouts):0.0}");
+    PrintFightMix(all.SelectMany(r => r.Bouts).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     if (all.Sum(r => r.NewsOverflow) > 0)
         Console.WriteLine($"  WARNING: news sampler lost its place {all.Sum(r => r.NewsOverflow)} time(s); headline-sampled rates are undercounts");
@@ -428,6 +446,39 @@ static void RunCompare(int seeds, int years)
 // the fighter, read at the end of the run -- a filler who later signed a real deal still counts).
 static bool IsLocal(World world, Fight f) =>
     (world.Get(f.RedCorner)?.LocalTalent ?? false) || (world.Get(f.BlueCorner)?.LocalTalent ?? false);
+
+// The engine's in-world method mix: every bout on a completed card after day one, pooled over seeds.
+static void PrintFightMix(List<BoutRow> b)
+{
+    Console.WriteLine();
+    Console.WriteLine("  --- IN-WORLD FIGHT OUTCOMES (DURABLE: every bout on a completed card after day one, pooled over seeds) ---");
+    static bool Fin(FightMethod m) => m is FightMethod.Knockout or FightMethod.TechnicalKnockout or FightMethod.SubmissionTap or FightMethod.TechnicalSubmission;
+    void Line(string label, List<BoutRow> g)
+    {
+        if (g.Count == 0) return;
+        double P(Func<BoutRow, bool> f) => 100.0 * g.Count(f) / g.Count;
+        Console.WriteLine($"  {label,-20} n={g.Count,7}  fin {P(x => Fin(x.Method)),5:0.0}%  KO {P(x => x.Method == FightMethod.Knockout),5:0.0} TKO {P(x => x.Method == FightMethod.TechnicalKnockout),5:0.0} " +
+            $"SUB {P(x => x.Method is FightMethod.SubmissionTap or FightMethod.TechnicalSubmission),5:0.0} | UD {P(x => x.Method == FightMethod.UnanimousDecision),5:0.0} " +
+            $"SD {P(x => x.Method == FightMethod.SplitDecision),5:0.0} MD {P(x => x.Method == FightMethod.MajorityDecision),4:0.0} Draw {P(x => x.Method == FightMethod.Draw),4:0.0} " +
+            $"other {P(x => x.Method is FightMethod.NoContest or FightMethod.Disqualification),4:0.0}");
+    }
+    Line("all bouts", b);
+    Line("pro vs pro", b.Where(x => !x.Local).ToList());
+    Line("with a local", b.Where(x => x.Local).ToList());
+    Line("3 rounds", b.Where(x => x.Rounds == 3).ToList());
+    Line("5 rounds", b.Where(x => x.Rounds == 5).ToList());
+    Line("men", b.Where(x => x.Sex == Sex.Male).ToList());
+    Line("women", b.Where(x => x.Sex == Sex.Female).ToList());
+    foreach (var sx in new[] { Sex.Male, Sex.Female })
+        foreach (var wc in Enum.GetValues<WeightClass>())
+            Line($" {(sx == Sex.Male ? "M" : "W")} {wc}", b.Where(x => x.Sex == sx && x.Class == wc).ToList());
+    var three = b.Where(x => x.Rounds == 3).ToList();
+    if (three.Count > 0)
+        Console.WriteLine("  3-round finishes by round (share of all 3-round bouts): " +
+            string.Join("  ", Enumerable.Range(1, 3).Select(r => $"R{r} {100.0 * three.Count(x => Fin(x.Method) && x.EndRound == r) / three.Count:0.0}%")));
+    int rounds = b.Sum(x => x.CardRounds);
+    Console.WriteLine($"  knockdowns per bout {b.Average(x => x.Knockdowns):0.00}; 10-8 share of stored-card rounds {100.0 * b.Sum(x => x.TenEights) / Math.Max(1, rounds):0.0}%");
+}
 
 static void PrintDeaths(List<OrgAutopsy> orgs)
 {
@@ -518,7 +569,12 @@ sealed class SeedResult
     public decimal IfaBalance;
     public int Years, Superfights, WeightMisses, CancelledEvents, CompletedEvents, TitleMainEvents;
     public int CampWithdrawalsLost, CampWithdrawalsSaved, FightWeekPullouts, NewsOverflow;
+    public List<BoutRow> Bouts = new();
+    public int RetiredInRun;
+    public double RetiredCareerBouts;
 }
+
+readonly record struct BoutRow(FightMethod Method, int Rounds, Sex Sex, WeightClass Class, bool Local, int EndRound, int Knockdowns, int TenEights, int CardRounds);
 
 sealed class OrgVitals
 {
