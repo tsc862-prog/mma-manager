@@ -191,11 +191,14 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     [Fact]
     public void Band_MatchRating()
     {
-        // MatchRating's knockdown weight was raised (12 -> 30) with the knockdown rate cut to a third,
-        // so the rating's spread — which feeds Fight of the Night, fame and sponsor terms — holds.
-        Assert.InRange(_r.MatchRatingMean3, 43.5, 51.0);        // today 45.3 (was 48.1)
-        Assert.InRange(_r.Stars3[4], 6.0, 12.5);                // 5-star 3-rounders: today 7.8% (was 8.0)
-        Assert.InRange(_r.Stars5[4], 22.0, 32.0);               // 5-star 5-rounders: today 25.5% (was 29.3)
+        // With knockdowns cut to a third, MatchRating's knockdown weight went 12 -> 30, finishes 20 -> 22,
+        // and a fight that goes the distance gets +4, so the rating's level — which feeds Fight of the
+        // Night, fame, and the card-quality clauses in sponsor and TV deals — holds.
+        Assert.InRange(_r.MatchRatingMean3, 45.5, 51.0);        // today 48.0 (was 48.1)
+        Assert.InRange(_r.Stars3[4], 6.0, 12.5);                // 5-star 3-rounders: today 8.7% (was 8.0)
+        Assert.InRange(_r.Stars5[4], 22.0, 32.0);               // 5-star 5-rounders: today 27.1% (was 29.3)
+        // Card quality as MinCardQuality reads it (synthetic 12-bout cards): today mean 49.6.
+        Assert.InRange(_r.CardQualityDist[0], 46.5, 52.5);
     }
 
     // Deliberately NOT moved by step 3: the favourite's edge by ability gap is held to the

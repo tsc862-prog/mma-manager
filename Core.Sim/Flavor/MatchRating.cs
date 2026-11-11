@@ -11,6 +11,9 @@ namespace MmaManager.Core.Sim.Flavor;
 /// </summary>
 public static class MatchRating
 {
+    /// <summary>Points for going the distance (see <see cref="Of"/>).</summary>
+    private const double DistanceBonus = 4;
+
     public static int Of(Fight f)
     {
         if (f.Outcome is not { } o) return 0;
@@ -25,6 +28,12 @@ public static class MatchRating
                      + subAttempts * 6
                      + (finish ? 22 : 0)
                      + (finish && o.EndRound >= 3 ? 6 : 0);   // a war that ends late
+
+        // A fight that goes the distance: three (or five) rounds of action the coarse strike count
+        // under-reads. Added with the engine's step 3, when knockdowns fell to a third and stopped
+        // propping up the rating of decisions; it holds the in-world card-quality average that
+        // sponsor and TV clauses (MinCardQuality) are written against.
+        if (!finish) score += DistanceBonus;
 
         // A split or majority decision, or a draw, means it was competitive to the wire.
         if (o.Method is FightMethod.SplitDecision or FightMethod.MajorityDecision or FightMethod.Draw) score += 8;
