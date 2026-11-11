@@ -222,9 +222,7 @@ public static class Acquisitions
                 $"Contract buyout — {f.FullName} ({target.Abbreviation} merger)");
         }
         Finance.Ledger.Expense(buyer, date, FinanceCategory.Acquisition,
-            new Money(price.Amount - paidOut),
-            paidOut > 0 ? $"Acquisition of {target.Name} (plus {new Money(paidOut)} of its guarantees, paid from the price)"
-                        : $"Acquisition of {target.Name}");
+            new Money(price.Amount - paidOut), $"Acquisition of {target.Name}");   // the guarantees paid from the price are the "(… merger)" buyout lines
 
         // Nobody fights under the old banner now: its contender lists go with it.
         foreach (var d in target.Divisions) d.Rankings.Clear();

@@ -341,7 +341,7 @@ public class ContractHygieneTests
         Assert.True(buyouts >= price.Amount * (1m - Acquisitions.SellerKeeps) - 200m);
         // The purchase is always on the books, and the buyer's outlay is exactly the price.
         var acq = buyer.Ledger.Single(e => e.Category == FinanceCategory.Acquisition && e.Amount.Amount < 0
-                                           && e.Description.StartsWith($"Acquisition of {target.Name}"));
+                                           && e.Description == $"Acquisition of {target.Name}");
         Assert.Equal(-(price.Amount - buyouts), acq.Amount.Amount);
         Assert.Equal(price.Amount, bankBefore - buyer.Balance.Amount + cashIn);
     }
