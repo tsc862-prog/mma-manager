@@ -232,13 +232,14 @@ public static class Storylines
             && !(ai && c.Contract is { FightsRemaining: <= 0 })
             && world.BiddingWars.All(w => w.Fighter != c.Id);
 
-        var roster = world.RosterOf(promo.Id).Where(Fits);
+        var roster = world.RosterOf(promo.Id).Where(Fits).ToList();
         // An AI house only phones the free agents it can pay: the stand-in signs at
         // 1.25x his asking price, and a club show that rings a star's agent for a
         // one-night fill-in bankrupts itself (it did, in the shoestring run).
         decimal cap = ai ? Contracts.Negotiator.PurseCap(world, promo) : decimal.MaxValue;
-        var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3
-            && (!ai || new FighterValuation().Evaluate(world, c).AskingPurse.Amount * 1.25m <= cap));
+        var valuation = new FighterValuation();
+        var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList()
+            .Where(c => !ai || valuation.Evaluate(world, c).AskingPurse.Amount * 1.25m <= cap);
         return roster.Concat(market)
             .OrderByDescending(c => Ability.FighterAbility.CurrentAbility(c));
     }
