@@ -241,6 +241,8 @@ static void RunCompare(int seeds, int years)
         var deadAtYear = new Dictionary<string, int>();
 
         var startDate = world.CurrentDate;   // day-one back-dated history is excluded from the rates below
+        var dayOneOrgs = world.Promotions.Keys.ToHashSet();
+        var seenOrg = new Dictionary<PromotionId, OrgVitals>();
         NewsItem? lastSeen = world.News.Count > 0 ? world.News[^1] : null;
 
         for (int yr = 1; yr <= years; yr++)
@@ -269,6 +271,21 @@ static void RunCompare(int seeds, int years)
                     else if (n.Body.StartsWith("Pulled with")) res.FightWeekPullouts++;
                 }
                 if (world.News.Count > 0) lastSeen = world.News[^1];
+
+                // Weekly sample of org vitals for the autopsies (roster and tier of
+                // a promotion in its last live week; the week a fold is first seen).
+                foreach (var op in world.Promotions.Values)
+                {
+                    bool known = seenOrg.TryGetValue(op.Id, out var cur);
+                    if (op.Defunct)
+                    {
+                        if (known && cur!.DeathSeen == default) cur.DeathSeen = world.CurrentDate;
+                        continue;
+                    }
+                    int rs = world.RosterOf(op.Id).Count();
+                    if (!known) seenOrg[op.Id] = new OrgVitals { First = world.CurrentDate, Roster0 = rs, RosterLast = rs, TierLast = OrgSizing.SizeOf(op) };
+                    else { cur!.RosterLast = rs; cur.TierLast = OrgSizing.SizeOf(op); }
+                }
             }
             foreach (var p in world.Promotions.Values.Where(p => p.Defunct))
                 deadAtYear.TryAdd(p.Abbreviation, yr);
@@ -277,6 +294,37 @@ static void RunCompare(int seeds, int years)
         // Durable, from event/fight state (events are never pruned for AI orgs).
         var simEvents = world.Events.Values.Where(e => e.Date > startDate).ToList();
         var doneEvents = simEvents.Where(e => e.Status == EventStatus.Completed && e.Card.Count > 0).ToList();
+        // ---- autopsies (DURABLE: events, fights, ledgers; SAMPLED weekly: roster, tier, death week) ----
+        var endDate = world.CurrentDate;
+        foreach (var op in world.Promotions.Values.OrderBy(o => o.Abbreviation))
+        {
+            bool startup = !dayOneOrgs.Contains(op.Id);
+            var cards = doneEvents.Where(e => e.Promotion == op.Id).ToList();
+            seenOrg.TryGetValue(op.Id, out var vit);
+            vit ??= new OrgVitals();
+            var firstLedger = op.Ledger.Count > 0 ? op.Ledger.Min(l => l.Date) : default;
+            var o = new OrgAutopsy
+            {
+                Seed = seed, Abbrev = op.Abbreviation, Startup = startup, Defunct = op.Defunct,
+                Founded = startup ? (firstLedger != default ? firstLedger : vit.First) : default,
+                Died = vit.DeathSeen != default ? vit.DeathSeen : (op.Defunct ? (op.Ledger.Count > 0 ? op.Ledger.Max(l => l.Date) : default) : default),
+                Tier = op.Defunct ? vit.TierLast : OrgSizing.SizeOf(op),
+                Cards = cards.Count,
+                Bouts = cards.Sum(e => e.Card.Count),
+                LocalBouts = cards.Sum(e => e.Card.Count(f => IsLocal(world, f))),
+                Attendance = cards.Sum(e => e.Financials?.Attendance ?? 0),
+                Gate = cards.Sum(e => e.Financials?.GateRevenue.Amount ?? 0m),
+                Purses = cards.Sum(e => e.Financials?.FighterPayroll.Amount ?? 0m),
+                Roster0 = vit.Roster0, RosterLast = op.Defunct ? vit.RosterLast : world.RosterOf(op.Id).Count(),
+                Income = op.Ledger.Where(l => l.Amount.Amount > 0).Sum(l => l.Amount.Amount),
+                Expense = op.Ledger.Where(l => l.Amount.Amount < 0).Sum(l => l.Amount.Amount),
+                ByCat = op.Ledger.GroupBy(l => l.Category).ToDictionary(g => g.Key, g => g.Sum(l => l.Amount.Amount)),
+            };
+            var born = o.Startup ? (o.Founded != default ? o.Founded : startDate) : startDate;
+            var until = o.Defunct && o.Died != default ? o.Died : endDate;
+            o.YearsAlive = Math.Max(1.0 / 52, (until.DayNumber - born.DayNumber) / 365.25);
+            res.Orgs.Add(o);
+        }
         res.Superfights = doneEvents.Count(e => e.Name.StartsWith("CHAMP VS CHAMP"));
         res.WeightMisses = doneEvents.Sum(e => e.Card.Count(f => f.WeightMissBy is not null));
         res.CancelledEvents = simEvents.Count(e => e.Status == EventStatus.Cancelled);
@@ -307,6 +355,8 @@ static void RunCompare(int seeds, int years)
         res.Folds = deadAtYear.OrderBy(kv => kv.Value).Select(kv => Tag(kv.Key, kv.Value)).ToList();
         res.Bankruptcies = deadAtYear.Count(kv =>
             !boughtNames.Contains(world.Promotions.Values.First(p => p.Abbreviation == kv.Key).Name));
+        foreach (var ao in res.Orgs)
+            ao.Bought = ao.Defunct && boughtNames.Contains(world.Promotions.Values.First(p => p.Abbreviation == ao.Abbrev).Name);
         res.CkFoldYear = deadAtYear.TryGetValue("CK", out var cy) ? cy : null;
         res.RcsFoldYear = deadAtYear.TryGetValue("RCS", out var ry) ? ry : null;
         res.Founded = world.Promotions.Count - 19;
@@ -369,8 +419,43 @@ static void RunCompare(int seeds, int years)
     int totDone = all.Sum(r => r.CompletedEvents);
     Console.WriteLine($"  completed cards with a title fight on top (DURABLE; weight-miss title fights are un-flagged so slightly undercounted): " +
         $"{100.0 * all.Sum(r => r.TitleMainEvents) / Math.Max(1, totDone):0.0}% of {totDone}");
+    PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     if (all.Sum(r => r.NewsOverflow) > 0)
         Console.WriteLine($"  WARNING: news sampler lost its place {all.Sum(r => r.NewsOverflow)} time(s); headline-sampled rates are undercounts");
+}
+
+// A bout "involves local filler" when either corner is a LocalTalent fighter (a durable flag on
+// the fighter, read at the end of the run -- a filler who later signed a real deal still counts).
+static bool IsLocal(World world, Fight f) =>
+    (world.Get(f.RedCorner)?.LocalTalent ?? false) || (world.Get(f.BlueCorner)?.LocalTalent ?? false);
+
+static void PrintDeaths(List<OrgAutopsy> orgs)
+{
+    var dead = orgs.Where(o => o.Defunct && !o.Bought).ToList();
+    Console.WriteLine();
+    Console.WriteLine("=== DEATHS (BANKRUPT orgs only (acquired ones excluded); averages over completed cards in the run; roster/tier/death week SAMPLED weekly; bouts/attendance/gate/purses/ledger DURABLE; LOCAL = either corner LocalTalent) ===");
+    Console.WriteLine($"{"seed",4} {"abbr",-5} {"st",2} {"founded",10} {"died",10} {"tier",-12} {"cards",5} {"bouts",5} {"local",5} {"house",6} {"gate/c",9} {"purse/c",9} | {"roster0>last",12} | {"income",11} {"expense",12} | worst/best ledger lines");
+    foreach (var o in dead.OrderBy(o => o.Seed).ThenBy(o => o.Died))
+    {
+        double c = Math.Max(1, o.Cards);
+        var top = string.Join(" ", o.ByCat.OrderBy(kv => kv.Value).Take(3).Select(kv => $"{kv.Key}:{kv.Value:N0}")
+            .Concat(o.ByCat.OrderByDescending(kv => kv.Value).Take(2).Select(kv => $"{kv.Key}:+{kv.Value:N0}")));
+        Console.WriteLine($"{o.Seed,4} {o.Abbrev,-5} {(o.Startup ? "S" : "D"),2} {(o.Startup ? o.Founded.ToString("yyyy-MM-dd") : "day-one"),10} {o.Died:yyyy-MM-dd} {OrgSizing.Label(o.Tier),-12} {o.Cards,5} {o.Bouts / c,5:0.0} {o.LocalBouts / c,5:0.0} {o.Attendance / c,6:0} {o.Gate / (decimal)c,9:N0} {o.Purses / (decimal)c,9:N0} | {o.Roster0,5}>{o.RosterLast,-5}  | {o.Income,11:N0} {o.Expense,12:N0} | {top}");
+    }
+    Console.WriteLine("  (st: S = startup founded during the run, D = day-one org. Acquired orgs are excluded from the table but counted as defunct in the STARTUPS lines below.)");
+
+    void Line(string label, List<OrgAutopsy> g)
+    {
+        double cards = g.Sum(o => o.Cards), yrs = g.Sum(o => o.YearsAlive);
+        Console.WriteLine($"  {label}: n={g.Count} · defunct={g.Count(o => o.Defunct)} · org-years {yrs:0.0} · cards/yr {cards / Math.Max(0.01, yrs):0.00} · bouts/card {g.Sum(o => o.Bouts) / Math.Max(1, cards):0.00} · local bouts/card {g.Sum(o => o.LocalBouts) / Math.Max(1, cards):0.00} · house {g.Sum(o => o.Attendance) / Math.Max(1, cards):0} · gate/card {g.Sum(o => o.Gate) / (decimal)Math.Max(1, cards):N0} · purses/card {g.Sum(o => o.Purses) / (decimal)Math.Max(1, cards):N0}");
+    }
+    Console.WriteLine();
+    var st = orgs.Where(o => o.Startup).ToList();
+    Console.WriteLine("  --- STARTUPS ONLY (promotions founded during the run; cards pooled over all startup cards) ---");
+    Line("STARTUPS all", st);
+    Line("STARTUPS died", st.Where(o => o.Defunct).ToList());
+    Line("STARTUPS alive", st.Where(o => !o.Defunct).ToList());
+    Console.WriteLine($"  STARTUPS roster: avg at first weekly sighting {(st.Count == 0 ? 0 : st.Average(o => o.Roster0)):0.0} (SAMPLED), avg in last live week / at end {(st.Count == 0 ? 0 : st.Average(o => o.RosterLast)):0.0} (SAMPLED)");
 }
 
 static void RunSingle(ulong seed, int years)
@@ -422,6 +507,7 @@ static void RunSingle(ulong seed, int years)
 sealed class SeedResult
 {
     public ulong Seed;
+    public List<OrgAutopsy> Orgs = new();
     public List<string> Folds = new();
     /// <summary>Defunct orgs that were NOT bought — the ones that actually went broke.</summary>
     public int Bankruptcies;
@@ -433,3 +519,24 @@ sealed class SeedResult
     public int Years, Superfights, WeightMisses, CancelledEvents, CompletedEvents, TitleMainEvents;
     public int CampWithdrawalsLost, CampWithdrawalsSaved, FightWeekPullouts, NewsOverflow;
 }
+
+sealed class OrgVitals
+{
+    public DateOnly First, DeathSeen;
+    public int Roster0, RosterLast;
+    public OrgSize TierLast;
+}
+
+sealed class OrgAutopsy
+{
+    public ulong Seed;
+    public string Abbrev = "";
+    public bool Startup, Defunct, Bought;
+    public DateOnly Founded, Died;
+    public int Cards, Bouts, LocalBouts, Attendance, Roster0, RosterLast;
+    public OrgSize Tier;
+    public decimal Gate, Purses, Income, Expense;
+    public double YearsAlive;
+    public Dictionary<FinanceCategory, decimal> ByCat = new();
+}
+
