@@ -112,6 +112,7 @@ public sealed class DesktopViewModel : ObservableObject
             new() { Id = "home", Title = "Dashboard", Glyph = "🏠", Accent = "#E8B23A", Create = () => new Views.HomeView() },
             new() { Id = "roster", Title = "Roster", Glyph = "🥊", Accent = "#D97B4F", Create = () => new Views.RosterView() },
             new() { Id = "book", Title = "Book Event", Glyph = "🎟", Accent = "#D64550", Create = () => new Views.BookingView(), W = 1420 },
+            new() { Id = "planner", Title = "Planner", Glyph = "📅", Accent = "#5FB3C9", Create = () => new Views.PlannerView(), W = 1320, H = 820 },
             new() { Id = "contracts", Title = "Contracts", Glyph = "✍", Accent = "#C9A94F", Create = () => new Views.ContractsView(), W = 1380 },
             new() { Id = "finance", Title = "Finance", Glyph = "💰", Accent = "#57C97E", Create = () => new Views.FinanceView() },
             new() { Id = "media", Title = "Media", Glyph = "📡", Accent = "#B06BD8", Create = () => new Views.MediaView(), W = 1240, H = 760 },
@@ -237,6 +238,7 @@ public sealed class DesktopViewModel : ObservableObject
             Tab.News => "news",
             Tab.WorldMap => "map",
             Tab.Camps => "camps",
+            Tab.Planner => "planner",
             _ => null,
         };
         if (id is not null) Open(id);
