@@ -27,6 +27,8 @@ public static partial class FightLab
         public ulong Seed { get; init; } = 2026;
         /// <summary>Realistically matched pairs (blue overall = red ± N(0,4)), each fought at 3 and at 5 rounds.</summary>
         public int MatchedPairs { get; init; } = 3000;
+        /// <summary>Matched pairs per weight class and sex (9 men's + 4 women's classes), 3 rounds: the by-division mix.</summary>
+        public int ClassPairs { get; init; } = 300;
         /// <summary>Pairs with ability gaps up to ±25, 3 rounds: the upset curve.</summary>
         public int WidePairs { get; init; } = 6000;
         /// <summary>Fighters per style at exactly the same CurrentAbility (70) for the style matrix.</summary>
@@ -49,7 +51,7 @@ public static partial class FightLab
         /// <summary>Scale every sample by <paramref name="k"/> (k = 1 is <see cref="Small"/>).</summary>
         public ReportOptions Scaled(int k) => this with
         {
-            MatchedPairs = MatchedPairs * k, WidePairs = WidePairs * k,
+            MatchedPairs = MatchedPairs * k, WidePairs = WidePairs * k, ClassPairs = ClassPairs * k,
             StyleSeeds = StyleSeeds * k, AttributeSeeds = AttributeSeeds * k,
             TextFights = TextFights * k, TimingBouts = TimingBouts * k,
         };
@@ -96,6 +98,14 @@ public static partial class FightLab
         public required MethodMix FiveRound { get; init; }
         public required MethodMix Men3 { get; init; }
         public required MethodMix Women3 { get; init; }
+        /// <summary>3-round matched pairs per division ("M Heavyweight", "W Strawweight", …).</summary>
+        public required IReadOnlyList<(string Division, MethodMix Mix)> ByDivision { get; init; }
+        /// <summary>How the matched 3-round fights ended, by finish detail (share % of ALL those fights).</summary>
+        public required IReadOnlyList<(string Detail, double Pct)> FinishDetails { get; init; }
+        /// <summary>Same, 5 rounds.</summary>
+        public required IReadOnlyList<(string Detail, double Pct)> FinishDetails5 { get; init; }
+        /// <summary>Share (%) of 3-round round-one finishes inside each minute (index 0 = 0:00-1:00).</summary>
+        public required double[] RoundOneFinishByMinute { get; init; }
         /// <summary>Share (%) of ALL 3-round fights finished in round r (index 0 = R1).</summary>
         public required double[] FinishByRound3 { get; init; }
         public required double[] FinishByRound5 { get; init; }
@@ -115,6 +125,17 @@ public static partial class FightLab
         /// <summary>Stored card totals (e.g. "29-28") as share (%) of 3-round decisions, most common first.</summary>
         public required IReadOnlyList<(string Card, double Pct)> CardTotals { get; init; }
         public double MatchRatingMean3 { get; init; }
+        /// <summary>MatchRating of matched 3- / 5-round bouts: mean, p10, p25, median, p75, p90.</summary>
+        public double[] RatingDist3 { get; init; } = Array.Empty<double>();
+        public double[] RatingDist5 { get; init; } = Array.Empty<double>();
+        /// <summary>
+        /// Card quality as DealCompliance's MinCardQuality reads it (average MatchRating of the card),
+        /// over synthetic 12-bout cards of matched pairs: eleven 3-rounders and a 5-round main event.
+        /// Same six numbers as <see cref="RatingDist3"/>.
+        /// </summary>
+        public double[] CardQualityDist { get; init; } = Array.Empty<double>();
+        /// <summary>Share (%) of those synthetic cards at or over 40 / 42 / 45 / 50 (the deal thresholds in use).</summary>
+        public double[] CardQualityClears { get; init; } = Array.Empty<double>();
         /// <summary>Star distribution (%) of 3- and 5-round bouts, index 0 = one star.</summary>
         public required double[] Stars3 { get; init; }
         public required double[] Stars5 { get; init; }
@@ -263,11 +284,38 @@ public static partial class FightLab
         }
         var a3 = new FightOutcome[pairs.Length];
         var a5 = new FightOutcome[pairs.Length];
+        var d3 = new string?[pairs.Length];
+        var d5 = new string?[pairs.Length];
         Parallel.For(0, pairs.Length, i =>
         {
-            a3[i] = engine.Simulate(pairs[i].R, pairs[i].B, Fast(3), SimRandom.Mix(o.Seed ^ 0x3A, (ulong)i));
-            a5[i] = engine.Simulate(pairs[i].R, pairs[i].B, Fast(5), SimRandom.Mix(o.Seed ^ 0x5A, (ulong)i));
+            a3[i] = engine.Simulate(pairs[i].R, pairs[i].B, Fast(3), SimRandom.Mix(o.Seed ^ 0x3A, (ulong)i), out d3[i]);
+            a5[i] = engine.Simulate(pairs[i].R, pairs[i].B, Fast(5), SimRandom.Mix(o.Seed ^ 0x5A, (ulong)i), out d5[i]);
         });
+
+        // ---- Population C: matched pairs inside each division (3 rounds)
+        var slots = MenClasses.Select(c => (Sex: Sex.Male, Wc: c)).Concat(WomenClasses.Select(c => (Sex: Sex.Female, Wc: c))).ToArray();
+        var pickC = new SimRandom(SimRandom.Mix(o.Seed, 0xC1A55));
+        var cpairs = new (Fighter R, Fighter B)[slots.Length * o.ClassPairs];
+        for (int i = 0; i < cpairs.Length; i++)
+        {
+            var (sx, wc) = slots[i / Math.Max(1, o.ClassPairs)];
+            int ov = Math.Clamp((int)Math.Round(pickC.NextGaussian(60, 10)), 35, 90);
+            int ob = Math.Clamp(ov + (int)Math.Round(pickC.NextGaussian(0, 4)), 30, 95);
+            cpairs[i] = (lab.Make(ov, Styles[pickC.Next(0, 8)], wc, sx), lab.Make(ob, Styles[pickC.Next(0, 8)], wc, sx));
+        }
+        var c3 = new FightOutcome[cpairs.Length];
+        Parallel.For(0, cpairs.Length, i => c3[i] = engine.Simulate(cpairs[i].R, cpairs[i].B, Fast(3), SimRandom.Mix(o.Seed ^ 0xC3, (ulong)i)));
+        var byDivision = slots.Select((s, k) => (
+            $"{(s.Sex == Sex.Male ? "M" : "W")} {s.Wc}",
+            Mix(c3.Skip(k * o.ClassPairs).Take(o.ClassPairs).ToList()))).ToList();
+
+        static List<(string, double)> Details(string?[] ds, int n) => ds.Where(d => d is not null)
+            .GroupBy(d => d!).Select(g => (g.Key, 100.0 * g.Count() / Math.Max(1, n)))
+            .OrderByDescending(x => x.Item2).ThenBy(x => x.Key, StringComparer.Ordinal).ToList();
+        var r1 = a3.Where(x => IsFinish(x.Method) && x.EndRound == 1).ToList();
+        var r1Min = new double[5];
+        foreach (var x in r1) r1Min[Math.Clamp(x.EndTimeSeconds / 60, 0, 4)]++;
+        for (int k = 0; k < 5; k++) r1Min[k] = r1.Count == 0 ? 0 : 100 * r1Min[k] / r1.Count;
 
         var idx = Enumerable.Range(0, pairs.Length).ToList();
         var men = idx.Where(i => pairs[i].R.Sex == Sex.Male).Select(i => a3[i]).ToList();
@@ -300,6 +348,10 @@ public static partial class FightLab
 
         var ratings3 = idx.Select(i => RatingOf(pairs[i], a3[i])).ToList();
         var ratings5 = idx.Select(i => RatingOf(pairs[i], a5[i])).ToList();
+        var cardQ = new List<double>();
+        for (int c = 0; c + 12 <= pairs.Length; c += 12)
+            cardQ.Add((Enumerable.Range(c, 11).Sum(i => ratings3[i]) + ratings5[c + 11]) / 12.0);
+        double[] clears = { 40, 42, 45, 50 };
 
         // ---- Population B: wide gaps, the upset curve
         var pickB = new SimRandom(SimRandom.Mix(o.Seed, 0xB));
@@ -335,6 +387,8 @@ public static partial class FightLab
         {
             Options = o,
             ThreeRound = Mix(a3), FiveRound = Mix(a5), Men3 = Mix(men), Women3 = Mix(women),
+            ByDivision = byDivision, FinishDetails = Details(d3, a3.Length), FinishDetails5 = Details(d5, a5.Length),
+            RoundOneFinishByMinute = r1Min,
             FinishByRound3 = ByRound(a3, 3), FinishByRound5 = ByRound(a5, 5),
             KnockdownsPerFight = a3.Average(x => x.Stats.Values.Sum(s => s.KnockdownsScored)),
             KnockdownFinishPct = totalKd == 0 ? 0 : 100.0 * koFinishes / totalKd,
@@ -347,6 +401,9 @@ public static partial class FightLab
             CardTotals = totals.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal)
                 .Select(kv => (kv.Key, 100.0 * kv.Value / decisions.Count)).ToList(),
             MatchRatingMean3 = ratings3.Count == 0 ? 0 : ratings3.Average(),
+            RatingDist3 = Dist(ratings3.Select(x => (double)x)), RatingDist5 = Dist(ratings5.Select(x => (double)x)),
+            CardQualityDist = Dist(cardQ),
+            CardQualityClears = clears.Select(t => cardQ.Count == 0 ? 0 : 100.0 * cardQ.Count(q => q >= t) / cardQ.Count).ToArray(),
             Stars3 = StarShares(ratings3), Stars5 = StarShares(ratings5),
             Upset = bins, Wide = Mix(b3),
         };
@@ -628,6 +685,15 @@ public static partial class FightLab
     private static int RatingOf((Fighter R, Fighter B) p, FightOutcome x) =>
         MatchRating.Of(new Fight { Id = new FightId(1), RedCorner = p.R.Id, BlueCorner = p.B.Id, Outcome = x });
 
+    /// <summary>mean, p10, p25, median, p75, p90 (nearest rank).</summary>
+    private static double[] Dist(IEnumerable<double> xs)
+    {
+        var v = xs.OrderBy(x => x).ToList();
+        if (v.Count == 0) return new double[6];
+        double Q(double q) => v[Math.Clamp((int)Math.Round(q * (v.Count - 1)), 0, v.Count - 1)];
+        return new[] { v.Average(), Q(0.1), Q(0.25), Q(0.5), Q(0.75), Q(0.9) };
+    }
+
     private static double[] StarShares(List<int> ratings)
     {
         var s = new double[5];
@@ -711,9 +777,15 @@ public static partial class FightLab
         L("  5 rounds  " + Line(r.FiveRound));
         L("  men  (3)  " + Line(r.Men3));
         L("  women(3)  " + Line(r.Women3));
+        L("By division (3 rounds, matched pairs inside the division)");
+        foreach (var (div, dm) in r.ByDivision) L($"  {div,-19} " + Line(dm));
+        L("How the finishes happened (share of ALL fights)");
+        L("  3 rounds  " + string.Join("  ", r.FinishDetails.Select(d => $"{d.Detail} {P(d.Pct)}")));
+        L("  5 rounds  " + string.Join("  ", r.FinishDetails5.Select(d => $"{d.Detail} {P(d.Pct)}")));
         L("Finishes by round (share of ALL fights)");
         L("  3 rounds  " + string.Join("  ", r.FinishByRound3.Select((v, i) => $"R{i + 1} {P(v)}")));
         L("  5 rounds  " + string.Join("  ", r.FinishByRound5.Select((v, i) => $"R{i + 1} {P(v)}")));
+        L("  round-one finishes by minute (3 rounds): " + string.Join("  ", r.RoundOneFinishByMinute.Select((v, i) => $"{i}-{i + 1} {P(v)}")));
         L("Action (3 rounds)");
         L($"  knockdowns per fight {r.KnockdownsPerFight.ToString("0.00", ci)}  (share that ended the fight {P(r.KnockdownFinishPct)})");
         L($"  takedowns landed per fight {r.TakedownsPerFight.ToString("0.00", ci)}  submission attempts per fight {r.SubAttemptsPerFight.ToString("0.00", ci)}");
@@ -725,6 +797,13 @@ public static partial class FightLab
         L($"  mean (3 rds) {r.MatchRatingMean3.ToString("0.0", ci)}");
         L("  stars 3 rds " + string.Join("  ", r.Stars3.Select((v, i) => $"{i + 1}* {P(v)}")));
         L("  stars 5 rds " + string.Join("  ", r.Stars5.Select((v, i) => $"{i + 1}* {P(v)}")));
+        string D6(double[] d) => d.Length < 6 ? "" :
+            $"mean {d[0].ToString("0.0", ci)}  p10 {d[1].ToString("0.0", ci)} p25 {d[2].ToString("0.0", ci)} median {d[3].ToString("0.0", ci)} p75 {d[4].ToString("0.0", ci)} p90 {d[5].ToString("0.0", ci)}";
+        L("  rating 3 rds: " + D6(r.RatingDist3));
+        L("  rating 5 rds: " + D6(r.RatingDist5));
+        L("  card quality (MinCardQuality's average, synthetic 12-bout cards: 11 x 3 rds + a 5-round main): " + D6(r.CardQualityDist));
+        if (r.CardQualityClears.Length == 4)
+            L($"  cards clearing 40 / 42 / 45 / 50: {P(r.CardQualityClears[0])} {P(r.CardQualityClears[1])} {P(r.CardQualityClears[2])} {P(r.CardQualityClears[3])}");
         L("Upset curve (wide pairs, 3 rounds)");
         L("  |CA gap|      n   favourite wins   favourite's wins that are finishes");
         foreach (var b in r.Upset) L($"  {b.Lo,2}-{(b.Hi >= 99 ? "+" : b.Hi.ToString(ci)),-3}  {b.Bouts,6}   {P(b.FavouriteWinPct)}          {P(b.FavouriteFinishPct)}");

@@ -36,6 +36,8 @@
         <!-- ================= Converters (shared by every view) ================= -->
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <mvvm:InverseBoolToVisibility x:Key="InverseBoolToVis" />
+        <!-- CardTone -> Tone{Good,Warn,Bad,Info} brush; ConverterParameter=Dim for the background shade. -->
+        <mvvm:ToneBrush x:Key="ToneBrush" />
 
         <!-- ================= Text ================= -->
         <Style TargetType="TextBlock">
@@ -468,7 +470,7 @@
              desktop, so layouts reflow with the WINDOW width, never the screen.
 
              TOKENS
-               Type ......... Text.Kicker (11 caps label) · Text.Caption (12) ·
+               Type ......... Text.Kicker (11 caps label) · Text.Caption (12) · Text.Note (12, collapses when empty) ·
                               Text.Secondary (12.5) · Text.Body (13.5) · Text.Heading (15) ·
                               Text.Title (19) · Text.Display (30, the one big name on a screen) ·
                               Text.Quote (15, a person talking)
@@ -476,9 +478,11 @@
                Space ........ Space.Screen (screen margin) · Space.Panel (panel padding) ·
                               Space.Stack (between stacked items) · Radius.Panel · Radius.Pill
                Tone ......... Tone{Good,Warn,Bad,Info} + Tone{..}Dim backgrounds. CardTone enum
-                              (ViewModels/Cards.cs) picks them in the templates below.
+                              (ViewModels/Cards.cs) picks them in the templates below, or bind a
+                              CardTone through {StaticResource ToneBrush} (ConverterParameter=Dim).
                Icons ........ Icon.{Envelope, Document, Warning, Trophy, Calendar, Search, People,
-                              Money, Bell, Star, Crown, Broadcast, Pen, Check, Newspaper, Building}:
+                              Money, Bell, Star, Crown, Broadcast, Pen, Check, Newspaper, Building,
+                              ChevronLeft, ChevronRight}:
                               line geometry on a 24x24 grid, drawn by controls:Icon. No emoji in
                               these screens (WPF draws them flat and monochrome).
 
@@ -575,6 +579,8 @@
         <Geometry x:Key="Icon.Check">M5,12.5 L10,17.5 L19.5,7</Geometry>
         <Geometry x:Key="Icon.Newspaper">M4,5 H17 V19 H6 A2,2 0 0 1 4,17 Z M17,9 H20 V17 A2,2 0 0 1 18,19 H17 M7,8.5 H14 M7,12 H14 M7,15 H11</Geometry>
         <Geometry x:Key="Icon.Building">M4,20.5 H20 M5.5,20.5 V8 L12,4 L18.5,8 V20.5 M9,11 H10 M14,11 H15 M9,14.5 H10 M14,14.5 H15 M10.5,20.5 V17 H13.5 V20.5</Geometry>
+        <Geometry x:Key="Icon.ChevronLeft">M15,5 L8,12 L15,19</Geometry>
+        <Geometry x:Key="Icon.ChevronRight">M9,5 L16,12 L9,19</Geometry>
 
         <!-- Tokens: space and shape -->
         <Thickness x:Key="Space.Screen">16</Thickness>
@@ -595,6 +601,16 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <!-- Text.Note: a wrapping caption that collapses when it has nothing to say (a hint under a button). -->
+        <Style x:Key="Text.Note" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="None" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="Text.Secondary" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="12.5" />
