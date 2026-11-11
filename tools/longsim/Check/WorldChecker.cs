@@ -323,7 +323,10 @@ public sealed class WorldChecker
         {
             _log.Checked("BOOK-SCHEDULED", ev.Card.Count);
             var host = world.Get(ev.Promotion);
-            if (host is null) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:host", $"{E(world, ev.Id)} is run by {P(world, ev.Promotion)}");
+            // a local-circuit club card (no promotion) is staged in the monthly pass and runs on its date: its pros are free
+            // agents or moonlighters on non-exclusive deals, so only the who-is-on-it rules apply to it
+            bool local = ev.Promotion.Value == 0;
+            if (host is null && !local) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:host", $"{E(world, ev.Id)} is run by {P(world, ev.Promotion)}");
             if (ev.Date < world.CurrentDate.AddDays(-35))
                 V("BOOK-SCHEDULED", $"e{ev.Id.Value}:overdue", $"{E(world, ev.Id)} ({P(world, ev.Promotion)}) is still Scheduled {(world.CurrentDate.DayNumber - ev.Date.DayNumber)} days after its date");
             foreach (var fight in ev.Card)
@@ -336,7 +339,9 @@ public sealed class WorldChecker
                     if (onScheduled.TryGetValue(id, out var other) && other.Id != ev.Id)
                         V("BOOK-SCHEDULED", $"{id.Value}:{other.Id.Value}-{ev.Id.Value}", $"{F(world, id)} is on two scheduled cards: {E(world, other.Id)} and {E(world, ev.Id)}");
                     else onScheduled[id] = ev;
-                    if (f is not null && !f.LocalTalent && f.Status != FighterStatus.Retired && f.Contract?.Promotion != ev.Promotion)
+                    if (local && f is not null && !f.LocalTalent && f.Contract is { IsExclusive: true })
+                        V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:excl", $"local card {E(world, ev.Id)} books {F(world, id)} who is on an EXCLUSIVE deal with {P(world, f.Contract.Promotion)}");
+                    else if (!local && f is not null && !f.LocalTalent && f.Status != FighterStatus.Retired && f.Contract?.Promotion != ev.Promotion)
                         V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:unrostered", $"{E(world, ev.Id)} ({P(world, ev.Promotion)}) books {F(world, id)} who is {(f.Contract is null ? "a free agent" : "contracted to " + P(world, f.Contract.Promotion))}{(fight.IsTitleFight ? " in a TITLE fight" : "")}");
                     if (fight.IsTitleFight && f is not null && f.Contract?.Promotion != ev.Promotion && f.Status != FighterStatus.Retired)
                         V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:title", $"title fight on {E(world, ev.Id)} ({P(world, ev.Promotion)}) includes {F(world, id)} who is {(f.Contract is null ? "a free agent" : "contracted to " + P(world, f.Contract.Promotion))}");

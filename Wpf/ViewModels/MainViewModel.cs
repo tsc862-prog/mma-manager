@@ -635,6 +635,14 @@ public sealed class MainViewModel : ObservableObject
                     () => NavigateTo(Tab.Inbox));
         }
 
+        // One of your cards lost its main event — time stops for the decision.
+        if (r.MainEventLost is { } hit)
+        {
+            Booking.SelectEvent(hit.Id);
+            NavigateTo(Tab.BookEvent);
+            StatusText = $"▶ Time stopped: {hit.Name} lost its main event. Your inbox has the details; book a new headliner.";
+        }
+
         // Reached one of your cards — the advance force-pauses on fight night.
         if (r.PendingPlayerEvent is { } pending)
         {

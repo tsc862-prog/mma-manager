@@ -131,6 +131,14 @@ public static class ContractLifecycle
         if (world.Get(from) is not { } promo) return;
         Lifers.OnLeaving(world, f, promo, door ?? $"he left {promo.Abbreviation}", date, to, hisChoice);
         foreach (var d in promo.Divisions) d.Rankings.Remove(f.Id);
+        // A camp stipend is the paying org's promise; it doesn't follow him out
+        // (and leaving is not the org stopping it — no Lifers grievance).
+        f.CampStipend = false;
+        // Leaving the player's promotion takes him off its cards at once, with a mail.
+        if (from == world.PlayerPromotion)
+            Living.ForwardCalendar.OffPlayerCards(world, f, date,
+                to is { } dest && world.Get(dest) is { } rival ? $"he signed with {rival.Name}"
+                : hisChoice ? "he walked when his deal ran out" : "he was released");
 
         foreach (var title in world.Titles.Values
                      .Where(t => t.Promotion == from && t.CurrentChampion == f.Id)

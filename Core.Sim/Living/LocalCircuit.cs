@@ -16,6 +16,17 @@ namespace MmaManager.Core.Sim.Living;
 /// the real engine and lands on the real record, the real fight history, and
 /// the real calendar — a fighter's tally is never a number without a story.
 /// Locals can still be DISCOVERED here by upsetting a pro (see LocalScene).
+///
+/// A month's cards are STAGED in the monthly pass (every roll the circuit
+/// makes — who takes a fight, pro-vs-pro, the locals' styles — is made then,
+/// on the week's shared stream, in the order it always was) and dated later in
+/// the month. They sit on the calendar as scheduled cards, so the fighters on
+/// them are committed (no promotion books them meanwhile), and run when the
+/// world's clock reaches their date (<see cref="RunDue"/>, which draws no RNG:
+/// the bouts seed off their fight ids). On the night anyone who can no longer
+/// fight it — retired, suspended, hurt, signed to an exclusive deal, booked on
+/// a promotion's card — comes off it; the pros who fought get the normal
+/// post-fight recovery.
 /// </summary>
 public static class LocalCircuit
 {
@@ -26,6 +37,10 @@ public static class LocalCircuit
 
     private static readonly FightEngine Engine = new();
 
+    /// <summary>A card of the local scene (nobody's show), not a promotion's.</summary>
+    public static bool IsLocalCard(Event ev) => ev.Promotion.Value == 0;
+
+    /// <summary>Stage this month's club cards (they run on their dates). Returns the bouts staged.</summary>
     public static int RunMonthly(World world, DateOnly date, SimRandom rng)
     {
         // Anyone who fought recently, or has a booking coming, isn't idle —
@@ -67,12 +82,15 @@ public static class LocalCircuit
         var venue = city is null ? null
             : world.Venues.Values.Where(v => v.City == city.Id).OrderBy(v => v.Capacity).ThenBy(v => v.Id.Value).FirstOrDefault();
 
+        // Later this month (a hash of the date, not a draw) — never before today.
+        var night = new DateOnly(date.Year, date.Month, Math.Min(28, 6 + (int)(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber) % 20)));
+        if (night < date) night = date;
         var ev = new Event
         {
             Id = world.NewEventId(),
             Promotion = default,   // nobody's show — the scene itself (resolves to null org everywhere)
             Name = $"Local Fight Night — {city?.Name ?? Pretty(region)}",
-            Date = new DateOnly(date.Year, date.Month, Math.Min(28, 6 + (int)(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber) % 20))),
+            Date = night,
             Venue = venue?.Name,
             VenueId = venue?.Id,
             Region = region,
@@ -104,18 +122,96 @@ public static class LocalCircuit
         }
         if (ev.Card.Count == 0) return 0;
 
-        world.Events[ev.Id] = ev;
+        world.Events[ev.Id] = ev;   // on the calendar; it runs when the clock reaches its date
+        return ev.Card.Count;
+    }
 
-        // Fight night, small-hall edition: the real engine, the real consequences —
-        // records, streaks, fame, discoveries — but no box office and no standing.
+    /// <summary>
+    /// Run every staged club card whose date has arrived, in date order. Draws
+    /// no RNG. Returns the bouts fought.
+    /// </summary>
+    public static int RunDue(World world, DateOnly asOf)
+    {
+        int fought = 0;
+        var due = world.Events.Values
+            .Where(e => e.Status == EventStatus.Scheduled && IsLocalCard(e) && e.Date <= asOf)
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+            .ToList();
+        if (due.Count == 0) return 0;
+        var promoted = OnPromotionCards(world);
+        foreach (var ev in due) fought += RunCard(world, ev, promoted);
+        return fought;
+    }
+
+    /// <summary>
+    /// Keep every staged club card honest between staging and its night (run at
+    /// the end of each tick): a corner who has retired, been suspended, been
+    /// hurt, signed an exclusive deal or been booked on a promotion's card
+    /// comes off it. Draws no RNG.
+    /// </summary>
+    public static void Audit(World world)
+    {
+        var staged = world.Events.Values
+            .Where(e => e.Status == EventStatus.Scheduled && IsLocalCard(e))
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+            .ToList();
+        if (staged.Count == 0) return;
+        var promoted = OnPromotionCards(world);
+        foreach (var ev in staged) Prune(world, ev, promoted);
+    }
+
+    // Fight night, small-hall edition: the real engine, the real consequences —
+    // records, streaks, fame, discoveries, the post-fight layoff — but no box
+    // office, no standing and no injury roll (that lives on the shared stream).
+    private static int RunCard(World world, Event ev, HashSet<FighterId> promoted)
+    {
+        Prune(world, ev, promoted);
+        if (ev.Card.Count == 0) { world.Events.Remove(ev.Id); return 0; }   // nothing left to stage: the hall is never booked
         foreach (var fight in ev.Card)
         {
             Engine.Simulate(fight, world, new FightParams { ScheduledRounds = 3, RoundSeconds = 300, GeneratePlayByPlay = false });   // nobody reads club-show commentary
             ResultsProcessor.Apply(world, ev, fight);
+            if (fight.Outcome is { } o)
+                foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
+                    if (world.Get(id) is { LocalTalent: false, Status: FighterStatus.Active } pro)
+                        InjuryModel.ScheduleRoutineRecovery(pro, o, id, ev.Date);
             AfterBout(world, ev, fight);
         }
         ev.Status = EventStatus.Completed;
         return ev.Card.Count;
+    }
+
+    // Everyone booked on a promotion's scheduled card (the player's included).
+    private static HashSet<FighterId> OnPromotionCards(World world)
+    {
+        var set = new HashSet<FighterId>();
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Status != EventStatus.Scheduled || IsLocalCard(e)) continue;
+            foreach (var f in e.Card) { set.Add(f.RedCorner); set.Add(f.BlueCorner); }
+        }
+        return set;
+    }
+
+    // Take off the card every bout a pro can no longer fight on its night.
+    private static void Prune(World world, Event ev, HashSet<FighterId> promoted)
+    {
+        foreach (var fight in ev.Card.ToList())
+        {
+            bool off = false;
+            foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
+            {
+                if (world.Get(id) is not { } f) { off = true; break; }
+                if (f.LocalTalent) continue;
+                if (!f.IsMatchReady(ev.Date)                                        // retired, suspended, hurt or still recovering
+                    || f.Contract is { IsExclusive: true }                          // signed since: his promotion's fights only
+                    || promoted.Contains(id))                                       // on a promotion's card now
+                { off = true; break; }
+            }
+            if (!off) continue;
+            ev.Card.Remove(fight);
+            PlayerBooking.ReleaseLocals(world, fight);   // an unfought local goes back to the scene
+        }
     }
 
     private static void AddBout(World world, Event ev, Fighter red, Fighter blue) =>

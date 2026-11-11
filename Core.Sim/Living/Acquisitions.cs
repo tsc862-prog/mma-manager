@@ -188,6 +188,7 @@ public static class Acquisitions
             {
                 Contracts.Lifers.OnLeaving(world, f, target, $"he was cut loose when {buyer.Name} bought {target.Name}", date);
                 f.Contract = null;
+                f.CampStipend = false;   // the old org's promise goes with it
                 released++;
             }
         }
