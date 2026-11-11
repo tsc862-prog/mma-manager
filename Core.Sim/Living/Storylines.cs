@@ -394,10 +394,14 @@ public static class Storylines
     private static void Pay(World world, Promotion promo, FighterId id, DateOnly date, string award)
     {
         if (world.Get(id) is not { } f) return;
-        var bonus = f.Contract?.PerformanceBonus is { Amount: > 0 } pb
-            ? pb
-            : new Money(Math.Max(2_000m, promo.Prestige.Value * 200m));
-        Finance.Ledger.Expense(promo, date, FinanceCategory.Other, bonus, $"{award} — {f.FullName}");
+        // The house bonus everyone on the card is playing for — and, on top of
+        // it, the performance bonus written into his deal, if his deal is with
+        // this promotion (the contract lever is extra money, never a pay cut).
+        var house = new Money(Math.Max(2_000m, promo.Prestige.Value * 200m));
+        Finance.Ledger.Expense(promo, date, FinanceCategory.Other, house, $"{award} — {f.FullName}");
+        if (f.Contract is { PerformanceBonus.Amount: > 0 } c && c.Promotion == promo.Id)
+            Finance.Ledger.Expense(promo, date, FinanceCategory.FighterPurse, c.PerformanceBonus,
+                $"{award} — {f.FullName}'s contract performance bonus");
         f.Morale = Math.Clamp(f.Morale + 6, 0, 100);
     }
 

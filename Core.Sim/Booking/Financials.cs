@@ -56,6 +56,7 @@ public static class Financials
                     payroll += new Money(LocalAppearanceFee);
             }
         }
+        payroll += PpvPointsPayroll(world, ev, fin.PayPerViewRevenue);
         return new EventFinancials
         {
             Attendance = fin.Attendance,
@@ -149,7 +150,7 @@ public static class Financials
         // (Rent rolls in so it flows through the box office and ledger.)
         var rent = venue?.Rent ?? Money.Zero;
         var production = new Money((10_000m + attendance * 12m) * prodMult) + rent;
-        var payroll = Payroll(world, ev);
+        var payroll = Payroll(world, ev) + PpvPointsPayroll(world, ev, ppvRevenue);
 
         return new EventFinancials
         {
@@ -160,6 +161,23 @@ public static class Financials
             ProductionCost = production,
             FighterPayroll = payroll,
         };
+    }
+
+    /// <summary>
+    /// The PPV points owed on this card: every fighter on it whose deal is with
+    /// the promotion staging it takes his points' share of its pay-per-view take
+    /// (<see cref="Contracts.Negotiator.PpvCut"/>). Nothing on a card that sold no
+    /// pay-per-view.
+    /// </summary>
+    private static Money PpvPointsPayroll(World world, Event ev, Money ppvRevenue)
+    {
+        var total = Money.Zero;
+        if (ppvRevenue.Amount <= 0) return total;
+        foreach (var fight in ev.Card)
+            foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
+                if (world.Get(id)?.Contract is { PpvPoints: > 0 } c && c.Promotion == ev.Promotion)
+                    total += Contracts.Negotiator.PpvCut(c, ppvRevenue);
+        return total;
     }
 
     private static Money Payroll(World world, Event ev)
