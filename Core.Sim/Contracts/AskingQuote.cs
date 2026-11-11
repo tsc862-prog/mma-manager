@@ -9,8 +9,9 @@ namespace MmaManager.Core.Sim.Contracts;
 /// the fighter profile, the scout's pick) reads this, so they all quote the
 /// number the room (<see cref="NegotiationSession.DemandPurse"/>) opens at:
 /// the open-market ask, scaled by the deal's terms (a non-exclusive deal comes
-/// cheaper, a champion's clause costs extra) and a lifer's hometown discount
-/// (<see cref="Lifers.HomeDiscount"/>), and never under a live deal's show money
+/// cheaper, a champion's clause costs extra) and his personal discount — a
+/// lifer's hometown rate or a discovered local's gratitude, the bigger of the
+/// two (<see cref="Negotiator.TableDiscount"/>) — and never under a live deal's show money
 /// (<see cref="Negotiator.LivePurseFloor"/>). Reads only; changes nothing.
 /// </summary>
 /// <param name="Purse">What he opens at, per fight, across this table.</param>
@@ -31,16 +32,20 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
     {
         bool excl = exclusive ?? Negotiator.WantsExclusivity(promo);
         decimal home = Lifers.HomeDiscount(world, f, promo.Id);
+        decimal grateful = Negotiator.GratitudeFactor(f, promo.Id);
+        decimal personal = Negotiator.TableDiscount(world, f, promo.Id);
         // The same factor and rounding as NegotiationSession.DemandPurse at its opening position.
         decimal factor = (excl ? 1m : Negotiator.NonExclusiveMoneyFactor)
                        * (clause ? Negotiator.ChampionsClausePremium : 1m)
-                       * home;
+                       * personal;
         decimal discounted = Math.Round(exp.AskingPurse.Amount * factor / 500m) * 500m;
         var floor = Negotiator.LivePurseFloor(f, promo.Id);
         decimal purse = Math.Max(floor?.Amount ?? 0m, discounted);
 
         var reasons = new List<string>();
-        if (home < 1m) reasons.Add(Lifers.Gendered(f, "loyal to you: he asks less to stay"));
+        // The one discount that applies (they don't stack): name that one.
+        if (personal < 1m && home <= grateful) reasons.Add(Lifers.Gendered(f, "loyal to you: he asks less to stay"));
+        else if (personal < 1m) reasons.Add(Lifers.Gendered(f, "you discovered him: he asks less from you"));
         if (!excl) reasons.Add("non-exclusive deal");
         if (clause) reasons.Add("the champion's clause adds ~8%");
         if (floor is { } fl && fl.Amount > discounted)

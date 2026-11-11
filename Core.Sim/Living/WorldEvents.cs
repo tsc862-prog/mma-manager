@@ -216,24 +216,15 @@ public static class WorldEvents
         // survive — with the occasional wide-slate gambler.
         var niche = StartupNiches[rng.WeightedIndex(stackalloc double[] { 3, 3, 2, 2 })];
 
-        // Stock it from the best available free agents, region-first (local heroes
-        // headline the new scene), and stand up its divisions + vacant belts.
-        var signed = new List<Fighter>();
-        foreach (var wc in niche.Classes)
-        {
-            var pool = world.FreeAgents()
-                .Where(f => f.WeightClass == wc && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
-                .OrderByDescending(f => f.Nationality == spec.Region ? 1 : 0)
-                .ThenByDescending(FighterAbility.CurrentAbility)
-                .Take(12).ToList();
-            foreach (var fa in pool)
-            {
-                fa.Contract = PromotionSetup.SignContract(world, promo, date, fa, rng);
-                fa.Loyalty = 20;   // a new signing starts the loyalty clock over, as ContractLifecycle.Sign does
-                signed.Add(fa);
-            }
-        }
-        PromotionSetup.ConfigureDivisions(world, promo, signed, niche.Classes, date, 15, null, Sex.Male);
+        // Stock it from the free agents, region-first (local heroes headline the
+        // new scene), and stand up its divisions + vacant belts.
+        var signed = StockStartup(world, promo, spec.Region, niche.Classes, date, rng);
+        // Not enough fighters would sign for this money to run a card: the
+        // launch falls through (nobody was signed, nothing more is drawn).
+        if (signed.Count == 0) { world.Promotions.Remove(promo.Id); return; }
+        // It opens the divisions it could actually staff.
+        var opened = niche.Classes.Where(wc => signed.Any(f => f.WeightClass == wc)).ToArray();
+        PromotionSetup.ConfigureDivisions(world, promo, signed, opened, date, 15, null, Sex.Male);
         Finance.RevenueService.SeedEstablished(world, promo, date, rng);
         // A little founding buzz in its home metro to build on.
         if (Geography.WorldMap.AnchorCity(world, spec.Region)?.Id is { } anchor)
@@ -253,7 +244,138 @@ public static class WorldEvents
                 $"{spec.Name} just launched in {Pretty(spec.Region)}, a market that had no scene at all. The sport's map is growing — new talent, new fans, new places to run.");
     }
 
+    /// <summary>How many fighters a startup signs per division it opens.</summary>
+    public const int StartupSigningsPerDivision = 12;
+
+    /// <summary>A free agent asking more than this multiple of the founding cap isn't worth the new house's call.</summary>
+    public const decimal StartupAskCeiling = 2m;
+
+    /// <summary>
+    /// A startup's purse budget per division, in founding caps: it may pay one
+    /// fighter up to <see cref="StartupAskCeiling"/>x the cap, but the division's
+    /// purses together stay within this many caps — an average of one cap a head
+    /// over a full division, so a card it books costs what its gate can carry.
+    /// </summary>
+    public const int StartupDivisionBudgetCaps = StartupSigningsPerDivision;
+
+    /// <summary>A division a startup opens needs at least this many signings (two bouts' worth).</summary>
+    public const int StartupMinPerDivision = 4;
+
+    /// <summary>A startup launches only with at least this many signings across the divisions it opens.</summary>
+    public const int StartupMinRoster = 8;
+
+    /// <summary>A startup launches only with at least this many staffed divisions: one weight class is not a card.</summary>
+    public const int StartupMinDivisions = 2;
+
+    /// <summary>The share of its opening bank a startup will spend on signing bonuses, all told.</summary>
+    public const decimal StartupSigningBonusShare = 0.15m;
+
+    private static readonly Contracts.Negotiator StartupNegotiator = new();
+    private static readonly Contracts.FighterValuation StartupValuation = new();
+
+    /// <summary>
+    /// A new promotion's founding signings, through the market like anyone's: it
+    /// ranks each division's free agents on its OWN read of them (fog of war — a
+    /// brand-new house scouts poorly, so it misjudges), home region first; skips
+    /// anyone asking more than <see cref="StartupAskCeiling"/>x what it can pay
+    /// (<see cref="Contracts.Negotiator.FoundingPurseCap"/>) and anyone with a
+    /// public bidding war running; offers the rest his asking purse (rounded UP
+    /// to the market's $500 step — at a $1,500 ask, rounding down is a lowball
+    /// he counters) while the division's purse budget lasts
+    /// (<see cref="StartupDivisionBudgetCaps"/> founding caps), a win bonus of up to three
+    /// quarters of it, and the smallest signing bonus he'd call real when he
+    /// wants one, while the bonus pot (<see cref="StartupSigningBonusShare"/> of
+    /// the bank) lasts — a shoestring can't pay the established houses' half-
+    /// purse bonus — and signs only those whose answer is Accept, via
+    /// <see cref="Contracts.ContractLifecycle.Sign"/>. Up to
+    /// <see cref="StartupSigningsPerDivision"/> per division. The deals are drawn
+    /// up first and signed only where they staff a division
+    /// (<see cref="StartupMinPerDivision"/>) and the whole roster can run cards
+    /// (<see cref="StartupMinRoster"/> fighters across at least
+    /// <see cref="StartupMinDivisions"/> divisions); otherwise nobody signs and the list is
+    /// empty — the free-agent market prices most journeymen far above a new
+    /// small hall's budget, and a promotion launched with two fighters only
+    /// paid overhead until it went bankrupt.
+    ///
+    /// RNG: one draw on the shared stream per fighter signed, exactly as the old
+    /// founding path took (it priced each deal off that draw); the draw is now
+    /// unused, kept so a founding with the same number of signings leaves the
+    /// stream where it always did.
+    /// </summary>
+    internal static List<Fighter> StockStartup(World world, Promotion promo, Region home, WeightClass[] classes,
+        DateOnly date, SimRandom rng)
+    {
+        decimal foundingCap = Contracts.Negotiator.FoundingPurseCap(world, promo);
+        decimal bonusPot = Math.Max(0m, promo.Balance.Amount) * StartupSigningBonusShare;
+
+        var plan = new List<(Fighter Fighter, ContractOffer Offer)>();
+        int opened = 0;
+        foreach (var wc in classes)
+        {
+            var pool = StartupCandidates(world, promo, home, wc);
+            var division = new List<(Fighter, ContractOffer)>();
+            decimal budget = foundingCap * StartupDivisionBudgetCaps;
+            foreach (var fa in pool)
+            {
+                if (division.Count >= StartupSigningsPerDivision) break;
+                if (world.BiddingWars.Any(w => w.Fighter == fa.Id)) continue;
+
+                var exp = StartupValuation.Evaluate(world, fa);
+                var ask = Contracts.Negotiator.EffectiveAskingPurse(world, promo, fa, exp);
+                if (ask.Amount > foundingCap * StartupAskCeiling) continue;
+
+                // His asking purse (rounded UP to the $500 step), within what is
+                // left of the division's budget.
+                decimal purse = Up500(ask.Amount);
+                if (purse > budget) continue;
+                decimal signing = exp.WantsSigningBonus ? Up500(ask.Amount * 0.5m * Contracts.Negotiator.SigningBonusMinFraction) : 0m;
+                if (signing > bonusPot) continue;
+                var offer = new ContractOffer
+                {
+                    Fighter = fa.Id, Promotion = promo.Id,
+                    PursePerFight = new Money(purse),
+                    WinBonus = new Money(Math.Min(exp.AskingWinBonus.Amount, Up500(purse * 0.75m))),
+                    SigningBonus = new Money(signing),
+                    Fights = exp.DesiredFights,
+                    Exclusive = Contracts.Negotiator.WantsExclusivity(promo),
+                };
+                if (StartupNegotiator.Evaluate(world, fa, offer, exp).Verdict != NegotiationVerdict.Accept) continue;
+                bonusPot -= offer.SigningBonus.Amount;
+                budget -= purse;
+                division.Add((fa, offer));
+            }
+            if (division.Count >= StartupMinPerDivision) { plan.AddRange(division); opened++; }
+            else bonusPot += division.Sum(d => d.Item2.SigningBonus.Amount);   // the dropped division's bonuses go back in the pot
+        }
+
+        var signed = new List<Fighter>();
+        if (plan.Count < StartupMinRoster || opened < StartupMinDivisions) return signed;
+        foreach (var (fa, offer) in plan)
+        {
+            rng.NextULong();   // the founding path's per-signing draw, kept (see summary)
+            Contracts.ContractLifecycle.Sign(world, fa, offer, date);
+            signed.Add(fa);
+        }
+        return signed;
+    }
+
+    /// <summary>
+    /// The free agents a startup considers for one division, best first by its
+    /// OWN read (home region first, ties on id). <see cref="StockStartup"/>
+    /// offers in exactly this order until the division is full or its budget
+    /// is spent, so this order IS the choice.
+    /// </summary>
+    internal static List<Fighter> StartupCandidates(World world, Promotion promo, Region home, WeightClass wc) =>
+        world.FreeAgents()
+            .Where(f => f.WeightClass == wc && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
+            .OrderByDescending(f => f.Nationality == home ? 1 : 0)
+            .ThenByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
+            .ThenBy(f => f.Id.Value)
+            .ToList();
+
     // --- helpers -------------------------------------------------------------
+
+    private static decimal Up500(decimal amount) => Math.Ceiling(amount / 500m) * 500m;
 
     private static string Pretty(Region r) => r switch
     {
