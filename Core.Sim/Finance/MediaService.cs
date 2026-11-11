@@ -175,7 +175,12 @@ public static class MediaService
             {
                 case DealRequirementKind.MinCardQuality:
                     if (strictness < 0) continue;                    // the easy-going don't grade your cards
-                    adjusted.Add(req with { Threshold = req.Threshold + 5 });
+                    // A couple of points stricter, not five: the sport's best
+                    // cards average a 49 fight rating (AFC fight nights, 4 seeds,
+                    // median 49, p20 45), so a flagship's +5 on prime time's 45
+                    // wrote a 50 floor that the #1 promotion missed 56% of nights
+                    // — a contract nobody in the world could keep.
+                    adjusted.Add(req with { Threshold = req.Threshold + 2 });
                     break;
                 case DealRequirementKind.MinStarPower:
                     adjusted.Add(req with { Threshold = Math.Max(30, req.Threshold + strictness * 5) });
