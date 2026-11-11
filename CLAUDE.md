@@ -118,6 +118,14 @@ each part to the owning agent, reviews what comes back, and is the only one that
 6. **Shared tables are append-only during a feature.** Adding a designed fighter, a venue or a quote
    in parallel is fine; renaming or reordering existing rows is done alone on `main`, because row
    order feeds ids and ids feed seeds.
+7. **Go easy on the owner's machine.** At most about four agents doing heavy work at once, and each
+   runs one heavy process at a time (build, test, longsim, render batch), never `main` and a branch
+   side by side. A dozen at once forced a restart on 2026-11-10. If the full suite takes much longer
+   than six minutes, or .NET processes crash in random places (AccessViolation, illegal instruction,
+   internal CLR error), stop running things locally: the results cannot be trusted in either
+   direction. CI runs the build and the suite on every PR, and balance runs can go there too:
+   `gh workflow run balance.yml -f head=<branch> -f base=main` (compare plus shoestring, output in
+   the job log and as an artifact).
 
 ## Save-breaking changes
 
