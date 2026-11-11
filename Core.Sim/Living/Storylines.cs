@@ -157,7 +157,10 @@ public static class Storylines
         bool champOut = belt is not null && (belt.CurrentChampion == outId || belt.CurrentChampion is null && belt.Lineage.LastOrDefault()?.Champion == outId);
         bool subRanked = world.Get(ev.Promotion) is { } promo
             && promo.Divisions.Any(d => d.Matches(sub) && d.Rankings.Take(8).Contains(sub.Id));
-        bool beltStaysOn = fight.IsTitleFight && !champOut && subRanked;
+        // ...and it stays on only while the man left in the bout still holds it
+        // (or it is vacant): a belt that changed hands elsewhere comes off.
+        bool holderStays = belt is not null && (belt.CurrentChampion is null || belt.CurrentChampion == stayId);
+        bool beltStaysOn = fight.IsTitleFight && !champOut && subRanked && holderStays;
 
         var replacement = new Fight
         {

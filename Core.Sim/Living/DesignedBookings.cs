@@ -73,6 +73,7 @@ public static class DesignedBookings
         new("CPF", 75, 35, null, "Sipho Ndlovu", "Thabo Mokoena", WeightClass.Heavyweight, Sex.Male, true, 0),
         // 13.7 — the Tide against the Reef.
         new("SCM", 90, 42, null, "Manaia Rahiri", "Sione Tuilagi", WeightClass.Heavyweight, Sex.Male, true, 0),
-        // 6.8 (MFC Temple Fair Night) waits for its flagship row in SignatureEvents.
+        // 6.8 — the golden boy's title shot on the temple-fair circuit's big night.
+        new("MFC", 320, 56, "MFC Temple Fair Night", "Arthit Saengkham", null, WeightClass.Featherweight, Sex.Male, true, 0),
     };
 }
