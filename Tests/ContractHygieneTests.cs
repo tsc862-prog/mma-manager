@@ -81,6 +81,23 @@ public class ContractHygieneTests
     private static readonly WeightClass[] Core3 =
         { WeightClass.Lightweight, WeightClass.Welterweight, WeightClass.Middleweight };
 
+    // A fresh crop of affordable free agents: turn the first few in each class
+    // into unknown debutants (the cheapest pros on the market), so a small new
+    // house has someone it can afford to sign.
+    private static void SeedDebutants(World world, int perClass)
+    {
+        foreach (var wc in Core3)
+            foreach (var f in world.FreeAgents().Where(f => f.WeightClass == wc && f.Sex == Sex.Male
+                                                            && f.Status == FighterStatus.Active)
+                         .OrderBy(f => f.Id.Value).Take(perClass).ToList())
+            {
+                f.Record.Wins = f.Record.Losses = f.Record.Draws = f.Record.NoContests = 0;
+                f.Record.CurrentStreak = 0;
+                f.Momentum = 0;
+                f.Intangibles.Popularity = 5;
+            }
+    }
+
     [Fact]
     public void FoundingCap_IsBelowTheEstablishedCap_ForAHouseWithNoFollowing()
     {
@@ -99,6 +116,7 @@ public class ContractHygieneTests
     {
         var world = Build();
         var promo = NewStartup(world, Region.NorthAmerica);
+        SeedDebutants(world, 8);
         var pool = world.FreeAgents().Where(f => Core3.Contains(f.WeightClass) && f.Sex == Sex.Male
                                                   && f.Status == FighterStatus.Active).ToList();
         decimal cap = Negotiator.FoundingPurseCap(world, promo);
@@ -111,7 +129,8 @@ public class ContractHygieneTests
         foreach (var f in signed)
         {
             Assert.Equal(promo.Id, f.Contract!.Promotion);
-            Assert.True(f.Contract.PursePerFight.Amount <= cap, $"{f.FullName} paid {f.Contract.PursePerFight} over the founding cap {cap}");
+            Assert.True(f.Contract.PursePerFight.Amount <= cap * WorldEvents.StartupAskCeiling,
+                $"{f.FullName} paid {f.Contract.PursePerFight}, over twice the founding cap {cap}");
             Assert.Equal(20, f.Loyalty);
         }
 
@@ -124,11 +143,11 @@ public class ContractHygieneTests
             p => Assert.DoesNotContain(p.f, signed));
         Assert.Contains(pool, f => f.Contract is null);   // the stars are left for the stages that can pay them
 
-        // A full card of these purses (16 purses, 8 win bonuses) fits the cap's budget.
-        decimal card = signed.OrderByDescending(f => f.Contract!.PursePerFight.Amount).Take(16)
-            .Sum(f => f.Contract!.PursePerFight.Amount) + signed.OrderByDescending(f => f.Contract!.WinBonus.Amount)
-            .Take(8).Sum(f => f.Contract!.WinBonus.Amount);
-        Assert.True(card <= cap * 22m + 1m, $"a card costs {card}, over the founding budget of {cap * 22m}");
+        // Each division's purses average at most one founding cap a head over a
+        // full division: a card it books costs what its gate can carry.
+        foreach (var wc in Core3)
+            Assert.True(signed.Where(f => f.WeightClass == wc).Sum(f => f.Contract!.PursePerFight.Amount)
+                        <= cap * WorldEvents.StartupDivisionBudgetCaps);
     }
 
     [Fact]
@@ -136,10 +155,12 @@ public class ContractHygieneTests
     {
         var world = Build();
         var promo = NewStartup(world, Region.Europe);
+        SeedDebutants(world, 8);
         var a = new SimRandom(77);
         var b = new SimRandom(77);
 
         var signed = WorldEvents.StockStartup(world, promo, promo.BaseRegion, Core3, world.CurrentDate, a);
+        Assert.NotEmpty(signed);
         for (int i = 0; i < signed.Count; i++) b.NextULong();
 
         Assert.Equal(b.NextULong(), a.NextULong());
@@ -150,6 +171,7 @@ public class ContractHygieneTests
     {
         var world = Build();
         var promo = NewStartup(world, Region.NorthAmerica);
+        SeedDebutants(world, 8);
         // The signing order follows the house's read (home region first), so a
         // prospect it overrates goes ahead of a better man it underrates.
         var signed = WorldEvents.StockStartup(world, promo, promo.BaseRegion, Core3, world.CurrentDate, new SimRandom(5));
@@ -162,6 +184,23 @@ public class ContractHygieneTests
                 .ThenBy(f => f.Id.Value).Select(f => f.Id).ToList();
             Assert.Equal(expected, inClass.Select(f => f.Id).ToList());
         }
+    }
+
+    [Fact]
+    public void Startup_ThatCannotStaffACard_SignsNobody_AndDrawsNothing()
+    {
+        var world = Build();
+        var promo = NewStartup(world, Region.NorthAmerica);
+        // Nobody on the market is cheap enough: every free agent is a proven name.
+        foreach (var f in world.FreeAgents()) { f.Record.Wins = 30; f.Intangibles.Popularity = 90; }
+        var a = new SimRandom(21);
+        var b = new SimRandom(21);
+
+        var signed = WorldEvents.StockStartup(world, promo, promo.BaseRegion, Core3, world.CurrentDate, a);
+
+        Assert.Empty(signed);
+        Assert.Empty(world.RosterOf(promo.Id));
+        Assert.Equal(b.NextULong(), a.NextULong());
     }
 
     // --- (3) a deal counts down only on its holder's cards ---------------------
@@ -222,7 +261,9 @@ public class ContractHygieneTests
         var deals = world.RosterOf(target.Id).Where(f => f.Contract is not null)
             .ToDictionary(f => f.Id, f => (f.Contract!, f.Status));
 
-        Acquisitions.Execute(world, buyer, target, world.CurrentDate, new Money(1m));
+        decimal bankBefore = buyer.Balance.Amount, cashIn = Math.Max(0m, target.Balance.Amount);
+        var price = new Money(500_000_000m);   // a price that covers every guarantee
+        Acquisitions.Execute(world, buyer, target, world.CurrentDate, price);
 
         var cut = deals.Where(kv => world.Get(kv.Key)!.Contract is null && kv.Value.Status != FighterStatus.Retired).ToList();
         Assert.NotEmpty(cut);
@@ -232,6 +273,27 @@ public class ContractHygieneTests
                                                 && e.Description.Contains($"{target.Abbreviation} merger"))
             .Sum(e => e.Amount.Amount);
         Assert.Equal(owed, paid);
+        // Settled out of the price, not on top of it: the buyer's outlay is the price.
+        Assert.Equal(bankBefore - price.Amount + cashIn, buyer.Balance.Amount);
+    }
+
+    [Fact]
+    public void Acquisition_OfAnUnderwaterCompany_SharesThePriceAmongTheCut()
+    {
+        var world = Build(5);
+        var buyer = world.Promotions.Values.First(p => p.Abbreviation == "AFC");
+        var target = world.Promotions.Values.Where(p => !p.Defunct && p.Id != buyer.Id && p.Id != world.PlayerPromotion)
+            .OrderByDescending(p => world.RosterOf(p.Id).Count()).ThenBy(p => p.Id.Value).First();
+        decimal bankBefore = buyer.Balance.Amount, cashIn = Math.Max(0m, target.Balance.Amount);
+        var price = new Money(1_000m);
+
+        Acquisitions.Execute(world, buyer, target, world.CurrentDate, price);
+
+        decimal buyouts = -buyer.Ledger.Where(e => e.Category == FinanceCategory.ContractBuyout
+                                                   && e.Description.Contains($"{target.Abbreviation} merger"))
+            .Sum(e => e.Amount.Amount);
+        Assert.InRange(buyouts, 900m, 1_100m);   // the whole price, rounded per head
+        Assert.InRange(bankBefore - buyer.Balance.Amount + cashIn, 900m, 1_100m);
     }
 
     // --- (5) a finished deal lapses without a reputation hit ---------------------
