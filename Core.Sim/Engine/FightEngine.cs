@@ -29,7 +29,8 @@ public sealed class FightEngine
         var red = world.Get(fight.RedCorner) ?? throw new InvalidOperationException($"Red corner {fight.RedCorner} not in world.");
         var blue = world.Get(fight.BlueCorner) ?? throw new InvalidOperationException($"Blue corner {fight.BlueCorner} not in world.");
 
-        var opts = options ?? new FightParams { ScheduledRounds = fight.ScheduledRounds };
+        var opts = (options ?? new FightParams { ScheduledRounds = fight.ScheduledRounds })
+            with { TextSeed = (ulong)fight.Id.Value };   // wording only; never touches the result
         var rng = new SimRandom(SimRandom.Mix(world.RngSeed, 0x1234_5678_0000UL ^ (ulong)fight.Id.Value));
 
         var outcome = Simulate(red, blue, opts, rng);
