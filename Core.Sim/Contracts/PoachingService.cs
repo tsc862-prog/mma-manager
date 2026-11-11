@@ -31,6 +31,12 @@ public static class PoachingService
             if (c.PoachWarned || c.FightsRemaining > 1) continue;   // the fight before free agency
             if (BestSuitor(world, player, f) is not { } suitor) continue;
 
+            // A lifer doesn't need a warning — the call came, and he said no.
+            if (Lifers.IsHolding(world, f)) { Lifers.TurnDown(world, f, player, suitor, date); continue; }
+            // He said no on this deal and has since soured: his warning comes at
+            // expiry with a month's grace (TryPoach), never in the same tick as a poach.
+            if (c.BondNoticeOn == Contract.RefusalTold) continue;
+
             c.PoachWarned = true;
             Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
                 $"{suitor.Abbreviation} is circling {f.FullName}",
@@ -59,6 +65,23 @@ public static class PoachingService
         if (f.Contract is not { } cur || world.Get(cur.Promotion) is not { } from) return false;
         if (BestSuitor(world, from, f) is not { } suitor) return false;
 
+        // A holding lifer says no whatever the money — and the approach is public.
+        if (Lifers.IsHolding(world, f)) { Lifers.TurnDown(world, f, from, suitor, date); return false; }
+
+        // The player's lifer turned this rival down on this deal and has since
+        // become poachable: the owner hears it first and gets a month to act.
+        if (from.Id == world.PlayerPromotion && cur.BondNoticeOn == Contract.RefusalTold && !cur.PoachWarned)
+        {
+            cur.PoachWarned = true;
+            var why = Lifers.GrievanceOf(world, f, date);
+            Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
+                $"{suitor.Abbreviation} is circling {f.FullName}",
+                Lifers.Gendered(f, $"{f.FullName} turned {suitor.Name} down once on this deal, but his deal has run out and he's listening now"
+                    + (why is not null ? $" — {why.Reason}" : "") + ". Re-sign him this month or we lose him to them."),
+                aboutFighter: f.Id);
+            return false;
+        }
+
         // The suitor stretches its budget to land them — but a fighter loyal to
         // their current org costs far more to pry loose (up to ~5-10x after years
         // of service). If the suitor can't reach that price, the poach falls through
@@ -67,7 +90,8 @@ public static class PoachingService
         if (Negotiator.PoachOffer(world, suitor, f, exp) is not { } offer) return false;
 
         // Out of the old org's rankings, and any belt they hold there is vacated as they walk.
-        ContractLifecycle.LeavePromotion(world, f, from.Id, date);
+        ContractLifecycle.LeavePromotion(world, f, from.Id, date,
+            $"{suitor.Name} signed him away when his deal ran out", suitor.Id, hisChoice: true);
         f.Contract = null;
         ContractLifecycle.Sign(world, f, offer, date);   // signs to the bigger org
 

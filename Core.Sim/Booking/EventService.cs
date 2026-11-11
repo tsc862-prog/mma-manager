@@ -195,7 +195,7 @@ public sealed class EventService
         if (ev.Promotion == world.PlayerPromotion && r is not null && b is not null)
             Living.Mail.Post(world, ev.Date, MailCategory.BoardNote, "Matchmaking",
                 $"Fight of the Night: {r.LastName} vs {b.LastName}",
-                $"{Flavor.MatchRating.StarsFor(best)} — both men collect the {promo.Rules.FightOfNightBonus} bonus. Money well spent; the locker room noticed.",
+                $"{Flavor.MatchRating.StarsFor(best)} — both fighters collect the {promo.Rules.FightOfNightBonus} bonus. Money well spent; the locker room noticed.",
                 aboutEvent: ev.Id);
     }
 

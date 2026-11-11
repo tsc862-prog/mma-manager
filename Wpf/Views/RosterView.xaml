@@ -1,116 +1,158 @@
 <UserControl x:Class="MmaManager.Wpf.Views.RosterView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
-        <Grid Margin="8" DataContext="{Binding MyRoster}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls">
+    <!-- ROSTER: the model for every list-of-fighters screen. Cards by default
+         (CardWall + FighterCardTemplate), the full table one toggle away. -->
+    <Grid DataContext="{Binding MyRoster}" Background="{StaticResource Bg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-            <DockPanel Margin="0,0,0,6">
-                <TextBlock DockPanel.Dock="Right" Text="(double-click a fighter for their profile)"
-                           Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Summary}" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-            </DockPanel>
+        <!-- Header: who's on the books, and plain choices for how to look at them -->
+        <Border Padding="16,14,16,10" Visibility="{Binding HasFighters, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <DockPanel>
+                    <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Top">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Cards" GroupName="rosterMode" IsChecked="{Binding ShowCards}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" GroupName="rosterMode" IsChecked="{Binding ShowTable}" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="Your fighters" Style="{StaticResource Text.Title}" FontSize="22" />
+                        <ItemsControl ItemsSource="{Binding SummaryChips}" Margin="0,8,0,0" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}"><TextBlock Text="{Binding}" Style="{StaticResource Chip.Text}" /></Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </DockPanel>
 
-            <!-- The gym floor: everyone on your books, front-office columns first -->
-            <DataGrid Grid.Row="1" ItemsSource="{Binding Fighters}" RowHeight="40" mvvm:FighterLink.OpenOnDoubleClick="True">
-                <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="" Width="44">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Image Source="{Binding Portrait}" Width="34" Height="34" Margin="2" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="150" />
-                    <DataGridTextColumn Header="" Binding="{Binding Badges}" Width="44" />
-                    <DataGridTextColumn Header="Division" Binding="{Binding Division}" />
-                    <DataGridTextColumn Header="Age" Binding="{Binding Age}" />
-                    <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort"/>
-                    <DataGridTextColumn Header="Scout" Binding="{Binding Ovr}" />
-                    <DataGridTemplateColumn Header="Form" Width="60">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Form}" VerticalAlignment="Center" Margin="4,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Hot}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource Positive}" />
-                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Cold}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Morale" Binding="{Binding Morale}" />
-                    <DataGridTextColumn Header="Loyalty" Binding="{Binding Loyalty}" />
-                    <DataGridTemplateColumn Header="Contract" Width="180">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding ContractLine}" VerticalAlignment="Center" Margin="4,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                            <Style.Triggers>
-                                                <!-- last bout on the deal: the giants may be circling -->
-                                                <DataTrigger Binding="{Binding ExpiringSoon}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Camp" Binding="{Binding CampName}" Width="150" />
-                    <DataGridTemplateColumn Header="Availability" Width="200">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Availability}" VerticalAlignment="Center" Margin="4,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsReady}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource Positive}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsSidelined}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <!-- The founded-org day one: an empty gym and a job to do -->
-            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel.Style>
-                    <Style TargetType="StackPanel">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsEmpty}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </StackPanel.Style>
-                <TextBlock Text="The gym is empty." FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Text="Sign fighters from the free-agent market on the Contracts screen, then book your first card."
-                           Foreground="{StaticResource TextSecondary}" Margin="0,6,0,0" />
+                <WrapPanel Margin="0,4,0,0">
+                    <TextBlock Text="Show" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,6" />
+                    <Border Style="{StaticResource Segmented}" Margin="0,0,18,6">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Everyone" GroupName="rosterShow" IsChecked="{Binding ShowEveryone}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Ready to fight" GroupName="rosterShow" IsChecked="{Binding ShowReady}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Injured" GroupName="rosterShow" IsChecked="{Binding ShowInjured}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Deals ending" GroupName="rosterShow" IsChecked="{Binding ShowEnding}" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="in" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,6" />
+                    <ComboBox ItemsSource="{Binding DivisionOptions}" SelectedItem="{Binding Division}" Width="190" Margin="0,0,18,6" Height="30" />
+                    <TextBlock Text="sorted" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,6" />
+                    <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding Sort}" Width="200" Margin="0,0,0,6" Height="30" />
+                </WrapPanel>
             </StackPanel>
-        </Grid>
+        </Border>
+
+        <!-- Cards (default) -->
+        <controls:CardWall Grid.Row="1" ItemsSource="{Binding Cards}" CardWidth="300" Padding="16,0,4,8"
+                           CardTemplate="{StaticResource FighterCardTemplate}"
+                           Visibility="{Binding ShowCards, Converter={StaticResource BoolToVis}}" />
+
+        <!-- Table: everything, sortable, for comparing -->
+        <DataGrid Grid.Row="1" Margin="16,4,16,12" ItemsSource="{Binding Fighters}" SelectedItem="{Binding SelectedRow}" RowHeight="40"
+                  mvvm:FighterLink.OpenOnDoubleClick="True" EnableRowVirtualization="True"
+                  Visibility="{Binding ShowTable, Converter={StaticResource BoolToVis}}">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="" Width="44">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Image Source="{Binding Portrait}" Width="34" Height="34" Margin="2" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="150" />
+                <DataGridTextColumn Header="" Binding="{Binding Badges}" Width="44" />
+                <DataGridTextColumn Header="Division" Binding="{Binding Division}" />
+                <DataGridTextColumn Header="Age" Binding="{Binding Age}" />
+                <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort"/>
+                <DataGridTextColumn Header="Scout" Binding="{Binding Ovr}" />
+                <DataGridTemplateColumn Header="Form" Width="60" SortMemberPath="Model.Momentum">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Form}" VerticalAlignment="Center" Margin="4,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Hot}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Positive}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Cold}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Morale" Binding="{Binding Morale}" />
+                <DataGridTextColumn Header="Loyalty" Binding="{Binding Loyalty}" />
+                <DataGridTemplateColumn Header="Contract" Width="180" SortMemberPath="ContractLine">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding ContractLine}" VerticalAlignment="Center" Margin="4,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Style.Triggers>
+                                            <!-- last bout on the deal: the giants may be circling -->
+                                            <DataTrigger Binding="{Binding ExpiringSoon}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Camp" Binding="{Binding CampName}" Width="150" />
+                <DataGridTemplateColumn Header="Availability" Width="200" SortMemberPath="Availability">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Availability}" VerticalAlignment="Center" Margin="4,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsReady}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Positive}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsSidelined}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- The filter shows nobody -->
+        <controls:EmptyState Grid.Row="1" Icon="Search" Title="Nobody fits that filter."
+                             Message="Try another division, or show everyone."
+                             Visibility="{Binding FilteredEmpty, Converter={StaticResource BoolToVis}}" />
+
+        <!-- The founded-org day one: an empty gym and a job to do -->
+        <controls:EmptyState Grid.RowSpan="2" Icon="People" Title="Your gym is empty — for now."
+                             Message="Every champion in this sport once fought for a promotion nobody had heard of. Find your first fighters on the free-agent market: local talent is cheap, hungry, and yours to build."
+                             ActionText="Find fighters ▸" ActionCommand="{Binding OpenContractsCommand}"
+                             Footnote="Two fighters in the same division is all your first bout needs."
+                             Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+    </Grid>
 </UserControl>

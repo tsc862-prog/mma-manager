@@ -155,10 +155,16 @@ public class HistoryBuilderTests
         // would number itself events-so-far + 1.
         foreach (var promo in world.Promotions.Values)
         {
-            int past = world.Events.Values.Count(e => e.Promotion == promo.Id);
+            int past = world.Events.Values.Count(e => e.Promotion == promo.Id && e.Date < world.CurrentDate);
             Assert.True(past > 0, $"{promo.Abbreviation} should have a history of cards");
-            Assert.All(world.Events.Values.Where(e => e.Promotion == promo.Id),
+            Assert.All(world.Events.Values.Where(e => e.Promotion == promo.Id && e.Date < world.CurrentDate),
                 e => Assert.Equal(EventStatus.Completed, e.Status));
+            // The forward calendar's announced cards (day one is mid-story) are
+            // all in the future, and number on from the past.
+            var ahead = world.Events.Values.Where(e => e.Promotion == promo.Id && e.Date >= world.CurrentDate).ToList();
+            Assert.All(ahead, e => Assert.Equal(EventStatus.Scheduled, e.Status));
+            Assert.All(ahead.Where(e => e.Name.Contains("Fight Night ")), e =>
+                Assert.True(int.Parse(e.Name[(e.Name.LastIndexOf(' ') + 1)..]) > past));
         }
     }
 

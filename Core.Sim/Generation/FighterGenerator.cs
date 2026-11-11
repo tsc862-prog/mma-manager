@@ -25,6 +25,9 @@ public sealed class FighterGenerator
 
     public static FighterGenerator ForWorld(World world) => new(world.RngSeed, world.ArtCatalog as IdentityCatalog);
 
+    /// <summary>Apply <see cref="DesignedHomeCities"/> to designed fighters (off only in the RNG-guard test).</summary>
+    internal bool AuthoredHomes { get; init; } = true;
+
     /// <summary>
     /// Mint <paramref name="count"/> fighters, add them to the world as free
     /// agents, and return them. Weight classes are spread across the roster.
@@ -110,6 +113,10 @@ public sealed class FighterGenerator
         rec.WinsByKo = rec.WinsBySubmission = rec.WinsByDecision = 0;
         SplitFinishes(rng, f, StyleTemplate.For(d.Style));
 
+        // An authored hometown is set BEFORE the roll, which then returns early.
+        // The roll runs on this fighter's own keyed origin stream, so skipping it
+        // leaves every other fighter — and every shared stream — untouched.
+        if (AuthoredHomes && DesignedHomeCities.Resolve(world, d.First, d.Last) is { } authored) f.HomeCity = authored;
         AssignHometown(world, f, d.Country);
         if (d.Popularity is { } pop) f.Intangibles.Popularity = pop;
         if (f.HomeCity is { } dh) f.CityReputation[dh] = Math.Min(70, f.Intangibles.Popularity.Value + 10);

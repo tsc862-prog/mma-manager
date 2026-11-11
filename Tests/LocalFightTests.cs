@@ -24,10 +24,11 @@ public class LocalFightTests
             },
         });
 
-    private static Fighter Hire(World world)
+    private static Fighter Hire(World world, Sex? sex = null)
     {
         var promo = world.Get(world.PlayerPromotion)!;
-        var pick = MmaManager.Core.Sim.Contracts.SigningAdvisor.Suggest(world, promo)!;
+        var pick = MmaManager.Core.Sim.Contracts.SigningAdvisor.Suggest(world, promo,
+            f => sex is null || f.Sex == sex ? MmaManager.Core.Sim.Scouting.ScoutingService.PerceivedAbility(world, promo, f) : -1000)!;
         var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(world, pick.Fighter);
         MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(world, pick.Fighter, new ContractOffer
         {
@@ -38,6 +39,28 @@ public class LocalFightTests
             Fights = exp.DesiredFights,
         }, world.CurrentDate);
         return pick.Fighter;
+    }
+
+    [Fact]
+    public void AWomansLocalFight_IsAgainstAWoman()
+    {
+        var world = FoundedWorld(seed: 21);
+        var promo = world.Get(world.PlayerPromotion)!;
+        var woman = world.FreeAgents().First(f => f.Sex == Sex.Female && f.Status == FighterStatus.Active
+                                                  && promo.Divisions.Any(d => d.Matches(f)));
+        var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(world, woman);
+        MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(world, woman, new ContractOffer
+        {
+            Fighter = woman.Id, Promotion = promo.Id,
+            PursePerFight = exp.AskingPurse, WinBonus = exp.AskingWinBonus, Fights = exp.DesiredFights,
+        }, world.CurrentDate);
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(14));
+
+        Assert.True(booking.AddLocalBout(world, ev, woman.Id, PrimaryStyle.Striker, 3, out var err), err);
+        var local = world.Get(Assert.Single(ev.Card).BlueCorner)!;
+        Assert.Equal(Sex.Female, local.Sex);
+        Assert.Equal(woman.WeightClass, local.WeightClass);
     }
 
     [Fact]
@@ -74,7 +97,10 @@ public class LocalFightTests
     public void LocalsAreEasyWork_AndFadeBackIntoTheScene()
     {
         var world = FoundedWorld(seed: 22);
-        var mine = Hire(world);
+        // A man, as this test was written against: since the small halls went
+        // local the advisor's top pick on this seed became a 19-year-old 0-0
+        // strawweight, whose record against female locals is its own question.
+        var mine = Hire(world, Sex.Male);
         var booking = new PlayerBooking();
         var events = new EventService();
 

@@ -13,7 +13,7 @@ public sealed class World
     /// shape. Development rule: saves are never migrated — the reader refuses any
     /// other version and the player starts a new world (see PROJECT.md).
     /// </summary>
-    public const int LatestSaveVersion = 43;   // v43: safe save (entity ordinals keep dictionary order, round scores + poach warning + cross-org rankings persisted, loyalty/marketing_push NOT NULL); v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
+    public const int LatestSaveVersion = 44;   // v44: Contract.BondNoticeOn (lifer stories told once); v43: safe save (entity ordinals keep dictionary order, round scores + poach warning + cross-org rankings persisted, loyalty/marketing_push NOT NULL); v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
 
     /// <summary>The version a loaded save was written at (always <see cref="LatestSaveVersion"/> — older saves are refused on load).</summary>
     public int SaveVersion { get; init; } = LatestSaveVersion;
@@ -44,14 +44,16 @@ public sealed class World
     /// </summary>
     public object? ArtCatalog { get; set; }
 
-    public Dictionary<FighterId, Fighter> Fighters { get; init; } = new();
-    public Dictionary<PromotionId, Promotion> Promotions { get; init; } = new();
-    public Dictionary<TitleId, Title> Titles { get; init; } = new();
-    public Dictionary<EventId, Event> Events { get; init; } = new();
-    public Dictionary<CountryId, Country> Countries { get; init; } = new();
-    public Dictionary<CityId, City> Cities { get; init; } = new();
-    public Dictionary<VenueId, Venue> Venues { get; init; } = new();
-    public Dictionary<CampId, Camp> Camps { get; init; } = new();
+    // The entity collections enumerate in ascending id order, always (EntityMap): the sim iterates
+    // them while it rolls, so their order must not depend on removals or on a save/load.
+    public EntityMap<FighterId, Fighter> Fighters { get; } = new();
+    public EntityMap<PromotionId, Promotion> Promotions { get; } = new();
+    public EntityMap<TitleId, Title> Titles { get; } = new();
+    public EntityMap<EventId, Event> Events { get; } = new();
+    public EntityMap<CountryId, Country> Countries { get; } = new();
+    public EntityMap<CityId, City> Cities { get; } = new();
+    public EntityMap<VenueId, Venue> Venues { get; } = new();
+    public EntityMap<CampId, Camp> Camps { get; } = new();
 
     /// <summary>World news feed, oldest first; the sim appends notable happenings.</summary>
     public List<NewsItem> News { get; init; } = new();

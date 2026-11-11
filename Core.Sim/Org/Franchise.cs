@@ -52,6 +52,12 @@ public static class Franchise
     /// <summary>Crown the face (player action; the AI does it monthly on its own).</summary>
     public static void SetFace(World world, Promotion promo, Fighter f, DateOnly date)
     {
+        // Taking the posters off a lifer who carried them is a decision he takes
+        // personally: the bond breaks (Contracts.Lifers — the door it opens is
+        // the normal market's, and a retention bonus or the posters back repair it).
+        if (FaceOf(world, promo) is { } old && old.Id != f.Id)
+            Contracts.Lifers.BreakByDecision(world, old,
+                $"{promo.Abbreviation} took the posters down and built the company around {f.FullName}", date);
         promo.FaceOfCompany = f.Id;
         f.Loyalty = Math.Min(100, f.Loyalty + 6);   // being THE guy means something
         Living.News.Post(world, date, NewsCategory.Signing,

@@ -229,6 +229,7 @@ public static class WorldEvents
             foreach (var fa in pool)
             {
                 fa.Contract = PromotionSetup.SignContract(world, promo, date, fa, rng);
+                fa.Loyalty = 20;   // a new signing starts the loyalty clock over, as ContractLifecycle.Sign does
                 signed.Add(fa);
             }
         }

@@ -51,7 +51,19 @@ public class PersonaTests
     [Fact]
     public void BabyfaceWinner_GrowsPopularityTwiceAsFast()
     {
+        // Isolate the rule from the two other things that scale a win's fame and
+        // ROUND it (a Showman's +max(1, gain/4); the broadcast platform's
+        // exposure multiplier): with those in the chain, "twice as fast" only
+        // comes out exact for some bouts, so which fighter and which bout the seed
+        // happens to draw decided the test. Both worlds are neutralised identically.
+        static void Neutral(Promotion p, List<Fighter> two)
+        {
+            p.MediaDeals.Clear();
+            p.Stream = null;
+            foreach (var f in two) f.Disposition = Disposition.CompanyMan;
+        }
         var (world, promo, pair) = TopPair(seed: 9);
+        Neutral(promo, pair);
         int plainBefore = pair[0].Intangibles.Popularity.Value;
         var ev = RunHeadlinedBy(world, promo, pair[0], pair[1], WeightClass.Lightweight);
         var winner = world.Get(ev.Card[^1].Outcome!.Winner!.Value)!;   // headliner runs as the main event (last)
@@ -60,6 +72,7 @@ public class PersonaTests
 
         // Same fight, same seed — but the winner-to-be is a babyface this time.
         var (world2, promo2, pair2) = TopPair(seed: 9);
+        Neutral(promo2, pair2);
         var winner2 = pair2.Single(f => f.Id == winner.Id);
         winner2.PersonaTag = "babyface";
         int before2 = winner2.Intangibles.Popularity.Value;

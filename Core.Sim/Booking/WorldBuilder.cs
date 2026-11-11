@@ -26,7 +26,8 @@ public sealed class WorldBuilder
     /// </summary>
     public sealed record PromotionSpec(string Name, string Abbreviation, int Prestige, int RosterSize, Money Balance, Region Region,
         WeightClass[]? Divisions = null, bool? Women = null,
-        string? Lore = null);   // authored identity prose shown on the Org page
+        string? Lore = null,    // authored identity prose shown on the Org page
+        string? HomeCity = null);   // the atlas city it calls home; null (or not in its region) = the region's fight capital
 
     /// <summary>
     /// The player's own brand-new promotion: identity, home region, and how much
@@ -146,7 +147,7 @@ public sealed class WorldBuilder
         public static readonly WeightClass[] MidFour =
             { WeightClass.Lightweight, WeightClass.Welterweight, WeightClass.Middleweight, WeightClass.LightHeavyweight };
 
-        public static PromotionSpec[] DefaultPromotions { get; } =
+        private static readonly PromotionSpec[] DesignedSpecs =
         {
             // The world ladder, biggest to smallest — talent tiers into the top. Two
             // fight-mad regions run head to head: VMMA vs IFA in Europe and CK vs RCS
@@ -189,20 +190,64 @@ public sealed class WorldBuilder
             new("Great Lakes Fighting", "GLF", 28, 80, new Money(680_000m), Region.NorthAmerica, CoreThree, Women: false,
                 Lore: "Great Lakes Fighting is Midwest wrestling country distilled into a promotion: high-school gymnasiums, folding chairs, and an endless supply of iron-jawed grinders. It has sent more contenders to the national stage than outfits three times its size — and never once kept one."),
             new("Kansai Cage", "KAC", 26, 75, new Money(600_000m), Region.Asia, LighterHouse, Women: true,
-                Lore: "Kansai Cage is Osaka's temple of the small and the fearless — a lighter-weights house in the old Shooto tradition and the beating heart of Japanese women's MMA. Its shows are intimate, its craft is obsessive, and its faithful believe, correctly, that the best pound-for-pound fighting on earth happens in rooms this size."),
+                Lore: "Kansai Cage was born in Osaka, a temple of the small and the fearless, and still carries the Kansai name — a lighter-weights house in the old Shooto tradition and the beating heart of Japanese women's MMA. It now stages its cards in a Tokyo basement hall the rent could afford; its shows are intimate, its craft is obsessive, and its faithful believe, correctly, that the best pound-for-pound fighting on earth happens in rooms this size."),
             new("Cordillera Combat", "CDC", 24, 70, new Money(500_000m), Region.SouthAmerica, TinyLight, Women: false,
-                Lore: "Cordillera Combat stages its cards in Andean gyms two miles above sea level, where visiting fighters gas out in a round and the locals never seem to breathe. A tiny house with a single famous export: flyweights with bottomless lungs."),
+                Lore: "Cordillera Combat made its name in Andean gyms two miles above sea level, where visiting fighters gas out in a round and the locals never seem to breathe; the big nights are now in Lima. A tiny house with a single famous export: flyweights with bottomless lungs."),
             new("Motor City Cage", "MCC", 17, 60, new Money(320_000m), Region.NorthAmerica, HeavyHall, Women: false,
-                Lore: "Motor City Cage puts on heavy-handed fights for a heavy-handed town — middleweight and up, judges optional. Detroit crowds don't pay to watch footwork, and the promotion has honoured that contract since its first card in an east-side warehouse."),
+                Lore: "Motor City Cage puts on heavy-handed fights for a heavy-handed town — middleweight and up, judges optional. Detroit crowds don't pay to watch footwork, and the promotion honoured that contract from its first card in an east-side warehouse until the lease ran out, then took the act down I-94 to a south-side hall in Chicago — Motor City in name and attitude still."),
             new("Baltic Brawl", "BLB", 12, 50, new Money(220_000m), Region.Europe, HeavyHall, Women: false,
-                Lore: "Baltic Brawl is the old school preserved in amber: big men, small halls, sambo pedigrees, and an announcer who sounds like a dockyard foreman. It survives on stubbornness and the region's inexhaustible supply of enormous, uncomplaining heavyweights."),
+                Lore: "Baltic Brawl is the old school preserved in amber: big men, small halls, sambo pedigrees, and an announcer who sounds like a dockyard foreman. It runs the Baltic ferry circuit from an office and home hall in Stockholm, where the ferries leave from, and its fighters and crowds are Baltic to the bone. It survives on stubbornness and the region's inexhaustible supply of enormous, uncomplaining heavyweights."),
             new("Mekong Fight Club", "MFC", 14, 50, new Money(250_000m), Region.Asia, FeederLight, Women: false,
-                Lore: "Mekong Fight Club grew out of the temple-fair circuit, where fighters have traded leather at festivals up and down the river for generations. It runs the lighter weights the region breeds best, and its cards double as open auditions for every scout in Asia."),
+                Lore: "Mekong Fight Club grew out of the temple-fair circuit, where fighters have traded leather at festivals up and down the river for generations. It runs the lighter weights the region breeds best, and its cards double as open auditions for every scout in Asia. Each November it stages MFC Temple Fair Night in the biggest house in Bangkok, the one card a year the whole circuit travels to."),
             new("Cape Fury", "CPF", 11, 48, new Money(210_000m), Region.Africa, HeavyHall, Women: false,
-                Lore: "Cape Fury throws big men from the townships into a cage at the foot of Table Mountain and lets the neighbourhood settle its arguments legally. The purses are small and the heavyweights are not; every card sells out on local pride alone."),
+                Lore: "Cape Fury throws big men from the townships into a cage at the foot of Table Mountain and lets the neighbourhood settle its arguments legally. The purses are small and the heavyweights are not; every card sells out on local pride alone. Each December it stages CPF Mountain Night, the one card a year the whole city seems to hold a ticket for."),
             new("Pampas Fight League", "PMP", 15, 60, new Money(270_000m), Region.SouthAmerica, CoreThree, Women: false,
                 Lore: "The Pampas Fight League is Argentine showmanship applied to cage fighting — entrances longer than some of the fights, crowds that sing in full voice, and a soft spot for brawlers who play to the cheap seats. Buenos Aires adores it; its accountants do not."),
         };
+
+        // Where each designed promotion LIVES. Every org used to default to its
+        // region's fight capital, so three US promotions shared Las Vegas, Rio's
+        // upstart lived in São Paulo and Cape Fury in Johannesburg — a "local" show
+        // with no locality. Atlas cities only (a new atlas city draws from the
+        // builder stream and reshuffles every seed); where the lore's town isn't in
+        // the atlas, the nearest one stands in. The lore lines explaining those
+        // stand-ins (KAC Osaka→Tokyo, MCC Detroit→Chicago, CDC Andes→Lima, BLB
+        // Baltic→Stockholm) now live in each promotion's Lore above; if a home
+        // here changes, change that Lore line with it.
+        private static readonly Dictionary<string, string> DesignedHomes = new(StringComparer.Ordinal)
+        {
+            ["AFC"] = "Las Vegas",        // born in a Las Vegas casino ballroom
+            ["VMMA"] = "London",          // the establishment's opera-house shows; nothing in the lore moves it
+            ["IFA"] = "Moscow",           // the Volk Sambo Club's school: its franchise, its heir and its first champion
+            ["ICF"] = "Tokyo",            // the Tokyo dome every New Year
+            ["GFC"] = "Abu Dhabi",        // the Falcon Dome, built for its opening night
+            ["UFL"] = "Los Angeles",      // a television man's league; Hollywood Jackson holds its welterweight belt
+            ["RCS"] = "Rio de Janeiro",   // three cariocas with a truck
+            ["SCM"] = "Sydney",           // harbourside arenas; Harbour City is its gym
+            ["CK"] = "Sao Paulo",         // Brazil's grand old house, São Paulo's arenas
+            ["CC"] = "New York",          // the East Coast small-hall circuit
+            ["SCL"] = "Lagos",            // the Lion of Lagos; cards from Lagos to Nairobi
+            ["GLF"] = "Chicago",          // Midwest wrestling country
+            ["KAC"] = "Tokyo",            // Osaka isn't in the atlas: a Tokyo basement the rent could afford
+            ["CDC"] = "Lima",             // Peru's Andean house (La Paz/Cusco aren't in the atlas)
+            ["MCC"] = "Chicago",          // Detroit isn't in the atlas: the act moved down I-94
+            ["BLB"] = "Stockholm",        // no Baltic city in the atlas: the ferry port the cards sail from
+            ["MFC"] = "Bangkok",          // the temple-fair circuit's big city
+            ["CPF"] = "Cape Town",        // the foot of Table Mountain
+            ["PMP"] = "Buenos Aires",     // Buenos Aires adores it
+        };
+
+        public static PromotionSpec[] DefaultPromotions { get; } =
+            DesignedSpecs.Select(s => s with { HomeCity = DesignedHomes.GetValueOrDefault(s.Abbreviation) }).ToArray();
+
+        /// <summary>Authored hometowns for designed fighters and legends (off only in the RNG-guard test).</summary>
+        internal bool AuthoredHomeCities { get; init; } = true;
+
+        /// <summary>
+        /// The day-one story tables that need no draw: contract stages, feud heat and
+        /// the faces of the companies (off only in the RNG-guard test).
+        /// </summary>
+        internal bool AuthoredStories { get; init; } = true;
     }
 
     public World Build(Options? options = null)
@@ -215,7 +260,7 @@ public sealed class WorldBuilder
 
         Geography.WorldMap.Build(world, rng);
 
-        var gen = new FighterGenerator(o.Seed, o.IdentityCatalog);
+        var gen = new FighterGenerator(o.Seed, o.IdentityCatalog) { AuthoredHomes = o.AuthoredHomeCities };
 
         // The designed initial database enters first: the world's headliners are
         // authored, and org-tagged ones claim slots on their promotion's roster.
@@ -229,7 +274,7 @@ public sealed class WorldBuilder
         // first cards have grudges to book and the news has stories to tell.
         foreach (var (spec, fighter) in designedFighters.Where(x => x.Spec.RivalOf is not null))
             if (designedFighters.FirstOrDefault(x => x.Spec.Last == spec.RivalOf).Fighter is { } enemy)
-                world.Rivalries.Add(new Rivalry { A = fighter.Id, B = enemy.Id, Intensity = 60, Since = o.StartDate });
+                world.Rivalries.Add(new Rivalry { A = fighter.Id, B = enemy.Id, Intensity = o.AuthoredStories ? Generation.DesignedRoster.RivalHeatOf(spec.Last, spec.RivalOf!) : 60, Since = o.StartDate });
 
         var rostersByPromo = specs.Select(_ => new List<Fighter>()).ToArray();
         foreach (var (spec, fighter) in designedFighters.Where(x => x.Spec.Sex == Sex.Male))
@@ -271,6 +316,12 @@ public sealed class WorldBuilder
             // Everything left in this class stays a free agent.
         }
 
+        // Local promotions are LOCAL: the small halls trade their outsiders for
+        // fighters of the same level from their own city, country and continent
+        // (ability-for-ability swaps — no new fighters, no draws).
+        var homes = specs.Select(s => HomeCityFor(world, s.Region, s.HomeCity)).ToArray();
+        RosterNativity.Apply(specs, homes, rostersByPromo, everyone, classes, Sex.Male);
+
         var promos = new Promotion[specs.Length];
         for (int p = 0; p < specs.Length; p++)
         {
@@ -293,14 +344,14 @@ public sealed class WorldBuilder
 
             foreach (var f in rostersByPromo[p])
                 f.Contract = PromotionSetup.SignContract(world, promo, o.StartDate, f, rng);
-            ApplyAuthoredPurses(rostersByPromo[p]);
+            ApplyAuthoredPurses(rostersByPromo[p], o.AuthoredStories);
 
             var designedChampions = designedFighters
                 .Where(x => x.Spec.Champion && x.Spec.Sex == Sex.Male && OrgIndexOf(x.Spec.Org) == p)
                 .ToDictionary(x => x.Spec.WeightClass, x => x.Fighter.Id);
-            PromotionSetup.ConfigureDivisions(world, promo, rostersByPromo[p], spec.Divisions ?? classes, o.StartDate, o.RankingsDepth, designedChampions);
+            PromotionSetup.ConfigureDivisions(world, promo, rostersByPromo[p], spec.Divisions ?? classes, o.StartDate, o.RankingsDepth, designedChampions, dayOneBuild: true);
             Finance.RevenueService.SeedEstablished(world, promo, o.StartDate, rng);
-            SeedCityPopularity(world, promo);
+            SeedCityPopularity(world, promo, spec.HomeCity);
         }
 
         if (o.IncludeWomensDivisions)
@@ -326,7 +377,7 @@ public sealed class WorldBuilder
         // The era BEFORE the player: the retired greats, their reigns at the head
         // of the belts they held. After HistoryBuilder on purpose — a man who last
         // fought fifteen years ago must not be given bouts in the recent window.
-        if (o.UseDesignedRoster) Generation.LegendBuilder.Build(world, o.StartDate);
+        if (o.UseDesignedRoster) Generation.LegendBuilder.Build(world, o.StartDate, o.AuthoredHomeCities);
 
         // With every fighter in the world (rosters, free agents, women, the
         // founding pool), the designed fight camps open and the sport sorts
@@ -351,9 +402,21 @@ public sealed class WorldBuilder
 
         GlobalRankings.Recompute(world);
 
+        // We join mid-story: every AI house's next shows are already announced.
+        // (A world built without a past has no story to be in the middle of.)
+        if (o.GenerateHistory) Living.ForwardCalendar.SeedOpening(world);
+
         // Last: the sport reports on the world that was just built, so day one
         // opens on a feed with eighteen months of history in it instead of a
         // blank page. Everything in it is derived from what actually exists.
+        // The faces of the companies, as the stories have them (no news, no draw).
+        if (o.UseDesignedRoster && o.AuthoredStories)
+            foreach (var (org, name) in Generation.DesignedRoster.Faces)
+                if (world.Promotions.Values.FirstOrDefault(p => p.Abbreviation == org) is { IsPlayerControlled: false } house   // the player picks their own face
+                    && world.Fighters.Values.FirstOrDefault(f => f.Designed && $"{f.FirstName} {f.LastName}" == name) is { } face
+                    && face.Contract?.Promotion == house.Id)
+                    house.FaceOfCompany = face.Id;
+
         Living.Prologue.Write(world, o.StartDate);
         return world;
     }
@@ -364,11 +427,15 @@ public sealed class WorldBuilder
     /// the prospects whose whole story is that they're worth more than they're
     /// being paid. Applied after the formula so the ordinary roster is untouched.
     /// </summary>
-    private static void ApplyAuthoredPurses(List<Fighter> roster)
+    private static void ApplyAuthoredPurses(List<Fighter> roster, bool stories = true)
     {
         foreach (var f in roster)
         {
             if (!f.Designed || f.Contract is not { } c) continue;
+            // Where the deal stands is read off the contract the shared stream already
+            // produced (see DesignedRoster.ContractStages): nothing is drawn or skipped.
+            if (stories && Generation.DesignedRoster.ContractStages.TryGetValue(f.LastName, out var fights))
+                c.FightsRemaining = fights;
             if (!Generation.DesignedRoster.PurseFactors.TryGetValue(f.LastName, out var factor)) continue;
             c.PursePerFight = new Money(Math.Round(c.PursePerFight.Amount * factor / 500m) * 500m);
             c.WinBonus = new Money(Math.Round(c.PursePerFight.Amount * 0.75m / 500m) * 500m);
@@ -398,13 +465,23 @@ public sealed class WorldBuilder
     /// </summary>
     private static void SeedDesignedBonds(World world, List<(DesignedFighter Spec, Fighter Fighter)> designed, DateOnly on)
     {
-        Fighter? ByLast(string last) =>
-            designed.FirstOrDefault(x => x.Spec.Last == last).Fighter
-            ?? world.Fighters.Values.FirstOrDefault(f => f.Designed && f.LastName == last);
+        // A bond names a last name, or "First Last" where a surname is shared
+        // (Wallace Bandeira, a living champion, and the legend Paulo Bandeira).
+        // The key must pick exactly ONE authored person — a shared bare surname
+        // resolves to nobody rather than to whoever was written first, which is
+        // how a rival org's heavyweight champion became Souza's mentor.
+        Fighter? Resolve(string key)
+        {
+            var authored = world.Fighters.Values.Where(f => f.Designed).ToList();
+            var full = authored.Where(f => $"{f.FirstName} {f.LastName}" == key).ToList();
+            if (full.Count == 1) return full[0];
+            var byLast = authored.Where(f => f.LastName == key).ToList();
+            return byLast.Count == 1 ? byLast[0] : null;
+        }
 
         foreach (var bond in Generation.DesignedRoster.Bonds)
         {
-            if (ByLast(bond.A) is not { } a || ByLast(bond.B) is not { } b || a.Id == b.Id) continue;
+            if (Resolve(bond.A) is not { } a || Resolve(bond.B) is not { } b || a.Id == b.Id) continue;
             if (world.Relationships.Any(r => r.IsBetween(a.Id, b.Id))) continue;
             world.Relationships.Add(new Relationship
             {
@@ -468,16 +545,20 @@ public sealed class WorldBuilder
             // The rest of this class stays on the open market.
         }
 
+        // Same nativity pass as the men's (a Kansai house's women are Japanese first).
+        RosterNativity.Apply(specs, promos.Select(p => p.HomeCity is { } h ? world.Get(h) : null).ToArray(),
+            femaleRosters, women, WomensClasses, Sex.Female);
+
         foreach (var p in runners)
         {
             foreach (var f in femaleRosters[p])
                 f.Contract = PromotionSetup.SignContract(world, promos[p], o.StartDate, f, rng);
-            ApplyAuthoredPurses(femaleRosters[p]);
+            ApplyAuthoredPurses(femaleRosters[p], o.AuthoredStories);
             var champions = designedWomen
                 .Where(x => x.Spec.Champion && x.Spec.Org == specs[p].Abbreviation)
                 .ToDictionary(x => x.Spec.WeightClass, x => x.Fighter.Id);
             PromotionSetup.ConfigureDivisions(world, promos[p], femaleRosters[p], WomensClasses,
-                o.StartDate, o.RankingsDepth, champions, Sex.Female);
+                o.StartDate, o.RankingsDepth, champions, Sex.Female, dayOneBuild: true);
         }
     }
 
@@ -549,6 +630,11 @@ public sealed class WorldBuilder
                 MaxBouts = journeyman ? null : rng.Range(0, 4),
             });
             gen.AssignHometown(world, f);
+            // Same guard every other pool has: without it a founded start carried
+            // dozens of repeated fight names, including copies of authored ones
+            // ("The Lion", "The Viper"). Re-rolls come off a keyed per-fighter
+            // stream inside EnsureUniqueName, never the shared build stream.
+            gen.EnsureUniqueName(world, f);
             world.Fighters[id] = f;
         }
     }
@@ -591,11 +677,7 @@ public sealed class WorldBuilder
     private static void SeedCityPopularity(World world, Promotion promo, string? homeCityName = null)
     {
         // An explicitly chosen home town wins; otherwise the region's fight capital.
-        promo.HomeCity = (homeCityName is { Length: > 0 }
-            ? world.Cities.Values.FirstOrDefault(c => c.Region == promo.BaseRegion
-                && string.Equals(c.Name, homeCityName, StringComparison.OrdinalIgnoreCase))
-            : null)?.Id
-            ?? Geography.WorldMap.AnchorCity(world, promo.BaseRegion)?.Id;
+        promo.HomeCity = HomeCityFor(world, promo.BaseRegion, homeCityName)?.Id;
         int prestige = promo.Prestige.Value;
         double reach = 0.30 + prestige / 100.0 * 0.40;   // big promotions travel; small ones stay local
 
@@ -607,6 +689,15 @@ public sealed class WorldBuilder
             if (value > 0) promo.PopularityByCity[c.Id] = Math.Clamp(value, 0, 100);
         }
     }
+
+    /// <summary>The named town in the region if the atlas has it, else the region's fight capital.</summary>
+    private static City? HomeCityFor(World world, Region region, string? name) =>
+        (name is { Length: > 0 }
+            ? world.Cities.Values.Where(c => c.Region == region
+                    && string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(c => c.Id.Value).FirstOrDefault()
+            : null)
+        ?? Geography.WorldMap.AnchorCity(world, region);
 
     /// <summary>
     /// How many fighters in a single division each promotion gets, top promotion

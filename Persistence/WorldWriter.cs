@@ -345,7 +345,7 @@ internal sealed class WorldWriter
             "wins", "losses", "draws", "no_contests", "wins_ko", "wins_sub", "wins_dec", "streak",
             "contract_promotion", "contract_signed_on", "contract_type", "purse", "win_bonus",
             "fights_remaining", "is_exclusive", "has_champions_clause",
-            "signing_bonus", "ppv_points", "performance_bonus", "guaranteed", "poach_warned",
+            "signing_bonus", "ppv_points", "performance_bonus", "guaranteed", "poach_warned", "bond_notice_on",
             "injury_severity", "injury_desc", "injury_occurred", "injury_return",
             "ready_to_fight_on", "loyalty", "marketing_push", "camp_id", "camp_stipend", "star_power",
             "discovered_by", "disposition", "origin_country",
@@ -411,10 +411,11 @@ internal sealed class WorldWriter
                 cmd.Bind("$performance_bonus", Db.Cash(k.PerformanceBonus));
                 cmd.Bind("$guaranteed", k.Guaranteed ? 1 : 0);
                 cmd.Bind("$poach_warned", k.PoachWarned ? 1 : 0);
+                cmd.Bind("$bond_notice_on", Db.DateN(k.BondNoticeOn));
             }
             else
             {
-                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed", "$poach_warned" })
+                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed", "$poach_warned", "$bond_notice_on" })
                     cmd.Bind(p, DBNull.Value);
             }
 

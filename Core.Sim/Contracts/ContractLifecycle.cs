@@ -13,17 +13,70 @@ public static class ContractLifecycle
     private static readonly Negotiator Negotiator = new();
     private static readonly FighterValuation Valuation = new();
 
+    /// <summary>Loyalty a renewal adds — once per deal, and only for a deal he has worked (<see cref="RenewalEarnsLoyalty"/>).</summary>
+    public const int RenewalLoyalty = 5;
+
+    /// <summary>How long a deal must have run before re-signing it early earns loyalty.</summary>
+    public const int RenewalMinDays = 180;
+
+    /// <summary>
+    /// Whether re-signing on <paramref name="on"/> replaces a deal he has really
+    /// worked, and so earns <see cref="RenewalLoyalty"/>: the deal has run out
+    /// (0 fights left), or it is at least half served (<see cref="HalfServed"/>)
+    /// AND has run <see cref="RenewalMinDays"/> days. The new deal starts at
+    /// zero served and zero days, so a run of renewals — same-day, or one after
+    /// every bout on short deals — can't stack it. Derived from the cards and the
+    /// contract alone (no stored length), so it reproduces across save and load.
+    /// </summary>
+    public static bool RenewalEarnsLoyalty(World world, Fighter f, Contract live, DateOnly on) =>
+        live.FightsRemaining <= 0
+        || (on.DayNumber - live.SignedOn.DayNumber >= RenewalMinDays && HalfServed(world, f, live));
+
+    /// <summary>
+    /// Whether a deal has been at least half worked: the bouts he has fought for
+    /// it are at least the fights it has left (served over served-plus-remaining
+    /// is a half or more). A deal that has run out counts as fully served.
+    /// </summary>
+    public static bool HalfServed(World world, Fighter f, Contract c) =>
+        c.FightsRemaining <= 0 || FightsServed(world, f, c) >= c.FightsRemaining;
+
+    /// <summary>
+    /// Bouts he has fought FOR this deal: on completed cards staged by the
+    /// contract's own promotion, dated after the signing day. A moonlighter's
+    /// local-circuit or other-promotion bouts don't count, and a fight on the
+    /// signing day itself is not counted, so a deal signed that morning can
+    /// never look served.
+    /// </summary>
+    public static int FightsServed(World world, Fighter f, Contract c)
+    {
+        int served = 0;
+        foreach (var ev in world.Events.Values)
+        {
+            if (ev.Promotion != c.Promotion || ev.Status != EventStatus.Completed || ev.Date <= c.SignedOn) continue;
+            foreach (var fight in ev.Card)
+                if (fight.Outcome is not null && (fight.RedCorner == f.Id || fight.BlueCorner == f.Id)) served++;
+        }
+        return served;
+    }
+
     /// <summary>Sign (or re-sign) a fighter to an accepted offer, paying the signing bonus and slotting them into the division.</summary>
     public static void Sign(World world, Fighter f, ContractOffer offer, DateOnly on)
     {
         bool renewal = f.Contract?.Promotion == offer.Promotion;
+        // Re-upping deepens loyalty a touch — but only for a deal he has actually
+        // worked (run out, or half served and half a year old). A run of quick
+        // renewals earns the +5 once, not every time (the lifer back door).
+        bool earnedRenewal = renewal && f.Contract is { } live && RenewalEarnsLoyalty(world, f, live, on);
         // Signing away from a live deal is still leaving the old org (callers
         // normally clear it first; this keeps the old books clean if one doesn't).
-        if (f.Contract is { } old && !renewal) LeavePromotion(world, f, old.Promotion, on);
+        if (f.Contract is { } old && !renewal)
+            LeavePromotion(world, f, old.Promotion, on,
+                $"{world.Get(offer.Promotion)?.Name ?? "a rival"} signed him away", offer.Promotion, hisChoice: true);
         f.Contract = offer.ToContract(on);
+        f.Contract.PpvPoints = Math.Clamp(offer.PpvPoints, 0, Negotiator.MaxPpvPoints);
         BiddingWars.OnSigned(world, f, offer.Promotion, on);   // a signature ends any public war over them
-        // A move to a new org starts the loyalty clock over; re-upping deepens it a touch.
-        f.Loyalty = renewal ? Math.Min(100, f.Loyalty + 5) : 20;
+        // A move to a new org starts the loyalty clock over.
+        f.Loyalty = !renewal ? 20 : earnedRenewal ? Math.Min(100, f.Loyalty + RenewalLoyalty) : f.Loyalty;
         if (world.Get(offer.Promotion) is not { } promo) return;
 
         Finance.Ledger.Expense(promo, on, FinanceCategory.SigningBonus, offer.SigningBonus, $"Signing bonus — {f.FullName}");
@@ -52,7 +105,8 @@ public static class ContractLifecycle
             Finance.Ledger.Expense(promo, world.CurrentDate, FinanceCategory.ContractBuyout, owed, $"Contract buyout — {f.FullName}");
             if (dentReputation) Org.Standing.OnRelease(promo);
         }
-        LeavePromotion(world, f, c.Promotion, world.CurrentDate);
+        LeavePromotion(world, f, c.Promotion, world.CurrentDate,
+            $"{world.Get(c.Promotion)?.Abbreviation ?? "his promotion"} released him");
         f.Contract = null;
         return owed;
     }
@@ -67,10 +121,15 @@ public static class ContractLifecycle
     /// the contract or the money — callers clear or replace the deal. Retirement
     /// has its own path (<see cref="Living.Lifecycle.Retire"/>: the belt passes to
     /// the top contender); a folding or sold org clears its own books wholesale.
+    /// <paramref name="door"/> says HOW he left, in plain words — when a lifer
+    /// goes, it's the reason the headline gives (<see cref="Lifers.OnLeaving"/>),
+    /// so this must run while his contract still names the org he's leaving.
     /// </summary>
-    public static void LeavePromotion(World world, Fighter f, PromotionId from, DateOnly date)
+    public static void LeavePromotion(World world, Fighter f, PromotionId from, DateOnly date,
+        string? door = null, PromotionId? to = null, bool hisChoice = false)
     {
         if (world.Get(from) is not { } promo) return;
+        Lifers.OnLeaving(world, f, promo, door ?? $"he left {promo.Abbreviation}", date, to, hisChoice);
         foreach (var d in promo.Divisions) d.Rankings.Remove(f.Id);
 
         foreach (var title in world.Titles.Values
@@ -88,9 +147,9 @@ public static class ContractLifecycle
     }
 
     // An expiring deal that isn't renewed: the fighter walks to the open market.
-    private static void Walk(World world, Fighter f, Promotion from, DateOnly date)
+    private static void Walk(World world, Fighter f, Promotion from, DateOnly date, string door, bool hisChoice = false)
     {
-        LeavePromotion(world, f, from.Id, date);
+        LeavePromotion(world, f, from.Id, date, door, hisChoice: hisChoice);
         f.Contract = null;
     }
 
@@ -165,11 +224,26 @@ public static class ContractLifecycle
             }
             else if (!Org.RosterPolicy.Wants(world, promo, f))
             {
-                Walk(world, f, promo, date);   // not re-signed — slides down the ladder
+                Walk(world, f, promo, date, $"{promo.Abbreviation} let his deal run out");   // not re-signed — slides down the ladder
+            }
+            else if (Lifers.KeepsFirstCall(world, f))
+            {
+                // A LIFER is renewed first — before any trimming of hoarded depth —
+                // and the org stretches past its usual purse budget to do it (he,
+                // in turn, asks less of his own promotion). Only a solvent org can
+                // be holding him at all (being in the red is a grievance), so this
+                // is never the bleeding org overreaching. If even the stretch can't
+                // reach him, he has outgrown the house.
+                var exp = Valuation.Evaluate(world, f);
+                var offer = Negotiator.AiOpeningOffer(world, promo, f, exp, Lifers.RenewalStretch);
+                if (Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
+                    Sign(world, f, offer, date);
+                else
+                    Walk(world, f, promo, date, $"his deal ran out and {promo.Abbreviation} couldn't pay what it would take to keep him", hisChoice: true);
             }
             else if (DivisionOverTarget(world, promo, f))
             {
-                Walk(world, f, promo, date);   // hoarded depth — over the tier target, let them walk
+                Walk(world, f, promo, date, $"{promo.Abbreviation} let his deal run out to trim the division");   // hoarded depth — over the tier target, let them walk
             }
             else
             {
@@ -178,7 +252,7 @@ public static class ContractLifecycle
                 if (distress > 0 && exp.AskingPurse.Amount >
                     Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
                 {
-                    Walk(world, f, promo, date);   // too rich for a bleeding org — let them walk
+                    Walk(world, f, promo, date, $"{promo.Abbreviation} couldn't afford to keep him");   // too rich for a bleeding org — let them walk
                 }
                 else
                 {
@@ -186,7 +260,7 @@ public static class ContractLifecycle
                     if (Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
                         Sign(world, f, offer, date);   // renew in place
                     else
-                        Walk(world, f, promo, date);   // to the open market
+                        Walk(world, f, promo, date, $"his deal ran out and he turned down {promo.Abbreviation}'s offer", hisChoice: true);   // to the open market
                 }
             }
 

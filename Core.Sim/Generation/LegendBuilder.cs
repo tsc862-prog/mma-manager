@@ -20,13 +20,13 @@ public static class LegendBuilder
     /// Create the legends and write their reigns into the title lineages. Call
     /// once the promotions, belts and (optionally) history exist.
     /// </summary>
-    public static void Build(World world, DateOnly startDate)
+    public static void Build(World world, DateOnly startDate, bool authoredHomes = true)
     {
         var gen = FighterGenerator.ForWorld(world);
 
         foreach (var spec in DesignedLegends.All)
         {
-            var f = Create(world, gen, spec, startDate);
+            var f = Create(world, gen, spec, startDate, authoredHomes);
             world.Fighters[f.Id] = f;
 
             foreach (var reign in spec.Reigns)
@@ -64,7 +64,7 @@ public static class LegendBuilder
     private static int CoachQuality(DesignedLegend spec) =>
         Math.Clamp(46 + spec.Popularity / 4 + spec.Reigns.Sum(r => r.Defenses), 50, 92);
 
-    private static Fighter Create(World world, FighterGenerator gen, DesignedLegend spec, DateOnly startDate)
+    private static Fighter Create(World world, FighterGenerator gen, DesignedLegend spec, DateOnly startDate, bool authoredHomes = true)
     {
         var id = world.NewFighterId();
         // Built at the level they FOUGHT at — a coach's authority (and the room
@@ -91,6 +91,11 @@ public static class LegendBuilder
         f.Momentum = 0;
         f.Contract = null;
         f.Intangibles.Popularity = spec.Popularity;
+        // Who the bio says they are, not whoever the hash handed them (after fame is
+        // set: ego tracks it). Hash-derived like every disposition, so this costs the
+        // generation stream nothing.
+        if (DesignedLegends.Dispositions.TryGetValue($"{spec.First} {spec.Last}", out var disposition))
+            Personality.ApplyTo(f, disposition);
         // Nobody gets that famous by accident — the era's megastars carried the
         // it-factor too, and the profile should still say so.
         if (spec.Popularity >= 70) f.StarPower = true;
@@ -110,6 +115,12 @@ public static class LegendBuilder
         rec.WinsBySubmission = Math.Min(sub, spec.Wins - rec.WinsByKo);
         rec.WinsByDecision = spec.Wins - rec.WinsByKo - rec.WinsBySubmission;
 
+        // Authored home first (see DesignedHomeCities): the keyed roll is skipped.
+        if (authoredHomes && DesignedHomeCities.Resolve(world, spec.First, spec.Last) is { } home)
+        {
+            f.HomeCity = home;
+            f.CityReputation[home] = Math.Min(60, f.Intangibles.Popularity.Value);
+        }
         gen.AssignHometown(world, f, spec.Country);
 
         // The honours their profile carries forever.

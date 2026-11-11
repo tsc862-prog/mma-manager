@@ -364,6 +364,8 @@ public static class Camps
     public static void StopStipend(World world, Fighter f)
     {
         if (!f.CampStipend) return;
+        if (f.Contract is { } c && world.Get(c.Promotion) is { } payer)
+            Contracts.Lifers.BreakByDecision(world, f, $"{payer.Abbreviation} stopped paying for his corner", world.CurrentDate);
         f.CampStipend = false;
         f.Loyalty = Math.Max(0, f.Loyalty - 5);
         f.Camp = PickCamp(world, f, CountByCamp(world));   // back to the local scene

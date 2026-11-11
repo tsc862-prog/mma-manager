@@ -294,8 +294,8 @@ public sealed class BookingViewModel : ObservableObject
         get => _mainCard;
         set
         {
-            if (!Set(ref _mainCard, value) || value is null || SelectedEvent is null) return;
-            SelectedEvent.Model.MainCardFights = value.Value;
+            if (!Set(ref _mainCard, value) || value is null || SelectedEvent is null || _world is null) return;
+            if (!_booking.SetMainCardSize(_world, SelectedEvent.Model, value.Value, out var err)) { Err(err ?? "Couldn't change the main card."); return; }
             RefreshBouts();
         }
     }
@@ -637,12 +637,13 @@ public sealed class BookingViewModel : ObservableObject
     private void MoveBout(int direction)
     {
         if (SelectedEvent is null || SelectedBout is null) return;
+        if (_world is null) return;
         var card = SelectedEvent.Model.Card;
         int i = card.FindIndex(f => f.Id == SelectedBout.Id);
         int j = i + direction;
         if (i < 0 || j < 0 || j >= card.Count) return;
 
-        (card[i], card[j]) = (card[j], card[i]);
+        if (!_booking.MoveBout(_world, SelectedEvent.Model, SelectedBout.Id, j, out var err)) { Err(err ?? "Couldn't move that bout."); return; }
         var keep = SelectedBout.Id;
         RefreshBouts();
         SelectedBout = Bouts.FirstOrDefault(b => b.Id == keep);

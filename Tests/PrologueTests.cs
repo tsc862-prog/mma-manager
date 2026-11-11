@@ -118,9 +118,20 @@ public class PrologueTests
         Assert.NotEmpty(world.Relationships);
         foreach (var bond in DesignedRoster.Bonds)
         {
-            var a = world.Fighters.Values.FirstOrDefault(f => f.Designed && f.LastName == bond.A);
-            var b = world.Fighters.Values.FirstOrDefault(f => f.Designed && f.LastName == bond.B);
-            Assert.True(a is not null && b is not null, $"{bond.A}/{bond.B} must both exist");
+            // Exactly ONE authored person per key — a bare shared surname used to
+            // match whichever man came first (Wallace Bandeira, not Paulo), which
+            // is the bug this lookup hid by making the same mistake as the builder.
+            Fighter? One(string key)
+            {
+                var authored = world.Fighters.Values.Where(f => f.Designed).ToList();
+                var full = authored.Where(f => $"{f.FirstName} {f.LastName}" == key).ToList();
+                if (full.Count == 1) return full[0];
+                var last = authored.Where(f => f.LastName == key).ToList();
+                return last.Count == 1 ? last[0] : null;
+            }
+            var a = One(bond.A);
+            var b = One(bond.B);
+            Assert.True(a is not null && b is not null, $"{bond.A}/{bond.B} must each name exactly one person");
 
             var rel = world.Relationships.FirstOrDefault(r => r.IsBetween(a!.Id, b!.Id));
             Assert.True(rel is not null, $"{bond.A} and {bond.B} should be bonded on day one");

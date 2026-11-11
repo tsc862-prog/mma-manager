@@ -152,6 +152,12 @@ public sealed class FighterRow
     /// <summary>The fighter's portrait (see <see cref="Portraits"/> for the style choice).</summary>
     public ImageSource Portrait => Portraits.For(_f, _w);
 
+    /// <summary>The same face decoded small, for table rows.</summary>
+    public ImageSource Thumb => Portraits.Thumb(_f, _w);
+
+    /// <summary>The fighter's country ("Brazil").</summary>
+    public string CountryName => _w.Get(_f.Country)?.Name ?? Pretty(_f.Nationality.ToString());
+
     /// <summary>The matching full-body shot (profile hero image).</summary>
     public ImageSource BodyShot => Portraits.Body(_f, _w);
 
@@ -294,6 +300,27 @@ public sealed class FighterRow
               k.PpvPoints > 0 ? $"{k.PpvPoints} PPV point{(k.PpvPoints == 1 ? "" : "s")}" : null,
           }.Where(t => t is not null))
         : "";
+
+    private string? _askLine;
+    /// <summary>
+    /// What he'd ask across YOUR negotiating table — the number the room opens
+    /// at, and why it isn't the market rate. Only for free agents and your own
+    /// fighters (anyone else is under another promotion's paper); "" otherwise.
+    /// </summary>
+    public string AskLine => _askLine ??= BuildAskLine();
+
+    private string BuildAskLine()
+    {
+        if (_f.Status != FighterStatus.Active || _w.Get(_w.PlayerPromotion) is not { } mine) return "";
+        if (_f.Contract is { } c && c.Promotion != mine.Id) return "";
+        var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(_w, _f);
+        var q = MmaManager.Core.Sim.Contracts.AskingQuote.For(_w, mine, _f, exp);
+        return (_f.Contract is null ? "Would ask you " : "To re-sign, asks ") + $"~{q.Purse} / fight" + AskText.Because(q);
+    }
+
+    private string? _bondLine;
+    /// <summary>His bond with your promotion, in a line — your own fighters only ("" otherwise).</summary>
+    public string BondLine => _bondLine ??= AskText.Bond(_w, _f);
 
     /// <summary>The current promotion's id for the click-through (0 = none).</summary>
     public int CompanyId => _f.Contract is { } cc ? cc.Promotion.Value : 0;

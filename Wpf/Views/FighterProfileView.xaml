@@ -75,6 +75,10 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <TextBlock Text="{Binding SelectedFighter.AskLine}" Style="{StaticResource BondLineText}"
+                                   Foreground="#D6DADF" FontStyle="Italic" MaxWidth="680" HorizontalAlignment="Left" Margin="0,3,0,0" />
+                        <TextBlock Text="{Binding SelectedFighter.BondLine}" Style="{StaticResource BondLineText}"
+                                   MaxWidth="680" HorizontalAlignment="Left" Margin="0,2,0,0" />
                         <TextBlock Text="{Binding SelectedFighter.CareerOrgs}" FontSize="11.5" Margin="0,3,0,0"
                                    Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" MaxWidth="680" HorizontalAlignment="Left">
                             <TextBlock.Style>
