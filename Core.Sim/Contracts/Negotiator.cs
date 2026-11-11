@@ -23,10 +23,12 @@ public sealed class Negotiator
         // (they can fight elsewhere / moonlight), so they'll take less from this org.
         // A champion's clause runs the other way — it costs a premium to include.
         // And GRATITUDE is real: a discovered local deals cheap with the org that
-        // gave them the shot (everyone else pays the hometown-hype price).
+        // gave them the shot (everyone else pays the hometown-hype price), and
+        // a LIFER takes less to stay where he belongs (see Lifers).
         decimal asked = AskMoney(exp) * (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                                       * (offer.ChampionsClause ? ChampionsClausePremium : 1m)
-                                      * GratitudeFactor(f, offer.Promotion);
+                                      * GratitudeFactor(f, offer.Promotion)
+                                      * Lifers.HomeDiscount(world, f, offer.Promotion);
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
 
         double appeal = Appeal(world, f, offer, exp);
@@ -104,16 +106,20 @@ public sealed class Negotiator
     /// A promotion's opening offer — pitched at the fighter's ask but capped at
     /// what the org's box office can actually carry. Fighters who outgrow the
     /// budget walk to a bigger promotion (or the open market): the talent ladder.
+    /// <paramref name="capStretch"/> is how far past that cap the org will reach —
+    /// 1 for business as usual; a solvent org renewing a lifer stretches
+    /// (<see cref="Lifers.RenewalStretch"/>), the way a bidding war does.
     /// </summary>
-    public ContractOffer AiOpeningOffer(World world, Promotion promo, Fighter f, ContractExpectations exp)
+    public ContractOffer AiOpeningOffer(World world, Promotion promo, Fighter f, ContractExpectations exp, decimal capStretch = 1m)
     {
-        decimal cap = PurseCap(world, promo);
+        decimal cap = PurseCap(world, promo) * capStretch;
         // A non-exclusive deal is pitched at the fighter's DISCOUNTED ask — the org
         // is only buying part of their dance card, so it pays part of the price.
         // The org that discovered them pitches at the gratitude rate.
         bool exclusive = WantsExclusivity(promo);
         decimal ask = exp.AskingPurse.Amount * (exclusive ? 1m : NonExclusiveMoneyFactor)
-                                             * GratitudeFactor(f, promo.Id);
+                                             * GratitudeFactor(f, promo.Id)
+                                             * Lifers.HomeDiscount(world, f, promo.Id);
         var purse = new Money(RoundTo(Math.Min(ask, cap), 500m));
         var winBonus = new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, 500m)));
 
@@ -163,6 +169,17 @@ public sealed class Negotiator
         new(RoundTo(exp.AskingPurse.Amount
             * (WantsExclusivity(promo) ? 1m : NonExclusiveMoneyFactor)
             * GratitudeFactor(f, promo.Id), 500m));
+
+    /// <summary>
+    /// <see cref="EffectiveAskingPurse(Promotion, Fighter, ContractExpectations)"/>
+    /// with the lifer's hometown discount folded in — the number his OWN
+    /// promotion will actually be quoted at the table.
+    /// </summary>
+    public static Money EffectiveAskingPurse(World world, Promotion promo, Fighter f, ContractExpectations exp) =>
+        new(RoundTo(exp.AskingPurse.Amount
+            * (WantsExclusivity(promo) ? 1m : NonExclusiveMoneyFactor)
+            * GratitudeFactor(f, promo.Id)
+            * Lifers.HomeDiscount(world, f, promo.Id), 500m));
 
     /// <summary>
     /// The biggest per-fight purse a promotion's economics support, derived from

@@ -38,6 +38,7 @@ public sealed class NegotiationSession
     private readonly double _floorFrac;       // the fraction of the ask they'll never go under
     private readonly double _concessionRate;  // how much of the gap they give per credible round
     private double _demandFrac = 1.0;         // where their number sits now, as a fraction of the ask
+    private readonly decimal _home;           // a lifer's hometown discount at his own promotion's table (else 1)
 
     public NegotiationSession(World world, Fighter fighter, Promotion promo, ContractExpectations exp)
     {
@@ -50,6 +51,7 @@ public sealed class NegotiationSession
         var rep = new ContractOffer { Fighter = fighter.Id, Promotion = promo.Id };
         _appeal = Negotiator.Appeal(world, fighter, rep, exp);
         _floorFrac = 1.0 - _appeal * 0.25;    // a dream situation is worth ~25% off the ask
+        _home = Lifers.HomeDiscount(world, fighter, promo.Id);
 
         AgentToughness = FighterValuation.AgentToughness(fighter);
         _concessionRate = 0.45 - AgentToughness * 0.002;   // 0.25 (hard-nosed) .. 0.45 (easygoing)
@@ -59,11 +61,12 @@ public sealed class NegotiationSession
         AgentStance =
             AgentToughness >= 70 ? "hard-nosed representation" :
             AgentToughness >= 45 ? "a firm but fair agent" : "an easygoing camp";
-        OpeningLine = string.Format(
+        OpeningLine = Lifers.Gendered(fighter, string.Format(
+            _home < 1m ? "\"{0} isn't going anywhere, and everybody knows it. Make it fair and he stays — he won't squeeze you.\"" :
             AgentToughness >= 70 ? "\"Let's not waste anyone's time — you know what {1} is worth, and so do we.\"" :
             AgentToughness >= 45 ? "\"We're open to the right deal. Put real numbers in front of us and {0} signs.\"" :
             "\"{0} likes what you're building over there. Make it fair and we're done by lunch.\"",
-            _fighter.FirstName, _fighter.LastName);
+            _fighter.FirstName, _fighter.LastName));
     }
 
     public int Round { get; private set; }
@@ -88,9 +91,10 @@ public sealed class NegotiationSession
     // champion's clause is a leash they charge extra to wear. Both scale the
     // whole position, so toggling a checkbox visibly moves their number.
 
-    private static decimal Factor(bool exclusive, bool clause) =>
+    private decimal Factor(bool exclusive, bool clause) =>
         (exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor)
-        * (clause ? Negotiator.ChampionsClausePremium : 1m);
+        * (clause ? Negotiator.ChampionsClausePremium : 1m)
+        * _home;
 
     public Money DemandPurse(bool exclusive, bool clause) =>
         new(RoundTo(_exp.AskingPurse.Amount * Factor(exclusive, clause) * (decimal)_demandFrac, 500m));

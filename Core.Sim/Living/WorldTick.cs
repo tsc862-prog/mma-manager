@@ -144,6 +144,7 @@ public sealed class WorldTick
             // Bigger orgs circle the player's expiring stars (warn first), then
             // expiring deals renew / get poached / hit the market, orgs trim the
             // fighters they no longer want, then everyone fills their gaps.
+            Lifers.RunMonthly(world, after);   // standing grievances wear lifers down (no RNG)
             PoachingService.WarnExpiring(world, after);
             ContractLifecycle.ProcessExpiries(world, after);
             report.Cuts = RosterManagement.RunMonthly(world, after);
