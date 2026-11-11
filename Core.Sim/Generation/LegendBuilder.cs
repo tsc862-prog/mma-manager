@@ -142,10 +142,17 @@ public static class LegendBuilder
         return division?.Title is { } id ? world.Get(id) : null;
     }
 
+    /// <summary>How long a belt sits vacant between two reigns at the least.</summary>
+    private const int MinGapDays = 120;
+
     /// <summary>
-    /// Slot a legend's reign in at the HEAD of a belt's lineage. The dates shift
-    /// back if they'd collide with a reign the history builder already wrote —
-    /// a line of succession has to run one way.
+    /// Slot a legend's reign into a belt's lineage IN DATE ORDER: a bridge reign
+    /// between two names on the posters (Vasquez, then Pruitt, then Mercer) lands
+    /// between them, not at the head. A reign that would run into the one after it
+    /// is trimmed to end 120 days before that one starts; if trimming leaves less
+    /// than a year it is moved back instead, never to within 120 days of the
+    /// reign before. Reigns already written (by HistoryBuilder, or earlier legends)
+    /// are never touched, so the current champion stays the current champion.
     /// </summary>
     private static void Enthrone(World world, Title title, Fighter legend, DesignedReign reign, DateOnly startDate)
     {
@@ -153,16 +160,31 @@ public static class LegendBuilder
         var lost = startDate.AddYears(-reign.LostYearsAgo);
         if (lost <= won) lost = won.AddYears(1);
 
-        // Everything already on this belt has to start after this reign ends.
-        var earliest = title.Lineage.Count > 0 ? title.Lineage.Min(r => r.WonOn) : startDate;
-        if (lost >= earliest)
-        {
-            int shift = lost.DayNumber - earliest.DayNumber + 180;
-            won = won.AddDays(-shift);
-            lost = lost.AddDays(-shift);
-        }
+        var lineage = title.Lineage;
+        int at = 0;
+        while (at < lineage.Count && lineage[at].WonOn <= won) at++;
+        TitleReign? prev = at > 0 ? lineage[at - 1] : null;
+        TitleReign? next = at < lineage.Count ? lineage[at] : null;
+        DateOnly? floor = prev?.LostOn?.AddDays(MinGapDays);
 
-        title.Lineage.Insert(0, new TitleReign
+        if (next is not null)
+        {
+            var ceiling = next.WonOn.AddDays(-MinGapDays);
+            if (lost > ceiling)
+            {
+                lost = ceiling;
+                if (lost.DayNumber - won.DayNumber < 365) won = lost.AddYears(-1);
+            }
+        }
+        if (floor is { } f && won < f)
+        {
+            won = f;
+            if (lost <= won) lost = won.AddDays(365);
+        }
+        // A reign must start before it ends; with a crowded gap the tail yields.
+        if (lost <= won) lost = won.AddDays(1);
+
+        lineage.Insert(at, new TitleReign
         {
             Champion = legend.Id,
             WonOn = won,
