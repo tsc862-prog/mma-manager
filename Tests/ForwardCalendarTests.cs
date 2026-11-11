@@ -752,10 +752,14 @@ public class ForwardCalendarTests
         foreach (var e in cards)
         {
             var room = world.Get(e.VenueId!.Value)!;
-            int bigger = world.Venues.Values.Where(v => v.City == room.City).Max(v => v.Capacity);
-            // Never a sell-out at half the demand or worse while a bigger room stood empty.
-            Assert.False(room.Capacity < bigger && Financials.Demand(world, e) > 2 * room.Capacity,
-                $"{e.Name}: {room.Capacity:N0} seats for a demand of {Financials.Demand(world, e):N0} (the town has {bigger:N0})");
+            // The card ran in the town's room closest to its draw. (Demand is
+            // re-read after the night, when fame has moved a little, so allow a
+            // margin of a quarter of the house before calling another room closer.)
+            int demand = Financials.Demand(world, e);
+            var closer = world.Venues.Values.Where(v => v.City == room.City)
+                .FirstOrDefault(v => Math.Abs(v.Capacity - demand) + demand / 4 < Math.Abs(room.Capacity - demand));
+            Assert.True(closer is null,
+                $"{e.Name}: {room.Capacity:N0} seats for a demand of {demand:N0} ({closer?.Capacity:N0} was closer)");
         }
     }
 

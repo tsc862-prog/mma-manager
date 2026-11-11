@@ -734,20 +734,8 @@ public static class ForwardCalendar
     }
 
     /// <summary>
-    /// The room is fitted to the draw the card has ON THE NIGHT (the box office's
-    /// most profitable room in the announced city, <see cref="Booking.Financials.BestRoom"/>).
-    /// A card announced a month ahead keeps its city, but moves to the room that
-    /// fits the card it actually became: a
-    /// startup announced in its first week would otherwise be stuck in a
-    /// thousand-seat club while twice that many want in (that capped every new
-    /// promotion's gate and killed them faster). Flagships keep their big
-    /// house, and superfights keep the room they were booked into a month out.
-    /// If the card's announcement made the news (and so named the room), the
-    /// move is a headline too, so the announcement and the result never disagree.
-    /// </summary>
-    /// <summary>
-    /// Put an AI card in the room of its city that nets most at the door for
-    /// THIS card (<see cref="Booking.Financials.BestRoom"/>): the same picker at
+    /// Put an AI card in the room of its city sized to THIS card's draw
+    /// (<see cref="Booking.Financials.BestRoom"/>): the same picker at
     /// announcement (headliner known) and again on fight night. True when the
     /// room changed. PickVenueIn's estimate, used before, leaves out the main
     /// event's pull, the brand campaign and the belt, so it under-roomed every
@@ -765,6 +753,18 @@ public static class ForwardCalendar
         return true;
     }
 
+    /// <summary>
+    /// The room is fitted to the draw the card has ON THE NIGHT (the room in the
+    /// announced city closest to its demand, <see cref="FitRoom"/>). A card
+    /// announced a month ahead keeps its city, but moves to the room that fits
+    /// the card it actually became: a startup announced in its first week would
+    /// otherwise be stuck in a thousand-seat club while twice that many want in
+    /// (that capped every new promotion's gate and killed them faster).
+    /// Flagships keep their big house, and superfights keep the room they were
+    /// booked into a month out. If the card's announcement made the news (and
+    /// so named the room), the move is a headline too, so the announcement and
+    /// the result never disagree.
+    /// </summary>
     private static void RefreshVenue(World world, Promotion promo, Event ev)
     {
         if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;

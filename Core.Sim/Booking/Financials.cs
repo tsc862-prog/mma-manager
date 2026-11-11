@@ -93,23 +93,29 @@ public static class Financials
         && !(o.Status == EventStatus.Scheduled && o.Date > date && o.Promotion != world.PlayerPromotion);
 
     /// <summary>
-    /// The room in <paramref name="rooms"/> that makes this card the most money at
-    /// the door: the house it would draw there (capped by the walls) at the
-    /// card's ticket price, less the production that house costs and the rent.
-    /// Same box-office model as settlement, so a room is only "too big" when its
-    /// rent and staffing outrun the extra seats it sells. Ties go to the lower
-    /// venue id. Null when there are no rooms. Read-only. The rooms must all be
-    /// in the card's city (the draw is judged there).
+    /// The room in <paramref name="rooms"/> sized to THIS card: the one whose
+    /// capacity is closest to the house the card would draw with no walls (the
+    /// same box-office model as settlement, headliner, campaign and belt
+    /// included), ties to the lower venue id. Null when there are no rooms.
+    /// Read-only. The rooms must all be in one city (the draw is judged there).
+    /// <para>
+    /// Closest, not most profitable, on purpose. A max-net pick (tried first)
+    /// put every mid-size org with a 6,000 draw in the 21,000 arena because the
+    /// extra seats out-earn the rent, which lifted every AI gate ~40%: a second
+    /// International in 40 of 40 seeds and no acquisitions at all. Closest
+    /// fixes the real bug (the AFC selling 4,200 seats to a 21,000 demand)
+    /// without making a bigger building free money for everyone.
+    /// </para>
     /// </summary>
     public static Venue? BestRoom(World world, Event ev, IEnumerable<Venue> rooms)
     {
         Venue? best = null;
-        decimal bestNet = decimal.MinValue;
+        int demand = -1, bestGap = int.MaxValue;
         foreach (var room in rooms.OrderBy(r => r.Id.Value))
         {
-            var fin = Compute(world, ev, capByRoom: true, room);
-            decimal net = fin.GateRevenue.Amount - fin.ProductionCost.Amount;   // production includes the rent
-            if (net > bestNet) { best = room; bestNet = net; }
+            if (demand < 0) demand = Compute(world, ev, capByRoom: false, room).Attendance;
+            int gap = Math.Abs(room.Capacity - demand);
+            if (gap < bestGap) { best = room; bestGap = gap; }
         }
         return best;
     }
