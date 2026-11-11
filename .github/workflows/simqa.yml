@@ -55,12 +55,13 @@ jobs:
           SOAK_SEEDS: ${{ inputs.soak_seeds }}
           SOAK_YEARS: ${{ inputs.soak_years }}
         run: |
+          set +e +o pipefail   # a mode that finds violations exits non-zero; keep going and report every mode
           mkdir -p out
           git rev-parse HEAD | tee out/commit.txt
           [ -z "$PLAY_SEEDS" ] && PLAY_SEEDS="$SEEDS"
           cd tools/longsim
           fail=0
-          run() { name="$1"; shift; echo "===== $name ====="; dotnet run -c Release --no-build -- "$@" --quiet --samples 6 2>&1 | tee "../../out/$name.txt"; rc=${PIPESTATUS[0]}; echo "$name exit $rc" | tee -a ../../out/exitcodes.txt; [ "$rc" != 0 ] && fail=1; }
+          run() { name="$1"; shift; echo "===== $name ====="; dotnet run -c Release --no-build -- "$@" --quiet --samples 6 2>&1 | tee "../../out/$name.txt"; rc=${PIPESTATUS[0]}; echo "$name exit $rc" | tee -a ../../out/exitcodes.txt; if [ "$rc" != 0 ]; then fail=1; fi; }
           run check "check" "$SEEDS" "$YEARS" --par 3
           run playcheck "playcheck" "$PLAY_SEEDS" "$YEARS" --par 3
           if [ "$SOAK_SEEDS" != "0" ]; then
