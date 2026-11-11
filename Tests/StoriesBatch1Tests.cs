@@ -57,8 +57,9 @@ public class StoriesBatch1Tests
     [Fact]
     public void NewBonds_AreTheLastRowsOfTheTable_AndEachNamesOnePersonPerKey()
     {
-        // Append-only: the five new rows sit at the end, in the order written.
-        var tail = DesignedRoster.Bonds.Skip(DesignedRoster.Bonds.Count - 5).ToList();
+        // Append-only: the five stories-batch rows are followed, in the order written, by the
+        // four lost-decade rows (see LostDecadeTests).
+        var tail = DesignedRoster.Bonds.Skip(DesignedRoster.Bonds.Count - 9).Take(5).ToList();
         Assert.Equal(new[] { "Cross", "Volkov", "Paulo Bandeira", "Quispe", "Okonjo" }, tail.Select(b => b.A));
         Assert.Equal(new[] { "Donovan", "Volkova", "Wallace Bandeira", "Huanca", "Okafor" }, tail.Select(b => b.B));
     }
