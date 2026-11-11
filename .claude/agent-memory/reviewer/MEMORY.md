@@ -1,0 +1,1 @@
+- [Review practice](review-practice.md) — read-only via git show/gh; no local dotnet; CI logs lack assert text; re-check head SHA before reporting
