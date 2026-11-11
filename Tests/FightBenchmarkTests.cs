@@ -63,10 +63,10 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     // Moved in "Engine: stoppages and scoring" (plan step 3; was ce24ec976588fde0): referee, doctor
     // and corner stoppages, flash knockouts, fewer knockdowns, division power, harder submissions,
     // and a new keyed stoppage stream seeded by one draw at the opening bell.
-    private const string GoldenResults = "5d5ab1507719b6c8";
+    private const string GoldenResults = "e6c94a818fcb451f";
     // Moved with it (was 937bdf982dea33b4; before that 44461ed3557b9b37): 10-8 only for dominance,
     // no tie-break on a level card, the card of a between-rounds stoppage includes its round.
-    private const string GoldenScorecards = "9627fd63b46018f4";
+    private const string GoldenScorecards = "462d2ea204d03f97";
 
     [Fact]
     public void GoldenMaster_OutcomesAreUnchanged()
@@ -101,7 +101,7 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     [Fact]
     public void Band_ThreeRoundMethodMix()
     {
-        var m = _r.ThreeRound;   // today: finish 37.1  KO 10.4  TKO 12.6  SUB 14.1  UD 49.0  SD 10.0  MD 2.5  Draw 1.5  12.2 min
+        var m = _r.ThreeRound;   // today: finish 35.2  KO 9.9  TKO 11.2  SUB 14.1  UD 50.6  SD 10.4  MD 2.4  Draw 1.4  12.4 min
         Assert.InRange(m.FinishPct, 34.0, 41.0);
         Assert.InRange(m.KoPct, 7.5, 13.5);
         Assert.InRange(m.TkoPct, 9.5, 16.0);          // was 0.4: there was no standing stoppage
@@ -117,7 +117,7 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     [Fact]
     public void Band_FiveRoundMethodMix()
     {
-        var m = _r.FiveRound;    // today: finish 57.9  KO 15.5  TKO 21.9  SUB 20.5  17.3 min
+        var m = _r.FiveRound;    // today: finish 56.0  KO 14.7  TKO 20.5  SUB 20.8  17.7 min
         Assert.InRange(m.FinishPct, 54.0, 62.0);
         Assert.InRange(m.KoPct, 12.0, 19.5);
         Assert.InRange(m.TkoPct, 18.0, 26.0);
@@ -128,13 +128,13 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     [Fact]
     public void Band_SexesAndDivisions()
     {
-        // Today: men 38.2, women 30.3 (n=432). Women's bouts finish less, almost all of it strikes.
+        // Today: men 36.5, women 27.8 (n=432). Women's bouts finish less, almost all of it strikes.
         Assert.InRange(_r.Men3.FinishPct, 34.5, 42.0);
         Assert.InRange(_r.Women3.FinishPct, 24.0, 36.0);
         Assert.True(_r.Women3.KoPct + _r.Women3.TkoPct < _r.Men3.KoPct + _r.Men3.TkoPct - 4,
             $"women KO/TKO {_r.Women3.KoPct + _r.Women3.TkoPct:0.0} vs men {_r.Men3.KoPct + _r.Men3.TkoPct:0.0}");
 
-        // Heavyweights stop more men with strikes than strawweights (today 35.0 vs 20.3, n=300 each).
+        // Heavyweights stop more men with strikes than strawweights (today 33.7 vs 18.0, n=300 each).
         double Strikes(string div) { var m = _r.ByDivision.Single(d => d.Division == div).Mix; return m.KoPct + m.TkoPct; }
         Assert.True(Strikes("M Heavyweight") > Strikes("M Strawweight") + 7,
             $"HW KO/TKO {Strikes("M Heavyweight"):0.0} vs straw {Strikes("M Strawweight"):0.0}");
@@ -144,9 +144,9 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     [Fact]
     public void Band_RoundOneFinishesMost()
     {
-        // Was flat (R1 11.7 / R2 13.5 / R3 12.2 % of all fights). Today R1 12.7 / R2 12.5 / R3 11.8
-        // (5 rounds: 13.1 / 12.8 / 12.4 / 11.2 / 8.4). Fatigue (step 4) should steepen it further.
-        Assert.True(_r.FinishByRound3[0] >= _r.FinishByRound3[2], "R1 should finish more fights than R3");
+        // Was flat (R1 11.7 / R2 13.5 / R3 12.2 % of all fights). Today R1 12.0 / R2 12.1 / R3 11.1
+        // (5 rounds: 12.5 / 12.1 / 12.1 / 11.0 / 8.3). Fatigue (step 4) should steepen it further.
+        Assert.True(_r.FinishByRound3[0] > _r.FinishByRound3[2], "R1 should finish more fights than R3");
         Assert.True(_r.FinishByRound5[0] >= _r.FinishByRound5[2] && _r.FinishByRound5[0] > _r.FinishByRound5[4]);
         Assert.InRange(_r.FinishByRound3[0], 10.0, 16.0);
     }
@@ -155,8 +155,8 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     public void Band_StoppagesHappenEveryWay()
     {
         // How the 3-round finishes happened (share of all fights). Today: SUB 14.1, KO after a
-        // knockdown 8.9, standing TKO 5.5, TKO on the follow-up after a knockdown 5.2, flash KO 1.6,
-        // ground-and-pound TKO 1.3, doctor 0.6, corner ~0 (5 rounds: doctor 2.3, corner 0.1).
+        // knockdown 8.2, standing TKO 5.1, TKO on the follow-up after a knockdown 4.2, flash KO 1.7,
+        // ground-and-pound TKO 1.2, doctor 0.7, corner ~0 (5 rounds: doctor 2.5, corner 0.2).
         double D(IReadOnlyList<(string Detail, double Pct)> ds, string k) => ds.Where(d => d.Detail.StartsWith(k, StringComparison.Ordinal)).Sum(d => d.Pct);
         Assert.InRange(D(_r.FinishDetails, "TKO: standing strikes"), 3.0, 9.0);
         Assert.InRange(D(_r.FinishDetails, "TKO: follow-up after knockdown"), 2.5, 8.5);
@@ -169,22 +169,22 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     [Fact]
     public void Band_KnockdownsTakedownsAndSubs()
     {
-        Assert.InRange(_r.KnockdownsPerFight, 0.38, 0.70);      // today 0.53 (was 1.52; real MMA ~0.3-0.5)
-        Assert.InRange(_r.KnockdownFinishPct, 13.0, 27.0);      // today 19.7% of knockdowns are a KO (more end in a TKO)
-        Assert.InRange(_r.TakedownsPerFight, 3.8, 5.0);         // today 4.41 (real ~1.5; step 5)
-        Assert.InRange(_r.SubAttemptsPerFight, 2.5, 3.6);       // today 3.07 (real ~1; step 5)
+        Assert.InRange(_r.KnockdownsPerFight, 0.38, 0.70);      // today 0.49 (was 1.52; real MMA ~0.3-0.5)
+        Assert.InRange(_r.KnockdownFinishPct, 13.0, 27.0);      // today 20.1% of knockdowns are a KO (more end in a TKO)
+        Assert.InRange(_r.TakedownsPerFight, 3.8, 5.0);         // today 4.47 (real ~1.5; step 5)
+        Assert.InRange(_r.SubAttemptsPerFight, 2.5, 3.6);       // today 3.09 (real ~1; step 5)
     }
 
     [Fact]
     public void Band_Scorecards()
     {
-        Assert.InRange(_r.TenEightPct, 2.0, 6.5);               // today 3.9 (was 33: any knockdown was a 10-8)
+        Assert.InRange(_r.TenEightPct, 2.0, 6.5);               // today 3.8 (was 33: any knockdown was a 10-8)
         // The stored card is a deciding judge's card and there is no tie-break: a judge with a
         // level card votes draw, so a winner's stored card always has the winner ahead.
         Assert.Equal(0.0, _r.CardReversedPct);
         Assert.Equal(0.0, _r.CardMismatchPct);                   // was 6.0 (level cards won on the tie-break)
         var totals = _r.CardTotals.ToDictionary(c => c.Card, c => c.Pct);
-        Assert.InRange(totals.GetValueOrDefault("29-28"), 50.0, 70.0);   // today 60.9
+        Assert.InRange(totals.GetValueOrDefault("29-28"), 50.0, 70.0);   // today 60.8
         Assert.InRange(totals.GetValueOrDefault("30-27"), 22.0, 38.0);   // today 29.9
     }
 
@@ -193,13 +193,13 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     {
         // MatchRating's knockdown weight was raised (12 -> 30) with the knockdown rate cut to a third,
         // so the rating's spread — which feeds Fight of the Night, fame and sponsor terms — holds.
-        Assert.InRange(_r.MatchRatingMean3, 43.5, 51.0);        // today 46.6 (was 48.1)
-        Assert.InRange(_r.Stars3[4], 6.0, 12.5);                // 5-star 3-rounders: today 8.9% (was 8.0)
-        Assert.InRange(_r.Stars5[4], 22.0, 32.0);               // 5-star 5-rounders: today 26.9% (was 29.3)
+        Assert.InRange(_r.MatchRatingMean3, 43.5, 51.0);        // today 45.3 (was 48.1)
+        Assert.InRange(_r.Stars3[4], 6.0, 12.5);                // 5-star 3-rounders: today 7.8% (was 8.0)
+        Assert.InRange(_r.Stars5[4], 22.0, 32.0);               // 5-star 5-rounders: today 25.5% (was 29.3)
     }
 
     // Deliberately NOT moved by step 3: the favourite's edge by ability gap is held to the
-    // pre-step-3 curve (today 53.2 / 65.9 / 78.1 / 85.1 / 91.1).
+    // pre-step-3 curve (today 53.5 / 66.1 / 78.6 / 85.3 / 91.0).
     [Theory]
     [InlineData(1, 2, 51.4)]
     [InlineData(5, 6, 64.0)]
@@ -252,13 +252,13 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     /// <summary>
     /// Read, but worth well under the price (below <see cref="MattersFloor"/>, ~40% of an
     /// average CurrentAbility point). Cardio: stamina never runs low, so the tank barely matters.
-    /// Recovery: the same. PunchPower: only the larger of PunchPower and KickPower is read, and
-    /// generated fighters' kick power often wins that (1.09 at this seed, just under the floor).
-    /// Plan step 4. (Step 3 lifted KickPower to 1.34 and ClinchControl to 1.33: power now drives
-    /// flash knockouts and the referee's count, clinch elbows open cuts.)
+    /// Recovery: the same. Plan step 4. Step 3 lifted PunchPower (1.15, right on the floor), KickPower
+    /// and ClinchControl (~1.3) off this list: power now drives flash knockouts and the referee's
+    /// count, and clinch elbows open cuts. PunchPower is borderline: only the larger of PunchPower
+    /// and KickPower is read, so if a later change drops it under the floor, that is why.
     /// </summary>
     private static readonly string[] KnownWeak =
-        { "Cardio", "Recovery", "PunchPower" };
+        { "Cardio", "Recovery" };
 
     /// <summary>Tendencies that barely move win rate (Pace: fatigue never bites). Plan step 4.</summary>
     private static readonly string[] KnownWeakTendencies = { "Pace" };

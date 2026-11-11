@@ -34,16 +34,16 @@ internal sealed class Bout
     // Knockdown roll on a landed power shot: Logistic(impact*KdImpact + (100-Chin)*KdChin
     // - Health*KdHealth + hurt bonus - KdOffset, KdSlope). Fewer than before, and less tied to
     // accumulated damage, so a knockdown can come early (R1 is the top finishing round).
-    private const double KdImpact = 2.2, KdChin = 0.4, KdHealth = 0, KdHurtBonus = 18, KdOffset = 69, KdSlope = 0.06;
+    private const double KdImpact = 2.2, KdChin = 0.4, KdHealth = 0, KdHurtBonus = 18, KdOffset = 71, KdSlope = 0.06;
     // Flash knockout [ss]: any landed power shot, scaled by power against chin and division.
     private const double FlashBase = 0.0045, FlashSpread = 25;
     // Out cold once dropped [ss]: Logistic(impact*OutImpact + (100-Chin)*OutChin - Health*OutHealth - OutOffset, OutSlope).
     private const double OutImpact = 1.6, OutChin = 0.3, OutHealth = 0.15, OutOffset = 47, OutSlope = 0.09;
     // Referee stoppage [ss] once a fighter is hurt or worn down: the shots he eats without
     // answering (Barrage) plus how worn he is. Logistic(Barrage + (StopHealth-Health)*StopWorn - StopOffset, StopSlope).
-    private const double StopHealth = 50, StopWorn = 0.6, StopOffset = 20, StopSlope = 0.16, StopPosition = 5, StopGroundGate = 10;
+    private const double StopHealth = 50, StopWorn = 0.6, StopOffset = 22, StopSlope = 0.16, StopPosition = 5, StopGroundGate = 10;
     // After a knockdown the attacker may pounce [ss]; the referee may stop it right there.
-    private const double PounceStopOffset = 43;
+    private const double PounceStopOffset = 45;
     // Cuts [ss]: chance a landed power shot opens one; the doctor looks between rounds.
     private const double CutOpen = 0.04, CutWorsen = 0.5;
     /// <summary>Doctor's chance per cut level over 2, checked between rounds [ss].</summary>
