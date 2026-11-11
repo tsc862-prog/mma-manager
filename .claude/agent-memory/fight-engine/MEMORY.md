@@ -1,0 +1,2 @@
+- [Engine baseline numbers](engine-baseline-numbers.md) — 2026-11-10 FightLab method mix, never-read attributes, golden hashes before/after PR2
+- [Stored card reshuffles the world](stored-card-reshuffles-world.md) — RoundScores feeds the robbery roll; exposed world-sim Fighters.Values order bug in a persistence hole test

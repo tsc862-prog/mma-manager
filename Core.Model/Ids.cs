@@ -8,12 +8,12 @@ namespace MmaManager.Core.Model;
 // Convention: Value 0 is "unset" — default(FighterId) means "no fighter".
 // The World id generators start handing out ids at 1.
 
-public readonly record struct FighterId(int Value);
-public readonly record struct PromotionId(int Value);
-public readonly record struct EventId(int Value);
-public readonly record struct FightId(int Value);
-public readonly record struct TitleId(int Value);
-public readonly record struct CountryId(int Value);
-public readonly record struct CityId(int Value);
-public readonly record struct VenueId(int Value);
-public readonly record struct CampId(int Value);
+public readonly record struct FighterId(int Value) : IEntityId;
+public readonly record struct PromotionId(int Value) : IEntityId;
+public readonly record struct EventId(int Value) : IEntityId;
+public readonly record struct FightId(int Value) : IEntityId;
+public readonly record struct TitleId(int Value) : IEntityId;
+public readonly record struct CountryId(int Value) : IEntityId;
+public readonly record struct CityId(int Value) : IEntityId;
+public readonly record struct VenueId(int Value) : IEntityId;
+public readonly record struct CampId(int Value) : IEntityId;

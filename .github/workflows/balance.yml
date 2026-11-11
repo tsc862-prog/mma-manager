@@ -1,0 +1,101 @@
+name: Balance
+
+# Runs tools/longsim on GitHub's machines, for one ref or for a branch against a base.
+# Start it by hand: gh workflow run balance.yml -f head=<branch> -f base=main
+# Each side's output is printed in the job log and uploaded as an artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      head:
+        description: Branch, tag or commit to measure
+        required: true
+      base:
+        description: Ref to compare against (leave empty to run head only)
+        required: false
+        default: main
+      seeds:
+        description: Number of seeds for compare
+        required: false
+        default: "20"
+      years:
+        description: Years per seed for compare
+        required: false
+        default: "5"
+      shoestring:
+        description: Shoestring seeds, space separated (empty to skip)
+        required: false
+        default: "7 13 42"
+      shoestring_years:
+        description: Years per shoestring run
+        required: false
+        default: "12"
+
+jobs:
+  refs:
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.mk.outputs.list }}
+    steps:
+      - id: mk
+        shell: bash
+        env:
+          HEAD_REF: ${{ inputs.head }}
+          BASE_REF: ${{ inputs.base }}
+        run: |
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != "$HEAD_REF" ]; then
+            echo "list=$(jq -cn --arg a "$BASE_REF" --arg b "$HEAD_REF" '[$a,$b]')" >> "$GITHUB_OUTPUT"
+          else
+            echo "list=$(jq -cn --arg b "$HEAD_REF" '[$b]')" >> "$GITHUB_OUTPUT"
+          fi
+
+  longsim:
+    needs: refs
+    runs-on: windows-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: ${{ fromJson(needs.refs.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build longsim
+        run: dotnet build tools/longsim/longsim.csproj -c Release -v q --nologo
+      - name: Compare
+        shell: bash
+        env:
+          SEEDS: ${{ inputs.seeds }}
+          YEARS: ${{ inputs.years }}
+        run: |
+          mkdir -p out
+          git rev-parse HEAD | tee out/commit.txt
+          cd tools/longsim
+          dotnet run -c Release --no-build -- compare "$SEEDS" "$YEARS" 2>&1 | tee "../../out/compare-${SEEDS}x${YEARS}.txt"
+      - name: Shoestring
+        if: ${{ inputs.shoestring != '' }}
+        shell: bash
+        env:
+          SHOE: ${{ inputs.shoestring }}
+          SHOE_YEARS: ${{ inputs.shoestring_years }}
+        run: |
+          cd tools/longsim
+          for s in $SHOE; do
+            echo "===== shoestring $s $SHOE_YEARS ====="
+            dotnet run -c Release --no-build -- shoestring "$s" "$SHOE_YEARS" 2>&1 | tee "../../out/shoestring-$s.txt"
+          done
+      - name: Artifact name
+        id: nm
+        shell: bash
+        env:
+          REF: ${{ matrix.ref }}
+        run: echo "name=balance-$(echo "$REF" | tr '/\:' '---')" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ steps.nm.outputs.name }}
+          path: out/
