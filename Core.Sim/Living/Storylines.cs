@@ -224,7 +224,11 @@ public static class Storylines
         bool Fits(Fighter c) => c.Status == FighterStatus.Active && !c.LocalTalent
             && c.Id != opponent && !booked.Contains(c.Id)
             && c.IsMatchReady(ev.Date)
-            && (div?.Matches(c) ?? c.WeightClass == fight.WeightClass)
+            // With no division to match (a superfight is fought a class up from the
+            // challenger's own), still never cross the sexes: a women's flyweight
+            // champion was once sent in to replace a man on an AFC super-card.
+            && (div?.Matches(c) ?? (c.WeightClass == fight.WeightClass
+                                    && world.Get(opponent) is { } foe && foe.Sex == c.Sex))
             && !(ai && c.Contract is { FightsRemaining: <= 0 })
             && world.BiddingWars.All(w => w.Fighter != c.Id);
 
@@ -468,7 +472,8 @@ public static class Storylines
 
             News.Post(world, date, NewsCategory.Callout, callout.Line,
                 (finish ? "The statement finish came with a statement. " : "The mic work was sharper than the fight. ")
-                + Flavor.Quotes.Say(w, finish ? Flavor.Moment.WinFinish : Flavor.Moment.WinDecision, date),
+                + Flavor.Quotes.Say(w, finish ? Flavor.Moment.WinFinish : Flavor.Moment.WinDecision, date,
+                    fight.Outcome.Loser is { } lid ? world.Get(lid) : null),
                 ev.Promotion, w.Id);
             if (w.Contract?.Promotion == world.PlayerPromotion)
                 Mail.Post(world, date, MailCategory.FighterRequest, w.FullName,

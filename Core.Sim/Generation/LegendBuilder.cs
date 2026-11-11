@@ -91,6 +91,11 @@ public static class LegendBuilder
         f.Momentum = 0;
         f.Contract = null;
         f.Intangibles.Popularity = spec.Popularity;
+        // Who the bio says they are, not whoever the hash handed them (after fame is
+        // set: ego tracks it). Hash-derived like every disposition, so this costs the
+        // generation stream nothing.
+        if (DesignedLegends.Dispositions.TryGetValue($"{spec.First} {spec.Last}", out var disposition))
+            Personality.ApplyTo(f, disposition);
         // Nobody gets that famous by accident — the era's megastars carried the
         // it-factor too, and the profile should still say so.
         if (spec.Popularity >= 70) f.StarPower = true;

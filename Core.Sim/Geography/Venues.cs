@@ -19,6 +19,24 @@ public static class Venues
     public static (string Hall, string Forum, string Arena) For(string city) =>
         Named.TryGetValue(city, out var v) ? v : ($"{city} Fight Hall", $"The {city} Forum", $"{city} Arena");
 
+    /// <summary>
+    /// One line of lore for a venue that has a story worth telling, by its name
+    /// as <see cref="For"/> returns it. Null for the rest; text only, no effect on
+    /// any roll. Lore says what the building is like, never what it has staged.
+    /// </summary>
+    public static string? LoreOf(string venueName) =>
+        Lore.TryGetValue(venueName, out var line) ? line : null;
+
+    private static readonly Dictionary<string, string> Lore =
+        new(StringComparer.Ordinal)
+        {
+            ["The Sunrise Dome"] = "Tokyo's biggest room, and the one a nation books its New Year around. Matsuda's nine defenses hang from the rafters in banners nobody is allowed to dust.",
+            ["The Chao Phraya Dome"] = "Bangkok's big house on the river, where the temple-fair kids come to see what they could become.",
+            ["Arena Guanabara"] = "Rio's big room, where the street noise gets in whether or not the doors are open.",
+            ["Arena Bandeirantes"] = "São Paulo's grand old arena, still hung with Cage Kings banners from the vale tudo days.",
+            ["The Falcon Dome"] = "Abu Dhabi's biggest fight room, built to impress. It is still learning what a home crowd sounds like.",
+        };
+
     private static readonly Dictionary<string, (string, string, string)> Named =
         new(StringComparer.Ordinal)
         {
