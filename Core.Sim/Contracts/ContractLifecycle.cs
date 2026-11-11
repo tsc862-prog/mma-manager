@@ -19,7 +19,9 @@ public static class ContractLifecycle
         bool renewal = f.Contract?.Promotion == offer.Promotion;
         // Signing away from a live deal is still leaving the old org (callers
         // normally clear it first; this keeps the old books clean if one doesn't).
-        if (f.Contract is { } old && !renewal) LeavePromotion(world, f, old.Promotion, on);
+        if (f.Contract is { } old && !renewal)
+            LeavePromotion(world, f, old.Promotion, on,
+                $"{world.Get(offer.Promotion)?.Name ?? "a rival"} signed him away", offer.Promotion, hisChoice: true);
         f.Contract = offer.ToContract(on);
         BiddingWars.OnSigned(world, f, offer.Promotion, on);   // a signature ends any public war over them
         // A move to a new org starts the loyalty clock over; re-upping deepens it a touch.
@@ -52,7 +54,8 @@ public static class ContractLifecycle
             Finance.Ledger.Expense(promo, world.CurrentDate, FinanceCategory.ContractBuyout, owed, $"Contract buyout — {f.FullName}");
             if (dentReputation) Org.Standing.OnRelease(promo);
         }
-        LeavePromotion(world, f, c.Promotion, world.CurrentDate);
+        LeavePromotion(world, f, c.Promotion, world.CurrentDate,
+            $"{world.Get(c.Promotion)?.Abbreviation ?? "his promotion"} released him");
         f.Contract = null;
         return owed;
     }
@@ -67,10 +70,15 @@ public static class ContractLifecycle
     /// the contract or the money — callers clear or replace the deal. Retirement
     /// has its own path (<see cref="Living.Lifecycle.Retire"/>: the belt passes to
     /// the top contender); a folding or sold org clears its own books wholesale.
+    /// <paramref name="door"/> says HOW he left, in plain words — when a lifer
+    /// goes, it's the reason the headline gives (<see cref="Lifers.OnLeaving"/>),
+    /// so this must run while his contract still names the org he's leaving.
     /// </summary>
-    public static void LeavePromotion(World world, Fighter f, PromotionId from, DateOnly date)
+    public static void LeavePromotion(World world, Fighter f, PromotionId from, DateOnly date,
+        string? door = null, PromotionId? to = null, bool hisChoice = false)
     {
         if (world.Get(from) is not { } promo) return;
+        Lifers.OnLeaving(world, f, promo, door ?? $"he left {promo.Abbreviation}", date, to, hisChoice);
         foreach (var d in promo.Divisions) d.Rankings.Remove(f.Id);
 
         foreach (var title in world.Titles.Values
@@ -88,9 +96,9 @@ public static class ContractLifecycle
     }
 
     // An expiring deal that isn't renewed: the fighter walks to the open market.
-    private static void Walk(World world, Fighter f, Promotion from, DateOnly date)
+    private static void Walk(World world, Fighter f, Promotion from, DateOnly date, string door, bool hisChoice = false)
     {
-        LeavePromotion(world, f, from.Id, date);
+        LeavePromotion(world, f, from.Id, date, door, hisChoice: hisChoice);
         f.Contract = null;
     }
 
@@ -165,11 +173,26 @@ public static class ContractLifecycle
             }
             else if (!Org.RosterPolicy.Wants(world, promo, f))
             {
-                Walk(world, f, promo, date);   // not re-signed — slides down the ladder
+                Walk(world, f, promo, date, $"{promo.Abbreviation} let his deal run out");   // not re-signed — slides down the ladder
+            }
+            else if (Lifers.KeepsFirstCall(world, f))
+            {
+                // A LIFER is renewed first — before any trimming of hoarded depth —
+                // and the org stretches past its usual purse budget to do it (he,
+                // in turn, asks less of his own promotion). Only a solvent org can
+                // be holding him at all (being in the red is a grievance), so this
+                // is never the bleeding org overreaching. If even the stretch can't
+                // reach him, he has outgrown the house.
+                var exp = Valuation.Evaluate(world, f);
+                var offer = Negotiator.AiOpeningOffer(world, promo, f, exp, Lifers.RenewalStretch);
+                if (Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
+                    Sign(world, f, offer, date);
+                else
+                    Walk(world, f, promo, date, $"his deal ran out and {promo.Abbreviation} couldn't pay what it would take to keep him", hisChoice: true);
             }
             else if (DivisionOverTarget(world, promo, f))
             {
-                Walk(world, f, promo, date);   // hoarded depth — over the tier target, let them walk
+                Walk(world, f, promo, date, $"{promo.Abbreviation} let his deal run out to trim the division");   // hoarded depth — over the tier target, let them walk
             }
             else
             {
@@ -178,7 +201,7 @@ public static class ContractLifecycle
                 if (distress > 0 && exp.AskingPurse.Amount >
                     Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
                 {
-                    Walk(world, f, promo, date);   // too rich for a bleeding org — let them walk
+                    Walk(world, f, promo, date, $"{promo.Abbreviation} couldn't afford to keep him");   // too rich for a bleeding org — let them walk
                 }
                 else
                 {
@@ -186,7 +209,7 @@ public static class ContractLifecycle
                     if (Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
                         Sign(world, f, offer, date);   // renew in place
                     else
-                        Walk(world, f, promo, date);   // to the open market
+                        Walk(world, f, promo, date, $"his deal ran out and he turned down {promo.Abbreviation}'s offer", hisChoice: true);   // to the open market
                 }
             }
 
