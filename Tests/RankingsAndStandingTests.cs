@@ -19,12 +19,15 @@ public class RankingsAndStandingTests
             Assert.True(world.GlobalRankings.TryGetValue(wc, out var list) && list.Count > 0);
 
         // A champion of the top promotion should rank in that division's global
-        // top few. (Top FIVE: a weight class can carry several orgs' champions
-        // plus the women's champions of the same class in the deeper world.)
+        // top few. (Top FIVE of their own sex: a weight class can carry several
+        // orgs' champions, and the global list also interleaves the women's
+        // champions of the same class — on seed 4 the AFC strawweight king sat
+        // behind two women and three men, which says nothing about his division.)
         var top = world.Promotions.Values.OrderByDescending(p => p.Prestige.Value).First();
         var div = top.Divisions.First(d => d.Title is not null && world.Get(d.Title!.Value)?.CurrentChampion is not null);
         var champ = world.Get(div.Title!.Value)!.CurrentChampion!.Value;
-        Assert.Contains(champ, world.GlobalRankings[div.WeightClass].Take(5));
+        var sex = world.Get(champ)!.Sex;
+        Assert.Contains(champ, world.GlobalRankings[div.WeightClass].Where(id => world.Get(id)!.Sex == sex).Take(5));
     }
 
     [Fact]

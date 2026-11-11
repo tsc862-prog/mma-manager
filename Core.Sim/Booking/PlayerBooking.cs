@@ -106,7 +106,7 @@ public sealed class PlayerBooking
         if (BookedOnCard(ev, red)) { error = "The fighter is already on this card."; return false; }
         if (BookedElsewhere(world, ev, red)) { error = "The fighter is already booked on another upcoming event."; return false; }
 
-        var local = Living.LocalScene.CreateOpponent(world, promo, ev, style, r.WeightClass);
+        var local = Living.LocalScene.CreateOpponent(world, promo, ev, style, r.WeightClass, r.Sex);
         // Bottom of the bill, same as any new booking — a local fight has no
         // business bumping the main event anyway.
         ev.Card.Insert(0, new Fight

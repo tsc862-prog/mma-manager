@@ -24,7 +24,22 @@ public static class FreeAgencyService
     // which is public. Two orgs can rank the same pool differently, so a prospect
     // one overlooks another may pounce on.
     private static double SigningAppeal(World world, Promotion promo, Fighter f) =>
-        Scouting.ScoutingService.PerceivedAbility(world, promo, f) + f.Intangibles.Popularity.Value * 0.5;
+        Scouting.ScoutingService.PerceivedAbility(world, promo, f) + f.Intangibles.Popularity.Value * 0.5
+        + HomePull(promo, f);
+
+    // The draw a fighter brings in THIS org's own building: the same hometown-hero
+    // (+12) and local-fame (city reputation / 4) terms the box office already reads
+    // (Financials.Draw). Only the small stages weigh it — a City or Regional house
+    // stages nearly every card at home, while the big leagues tour — and only
+    // lightly (a hometown kid of ordinary fame is worth ~4-5 points of ability), so
+    // a small hall leans local without turning down a clearly better outsider.
+    // Public information (where he's from, how known he is there): no fog leak.
+    private const double HomePullWeight = 0.25;
+
+    internal static double HomePull(Promotion promo, Fighter f) =>
+        promo.HomeCity is { } hq && Org.OrgSizing.SizeOf(promo) <= OrgSize.Regional
+            ? ((f.HomeCity == hq ? 12 : 0) + Geography.Reputation.FighterInCity(f, hq) / 4) * HomePullWeight
+            : 0;
 
     // What a DISTRESSED org shops for: not names, projects. Popularity is a cost
     // (names charge for their draw), youth is upside — the front office wants the
@@ -34,7 +49,8 @@ public static class FreeAgencyService
         Scouting.ScoutingService.PerceivedAbility(world, promo, f)
         - f.Intangibles.Popularity.Value * 0.5
         + Math.Max(0, 27 - f.AgeOn(world.CurrentDate)) * 2.0
-        - (f.Record.TotalBouts >= 5 && f.Record.Losses > f.Record.Wins ? 15.0 : 0.0);
+        - (f.Record.TotalBouts >= 5 && f.Record.Losses > f.Record.Wins ? 15.0 : 0.0)
+        + HomePull(promo, f);
 
     public static int RunMonthly(World world, DateOnly date)
     {
