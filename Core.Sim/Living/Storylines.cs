@@ -72,7 +72,12 @@ public static class Storylines
                 {
                     ev.Card.Remove(fight);
                     var stay = world.Get(stayId);
-                    var options = ReplacementPool(world, ev, fight, booked, stayId).Take(3)
+                    // The shortlist is the player's scouts' — ranked by their read, never the truth.
+                    var scout = world.Get(world.PlayerPromotion)!;
+                    var options = ReplacementPool(world, ev, fight, booked, stayId)
+                        .OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, scout, c))
+                        .ThenBy(c => c.Id.Value)
+                        .Take(3)
                         .Select(c => $"{c.FullName} ({c.Record}, {(c.Contract is null ? "free agent" : "our roster")})")
                         .ToList();
                     Mail.Post(world, date, MailCategory.General, "Matchmaking",
