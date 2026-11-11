@@ -135,6 +135,7 @@ internal sealed class WorldReader
                     PerformanceBonus = r.Cash("performance_bonus"),
                     Guaranteed = r.Bool("guaranteed"),
                     PoachWarned = r.Bool("poach_warned"),
+                    BondNoticeOn = r.DateN("bond_notice_on"),
                 };
             }
 

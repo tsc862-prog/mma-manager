@@ -383,6 +383,108 @@ public class LiferTests
         Assert.All(lifers, f => Assert.Equal(signed[f.Id], f.Contract!.SignedOn));
     }
 
+    // --- Told once: the deal remembers ---------------------------------------------
+
+    [Fact]
+    public void AScoreBobbingAcrossTheBar_TellsTheBreakOnce()
+    {
+        var (world, lifer) = HoldingLifer();
+        var promo = world.Get(world.PlayerPromotion)!;
+        lifer.Designed = true;
+        lifer.Temperament.Ambition = 50;     // a bite of 2 a month
+        lifer.Loyalty = 71;                  // company man: score 81
+        promo.Balance = new Money(-10_000m); // the grievance that stands throughout
+
+        for (int m = 0; m < 6; m++)
+        {
+            Lifers.RunMonthly(world, world.CurrentDate.AddMonths(m));   // bites him under the bar (79)
+            foreach (var mail in world.Mail) mail.Read = true;            // no help from the inbox's unread de-dupe
+            lifer.Loyalty += 2;                                           // a fight and a stipend lift him back to 81
+        }
+
+        Assert.Single(world.Mail, x => x.Subject == $"We've lost {lifer.FullName}'s loyalty");
+        Assert.Single(world.News, n => n.Headline == $"{lifer.FullName}'s bond with {promo.Abbreviation} is broken");
+    }
+
+    [Fact]
+    public void BreakRepairBreak_IsToldTwice()
+    {
+        var (world, lifer) = HoldingLifer();
+        var promo = world.Get(world.PlayerPromotion)!;
+        lifer.Temperament.Ambition = 50;
+        var day = world.CurrentDate;
+
+        void BreakHim(DateOnly on)
+        {
+            lifer.Loyalty = 71;
+            promo.Balance = new Money(-10_000m);
+            Lifers.RunMonthly(world, on);
+            foreach (var mail in world.Mail) mail.Read = true;
+        }
+
+        BreakHim(day);
+        Assert.NotNull(lifer.Contract!.BondNoticeOn);
+
+        promo.Balance = new Money(2_000_000m);   // back in the black...
+        lifer.Loyalty = 85;                      // ...and a retention bonus later, he holds again
+        Lifers.RunMonthly(world, day.AddMonths(1));
+        Assert.Null(lifer.Contract!.BondNoticeOn);
+
+        BreakHim(day.AddMonths(2));
+        Assert.Equal(2, world.Mail.Count(x => x.Subject == $"We've lost {lifer.FullName}'s loyalty"));
+    }
+
+    [Fact]
+    public void ARefusedLifer_WhoBecomesPoachable_GetsTheCirclingWarningAMonthFirst()
+    {
+        var world = FoundedWorld(48);
+        var lifer = Star(world, Disposition.CompanyMan, loyalty: 90);
+        Backdate(lifer, days: 365);
+        HireOne(world);
+        BookOnNextCard(world, lifer);
+        lifer.Contract!.PursePerFight = new FighterValuation().Evaluate(world, lifer).AskingPurse;
+        var day = world.CurrentDate;
+
+        // Month 0: the rival calls, he says no.
+        PoachingService.WarnExpiring(world, day);
+        Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, day));
+        Assert.Equal(Contract.RefusalTold, lifer.Contract!.BondNoticeOn);
+        Assert.False(lifer.Contract.PoachWarned, "a refusal is not the circling warning");
+
+        // He sours completely — now any rival's money moves him.
+        lifer.Loyalty = 0;
+        Assert.False(Lifers.IsLifer(world, lifer));
+
+        // Month 1: the owner is warned, and nobody takes him this month.
+        PoachingService.WarnExpiring(world, day.AddMonths(1));
+        Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, day.AddMonths(1)));
+        Assert.Contains(world.Mail, m => m.Subject.EndsWith($"is circling {lifer.FullName}"));
+        Assert.Equal(world.PlayerPromotion, lifer.Contract!.Promotion);
+
+        // Month 2: unsigned and warned — the treadmill takes him.
+        PoachingService.WarnExpiring(world, day.AddMonths(2));
+        Assert.True(PoachingService.TryPoachFromPlayer(world, lifer, day.AddMonths(2)));
+    }
+
+    [Fact]
+    public void TheBondNotice_SurvivesASave()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 7 });
+        var signed = world.Fighters.Values.Where(f => f.Contract is not null).OrderBy(f => f.Id.Value).Take(2).ToList();
+        signed[0].Contract!.BondNoticeOn = Contract.RefusalTold;
+        signed[1].Contract!.BondNoticeOn = world.CurrentDate;
+
+        string path = Path.Combine(Path.GetTempPath(), $"mma_bond_{Guid.NewGuid():N}.db");
+        try
+        {
+            SaveGame.Save(world, path);
+            var loaded = SaveGame.Load(path);
+            Assert.Equal(Contract.RefusalTold, loaded.Get(signed[0].Id)!.Contract!.BondNoticeOn);
+            Assert.Equal(world.CurrentDate, loaded.Get(signed[1].Id)!.Contract!.BondNoticeOn);
+        }
+        finally { File.Delete(path); }
+    }
+
     // --- Mercenaries stay mercenaries --------------------------------------------------
 
     [Fact]

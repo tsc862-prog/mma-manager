@@ -288,6 +288,10 @@ public static class Lifers
     {
         foreach (var f in world.Fighters.Values.OrderBy(f => f.Id.Value))
         {
+            // A told break is repaired once he holds again: the next break is news.
+            if (f.Contract is { BondNoticeOn: { } told } deal && told != Contract.RefusalTold && IsHolding(world, f))
+                deal.BondNoticeOn = null;
+
             if (!IsLifer(world, f) || GrievanceOf(world, f, date) is not { } g) continue;
             var org = world.Get(f.Contract!.Promotion)!;
             bool mine = org.Id == world.PlayerPromotion;
@@ -313,18 +317,11 @@ public static class Lifers
 
             if (Score(world, f) < Threshold)
             {
-                // A lifer whose house can't fix it can heal and re-break (fights
-                // rebuild loyalty, the grievance wears it back down): the headline
-                // runs once a year at most.
-                // The news feed is capped, so it can't be the only memory: an AI
-                // org's deal also carries the mark (its poach-warning flag is the
-                // player's circling alert, so the player's own deals don't use it).
-                var deal = f.Contract;
-                bool toldLately = (!mine && deal.PoachWarned)
-                    || world.News.Any(n => n.AboutFighter == f.Id && n.Headline.EndsWith(" is broken")
-                                           && date.DayNumber - n.Date.DayNumber < 365);
-                if (!mine) deal.PoachWarned = true;
-                if ((Notable(world, f) || mine) && !toldLately)
+                // Told once until the grievance clears: a score that bobs across the
+                // bar (a fight's +1, this bite's -1) is the same break, not a new
+                // one. The memory is the deal's own (persisted, never trimmed).
+                if (!TellBreak(f, date)) continue;
+                if (Notable(world, f) || mine)
                     Living.News.Post(world, date, NewsCategory.Milestone,
                         $"{f.FullName}'s bond with {org.Abbreviation} is broken",
                         $"The {org.Abbreviation} lifer is listening to offers: {g.Reason}." + Voice(f, g.Kind, date),
@@ -348,23 +345,34 @@ public static class Lifers
         }
     }
 
+    // Marks the break as told on his deal; false if it already was.
+    private static bool TellBreak(Fighter f, DateOnly date)
+    {
+        var deal = f.Contract!;
+        if (deal.BondNoticeOn is { } told && told != Contract.RefusalTold) return false;
+        deal.BondNoticeOn = date;
+        return true;
+    }
+
     // --- The approach he turns down ----------------------------------------------
 
     /// <summary>
     /// A bigger promotion came calling and a holding lifer said no. A notable
     /// lifer's refusal makes the news; the player always hears when it's theirs —
     /// it's good news. Rate-limited off persisted state alone: told at most once
-    /// per contract (the contract's poach-warning flag doubles as the "already
-    /// told" mark, so a player's unsigned lifer isn't re-reported every month),
-    /// and only on a deal at least <see cref="RefusalStoryGapDays"/> old — every
-    /// approach comes at an expiry, so the last story can be no later than this
-    /// deal's signing day. The refusal itself holds every time.
+    /// per deal (<see cref="Contract.BondNoticeOn"/>, so a player's unsigned
+    /// lifer isn't re-reported every month), and only on a deal at least
+    /// <see cref="RefusalStoryGapDays"/> old — every approach comes at an expiry,
+    /// so the last story can be no later than this deal's signing day. The
+    /// refusal itself holds every time. The poach-warning flag is NOT touched: it
+    /// means only "the owner was warned a rival is circling", and a lifer who
+    /// later becomes poachable still gets that warning.
     /// </summary>
     public static void TurnDown(World world, Fighter f, Promotion from, Promotion suitor, DateOnly date)
     {
-        if (f.Contract is not { } c || c.PoachWarned) return;
-        c.PoachWarned = true;
+        if (f.Contract is not { } c || c.BondNoticeOn is not null) return;
         if (date.DayNumber - c.SignedOn.DayNumber < RefusalStoryGapDays) return;
+        c.BondNoticeOn = Contract.RefusalTold;
         bool mine = from.Id == world.PlayerPromotion;
         string says = $"“{TurnDownLine(f, suitor, from, date)}”";
         if (Notable(world, f) || mine)
@@ -481,6 +489,7 @@ public static class Lifers
     {
         if (!IsLifer(world, f)) return;
         reason = Gendered(f, reason);
+        f.Contract!.BondNoticeOn = date;   // told now; the monthly bleed won't tell it again
         var org = world.Get(f.Contract!.Promotion)!;
         int bonus = Score(world, f) - f.Loyalty;
         f.Loyalty = Math.Max(0, Math.Min(f.Loyalty - 10, Threshold - 1 - bonus));

@@ -117,7 +117,7 @@ internal static class SaveSchema
                 wins_ko INTEGER NOT NULL, wins_sub INTEGER NOT NULL, wins_dec INTEGER NOT NULL, streak INTEGER NOT NULL,
                 contract_promotion INTEGER, contract_signed_on TEXT, contract_type TEXT,
                 purse TEXT, win_bonus TEXT, fights_remaining INTEGER, is_exclusive INTEGER, has_champions_clause INTEGER,
-                signing_bonus TEXT, ppv_points INTEGER, performance_bonus TEXT, guaranteed INTEGER, poach_warned INTEGER,
+                signing_bonus TEXT, ppv_points INTEGER, performance_bonus TEXT, guaranteed INTEGER, poach_warned INTEGER, bond_notice_on TEXT,
                 injury_severity TEXT, injury_desc TEXT, injury_occurred TEXT, injury_return TEXT,
                 ready_to_fight_on TEXT, loyalty INTEGER NOT NULL, marketing_push INTEGER NOT NULL, camp_id INTEGER,
                 camp_stipend INTEGER NOT NULL DEFAULT 0, star_power INTEGER NOT NULL DEFAULT 0,
