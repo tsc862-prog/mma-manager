@@ -17,8 +17,8 @@
                 <DockPanel>
                     <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Top">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="▦  Cards" GroupName="rosterMode" IsChecked="{Binding ShowCards}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="☰  Table" GroupName="rosterMode" IsChecked="{Binding ShowTable}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Cards" GroupName="rosterMode" IsChecked="{Binding ShowCards}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" GroupName="rosterMode" IsChecked="{Binding ShowTable}" />
                         </StackPanel>
                     </Border>
                     <StackPanel>
@@ -144,12 +144,12 @@
         </DataGrid>
 
         <!-- The filter shows nobody -->
-        <controls:EmptyState Grid.Row="1" Glyph="🔎" Title="Nobody fits that filter."
+        <controls:EmptyState Grid.Row="1" Icon="Search" Title="Nobody fits that filter."
                              Message="Try another division, or show everyone."
                              Visibility="{Binding FilteredEmpty, Converter={StaticResource BoolToVis}}" />
 
         <!-- The founded-org day one: an empty gym and a job to do -->
-        <controls:EmptyState Grid.RowSpan="2" Glyph="🥊" Title="Your gym is empty — for now."
+        <controls:EmptyState Grid.RowSpan="2" Icon="People" Title="Your gym is empty — for now."
                              Message="Every champion in this sport once fought for a promotion nobody had heard of. Find your first fighters on the free-agent market: local talent is cheap, hungry, and yours to build."
                              ActionText="Find fighters ▸" ActionCommand="{Binding OpenContractsCommand}"
                              Footnote="Two fighters in the same division is all your first bout needs."

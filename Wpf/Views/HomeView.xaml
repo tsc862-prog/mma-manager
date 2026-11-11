@@ -5,30 +5,31 @@
     <!-- HOME: walking into your promotion. Built only from the shared blocks in
          App.xaml; panels reflow 1-3 columns with the window (MasonryPanel). -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" DataContext="{Binding Dashboard}"
-                  Background="{StaticResource Bg}">
-        <controls:MasonryPanel Margin="{StaticResource Space.Screen}" MinColumnWidth="390" MaxColumns="3" MaxWidth="2300" Gap="16">
+                  Background="{StaticResource Bg}" controls:Adaptive.CompactBelowHeight="820">
+        <controls:MasonryPanel Margin="{StaticResource Space.Screen}" MinColumnWidth="390" MaxColumns="3" MaxWidth="2300" Gap="16" EvenBottoms="True">
 
-            <!-- ===== Hero: who you are, what the boss says, and the climb ===== -->
+            <!-- ===== Hero: who you are, what the boss says, and the climb =====
+                 (tightens in a short window: Adaptive.IsCompact on the ScrollViewer) -->
             <ContentControl controls:MasonryPanel.FullWidth="True" Style="{StaticResource HeroPanel}" Focusable="False">
                 <controls:MasonryPanel MinColumnWidth="430" MaxColumns="2" Gap="36">
                     <!-- Who you are, and the boss talking -->
                     <DockPanel>
-                        <Border DockPanel.Dock="Left" Width="84" Height="84" CornerRadius="12" Background="#14171C" Margin="0,0,18,0" VerticalAlignment="Top">
+                        <Border DockPanel.Dock="Left" Style="{StaticResource HeroLogo}">
                             <Image Source="{Binding Logo}" Margin="8" RenderOptions.BitmapScalingMode="HighQuality" />
                         </Border>
                         <StackPanel>
                             <TextBlock Text="{Binding DateLine}" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" />
-                            <TextBlock Text="{Binding OrgName}" Style="{StaticResource Text.Display}" Margin="0,2,0,6" />
+                            <TextBlock Text="{Binding OrgName}" Style="{StaticResource Text.HeroName}" />
                             <WrapPanel>
                                 <Border Style="{StaticResource Chip}"><TextBlock Text="{Binding TierChip}" Style="{StaticResource Chip.Text}" /></Border>
                                 <Border Style="{StaticResource Chip}"><TextBlock Text="{Binding HqChip}" Style="{StaticResource Chip.Text}" /></Border>
                                 <Border Style="{StaticResource Chip}"><TextBlock Text="{Binding RankChip}" Style="{StaticResource Chip.Text}" /></Border>
                             </WrapPanel>
-                            <DockPanel Margin="0,10,0,0">
+                            <DockPanel Margin="0,4,0,0">
                                 <Border DockPanel.Dock="Left" Width="3" CornerRadius="2" Background="{DynamicResource OrgAccent}" Margin="0,2,14,2" />
                                 <StackPanel>
-                                    <TextBlock Text="{Binding Greeting}" Style="{StaticResource Text.Quote}" />
-                                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,5,0,0" ToolTip="{Binding OwnerNote}">
+                                    <TextBlock Text="{Binding Greeting}" Style="{StaticResource Text.HeroQuote}" />
+                                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,3,0,0" ToolTip="{Binding OwnerNote}">
                                         <Run Text="— " /><Run Text="{Binding GreetingFrom, Mode=OneWay}" FontWeight="SemiBold" />
                                     </TextBlock>
                                 </StackPanel>
@@ -44,7 +45,7 @@
                             </StackPanel>
                             <TextBlock Text="IN THE BANK" Style="{StaticResource Text.Kicker}" VerticalAlignment="Top" Margin="0,8,0,0" />
                         </DockPanel>
-                        <DockPanel Margin="0,16,0,0">
+                        <DockPanel Style="{StaticResource HeroGap}">
                             <TextBlock DockPanel.Dock="Right" Text="{Binding ClimbLine}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource TextSoft}" FontWeight="SemiBold" />
                             <TextBlock Text="THE CLIMB" Style="{StaticResource Text.Kicker}" />
                         </DockPanel>
@@ -53,7 +54,7 @@
                                 <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
-                        <TextBlock Text="{Binding ClimbDetail}" Style="{StaticResource Text.Secondary}" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding ClimbDetail}" Style="{StaticResource Text.HeroDetail}" />
                     </StackPanel>
                 </controls:MasonryPanel>
             </ContentControl>
@@ -169,7 +170,7 @@
                         </Grid>
                     </Border>
                     <!-- nothing booked -->
-                    <controls:EmptyState Glyph="🎟" Title="{Binding NoCardTitle}" Message="{Binding NoCardMessage}"
+                    <controls:EmptyState Icon="Calendar" Title="{Binding NoCardTitle}" Message="{Binding NoCardMessage}"
                                          ActionText="{Binding NoCardAction}" ActionCommand="{Binding NoCardCommand}"
                                          Visibility="{Binding HasNextEvent, Converter={StaticResource InverseBoolToVis}}" />
                 </StackPanel>
@@ -179,7 +180,9 @@
             <Border Style="{StaticResource Panel}" Visibility="{Binding ShowNeedsYou, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
                     <controls:SectionHeader Title="Needs you" Hint="{Binding NeedsYouHint}" />
-                    <ItemsControl ItemsSource="{Binding NeedsYou}" ItemTemplate="{StaticResource ActionRowTemplate}" Focusable="False" />
+                    <ItemsControl ItemsSource="{Binding NeedsYouShown}" ItemTemplate="{StaticResource ActionRowTemplate}" Focusable="False" />
+                    <Button Content="{Binding NeedsYouMoreText}" Style="{StaticResource Button.Link}" Command="{Binding ToggleNeedsYouCommand}" HorizontalAlignment="Left"
+                            Visibility="{Binding HasMoreNeedsYou, Converter={StaticResource BoolToVis}}" />
                     <TextBlock Text="Nothing needs you right now. Advance the calendar when you're ready." Style="{StaticResource Text.Secondary}"
                                Visibility="{Binding NeedsYouEmpty, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
@@ -260,7 +263,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="0,0,0,10">
-                                    <TextBlock DockPanel.Dock="Left" Text="◎" FontSize="15" Foreground="{DynamicResource OrgAccent}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                                    <controls:Icon DockPanel.Dock="Left" Kind="Check" Width="16" Height="16" Brush="{DynamicResource OrgAccent}" Margin="0,2,10,0" VerticalAlignment="Top" />
                                     <StackPanel>
                                         <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Body}" />
                                         <TextBlock Style="{StaticResource Text.Caption}">
@@ -282,15 +285,17 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border x:Name="chip" Style="{StaticResource Chip}">
-                                    <TextBlock x:Name="t" Style="{StaticResource Chip.Text}">
-                                        <Run Text="{Binding Mark, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding Title, Mode=OneWay}" />
-                                    </TextBlock>
+                                    <StackPanel Orientation="Horizontal">
+                                        <controls:Icon x:Name="i" Kind="{Binding Icon}" Width="13" Height="13" Brush="{StaticResource TextSecondary}" Margin="0,0,6,0" />
+                                        <TextBlock x:Name="t" Text="{Binding Title}" Style="{StaticResource Chip.Text}" />
+                                    </StackPanel>
                                 </Border>
                                 <DataTemplate.Triggers>
                                     <DataTrigger Binding="{Binding Earned}" Value="True">
                                         <Setter TargetName="chip" Property="Background" Value="{StaticResource ToneWarnDim}" />
                                         <Setter TargetName="t" Property="Foreground" Value="{StaticResource Gold}" />
                                         <Setter TargetName="t" Property="FontWeight" Value="SemiBold" />
+                                        <Setter TargetName="i" Property="Brush" Value="{StaticResource Gold}" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>
