@@ -398,6 +398,11 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!-- The Moment: a big night on your own card takes the desk (over the apps and
+                 toasts, under the taskbar and the result strip, which stay readable). -->
+            <views:MomentView x:Name="MomentLayer" DataContext="{Binding Moments}"
+                              Visibility="{Binding IsShowing, Converter={StaticResource BoolToVis}}" />
         </Grid>
     </DockPanel>
 
