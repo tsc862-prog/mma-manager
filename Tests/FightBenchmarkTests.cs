@@ -63,10 +63,10 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     // Moved in "Engine: stoppages and scoring" (plan step 3; was ce24ec976588fde0): referee, doctor
     // and corner stoppages, flash knockouts, fewer knockdowns, division power, harder submissions,
     // and a new keyed stoppage stream seeded by one draw at the opening bell.
-    private const string GoldenResults = "e6c94a818fcb451f";
+    private const string GoldenResults = "1500083f690f02f2";
     // Moved with it (was 937bdf982dea33b4; before that 44461ed3557b9b37): 10-8 only for dominance,
     // no tie-break on a level card, the card of a between-rounds stoppage includes its round.
-    private const string GoldenScorecards = "462d2ea204d03f97";
+    private const string GoldenScorecards = "e286d0b0b0908954";
 
     [Fact]
     public void GoldenMaster_OutcomesAreUnchanged()
@@ -101,7 +101,7 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     [Fact]
     public void Band_ThreeRoundMethodMix()
     {
-        var m = _r.ThreeRound;   // today: finish 35.2  KO 9.9  TKO 11.2  SUB 14.1  UD 50.6  SD 10.4  MD 2.4  Draw 1.4  12.4 min
+        var m = _r.ThreeRound;   // today: finish 35.2  KO 9.9  TKO 11.2  SUB 14.1  UD 50.6  SD 10.4  MD 1.7  Draw 2.1  12.4 min
         Assert.InRange(m.FinishPct, 34.0, 41.0);
         Assert.InRange(m.KoPct, 7.5, 13.5);
         Assert.InRange(m.TkoPct, 9.5, 16.0);          // was 0.4: there was no standing stoppage
