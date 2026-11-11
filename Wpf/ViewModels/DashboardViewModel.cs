@@ -13,7 +13,7 @@ public sealed class MilestoneRow
 {
     public required string Title { get; init; }
     public required bool Earned { get; init; }
-    public string Mark => Earned ? "🏆" : "○";
+    public string Icon => Earned ? "Trophy" : "Star";
 }
 
 /// <summary>One promotion on the home page's ladder.</summary>
@@ -178,6 +178,25 @@ public sealed class DashboardViewModel : ObservableObject
 
     // --- Lists -------------------------------------------------------------------
     public ObservableCollection<ActionItemModel> NeedsYou { get; } = new();
+    /// <summary>What the panel draws: the first <see cref="NeedsYouCap"/>, or all of them once expanded.</summary>
+    public ObservableCollection<ActionItemModel> NeedsYouShown { get; } = new();
+    public const int NeedsYouCap = 4;
+    private bool _needsYouExpanded;
+    public bool NeedsYouExpanded
+    {
+        get => _needsYouExpanded;
+        set
+        {
+            if (!Set(ref _needsYouExpanded, value)) return;
+            NeedsYouShown.Clear();
+            foreach (var a in value ? NeedsYou : NeedsYou.Take(NeedsYouCap)) NeedsYouShown.Add(a);
+            OnPropertyChanged(nameof(NeedsYouMoreText));
+        }
+    }
+    public bool HasMoreNeedsYou => NeedsYou.Count > NeedsYouCap;
+    public string NeedsYouMoreText => NeedsYouExpanded ? "Show fewer ▴" : $"See all {NeedsYou.Count} ▾";
+    public ICommand ToggleNeedsYouCommand => _toggleNeedsYou ??= new RelayCommand(() => NeedsYouExpanded = !NeedsYouExpanded);
+    private ICommand? _toggleNeedsYou;
     private string _needsYouHint = "";
     public string NeedsYouHint { get => _needsYouHint; private set => Set(ref _needsYouHint, value); }
     public bool NeedsYouEmpty => NeedsYou.Count == 0;
@@ -236,7 +255,9 @@ public sealed class DashboardViewModel : ObservableObject
 
         string owner = MmaManager.Core.Sim.Living.Mail.Owner(world);
         bool founder = player.OwnerName is not { Length: > 0 };
-        GreetingFrom = founder ? $"{owner}, your money man" : $"{owner}, owner";
+        // A founded promotion has no owner but the player: the accountant speaks,
+        // as a role (no invented name).
+        GreetingFrom = founder ? "your accountant" : $"{owner}, owner";
         OwnerNote = player.OwnerNote ?? "";
         int deskCalls = world.Decisions.Count(d => d.State == DecisionState.Pending);
         Greeting = GreetingFor(world, player, roster.Count, next, fightNight, deskCalls, everShowed, hq);
@@ -368,7 +389,7 @@ public sealed class DashboardViewModel : ObservableObject
         foreach (var n in picks.OrderByDescending(n => n.Date))
         {
             var who = n.AboutFighter is { } fid ? world.Get(fid) : null;
-            ImageSource? pic = who is not null ? Portraits.For(who, world)
+            ImageSource? pic = who is not null ? Portraits.Thumb(who, world)
                 : world.Get(n.Promotion) is { } promo ? LogoFactory.ForPromotion(promo) : null;
             Headlines.Add(new HeadlineCardModel
             {
@@ -418,7 +439,7 @@ public sealed class DashboardViewModel : ObservableObject
     private static CornerModel Corner(World w, Fighter f) => new()
     {
         Id = f.Id.Value,
-        Portrait = Portraits.For(f, w),
+        Portrait = Portraits.Thumb(f, w),
         Name = $"{f.FirstName} {f.LastName}",
         Line = f.Record.ToString(),
     };
@@ -464,7 +485,7 @@ public sealed class DashboardViewModel : ObservableObject
         if (fightNight && next is not null)
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = "🔔", Tone = CardTone.Bad, Due = "tonight",
+                Icon = "Bell", Tone = CardTone.Bad, Due = "tonight",
                 Title = $"Fight night: {next.Name}",
                 Detail = $"{next.Card.Count} bouts ready to go. Watch it from ringside, or skip straight to the results.",
                 PrimaryText = "Watch it live ▸", PrimaryCommand = WatchTonightCommand,
@@ -477,13 +498,13 @@ public sealed class DashboardViewModel : ObservableObject
             var who = d.Fighter is { } fid ? world.Get(fid) : null;
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = d.Kind switch
+                Icon = d.Kind switch
                 {
-                    DecisionKind.TitleShotRequest => "⚡",
-                    DecisionKind.SponsorShowcase => "🤝",
-                    DecisionKind.VeteranCut => "✂",
-                    DecisionKind.AcquisitionOffer => "🏦",
-                    _ => "📌",
+                    DecisionKind.TitleShotRequest => "Crown",
+                    DecisionKind.SponsorShowcase => "Money",
+                    DecisionKind.VeteranCut => "Warning",
+                    DecisionKind.AcquisitionOffer => "Building",
+                    _ => "Warning",
                 },
                 Title = d.Kind switch
                 {
@@ -496,7 +517,7 @@ public sealed class DashboardViewModel : ObservableObject
                 Detail = d.Detail,
                 Due = days <= 0 ? "today" : days == 1 ? "by tomorrow" : $"{days} days left",
                 Tone = days <= 3 ? CardTone.Bad : CardTone.Warn,
-                Picture = who is null ? null : Portraits.For(who, world),
+                Picture = who is null ? null : Portraits.Thumb(who, world),
                 PrimaryText = "Do it", PrimaryCommand = AcceptDecisionCommand, PrimaryParameter = d,
                 SecondaryText = "Pass", SecondaryCommand = DeclineDecisionCommand, SecondaryParameter = d,
             });
@@ -505,7 +526,7 @@ public sealed class DashboardViewModel : ObservableObject
         if (next is null && roster.Count >= 2)
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = "🎟", Tone = CardTone.Warn,
+                Icon = "Calendar", Tone = CardTone.Warn,
                 Title = "No show on the calendar",
                 Detail = $"{roster.Count} fighters with nowhere to fight. Pick a date and build a card.",
                 PrimaryText = "Book a card ▸", PrimaryCommand = BookCommand,
@@ -513,7 +534,7 @@ public sealed class DashboardViewModel : ObservableObject
         else if (next is not null && next.Card.Count == 0)
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = "🎟", Tone = CardTone.Warn,
+                Icon = "Calendar", Tone = CardTone.Warn,
                 Title = $"{next.Name} has no fights yet",
                 Detail = "The date and the room are set. Now give people a reason to buy a ticket.",
                 PrimaryText = "Build the card ▸", PrimaryCommand = BookCommand,
@@ -525,17 +546,17 @@ public sealed class DashboardViewModel : ObservableObject
         foreach (var f in ending.Take(2))
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = "✍", Tone = CardTone.Warn,
+                Icon = "Pen", Tone = CardTone.Warn,
                 Title = f.Contract!.FightsRemaining <= 0 ? $"{f.FullName}'s deal is up" : $"{f.FullName} is on the last fight of the deal",
                 Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}, {f.Record}. Re-sign before the bigger promotions come calling.",
-                Picture = Portraits.For(f, world),
+                Picture = Portraits.Thumb(f, world),
                 PrimaryText = "Talk terms ▸", PrimaryCommand = NegotiateCommand, PrimaryParameter = f.Id.Value,
                 SecondaryText = "Profile", SecondaryCommand = OpenFighterCommand, SecondaryParameter = f.Id.Value,
             });
         if (ending.Count > 2)
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = "📄", Tone = CardTone.Neutral,
+                Icon = "Document", Tone = CardTone.Neutral,
                 Title = $"{ending.Count - 2} more deal{(ending.Count - 2 == 1 ? " is" : "s are")} on the last fight",
                 Detail = "Everyone whose contract is about to run out, on one screen.",
                 PrimaryText = "Contracts ▸", PrimaryCommand = ContractsCommand,
@@ -547,7 +568,7 @@ public sealed class DashboardViewModel : ObservableObject
             bool media = o.Media is not null;
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = media ? "📡" : "🤝", Tone = CardTone.Info,
+                Icon = media ? "Broadcast" : "Money", Tone = CardTone.Info,
                 Title = media ? $"{o.Partner} has a media offer on the table" : $"{o.Partner} wants to sponsor you",
                 Detail = $"{o.FeePerEvent} an event. The offer lapses on {o.ExpiresOn:d MMM}.",
                 Due = days <= 1 ? "lapses tomorrow" : $"{days} days left",
@@ -562,12 +583,18 @@ public sealed class DashboardViewModel : ObservableObject
             var latest = Enumerable.Reverse(world.Mail).FirstOrDefault(m => !m.Read);
             NeedsYou.Add(new ActionItemModel
             {
-                Glyph = "✉", Tone = CardTone.Info,
+                Icon = "Envelope", Tone = CardTone.Info,
                 Title = unread == 1 ? "1 unread message" : $"{unread} unread messages",
                 Detail = latest is null ? "" : $"Latest: {latest.Subject} — {latest.From}",
                 PrimaryText = "Open the inbox ▸", PrimaryCommand = InboxCommand,
             });
         }
+
+        // Long lists stay short on Home: the first few, the rest one click away.
+        NeedsYouShown.Clear();
+        foreach (var a in NeedsYouExpanded ? NeedsYou : NeedsYou.Take(NeedsYouCap)) NeedsYouShown.Add(a);
+        OnPropertyChanged(nameof(NeedsYouMoreText));
+        OnPropertyChanged(nameof(HasMoreNeedsYou));
 
         int urgent = NeedsYou.Count(a => a.Tone is CardTone.Bad or CardTone.Warn);
         NeedsYouHint = NeedsYou.Count == 0 ? ""
@@ -603,7 +630,7 @@ public sealed class DashboardViewModel : ObservableObject
         {
             var reign = title.Lineage.LastOrDefault(r => r.LostOn is null);
             string defs = reign is null || reign.Defenses == 0 ? "" : $" · {reign.Defenses} defence{(reign.Defenses == 1 ? "" : "s")}";
-            Add(champ!, $"👑 CHAMPION{defs.ToUpperInvariant()}");
+            Add(champ!, $"CHAMPION{defs.ToUpperInvariant()}");
         }
 
         if (Franchise.FaceOf(world, player) is { } face && face.Contract?.Promotion == player.Id)

@@ -83,6 +83,33 @@ public static class PaintedLibrary
     /// <summary>The matching full-body shot (same person as the face), or null.</summary>
     public static ImageSource? Body(Fighter f, int age) => Image(f, age, body: true);
 
+    /// <summary>
+    /// The file behind the fighter's head shot for their current age (same choice as
+    /// <see cref="Face(Fighter,int)"/>), or null — so a caller can decode it off the UI thread.
+    /// </summary>
+    public static string? FacePath(Fighter f, int age)
+    {
+        Load();
+        if (Identities.Count == 0) return null;
+        return Choose(f) is { } chosen ? Resolve(chosen, StageFor(age), false) : null;
+    }
+
+    /// <summary>
+    /// Decode a portrait file at a small pixel width, frozen. Touches no shared state,
+    /// so it is safe on a worker thread (card walls decode their faces in parallel).
+    /// </summary>
+    public static ImageSource DecodeThumb(string path, int decodeWidth)
+    {
+        var bmp = new BitmapImage();
+        bmp.BeginInit();
+        bmp.CacheOption = BitmapCacheOption.OnLoad;
+        bmp.DecodePixelWidth = decodeWidth;
+        bmp.UriSource = new Uri(path);
+        bmp.EndInit();
+        bmp.Freeze();
+        return bmp;
+    }
+
     private static ImageSource? Image(Fighter f, int age, bool body)
     {
         Load();
