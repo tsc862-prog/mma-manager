@@ -752,19 +752,18 @@ public class ForwardCalendarTests
         foreach (var e in cards)
         {
             var room = world.Get(e.VenueId!.Value)!;
-            // The card ran in the town's room closest to its draw. (Demand is
-            // re-read after the night, when fame has moved a little, so allow a
-            // margin of a quarter of the house before calling another room closer.)
+            // No bigger room in town that this card would have filled (demand is
+            // re-read after the night, when fame has moved a little: allow 10%).
             int demand = Financials.Demand(world, e);
-            var closer = world.Venues.Values.Where(v => v.City == room.City)
-                .FirstOrDefault(v => Math.Abs(v.Capacity - demand) + demand / 4 < Math.Abs(room.Capacity - demand));
-            Assert.True(closer is null,
-                $"{e.Name}: {room.Capacity:N0} seats for a demand of {demand:N0} ({closer?.Capacity:N0} was closer)");
+            var missed = world.Venues.Values.Where(v => v.City == room.City && v.Capacity > room.Capacity)
+                .FirstOrDefault(v => demand >= v.Capacity * (Financials.MoveUpFill + 0.10));
+            Assert.True(missed is null,
+                $"{e.Name}: {room.Capacity:N0} seats for a demand of {demand:N0} ({missed?.Capacity:N0} stood empty)");
         }
     }
 
     [Fact]
-    public void BestRoom_IsTheRoomThatNetsMostAtTheDoor_SoANoNameShowStaysInTheHall()
+    public void BestRoom_MovesUpOnlyToARoomTheCardNearlyFills_AndNeverBelowTheEstimate()
     {
         var world = Build(seed: 8);
         world.PlayerPromotion = default;
@@ -776,12 +775,16 @@ public class ForwardCalendarTests
         var rooms = world.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Capacity).ToList();
         Assert.True(rooms.Count >= 2);
 
-        // The flagship with a real headliner fills more than the club.
-        var pick = Financials.BestRoom(world, ev, rooms)!;
-        Assert.True(pick.Capacity > rooms[0].Capacity || Financials.Demand(world, ev) <= rooms[0].Capacity);
+        // Never below the fanbase estimate's room; above it only into a room the
+        // card's own draw fills to MoveUpFill.
+        var estimate = MmaManager.Core.Sim.Geography.WorldMap.PickVenueIn(world, afc, city)!;
+        var pick = Financials.BestRoom(world, ev, city)!;
+        Assert.True(pick.Capacity >= estimate.Capacity);
+        if (pick.Id != estimate.Id)
+            Assert.True(Financials.Demand(world, ev) >= pick.Capacity * Financials.MoveUpFill);
 
-        // A nobody (no brand, no names) draws the same few hundred anywhere, so
-        // the cheapest rent wins: the smallest room.
+        // A nobody (no brand, no names) draws a few hundred: it stays in the
+        // estimate's room.
         var nobody = new Promotion
         {
             Id = world.NewPromotionId(), Name = "Nobody", Abbreviation = "NBD",
@@ -789,7 +792,7 @@ public class ForwardCalendarTests
         };
         world.Promotions[nobody.Id] = nobody;
         var small = new Event { Id = world.NewEventId(), Promotion = nobody.Id, Name = "Nobody 1", Date = ev.Date, Region = nobody.BaseRegion, VenueId = rooms[^1].Id };
-        Assert.Equal(rooms[0].Id, Financials.BestRoom(world, small, rooms)!.Id);
+        Assert.Equal(MmaManager.Core.Sim.Geography.WorldMap.PickVenueIn(world, nobody, city)!.Id, Financials.BestRoom(world, small, city)!.Id);
     }
 
     // --- the player ----------------------------------------------------------------

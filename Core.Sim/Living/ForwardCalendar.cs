@@ -745,7 +745,7 @@ public static class ForwardCalendar
     internal static bool FitRoom(World world, Event ev)
     {
         if (ev.Card.Count == 0 || ev.VenueId is not { } current || world.Get(current) is not { } room) return false;
-        var fit = Booking.Financials.BestRoom(world, ev, world.Venues.Values.Where(v => v.City == room.City));
+        var fit = Booking.Financials.BestRoom(world, ev, room.City);
         if (fit is null || fit.Id == current) return false;
         ev.VenueId = fit.Id;
         ev.Venue = fit.Name;
@@ -755,7 +755,7 @@ public static class ForwardCalendar
 
     /// <summary>
     /// The room is fitted to the draw the card has ON THE NIGHT (the room in the
-    /// announced city closest to its demand, <see cref="FitRoom"/>). A card
+    /// announced city the card nearly fills, <see cref="FitRoom"/>). A card
     /// announced a month ahead keeps its city, but moves to the room that fits
     /// the card it actually became: a startup announced in its first week would
     /// otherwise be stuck in a thousand-seat club while twice that many want in

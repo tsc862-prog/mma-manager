@@ -321,9 +321,9 @@ public sealed partial class PlayerBooking
         var promo = world.Get(ev.Promotion);
         if (!IsMine(world, ev) || promo is null || WorldMap.CityOf(world, ev) is not { } city) return Array.Empty<VenueOption>();
         // The room an AI booker would put this card in: the same picker the
-        // calendar uses for AI cards (the room closest to this card's demand).
+        // calendar uses for AI cards (the fanbase estimate, moved up to a room this card nearly fills).
         var simPick = ev.Card.Count > 0
-            ? Financials.BestRoom(world, ev, world.Venues.Values.Where(v => v.City == city))?.Id
+            ? Financials.BestRoom(world, ev, city)?.Id
             : WorldMap.PickVenueIn(world, promo, city)?.Id;   // nothing booked yet: the fanbase estimate
         var list = new List<VenueOption>();
         int demand = -1;
