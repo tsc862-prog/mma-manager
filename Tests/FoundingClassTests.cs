@@ -108,18 +108,44 @@ public class FoundingClassTests
         Assert.Empty(signed);   // three kids a division is not a card
         Assert.All(cls, f => Assert.Null(f.Contract));
 
-        // One affordable pro in each of two divisions, and the class carries the launch.
-        foreach (var wc in Core3.Take(2))
+        void FreePros(int perDivision)
         {
-            var pro = market.Where(f => f.WeightClass == wc).OrderBy(f => f.Record.TotalBouts).ThenBy(f => f.Id.Value).First();
-            pro.Contract = null;
-            pro.Intangibles.Popularity = 5;
-            pro.Momentum = 0;
+            foreach (var wc in Core3.Take(2))
+                foreach (var pro in market.Where(f => f.WeightClass == wc && f.Contract is not null)
+                             .OrderBy(f => f.Record.TotalBouts).ThenBy(f => f.Id.Value).Take(perDivision))
+                {
+                    pro.Contract = null;
+                    pro.Intangibles.Popularity = 5;
+                    pro.Momentum = 0;
+                }
         }
+
+        // One pro a division with three kids is four bodies, but not a core: no launch.
+        FreePros(1);
+        signed = WorldEvents.StockStartup(world, promo, Region.Africa, Core3, world.CurrentDate, new SimRandom(5));
+        Assert.Empty(signed);
+
+        // Two pros in each of two divisions, and the class fills them out.
+        FreePros(1);
         signed = WorldEvents.StockStartup(world, promo, Region.Africa, Core3, world.CurrentDate, new SimRandom(5));
         Assert.True(signed.Count >= WorldEvents.StartupMinRoster, $"signed {signed.Count}");
         Assert.Contains(signed, f => f.DiscoveredBy == promo.Id);
-        Assert.Contains(signed, f => f.DiscoveredBy != promo.Id);
+        foreach (var wc in signed.Select(f => f.WeightClass).Distinct())
+            Assert.True(signed.Count(f => f.WeightClass == wc && f.DiscoveredBy != promo.Id) >= WorldEvents.StartupMinProsPerDivision);
+    }
+
+    [Fact]
+    public void TheClass_MintsTheSameIds_WhoeverIsLocal()
+    {
+        // Every slot mints a fixed number of ids, so the game (art catalog:
+        // candidates can be foreign) and headless runs (no catalog) stay on
+        // the same id sequence.
+        var world = Build();
+        var promo = NewStartup(world, Region.Europe);
+        int before = world.NewFighterId().Value;
+        FoundingClass.Generate(world, promo, Region.Europe, Core3, world.CurrentDate);
+        int after = world.NewFighterId().Value;
+        Assert.Equal(FoundingClass.PerDivision * Core3.Length * FoundingClass.LocalTries, after - before - 1);
     }
 
     [Fact]

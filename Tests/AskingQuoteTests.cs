@@ -102,7 +102,7 @@ public class AskingQuoteTests
         var q = AskingQuote.For(w, promo, f, exp);
         Assert.Equal(RoomOpens(w, promo, f, exp), q.Purse);
         // The discoverer's gratitude reaches the room: he opens at the grateful rate.
-        decimal grateful = Math.Round(exp.AskingPurse.Amount
+        decimal grateful = Math.Ceiling(exp.AskingPurse.Amount
                                       * (Negotiator.WantsExclusivity(promo) ? 1m : Negotiator.NonExclusiveMoneyFactor)
                                       * Negotiator.GratitudeFactor(f, promo.Id) / 500m) * 500m;
         Assert.Equal(grateful, q.Purse.Amount);

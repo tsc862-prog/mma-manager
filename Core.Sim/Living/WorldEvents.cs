@@ -272,6 +272,12 @@ public static class WorldEvents
     /// <summary>A division a startup opens needs at least this many signings (two bouts' worth).</summary>
     public const int StartupMinPerDivision = 4;
 
+    /// <summary>
+    /// Of a division's founding signings, at least this many must be pros off the
+    /// open market (not the house's own tryout class, <see cref="FoundingClass"/>).
+    /// </summary>
+    public const int StartupMinProsPerDivision = 2;
+
     /// <summary>A startup launches only with at least this many signings across the divisions it opens.</summary>
     public const int StartupMinRoster = 8;
 
@@ -359,7 +365,11 @@ public static class WorldEvents
                 budget -= purse;
                 division.Add((fa, offer));
             }
-            if (division.Count >= StartupMinPerDivision) { plan.AddRange(division); opened++; }
+            // A division opens with a real core: enough bodies for two bouts, of
+            // whom at least StartupMinProsPerDivision are pros off the market —
+            // the founding class fills a division out, it can't be one.
+            int pros = division.Count(d => d.Item1.DiscoveredBy != promo.Id);
+            if (division.Count >= StartupMinPerDivision && pros >= StartupMinProsPerDivision) { plan.AddRange(division); opened++; }
             else bonusPot += division.Sum(d => d.Item2.SigningBonus.Amount);   // the dropped division's bonuses go back in the pot
         }
 

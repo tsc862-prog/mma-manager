@@ -34,8 +34,8 @@ public static class FoundingClass
 
     private const ulong Salt = 0xF0_0D_C1A5_5UL;
 
-    // Ids tried per tryout slot for a kid from the home region (see Generate).
-    private const int LocalTries = 6;
+    /// <summary>Fighter ids minted per tryout slot (candidates for a kid from the home region; see Generate).</summary>
+    public const int LocalTries = 4;
 
     /// <summary>Generate the class for <paramref name="promo"/>'s planned divisions and add it to the world as free agents.</summary>
     public static List<Fighter> Generate(World world, Promotion promo, Region home, IReadOnlyList<WeightClass> classes, DateOnly date)
@@ -62,14 +62,21 @@ public static class FoundingClass
                 };
                 // Portrait-first generation can give a kid a portrait identity
                 // from another continent (and the nationality that goes with
-                // it); a tryout is local, so take the first who is from here
-                // (a handful of tries; without an art catalog the first always is).
-                Fighter f = null!;
+                // it); a tryout is local, so take the first of a few candidates
+                // who is from here (else the first). EVERY slot mints exactly
+                // LocalTries ids whatever happens, so the id sequence is the
+                // same with the art catalog (the game) and without it (tests,
+                // longsim): ids feed hash rolls, and the two must not drift.
+                Fighter? f = null, first = null;
                 for (int attempt = 0; attempt < LocalTries; attempt++)
                 {
-                    f = gen.Generate(world.NewFighterId(), date, options);
-                    if (f.Nationality == home) break;
+                    var id = world.NewFighterId();
+                    if (f is not null) continue;               // burned, never generated
+                    var candidate = gen.Generate(id, date, options);
+                    first ??= candidate;
+                    if (candidate.Nationality == home) f = candidate;
                 }
+                f ??= first!;
                 gen.AssignHometown(world, f);
                 // Most of the class came up in the founding metro's gyms.
                 if (anchor is not null && f.Nationality == home && rng.Chance(0.7) && f.HomeCity != anchor.Id)

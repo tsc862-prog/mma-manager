@@ -133,6 +133,10 @@ public static class PublicStanding
         for (int i = 0; i < bouts.Count; i++)
         {
             var b = bouts[i];
+            // A draw (or a no contest) is neither a win nor a loss: it stays out
+            // of the win share, the same way the career share counts only
+            // wins and losses. It does count for half a bout of PROOF below
+            // (he went the distance with somebody, in public).
             if (!b.Won && !b.Lost) continue;
             double w = Math.Pow(0.85, i);
             double opp = OpponentQuality(world, b.Opponent);   // -1..1
@@ -215,9 +219,12 @@ public static class PublicStanding
     /// <summary>The public reputation alone (see <see cref="Read"/>).</summary>
     public static double Reputation(World world, Fighter f) => Read(world, f).Reputation;
 
-    // An opponent's public quality from his own sheet, -1 (a losing novice) to
-    // +1 (a long winning record): no ratings, and no recursion into his own read.
-    private static double OpponentQuality(World world, FighterId id)
+    /// <summary>
+    /// An opponent's public quality from his own sheet, -1 (a losing novice) to
+    /// +1 (a long winning record): no ratings, and no recursion into his own
+    /// read. Rankings weigh wins by this too (<see cref="Booking.RankingService"/>).
+    /// </summary>
+    public static double OpponentQuality(World world, FighterId id)
     {
         if (world.Get(id) is not { } o) return 0;
         int dec = o.Record.Wins + o.Record.Losses;
@@ -255,17 +262,19 @@ public static class PublicStanding
 
     // --- fight -> event index ---------------------------------------------------
     // A fighter's history is a list of fight ids; the event (date, promotion) is
-    // found through a per-world index, filled lazily. A completed or cancelled
-    // event never changes again, so it is indexed once and skipped after; a
-    // lookup that misses rescans only the events still open. Pure cache: it
-    // never feeds back into the world and holds no state a save needs.
+    // found through a per-world index. Only SEALED events (completed or
+    // cancelled) are cached: they never change again. A bout on a card that is
+    // still open is always looked up fresh, because the card can still change
+    // under it (a replaced fighter puts a new Fight object in the same slot with
+    // the same id). Pure cache: it never feeds back into the world, holds no state
+    // a save needs, and a reloaded world (a new World object) gets its own.
     private static readonly ConditionalWeakTable<World, BoutIndex> Indexes = new();
 
     private static BoutIndex IndexFor(World world) => Indexes.GetValue(world, _ => new BoutIndex());
 
     private sealed class BoutIndex
     {
-        private readonly Dictionary<FightId, (Event Ev, Fight Fight)> _map = new();
+        private readonly Dictionary<FightId, (Event Ev, Fight Fight)> _sealedMap = new();
         private readonly HashSet<EventId> _sealed = new();
         private readonly HashSet<FightId> _missing = new();
         private int _eventCountAtLastScan = -1;
@@ -274,38 +283,44 @@ public static class PublicStanding
         {
             lock (this)
             {
-                if (_map.TryGetValue(id, out var hit) && world.Events.ContainsKey(hit.Ev.Id))
+                if (_sealedMap.TryGetValue(id, out var hit)
+                    && world.Events.TryGetValue(hit.Ev.Id, out var live) && ReferenceEquals(live, hit.Ev))
                 {
                     (ev, fight) = hit;
                     return true;
                 }
-                // A fight already looked for and not found is only looked for
-                // again once the world has a different number of events.
-                if (!_missing.Contains(id) || world.Events.Count != _eventCountAtLastScan)
+                // A fight already looked for and not found anywhere is looked
+                // for again only once the world has a different number of events.
+                if (_missing.Contains(id) && world.Events.Count == _eventCountAtLastScan)
                 {
-                    Scan(world);
-                    if (_map.TryGetValue(id, out hit))
-                    {
-                        _missing.Remove(id);
-                        (ev, fight) = hit;
-                        return true;
-                    }
-                    _missing.Add(id);
+                    ev = null!; fight = null!;
+                    return false;
                 }
+                // Walk the open events: seal (and cache) the ones that are done,
+                // and find the bout on its card as it stands right now.
+                (Event, Fight)? found = null;
+                foreach (var e in world.Events.Values)
+                {
+                    if (_sealed.Contains(e.Id)) continue;
+                    bool done = e.Status != EventStatus.Scheduled;
+                    foreach (var fi in e.Card)
+                    {
+                        if (done) _sealedMap[fi.Id] = (e, fi);
+                        if (fi.Id == id) found = (e, fi);
+                    }
+                    if (done) _sealed.Add(e.Id);
+                }
+                _eventCountAtLastScan = world.Events.Count;
+                if (found is { } f2)
+                {
+                    _missing.Remove(id);
+                    (ev, fight) = f2;
+                    return true;
+                }
+                _missing.Add(id);
                 ev = null!; fight = null!;
                 return false;
             }
-        }
-
-        private void Scan(World world)
-        {
-            foreach (var e in world.Events.Values)
-            {
-                if (_sealed.Contains(e.Id)) continue;
-                foreach (var fi in e.Card) _map[fi.Id] = (e, fi);
-                if (e.Status != EventStatus.Scheduled) _sealed.Add(e.Id);
-            }
-            _eventCountAtLastScan = world.Events.Count;
         }
     }
 }

@@ -1,5 +1,4 @@
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Finance;
 
 namespace MmaManager.Core.Sim.Contracts;
@@ -17,10 +16,15 @@ public static class RetentionService
     /// <summary>How many loyalty points a bonus buys — smaller the more loyal they already are.</summary>
     public static int LoyaltyGain(Fighter f) => Math.Max(3, (int)Math.Round((100 - f.Loyalty) * 0.4));
 
-    /// <summary>What the next retention bonus costs — scales with the fighter's value and the jump bought.</summary>
-    public static Money Quote(Fighter f)
+    /// <summary>
+    /// What the next retention bonus costs — scales with the fighter's PUBLIC
+    /// standing (his reputation, <see cref="PublicStanding"/>, plus his draw) and
+    /// the jump bought. The price is shown to the player, so it must not read
+    /// ratings the fog hides.
+    /// </summary>
+    public static Money Quote(World world, Fighter f)
     {
-        int value = FighterAbility.CurrentAbility(f) + f.Intangibles.Popularity.Value;
+        int value = (int)Math.Round(PublicStanding.Reputation(world, f)) + f.Intangibles.Popularity.Value;
         decimal cost = value * LoyaltyGain(f) * 180m;
         return new Money(Math.Round(cost / 1_000m) * 1_000m);   // to the nearest $1k
     }
@@ -30,7 +34,7 @@ public static class RetentionService
         reason = "";
         if (f.Contract?.Promotion != promo.Id) { reason = "Not on your roster."; return false; }
         if (f.Loyalty >= 100) { reason = "Already as loyal as they get."; return false; }
-        if (promo.Balance.Amount < Quote(f).Amount) { reason = "Can't afford the bonus."; return false; }
+        if (promo.Balance.Amount < Quote(world, f).Amount) { reason = "Can't afford the bonus."; return false; }
         return true;
     }
 
@@ -39,7 +43,7 @@ public static class RetentionService
     {
         if (!CanPay(world, promo, f, out reason)) return false;
         int gain = LoyaltyGain(f);
-        var cost = Quote(f);
+        var cost = Quote(world, f);
         f.Loyalty = Math.Min(100, f.Loyalty + gain);
         Ledger.Expense(promo, world.CurrentDate, FinanceCategory.RetentionBonus, cost,
             $"Retention bonus — {f.FullName} (+{gain} loyalty)");

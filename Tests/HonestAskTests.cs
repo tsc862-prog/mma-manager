@@ -3,6 +3,7 @@ using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Booking;
 using MmaManager.Core.Sim.Contracts;
 using MmaManager.Core.Sim.Living;
+using MmaManager.Persistence;
 
 namespace MmaManager.Tests;
 
@@ -22,6 +23,17 @@ public class HonestAskTests
     }
 
     private static readonly FighterValuation Valuation = new();
+
+    // Rebuild every ranking from the record. A ranking reads the previous
+    // top-five as its "quality opponents", so it is rebuilt until it settles.
+    private static void Rerank(World world)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            RankingService.RecomputeAll(world, world.CurrentDate);
+            RankingService.RecomputeGlobal(world);
+        }
+    }
 
     // Every rating a fighter has (striking, grappling, physical, mental), set to one value.
     private static void SetAllRatings(Fighter f, int v)
@@ -43,6 +55,9 @@ public class HonestAskTests
         // of every fighter must be exactly what it was.
         var world = SeasonedWorld();
         var live = world.Fighters.Values.Where(f => f.Status != FighterStatus.Retired).OrderBy(f => f.Id.Value).ToList();
+        // Rankings are public and the read uses them: rebuild them before AND
+        // after the flip, so a ranking channel back to ability would show.
+        Rerank(world);
         var before = live.ToDictionary(f => f.Id, f => Snapshot(Valuation.Evaluate(world, f)));
         var readBefore = live.ToDictionary(f => f.Id, f => PublicStanding.Read(world, f));
 
@@ -52,6 +67,7 @@ public class HonestAskTests
             SetAllRatings(f, was >= 50 ? 20 : 95);   // flip the truth
             f.PotentialAbility = was >= 50 ? 21 : 99;
         }
+        Rerank(world);
         Assert.Contains(live, f => FighterAbility.CurrentAbility(f) >= 90);
         Assert.Contains(live, f => FighterAbility.CurrentAbility(f) <= 25);
 
@@ -188,5 +204,94 @@ public class HonestAskTests
         Assert.Equal(company, FighterValuation.SelfWorth(f));
         Assert.InRange(company, 0.85m, 1.15m);
         Assert.InRange(merc, 0.85m, 1.15m);
+    }
+
+    [Fact]
+    public void AReplacedBout_CountsOnTheRecord_AndAReloadPricesTheSame()
+    {
+        // A card is booked and the public read looked at (so any index is warm),
+        // then a fighter is swapped out: the bout in that slot is a NEW Fight
+        // object under the same id. After the card runs, the new bout must be
+        // on the replacement's public record — and a saved-and-reloaded world
+        // must price every fighter on the card exactly as the live one does.
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 11 });
+        var booking = new PlayerBooking();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(30));
+        var div = promo.Divisions.OrderBy(d => d.Sex).ThenBy(d => d.WeightClass)
+            .First(d => world.RosterOf(promo.Id).Count(f => d.Matches(f) && f.IsMatchReady(ev.Date)) >= 5);
+        var pool = world.RosterOf(promo.Id).Where(f => div.Matches(f) && f.IsMatchReady(ev.Date)).OrderBy(f => f.Id.Value).ToList();
+        Assert.True(booking.AddBout(world, ev, pool[0].Id, pool[1].Id, 3, false, out var err), err);
+        Assert.True(booking.AddBout(world, ev, pool[2].Id, pool[3].Id, 3, false, out err), err);
+        foreach (var f in world.Fighters.Values.Take(200)) PublicStanding.Read(world, f);   // warm the index
+
+        var slot = ev.Card[0];
+        var spare = pool[4];
+        Assert.True(booking.ReplaceFighter(world, ev, slot.Id, slot.BlueCorner, spare.Id, out err), err);
+        foreach (var f in world.Fighters.Values.Take(200)) PublicStanding.Read(world, f);
+
+        new EventService().RunEvent(world, ev);
+        var bouts = PublicStanding.RecentPublicBouts(world, spare, PublicStanding.RecentBouts);
+        Assert.Contains(bouts, b => b.Date == ev.Date && (b.Won || b.Lost || b.Opponent == slot.RedCorner));
+        Assert.Equal(ev.Card.First(x => x.Id == slot.Id).Outcome is { Winner: not null } ? 1 : 0,
+            bouts.Count(b => b.Date == ev.Date && (b.Won || b.Lost)));
+
+        string path = Path.Combine(Path.GetTempPath(), $"mma_honest_{Guid.NewGuid():N}.db");
+        World loaded;
+        try { SaveGame.Save(world, path); loaded = SaveGame.Load(path); }
+        finally { File.Delete(path); }
+        foreach (var id in ev.Card.SelectMany(x => new[] { x.RedCorner, x.BlueCorner }).Distinct())
+            Assert.Equal(Snapshot(Valuation.Evaluate(world, world.Get(id)!)), Snapshot(Valuation.Evaluate(loaded, loaded.Get(id)!)));
+    }
+
+    [Fact]
+    public void TheQuotedFigure_IsWhatTheRoomAsks_AndMeetingItSigns()
+    {
+        // The ask the player is quoted, the number the room opens at, and what
+        // it takes to sign must agree to the dollar: tabling exactly the quoted
+        // terms is accepted, never countered as a lowball.
+        var world = SeasonedWorld();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var fas = world.FreeAgents().Where(f => f.Status == FighterStatus.Active).OrderBy(f => f.Id.Value).Take(60).ToList();
+        Assert.NotEmpty(fas);
+        foreach (var f in fas)
+        {
+            var exp = Valuation.Evaluate(world, f);
+            foreach (bool excl in new[] { true, false })
+            {
+                var quote = AskingQuote.For(world, promo, f, exp, excl);
+                var room = new NegotiationSession(world, f, promo, exp);
+                Assert.Equal(quote.Purse, room.DemandPurse(excl, false));
+                Assert.True(quote.Purse.Amount >= exp.AskingPurse.Amount * (excl ? 1m : Negotiator.NonExclusiveMoneyFactor)
+                                                  * Negotiator.TableDiscount(world, f, promo.Id),
+                    "the quote never rounds below what he wants");
+                var terms = room.TheirTermsAsOffer(excl, false);
+                Assert.Equal(quote.Purse, terms.PursePerFight);
+                Assert.Equal(TalkVerdict.Accept, room.Table(terms).Verdict);
+            }
+        }
+    }
+
+    [Fact]
+    public void AnAiOpeningOffer_RoundsUpToTheAsk_ButNeverPastTheCap()
+    {
+        var world = SeasonedWorld();
+        var negotiator = new Negotiator();
+        foreach (var promo in world.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value))
+        {
+            decimal cap = Negotiator.PurseCap(world, promo);
+            foreach (var f in world.FreeAgents().OrderBy(f => f.Id.Value).Take(40))
+            {
+                var exp = Valuation.Evaluate(world, f);
+                foreach (decimal stretch in new[] { 1m, Lifers.RenewalStretch })
+                {
+                    var offer = negotiator.AiOpeningOffer(world, promo, f, exp, stretch);
+                    Assert.True(offer.PursePerFight.Amount <= cap * stretch, $"{promo.Abbreviation} offered {offer.PursePerFight} over its cap {cap * stretch}");
+                    decimal ask = exp.AskingPurse.Amount * (Negotiator.WantsExclusivity(promo) ? 1m : Negotiator.NonExclusiveMoneyFactor)
+                                * Negotiator.TableDiscount(world, f, promo.Id);
+                    if (ask <= cap * stretch - 500m) Assert.True(offer.PursePerFight.Amount >= ask);
+                }
+            }
+        }
     }
 }

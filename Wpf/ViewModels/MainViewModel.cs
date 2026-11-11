@@ -448,7 +448,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (_world is null || SelectedFighter?.Model is not { } f) return "Pay retention bonus";
             if (f.Loyalty >= 100) return "Fully loyal — no bonus needed";
-            return $"Pay retention bonus — {RetentionService.Quote(f)} (+{RetentionService.LoyaltyGain(f)} loyalty, now {f.Loyalty})";
+            return $"Pay retention bonus — {RetentionService.Quote(_world, f)} (+{RetentionService.LoyaltyGain(f)} loyalty, now {f.Loyalty})";
         }
     }
 

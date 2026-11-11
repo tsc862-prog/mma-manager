@@ -100,10 +100,10 @@ public sealed class NegotiationSession
 
     public Money DemandPurse(bool exclusive, bool clause) =>
         new(Math.Max(_liveFloor?.Amount ?? 0m,
-            RoundTo(_exp.AskingPurse.Amount * Factor(exclusive, clause) * (decimal)_demandFrac, 500m)));
+            UpTo500(_exp.AskingPurse.Amount * Factor(exclusive, clause) * (decimal)_demandFrac)));
 
     public Money DemandWinBonus(bool exclusive, bool clause) =>
-        new(RoundTo(_exp.AskingWinBonus.Amount * Factor(exclusive, clause) * (decimal)_demandFrac, 500m));
+        new(UpTo500(_exp.AskingWinBonus.Amount * Factor(exclusive, clause) * (decimal)_demandFrac));
 
     public Money DemandSigning(bool exclusive, bool clause) =>
         _exp.WantsSigningBonus
@@ -312,4 +312,12 @@ public sealed class NegotiationSession
     }
 
     private static decimal RoundTo(decimal v, decimal step) => Math.Round(v / step) * step;
+
+    /// <summary>
+    /// His number on the $500 step, rounded UP: the room never quotes less than
+    /// he actually wants (the AI's opening offer rounds the same way, and
+    /// <see cref="AskingQuote"/> quotes exactly this), so meeting the quoted
+    /// figure is always meeting his price.
+    /// </summary>
+    internal static decimal UpTo500(decimal v) => Math.Ceiling(v / 500m) * 500m;
 }
