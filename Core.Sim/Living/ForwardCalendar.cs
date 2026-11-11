@@ -518,17 +518,25 @@ public static class ForwardCalendar
         var committed = Unbookable(world);
         foreach (var ev in world.Events.Values
                      .Where(e => e.Status == EventStatus.Scheduled && e.Promotion != world.PlayerPromotion
-                                 && e.Date >= today && e.Date.DayNumber - today.DayNumber <= UndercardFillDays
-                                 && !Storylines.IsSuperfight(e))
+                                 && e.Date >= today && !Storylines.IsSuperfight(e)
+                                 // A card that lost every bout is rebuilt whenever it is,
+                                 // the rest are filled in close to the date.
+                                 && (e.Card.Count == 0 || e.Date.DayNumber - today.DayNumber <= UndercardFillDays))
                      .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
                      .ToList())
         {
-            if (world.Get(ev.Promotion) is not { Defunct: false } promo || ev.Card.Count == 0) continue;
+            if (world.Get(ev.Promotion) is not { Defunct: false } promo) continue;
             int need = CardSize(promo) - ev.Card.Count;
             if (need <= 0) continue;
             var reserved = SignatureEvents.IsSignature(world, ev) ? new HashSet<FighterId>() : Reserved(world, promo, today);
-            var under = matchmaker.BuildUndercard(world, promo.Id, need, ev.Date,
-                reserved.Count == 0 ? committed : new HashSet<FighterId>(committed.Concat(reserved)));
+            var around = reserved.Count == 0 ? committed : new HashSet<FighterId>(committed.Concat(reserved));
+            // An emptied card is rebuilt top to bottom (a headliner and its
+            // undercard, from whoever is free); otherwise just the undercard.
+            var under = ev.Card.Count == 0
+                ? (ev.Date.DayNumber - today.DayNumber <= UndercardFillDays
+                    ? matchmaker.BuildCard(world, promo.Id, need, ev.Date, around)
+                    : matchmaker.Headliners(world, promo.Id, ev.Date, around))
+                : matchmaker.BuildUndercard(world, promo.Id, need, ev.Date, around);
             if (under.Count == 0) continue;
 
             var fights = under.Select(m => new Fight
@@ -539,6 +547,11 @@ public static class ForwardCalendar
                 WeightClass = m.WeightClass,
                 ScheduledRounds = m.Rounds,
             }).ToList();
+            for (int i = 0; i < fights.Count; i++)
+            {
+                fights[i].IsTitleFight = under[i].IsTitle;
+                fights[i].Title = under[i].Title;
+            }
             ev.Card.InsertRange(0, fights);
             foreach (var m in under) { committed.Add(m.Red); committed.Add(m.Blue); }
         }
@@ -603,16 +616,17 @@ public static class ForwardCalendar
                 // the card leaves the show without its announced main event.
                 if (!saved && ReferenceEquals(fight, announcedMain)) mainGone = true;
             }
-            if (ev.Card.Count == 0) Collapse(world, ev, today);
-            else if (mainGone) RestoreHeadliner(world, ev);
+            // An emptied card stays on the calendar to be rebuilt (FillUndercards);
+            // only a card still empty on fight night collapses.
+            if (ev.Card.Count > 0 && mainGone) RestoreHeadliner(world, ev);
         }
     }
 
     /// <summary>
-    /// An announced AI card that has lost every bout is cancelled at once, with
+    /// An announced AI card that reaches fight night with no bouts (everything
+    /// fell through and nobody could be found to rebuild it) is cancelled with
     /// the same consequence as a card that collapses in fight week (the
-    /// promotion's standing takes the hit) and a headline, so the date doesn't
-    /// sit dead on the calendar.
+    /// promotion's standing takes the hit) and a headline.
     /// </summary>
     internal static void Collapse(World world, Event ev, DateOnly date)
     {

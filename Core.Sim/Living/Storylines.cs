@@ -95,8 +95,8 @@ public static class Storylines
                 bool wasMain = ev.Card.Count > 0 && ReferenceEquals(ev.Card[^1], fight);
                 if (!SaveBout(world, ev, fight, hurt, booked, date, "Injured in camp"))
                 {
-                    if (ev.Card.Count == 0) ForwardCalendar.Collapse(world, ev, date);
-                    else if (wasMain) ForwardCalendar.RestoreHeadliner(world, ev);
+                    // (An emptied card is rebuilt by the calendar's fill pass.)
+                    if (ev.Card.Count > 0 && wasMain) ForwardCalendar.RestoreHeadliner(world, ev);
                 }
             }
         }

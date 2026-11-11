@@ -298,7 +298,13 @@ public sealed class WorldTick
         var due = world.Events.Values
             .Where(e => e.Status == EventStatus.Scheduled && e.Date <= asOf
                         && (runPlayerEvents || e.Promotion != world.PlayerPromotion))   // player watches their own
-            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+            // The player's cards run first on their night, as they always did
+            // when AI cards were created on the day (and so always had the
+            // higher ids): an AI card announced weeks ago must not move the
+            // player's card along the week's shared stream.
+            .OrderBy(e => e.Date)
+            .ThenBy(e => e.Promotion == world.PlayerPromotion ? 0 : 1)
+            .ThenBy(e => e.Id.Value)
             .ToList();
 
         foreach (var ev in due)

@@ -152,13 +152,30 @@ public class ForwardCalendarTests
         var newYear = AiScheduled(world).First(e => e.Name.StartsWith("ICF Emperor's New Year"));
         var date = newYear.Date;
 
-        for (int w = 0; w < 26; w++) { tick.AdvanceWeek(world); Snap(); }
+        bool pulledNews = false;   // read as it happens: the feed caps at 1,000 items
+        for (int w = 0; w < 26; w++)
+        {
+            tick.AdvanceWeek(world); Snap();
+            pulledNews |= world.News.Any(n => n.Category == NewsCategory.Withdrawal && n.Headline.Contains(newYear.Name)
+                && (n.Headline.Contains("Sato") || n.Headline.Contains("Kang")));
+        }
 
-        // The dome show ran on its date with Sato and Kang on top.
+        // The dome show ran on its date with Sato and Kang on top, unless one of
+        // them was pulled in fight week (a 3% roll per corner on the week's shared
+        // stream, which is what this seed draws since main's local-promotions
+        // change), in which case the withdrawal is news and the belt co-main
+        // headlines instead.
         Assert.Equal(EventStatus.Completed, newYear.Status);
         Assert.Equal(date, newYear.Date);
-        Assert.Equal(announced[newYear.Id], (newYear.Card[^1].RedCorner, newYear.Card[^1].BlueCorner));
         Assert.NotNull(newYear.Card[^1].Outcome);
+        var (sato, kang) = announced[newYear.Id];
+        bool ranAsAnnounced = (newYear.Card[^1].RedCorner, newYear.Card[^1].BlueCorner) == (sato, kang);
+        if (!ranAsAnnounced)
+        {
+            Assert.DoesNotContain(newYear.Card, f => (f.RedCorner == sato && f.BlueCorner == kang) || (f.RedCorner == kang && f.BlueCorner == sato));
+            Assert.True(pulledNews, "a headliner pulled from the dome show is news");
+            Assert.True(newYear.Card[^1].IsTitleFight, "the belt co-main takes over the top of the bill");
+        }
 
         // And across half a year: whenever both announced headliners are still on
         // the card on fight night, their bout IS the main event (nothing may
@@ -203,6 +220,24 @@ public class ForwardCalendarTests
         // Fight night: unless a feud corner pulled out, the feud is still the main event.
         new WorldTick().RunEventLive(world, ev, playByPlay: false);
         if (ev.Card.Contains(feud)) Assert.Same(feud, ev.Card[^1]);
+    }
+
+    [Fact]
+    public void AnEmptiedCard_IsRebuilt_NotLeftDeadOrCancelled()
+    {
+        // Everything on an announced card falls through weeks out: the house
+        // books it again from whoever is free (only a card still empty on fight
+        // night collapses, with the standing hit and a headline).
+        var world = Build();
+        var ev = AiScheduled(world).First(e => e.Date.DayNumber - world.CurrentDate.DayNumber >= 21
+                                               && OrgSizing.SizeOf(world.Get(e.Promotion)!) >= OrgSize.National);
+        ev.Card.Clear();
+        new WorldTick().AdvanceWeek(world);
+        Assert.Equal(EventStatus.Scheduled, ev.Status);
+        Assert.NotEmpty(ev.Card);
+        Assert.Equal(world.Get(ev.Promotion)!.Rules.TitleRounds, ev.Card[^1].ScheduledRounds);
+        var v = Violations(world);
+        Assert.True(v.Count == 0, string.Join(Environment.NewLine, v));
     }
 
     [Fact]
