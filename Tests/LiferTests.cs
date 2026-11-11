@@ -497,22 +497,36 @@ public class LiferTests
     }
 
     [Fact]
-    public void AWorldWithoutLifers_RunsExactlyAsItDidBefore()
+    public void AWorldWithoutLifers_RunsExactlyAsIfTheLayerDidNotExist()
     {
         // Every fighter a mercenary: no lifers can exist, so the whole layer must
-        // be inert. The fingerprint was taken on main before lifers existed
-        // (same scenario, same seed) — any drift means the layer leaks into the
-        // ordinary treadmill.
-        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 21 });
-        world.PlayerPromotion = default;
-        foreach (var f in world.Fighters.Values) f.Disposition = Disposition.Mercenary;
-        new WorldTick().AdvanceWeeks(world, 26);
+        // be inert. Same seed, same run, layer on and layer off — any difference
+        // means it leaks into the ordinary treadmill. (No stored hash: the proof
+        // stays valid whatever else changes on main.)
+        static string Run(bool layerOff)
+        {
+            var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 21 });
+            world.PlayerPromotion = default;
+            foreach (var f in world.Fighters.Values) f.Disposition = Disposition.Mercenary;
+            Lifers.Disabled = layerOff;
+            try { new WorldTick().AdvanceWeeks(world, 26); }
+            finally { Lifers.Disabled = false; }
+            return Fingerprint(world) + "|" + string.Join(" / ", world.News.Select(n => n.Headline));
+        }
 
-        Assert.Equal(MercenaryWorldFingerprint, Fingerprint(world));
+        Assert.Equal(Run(layerOff: true), Run(layerOff: false));
     }
 
-    // Taken on main @ 73ef5aa with the scenario above (see the PR for how).
-    private const string MercenaryWorldFingerprint = "DDCCC2B01FBB4B64";
+    [Fact]
+    public void TheSwitch_ReallyTurnsTheLayerOff()
+    {
+        // Guards the test above: with the layer off, a would-be lifer is not one.
+        var (world, lifer) = HoldingLifer();
+        Lifers.Disabled = true;
+        try { Assert.False(Lifers.IsLifer(world, lifer)); }
+        finally { Lifers.Disabled = false; }
+        Assert.True(Lifers.IsHolding(world, lifer));
+    }
 
     // --- Determinism ---------------------------------------------------------------------
 

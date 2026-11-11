@@ -36,6 +36,16 @@ namespace MmaManager.Core.Sim.Contracts;
 /// </summary>
 public static class Lifers
 {
+    /// <summary>
+    /// Test switch: turns the whole layer off on this thread (nobody scores, so
+    /// nobody is a lifer and every hook — discount, renewal-first, refusal,
+    /// grievances, stories — is inert). Lets a test prove the layer leaves an
+    /// ordinary world untouched by running the same world with it on and off,
+    /// instead of pinning a hash to main's past. Per-thread because tests run in
+    /// parallel and a world ticks on one thread.
+    /// </summary>
+    [ThreadStatic] internal static bool Disabled;
+
     /// <summary>The lifer bar on <see cref="Score"/>.</summary>
     public const int Threshold = 80;
     private const int CompanyManBonus = 10;
@@ -67,7 +77,7 @@ public static class Lifers
     /// </summary>
     public static int Score(World world, Fighter f)
     {
-        if (f.Disposition == Disposition.Mercenary || f.Contract is not { } c) return 0;
+        if (Disabled || f.Disposition == Disposition.Mercenary || f.Contract is not { } c) return 0;
         return f.Loyalty
              + (f.Disposition == Disposition.CompanyMan ? CompanyManBonus : 0)
              + (world.Get(c.Promotion)?.FaceOfCompany == f.Id ? FaceBonus : 0);
