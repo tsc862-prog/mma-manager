@@ -429,16 +429,31 @@ public class CardDeskTests
             OccurredOn = world.CurrentDate, ExpectedReturn = ev.Date.AddDays(30),
         };
 
-        // A rival's card two days later: public, and it clashes.
+        // A rival's card two days EARLIER: public, and it clashes. (An AI card
+        // announced for a date after yours is listed in RivalCardsNear but not
+        // charged: before the forward calendar an AI card didn't exist until
+        // its own night, so it never cut a card dated before it.)
         var rival = world.Promotions.Values.First(x => x.Id != world.PlayerPromotion && !x.Defunct);
         var clash = new Event
         {
-            Id = world.NewEventId(), Promotion = rival.Id, Name = "Rival Night", Date = ev.Date.AddDays(2),
+            Id = world.NewEventId(), Promotion = rival.Id, Name = "Rival Night", Date = ev.Date.AddDays(-2),
             Status = EventStatus.Scheduled,
         };
         world.Events[clash.Id] = clash;
+        // And an AI card announced for two days AFTER: listed for the booker,
+        // but not charged (and so no "costs 8%" risk is claimed for it).
+        var later = new Event
+        {
+            Id = world.NewEventId(), Promotion = rival.Id, Name = "Rival Night Two", Date = ev.Date.AddDays(2),
+            Status = EventStatus.Scheduled,
+        };
+        world.Events[later.Id] = later;
 
         var p = booking.Project(world, ev);
+        Assert.DoesNotContain(later, p.ClashingCards);
+        Assert.DoesNotContain(p.Risks, r => r.Kind == BookingRiskKind.RivalCardClash && r.OtherEvent == later.Id);
+        Assert.Contains(p.NearbyRivalCards, r => r.Card.Event.Id == later.Id && !r.Charged);
+        Assert.Contains(p.NearbyRivalCards, r => r.Card.Event.Id == clash.Id && r.Charged);
         Assert.Contains(p.Risks, r => r.Kind == BookingRiskKind.LastFightOnDeal && r.Fighter == lastDeal.Id);
         Assert.Contains(p.Risks, r => r.Kind == BookingRiskKind.NotMatchReady && r.Fighter == hurt.Id && r.Text.Contains("broken hand"));
         Assert.Contains(p.Risks, r => r.Kind == BookingRiskKind.RivalCardClash && r.OtherEvent == clash.Id);
@@ -555,11 +570,54 @@ public class CardDeskTests
         var r = world.Get(first.Red!.Value)!;
         var group = world.RosterOf(promo.Id)
             .Where(f => f.WeightClass == r.WeightClass && f.Sex == r.Sex && f.IsMatchReady(ev.Date)
-                        && !ev.Card.Any(b => b.RedCorner == f.Id || b.BlueCorner == f.Id))
+                        && !ev.Card.Any(b => b.RedCorner == f.Id || b.BlueCorner == f.Id)
+                        // champions only fight for the belt, and nobody committed to
+                        // another scheduled card pads this one
+                        && !world.Titles.Values.Any(t => t.CurrentChampion == f.Id)
+                        && !MmaManager.Core.Sim.Living.ForwardCalendar.IsCommitted(world, f.Id, ev.Id))
             .OrderByDescending(f => ScoutingService.PerceivedAbility(world, promo, f)).ThenBy(f => f.Id.Value)
             .ToList();
         Assert.Equal(new[] { group[0].Id, group[1].Id }, new[] { first.Red!.Value, first.Blue!.Value });
 
+        AssertNightMatchesPreview(world, ev, preview);
+    }
+
+    [Fact]
+    public void Padding_SkipsYourChampionAndYourNextCardsFighters_InThePreviewAndOnTheNight()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        BookCard(world, booking, ev, 1);
+
+        // Find a division where the top two by OUR read are free to pad, then
+        // make one of them the champion and book the other on our NEXT card.
+        Fighter[] TopTwo()
+        {
+            foreach (var d in promo.Divisions.OrderBy(d => d.Sex).ThenBy(d => d.WeightClass))
+            {
+                var pool = world.RosterOf(promo.Id)
+                    .Where(f => d.Matches(f) && f.IsMatchReady(ev.Date) && !ForwardCalendar.IsCommitted(world, f.Id)
+                                && !world.Titles.Values.Any(t => t.CurrentChampion == f.Id))
+                    .OrderByDescending(f => ScoutingService.PerceivedAbility(world, promo, f)).ThenBy(f => f.Id.Value)
+                    .ToList();
+                if (pool.Count >= 6) return pool.Take(3).ToArray();
+            }
+            throw new InvalidOperationException("no division deep enough");
+        }
+        var top = TopTwo();
+        var div = promo.Divisions.First(d => d.Matches(top[0]));
+        var belt = world.Get(div.Title!.Value)!;
+        belt.CurrentChampion = top[0].Id;
+        var next = booking.CreateEvent(world, ev.Date.AddDays(28));
+        Assert.True(booking.AddBout(world, next, top[1].Id, top[2].Id, 3, false, out var err), err);
+
+        var preview = booking.PreviewPadding(world, ev);
+        var padded = preview.Bouts.Where(b => !b.LocalFiller).SelectMany(b => new[] { b.Red!.Value, b.Blue!.Value }).ToHashSet();
+        Assert.DoesNotContain(top[0].Id, padded);   // the champion only fights for the belt
+        Assert.DoesNotContain(top[1].Id, padded);   // already committed to the next card
+        Assert.DoesNotContain(top[2].Id, padded);
         AssertNightMatchesPreview(world, ev, preview);
     }
 

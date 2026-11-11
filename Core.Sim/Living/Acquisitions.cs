@@ -204,8 +204,10 @@ public static class Acquisitions
             title.CurrentChampion = null;
         }
 
-        foreach (var ev in world.Events.Values.Where(e => e.Promotion == target.Id && e.Status == EventStatus.Scheduled))
-            ev.Status = EventStatus.Cancelled;
+        var cancelled = world.Events.Values
+            .Where(e => e.Promotion == target.Id && e.Status == EventStatus.Scheduled)
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value).ToList();
+        foreach (var ev in cancelled) ev.Status = EventStatus.Cancelled;
 
         target.SponsorDeals.Clear();
         target.MediaDeals.Clear();
@@ -218,7 +220,8 @@ public static class Acquisitions
         News.Post(world, date, NewsCategory.Milestone,
             $"{buyer.Name} acquires {target.Name}",
             $"The sport consolidates: {buyer.Abbreviation} buys the whole company for {price} — " +
-            $"{carried} fighters come over, {released} hit the open market, and the {target.Abbreviation} belts retire with the banner.",
+            $"{carried} fighters come over, {released} hit the open market, and the {target.Abbreviation} belts retire with the banner."
+            + Org.Solvency.CalendarFallout(cancelled),
             buyer.Id);
 
         Mail.Post(world, date, MailCategory.General, "MMA Weekly",

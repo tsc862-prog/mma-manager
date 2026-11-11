@@ -71,6 +71,17 @@ public static class Solvency
         }
     }
 
+    /// <summary>
+    /// " The announced cards are off: X on 14 March, …" — what a dead (or sold)
+    /// promotion's calendar loses, for the closing headline. Empty when nothing was booked.
+    /// </summary>
+    public static string CalendarFallout(IReadOnlyList<Event> cancelled) => cancelled.Count switch
+    {
+        0 => "",
+        1 => $" {cancelled[0].Name} ({cancelled[0].Date:d MMMM}) is off the calendar.",
+        _ => $" {cancelled.Count} announced cards are off the calendar, {cancelled[0].Name} ({cancelled[0].Date:d MMMM}) first among them.",
+    };
+
     /// <summary>Fold the promotion: release everyone, vacate the belts, cancel the cards.</summary>
     public static void Close(World world, Promotion promo, DateOnly date)
     {
@@ -94,8 +105,10 @@ public static class Solvency
             title.CurrentChampion = null;
         }
 
-        foreach (var ev in world.Events.Values.Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Scheduled))
-            ev.Status = EventStatus.Cancelled;
+        var cancelled = world.Events.Values
+            .Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Scheduled)
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value).ToList();
+        foreach (var ev in cancelled) ev.Status = EventStatus.Cancelled;
 
         promo.SponsorDeals.Clear();
         promo.MediaDeals.Clear();
@@ -104,7 +117,8 @@ public static class Solvency
 
         News.Post(world, date, NewsCategory.Finance,
             $"{promo.Name} closes its doors",
-            $"Insolvent and out of road — {released} fighters hit the open market overnight.", promo.Id);
+            $"Insolvent and out of road — {released} fighters hit the open market overnight."
+            + CalendarFallout(cancelled), promo.Id);
 
         Mail.Post(world, date, MailCategory.BoardNote, "The Accountant",
             promo.Id == world.PlayerPromotion
