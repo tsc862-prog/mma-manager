@@ -33,6 +33,19 @@ public sealed class Negotiator
     /// <summary>A fighter who wants a signing bonus wants a real one: at least this share of the bonus he quoted.</summary>
     public const decimal SigningBonusMinFraction = 0.25m;
 
+    /// <summary>
+    /// The share of his guaranteed demand (the purse, and at the table any
+    /// signing bonus spread over the deal) that must be guaranteed whatever the
+    /// bonuses, points or win money on top. The promotion books him — it decides
+    /// whether he ever fights on a pay-per-view, for a bonus, or against someone
+    /// he can beat — so contingent money can stand in for the rest at most.
+    /// </summary>
+    public const decimal GuaranteedFloorFraction = 0.6m;
+
+    /// <summary>The money in an offer that doesn't depend on how he's booked or whether he wins: purse plus the signing bonus spread over the deal.</summary>
+    public static decimal GuaranteedPerFight(ContractOffer o) =>
+        o.PursePerFight.Amount + (o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount);
+
     /// <summary>A live deal can only be torn up for less show money once he's lost this many in a row.</summary>
     public const int RestructureSkid = 3;
 
@@ -62,6 +75,13 @@ public sealed class Negotiator
         // He won't tear up a live deal to be paid less show money (unless he's skidding).
         if (LivePurseFloor(f, offer.Promotion) is { } floor && offer.PursePerFight.Amount < floor.Amount)
             return new(NegotiationVerdict.Reject, null, $"I'm signed at {floor} a fight. I'm not tearing that up for less.");
+        // Bonuses don't pay the rent: whatever the upside, the guaranteed money
+        // must cover a real share of his asking purse. (An AI-built offer always
+        // clears this whenever it clears the price test: it carries no upside and
+        // caps its win bonus at three quarters of the purse, so an accepted one
+        // guarantees at least ~0.75 of the ask.)
+        if (GuaranteedPerFight(offer) < exp.AskingPurse.Amount * factor * GuaranteedFloorFraction)
+            return new(NegotiationVerdict.Reject, null, "Bonuses are nice. Guaranteed money pays the rent.");
 
         if (ratio >= threshold && signingOk && lengthOk)
             return new(NegotiationVerdict.Accept, null, "Happy with the deal.");

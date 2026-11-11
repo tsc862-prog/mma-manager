@@ -145,9 +145,10 @@ public sealed class NegotiationSession
         bool lengthOk = Math.Abs(offer.Fights - _exp.DesiredFights) <= 1;
         // A live deal is never torn up for less show money (unless he's skidding).
         bool payOk = _liveFloor is not { } floor || offer.PursePerFight.Amount >= floor.Amount;
+        bool guaranteedOk = GuaranteedOk(offer);
         var reactions = React(offer);
 
-        if (ratio >= 0.995 && signingOk && lengthOk && payOk)
+        if (ratio >= 0.995 && signingOk && lengthOk && payOk && guaranteedOk)
         {
             Outcome = TalkOutcome.Signed;
             return new(TalkVerdict.Accept, Line(AcceptLines), reactions);
@@ -177,6 +178,7 @@ public sealed class NegotiationSession
 
         string line = ratio < 0.70 ? Line(LowballLines)
                     : !payOk ? $"\"{_fighter.FirstName} is signed at {_liveFloor} a fight. We're not tearing that up for less.\""
+                    : !guaranteedOk ? $"\"Bonuses are nice. Guaranteed money pays the rent — {_fighter.FirstName} needs at least {GuaranteedNeeded(offer)} a fight he can count on.\""
                     : !signingOk ? "\"Close on the money — but no signing bonus, no signature.\""
                     : !lengthOk ? $"\"The money can work, but {_fighter.FirstName} wants a {_exp.DesiredFights}-fight deal.\""
                     : ratio >= 0.90 ? Line(CloseLines) : Line(MidLines);
@@ -188,6 +190,20 @@ public sealed class NegotiationSession
     {
         if (Outcome == TalkOutcome.Open) Outcome = TalkOutcome.YouWalked;
     }
+
+    // Whatever the upside, the guaranteed money (purse plus signing bonus spread
+    // over the deal) must cover a real share of what they're quoting as
+    // guaranteed today — the promotion decides whether he ever fights on a PPV,
+    // for a bonus, or against someone he can beat.
+    private decimal GuaranteedFloor(ContractOffer o) =>
+        (DemandPurse(o.Exclusive, o.ChampionsClause).Amount
+         + DemandSigning(o.Exclusive, o.ChampionsClause).Amount / Math.Max(1, _exp.DesiredFights))
+        * Negotiator.GuaranteedFloorFraction;
+
+    private bool GuaranteedOk(ContractOffer o) => Negotiator.GuaranteedPerFight(o) >= GuaranteedFloor(o);
+
+    // The floor as the room says it: rounded up to the next $500.
+    private Money GuaranteedNeeded(ContractOffer o) => new(Math.Ceiling(GuaranteedFloor(o) / 500m) * 500m);
 
     // "Wants a signing bonus" means a real one: at least a quarter of the bonus he quoted.
     private bool SigningOk(ContractOffer o) =>
@@ -235,6 +251,10 @@ public sealed class NegotiationSession
             : Math.Abs(diff) == 1
                 ? new("Length", TermFeel.Close, $"they'd prefer {_exp.DesiredFights}")
                 : new("Length", TermFeel.Sore, $"they want a {_exp.DesiredFights}-fight deal"));
+
+        if (!GuaranteedOk(o))
+            list.Add(new("Guaranteed money", TermFeel.Sore,
+                $"too much rides on bonuses — they need {GuaranteedNeeded(o)} a fight guaranteed (purse plus signing bonus)"));
 
         if (o.PpvPoints > 0)
             list.Add(Negotiator.PpvPointValue(_world, _promo.Id) <= 0
