@@ -72,6 +72,55 @@ public class FightEngineTests
     }
 
     [Fact]
+    public void StoredCard_CoversExactlyTheRoundsThatWereFought()
+    {
+        // In-round finish: the rounds before it. Doctor or corner between rounds: the round just
+        // fought too, with the stoppage stamped at the end of that round. Decision: every round.
+        var gen = new FighterGenerator(31);
+        var engine = new FightEngine();
+        int betweenRounds = 0, inRound = 0;
+        for (int i = 0; i < 6000; i++)
+        {
+            Fighter Make(int id) => gen.Generate(new FighterId(id), Today, new GenOptions
+            { Overall = 40 + (id * 7) % 45, Style = (PrimaryStyle)(id % 8), WeightClass = WeightClass.Heavyweight, WithRecord = false });
+            var a = Make(2 * i + 1); var b = Make(2 * i + 2);
+            var p = new FightParams { ScheduledRounds = 5, GeneratePlayByPlay = false };
+            var o = engine.Simulate(a, b, p, SimRandom.Mix(808, (ulong)i), out var detail);
+            int expected = detail is null ? 5 : o.EndRound - 1;
+            if (detail is "TKO: corner" or "TKO: doctor, between rounds")
+            {
+                expected = o.EndRound; betweenRounds++;
+                Assert.True(o.EndRound < 5);
+                Assert.Equal(p.RoundSeconds, o.EndTimeSeconds);
+            }
+            else if (detail is not null) inRound++;
+            Assert.Equal(expected, o.RoundScores!.Count);
+        }
+        Assert.True(betweenRounds > 10 && inRound > 1000, $"between rounds {betweenRounds}, in round {inRound}");
+    }
+
+    [Fact]
+    public void DrawsAndMajorityDecisions_AreReachable_AndAgreeWithTheCards()
+    {
+        var a = Make(1, 66, PrimaryStyle.WellRounded);
+        var b = Make(2, 66, PrimaryStyle.WellRounded);
+        var engine = new FightEngine();
+        int draws = 0, majority = 0;
+        for (uint s = 1; s <= 4000; s++)
+        {
+            var o = engine.Simulate(a, b, FightParams.FastThreeRound, new SimRandom(s));
+            if (o.Method == FightMethod.Draw)
+            {
+                draws++;
+                Assert.Null(o.Winner);
+                Assert.Equal(o.RoundScores!.Sum(x => x.Red), o.RoundScores!.Sum(x => x.Blue));   // a level card is stored
+            }
+            if (o.Method == FightMethod.MajorityDecision) majority++;
+        }
+        Assert.True(draws > 0 && majority > 0, $"draws {draws}, majority decisions {majority}");
+    }
+
+    [Fact]
     public void FinishRate_IsWithinRealisticBand()
     {
         var a = Make(1, 70, PrimaryStyle.WellRounded);

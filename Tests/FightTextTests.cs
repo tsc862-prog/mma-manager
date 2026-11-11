@@ -152,9 +152,9 @@ public class FightTextTests
             if (red == blue) level++;
         }
         Assert.True(decisions > 500);
-        // A level card survives only when every judge who voted for the winner had it level
-        // and the winner came from the raw-merit tie-break (plan step 3 removes that tie-break).
-        Assert.True(level < decisions * 0.10, $"{level} of {decisions} stored cards level");
+        // No tie-break on raw merit (plan step 3): a judge with a level card votes draw, so the
+        // stored card of a judged WIN is never level.
+        Assert.Equal(0, level);
     }
 
     [Fact]

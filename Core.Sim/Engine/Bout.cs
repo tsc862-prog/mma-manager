@@ -34,14 +34,14 @@ internal sealed class Bout
     // Knockdown roll on a landed power shot: Logistic(impact*KdImpact + (100-Chin)*KdChin
     // - Health*KdHealth + hurt bonus - KdOffset, KdSlope). Fewer than before, and less tied to
     // accumulated damage, so a knockdown can come early (R1 is the top finishing round).
-    private const double KdImpact = 2.2, KdChin = 0.4, KdHealth = 0.06, KdHurtBonus = 18, KdOffset = 64, KdSlope = 0.06;
+    private const double KdImpact = 2.2, KdChin = 0.4, KdHealth = 0, KdHurtBonus = 18, KdOffset = 69, KdSlope = 0.06;
     // Flash knockout [ss]: any landed power shot, scaled by power against chin and division.
     private const double FlashBase = 0.0045, FlashSpread = 25;
     // Out cold once dropped [ss]: Logistic(impact*OutImpact + (100-Chin)*OutChin - Health*OutHealth - OutOffset, OutSlope).
-    private const double OutImpact = 1.6, OutChin = 0.3, OutHealth = 0.25, OutOffset = 43, OutSlope = 0.09;
+    private const double OutImpact = 1.6, OutChin = 0.3, OutHealth = 0.15, OutOffset = 47, OutSlope = 0.09;
     // Referee stoppage [ss] once a fighter is hurt or worn down: the shots he eats without
     // answering (Barrage) plus how worn he is. Logistic(Barrage + (StopHealth-Health)*StopWorn - StopOffset, StopSlope).
-    private const double StopHealth = 50, StopWorn = 0.6, StopOffset = 19, StopSlope = 0.16, StopPosition = 5, StopGroundGate = 10;
+    private const double StopHealth = 50, StopWorn = 0.6, StopOffset = 20, StopSlope = 0.16, StopPosition = 5, StopGroundGate = 10;
     // After a knockdown the attacker may pounce [ss]; the referee may stop it right there.
     private const double PounceStopOffset = 43;
     // Cuts [ss]: chance a landed power shot opens one; the doctor looks between rounds.
@@ -52,7 +52,7 @@ internal sealed class Bout
     private const double CornerHealth = 30;
     // Submissions: the tap roll's offset (was 48), the extra cost from the bottom, the help a hurt opponent gives.
     // From the bottom, Flexibility is most of the threat (SubFlex per point; was 0.05).
-    private const double SubOffset = 57, SubBottomPenalty = 16, SubHurtBonus = 12, SubFlex = 0.25;
+    private const double SubOffset = 58, SubBottomPenalty = 16, SubHurtBonus = 12, SubFlex = 0.25;
 
     // --- Scoring ---
     /// <summary>A judge scores a round 10-10 only when it is this close on his own (noisy) read.</summary>
@@ -713,7 +713,7 @@ internal sealed class Bout
             var s = _s[d];
             if (s.Cut >= 3 && _ss.Chance(Math.Min(0.8, DoctorStop * (s.Cut - 2))))
             {
-                RecordFinish(1 - d, FightMethod.TechnicalKnockout, "TKO: doctor", betweenRounds: true);
+                RecordFinish(1 - d, FightMethod.TechnicalKnockout, "TKO: doctor, between rounds", betweenRounds: true);
                 if (Logging) Say($"The doctor checks the cut over {Name(d)}'s eye between rounds… and waves it off! {Name(1 - d)} wins by TKO (doctor's stoppage).");
                 return;
             }
