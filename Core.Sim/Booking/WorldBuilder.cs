@@ -210,7 +210,9 @@ public sealed class WorldBuilder
         // upstart lived in São Paulo and Cape Fury in Johannesburg — a "local" show
         // with no locality. Atlas cities only (a new atlas city draws from the
         // builder stream and reshuffles every seed); where the lore's town isn't in
-        // the atlas, the nearest one stands in and the lore says why.
+        // the atlas, the nearest one stands in. The lore lines explaining those
+        // stand-ins (KAC Osaka→Tokyo, MCC Detroit→Chicago, CDC Andes→Lima, BLB
+        // Baltic→Stockholm) are still owed by the database agent.
         private static readonly Dictionary<string, string> DesignedHomes = new(StringComparer.Ordinal)
         {
             ["AFC"] = "Las Vegas",        // born in a Las Vegas casino ballroom
@@ -340,7 +342,7 @@ public sealed class WorldBuilder
             var designedChampions = designedFighters
                 .Where(x => x.Spec.Champion && x.Spec.Sex == Sex.Male && OrgIndexOf(x.Spec.Org) == p)
                 .ToDictionary(x => x.Spec.WeightClass, x => x.Fighter.Id);
-            PromotionSetup.ConfigureDivisions(world, promo, rostersByPromo[p], spec.Divisions ?? classes, o.StartDate, o.RankingsDepth, designedChampions);
+            PromotionSetup.ConfigureDivisions(world, promo, rostersByPromo[p], spec.Divisions ?? classes, o.StartDate, o.RankingsDepth, designedChampions, dayOneBuild: true);
             Finance.RevenueService.SeedEstablished(world, promo, o.StartDate, rng);
             SeedCityPopularity(world, promo, spec.HomeCity);
         }
@@ -533,7 +535,7 @@ public sealed class WorldBuilder
                 .Where(x => x.Spec.Champion && x.Spec.Org == specs[p].Abbreviation)
                 .ToDictionary(x => x.Spec.WeightClass, x => x.Fighter.Id);
             PromotionSetup.ConfigureDivisions(world, promos[p], femaleRosters[p], WomensClasses,
-                o.StartDate, o.RankingsDepth, champions, Sex.Female);
+                o.StartDate, o.RankingsDepth, champions, Sex.Female, dayOneBuild: true);
         }
     }
 

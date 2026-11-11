@@ -1,4 +1,5 @@
 using MmaManager.Core.Model;
+using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Booking;
 using MmaManager.Core.Sim.Contracts;
 using MmaManager.Core.Sim.Generation;
@@ -70,7 +71,7 @@ public class LocalPromotionTests
             Assert.True(spec is not null, $"{name}: {city} is not an atlas city");
             Assert.Equal(who[0].Region, WorldAtlas.ByCode(spec!.CountryCode)!.Continent);
             // The hometown invariant every fighter keeps (CountryTests): a country
-            // with a fight scene raises its own — an authored home can't move a
+            // with a fight scene raises its own â€” an authored home can't move a
             // New Zealander to Sydney, only stand in where the atlas has no city.
             if (who[0].Country is { } code && WorldAtlas.Cities.Any(c => c.CountryCode == code))
                 Assert.True(spec.CountryCode == code, $"{name} ({code}) can't be homed in {city} ({spec.CountryCode})");
@@ -132,7 +133,7 @@ public class LocalPromotionTests
             if (!authored) Assert.Equal(b.HomeCity, a.HomeCity);
             else if (a.HomeCity != b.HomeCity) movedHome++;
         }
-        Assert.True(movedHome > 0, "the table moved nobody — is it wired in?");
+        Assert.True(movedHome > 0, "the table moved nobody â€” is it wired in?");
     }
 
     // Own-continent share of the active roster, averaged over several seeds.
@@ -209,5 +210,50 @@ public class LocalPromotionTests
         Assert.InRange(pull, 3.0, 6.0);                       // somewhat more attractive, not a different fighter
         Assert.Equal(0.0, FreeAgencyService.HomePull(cpf, stranger));
         Assert.Equal(0.0, FreeAgencyService.HomePull(afc, new Fighter { Id = new FighterId(900001), FirstName = "A", LastName = "B", BirthDate = new DateOnly(2000, 1, 1), HomeCity = afc.HomeCity }));   // the summit tours
+    }
+
+    // A shoestring division: the top seed is a 1-0 kid, the next a 6-1 veteran.
+    private static (World World, Promotion Promo, Fighter Novice, Fighter Veteran) NoviceTopsTheSeeds()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 31, UseDesignedRoster = false });
+        var pool = world.FreeAgents()
+            .Where(f => f.WeightClass == WeightClass.Lightweight && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
+            .OrderByDescending(FighterAbility.CurrentAbility).ThenBy(f => f.Id.Value)
+            .ToList();
+        var novice = pool[0];
+        var veteran = pool.First(f => FighterAbility.CurrentAbility(f) <= FighterAbility.CurrentAbility(novice) - 5);
+        novice.Record.Wins = 1; novice.Record.Losses = 0; novice.Record.Draws = 0; novice.Record.NoContests = 0;
+        veteran.Record.Wins = 6; veteran.Record.Losses = 1; veteran.Record.Draws = 0; veteran.Record.NoContests = 0;
+        Assert.True(PromotionSetup.SeedScore(novice) > PromotionSetup.SeedScore(veteran));
+
+        var promo = new Promotion
+        {
+            Id = world.NewPromotionId(), Name = "Test Shoestring", Abbreviation = "TST",
+            BaseRegion = Region.NorthAmerica, Prestige = 12, Reputation = 50,
+        };
+        Assert.True(RosterNativity.IsLocalStage(promo.Prestige.Value));
+        world.Promotions[promo.Id] = promo;
+        return (world, promo, novice, veteran);
+    }
+
+    [Fact]
+    public void AMidGameStartup_StillCrownsItsTopSeed()
+    {
+        // WorldEvents' startups and LeagueBuilder call without dayOneBuild: as on main.
+        var (world, promo, novice, veteran) = NoviceTopsTheSeeds();
+        PromotionSetup.ConfigureDivisions(world, promo, new[] { novice, veteran },
+            new[] { WeightClass.Lightweight }, world.CurrentDate, 15, null, Sex.Male);
+        var title = world.Get(promo.Divisions.Single().Title!.Value)!;
+        Assert.Equal(novice.Id, title.CurrentChampion);
+    }
+
+    [Fact]
+    public void TheDayOneBuild_AtALocalStage_CrownsAFighterWithARecord()
+    {
+        var (world, promo, novice, veteran) = NoviceTopsTheSeeds();
+        PromotionSetup.ConfigureDivisions(world, promo, new[] { novice, veteran },
+            new[] { WeightClass.Lightweight }, world.CurrentDate, 15, null, Sex.Male, dayOneBuild: true);
+        var title = world.Get(promo.Divisions.Single().Title!.Value)!;
+        Assert.Equal(veteran.Id, title.CurrentChampion);
     }
 }

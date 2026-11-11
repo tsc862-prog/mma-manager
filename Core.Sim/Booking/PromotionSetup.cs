@@ -25,7 +25,8 @@ public static class PromotionSetup
     public static void ConfigureDivisions(
         World world, Promotion promo, IReadOnlyCollection<Fighter> roster,
         IEnumerable<WeightClass> classes, DateOnly on, int rankingsDepth,
-        IReadOnlyDictionary<WeightClass, FighterId>? designedChampions = null, Sex sex = Sex.Male)
+        IReadOnlyDictionary<WeightClass, FighterId>? designedChampions = null, Sex sex = Sex.Male,
+        bool dayOneBuild = false)
     {
         foreach (var wc in classes)
         {
@@ -43,10 +44,12 @@ public static class PromotionSetup
             // has actually fought a few times and won (HistoryBuilder stages the
             // reign inside their record — a one-fight career puts it in the pro
             // debut, a winless one leaves no night to stage it on at all). Only a
-            // division with no such fighter crowns a novice. Applied at the local
-            // stages, whose rosters RosterNativity reshapes and where a 1-0 kid can
-            // top the seed list; the big stages keep the plain top seed.
-            bool local = RosterNativity.IsLocalStage(promo.Prestige.Value);
+            // division with no such fighter crowns a novice. Applied only in the
+            // day-one build (dayOneBuild, passed by WorldBuilder's men's and women's
+            // passes) at the local stages, whose rosters RosterNativity reshapes and
+            // where a 1-0 kid can top the seed list. Every other caller (mid-game
+            // startups, LeagueBuilder) and the big stages keep the plain top seed.
+            bool local = dayOneBuild && RosterNativity.IsLocalStage(promo.Prestige.Value);
             var champion = designedChampions is not null
                            && designedChampions.TryGetValue(wc, out var cid)
                            && byMerit.FirstOrDefault(f => f.Id == cid) is { } dc
