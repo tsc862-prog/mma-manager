@@ -1,63 +1,105 @@
 <UserControl x:Class="MmaManager.Wpf.Views.FightersView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
-        <Grid Margin="8">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                <TextBlock Text="Division:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox Width="190" ItemsSource="{Binding RosterFilters}" SelectedItem="{Binding RosterFilter}" />
-                <CheckBox Content="My fighters only" IsChecked="{Binding MyRosterOnly}" VerticalAlignment="Center" Margin="14,0,0,0" />
-                <Button Content="View Profile >" Command="{Binding ViewProfileCommand}" Margin="12,0,0,0" />
-                <Button Content="☆ Shortlist" Command="{Binding ToggleShortlistCommand}"
-                        CommandParameter="{Binding SelectedFighter.Id}" Margin="6,0,0,0"
-                        ToolTip="Pin the selected fighter to the Notes app shortlist" />
-                <TextBlock Text="(or double-click a fighter)" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="10,0,0,0" />
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls">
+    <!-- FIGHTERS: the world's fighter database. Search and filters reach everyone;
+         the best matches by the scout's read are drawn as cards (the table one toggle away). -->
+    <Grid DataContext="{Binding FightersPage}" Background="{StaticResource Bg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="16,14,16,6">
+            <StackPanel>
+                <DockPanel>
+                    <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Top" Margin="12,0,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Cards" GroupName="fightersMode" IsChecked="{Binding ShowCards}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" GroupName="fightersMode" IsChecked="{Binding ShowTable}" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="Fighters of the world" Style="{StaticResource Text.Title}" FontSize="22" />
+                        <TextBlock Text="{Binding CountLine}" Style="{StaticResource Text.Secondary}" Margin="0,2,0,0" />
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- search, then plain filters; everything wraps with the window -->
+                <TextBox Style="{StaticResource SearchBox}" Tag="Search any fighter by name or nickname" MaxWidth="560" HorizontalAlignment="Left"
+                         Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
+                         Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=120}" Margin="0,12,0,10" />
+                <WrapPanel>
+                    <ComboBox Style="{StaticResource FilterCombo}" ItemsSource="{Binding DivisionOptions}" SelectedItem="{Binding Division}" ToolTip="Division" />
+                    <ComboBox Style="{StaticResource FilterCombo}" ItemsSource="{Binding PromotionOptions}" SelectedItem="{Binding Promotion}" MinWidth="230" ToolTip="Who they fight for" />
+                    <ComboBox Style="{StaticResource FilterCombo}" ItemsSource="{Binding FromOptions}" SelectedItem="{Binding From}" ToolTip="Where they're from (region or country)" />
+                    <ToggleButton Style="{StaticResource FilterChip}" IsChecked="{Binding ShortlistOnly}" VerticalAlignment="Top">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:Icon Kind="Star" Width="14" Height="14" Margin="0,0,6,0" />
+                            <TextBlock Text="On my shortlist" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <Button Style="{StaticResource Button.Link}" Content="Clear filters" Command="{Binding ClearCommand}" VerticalAlignment="Top" Margin="4,5,0,0" />
+                </WrapPanel>
             </StackPanel>
-            <DataGrid Grid.Row="1" ItemsSource="{Binding Roster}" SelectedItem="{Binding SelectedFighter}"
-                      RowHeight="40" mvvm:FighterLink.OpenOnDoubleClick="True">
-                <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="" Width="44">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Image Source="{Binding Portrait}" Width="34" Height="34" Margin="2" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-                    <DataGridTextColumn Header="Honors" Binding="{Binding Badges}" Width="76" />
-                    <DataGridTextColumn Header="Age" Binding="{Binding Age}" />
-                    <DataGridTextColumn Header="Division" Binding="{Binding Division}" />
-                    <DataGridTextColumn Header="Style" Binding="{Binding Style}" />
-                    <DataGridTextColumn Header="Scout" Binding="{Binding Ovr}" />
-                    <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort"/>
-                    <DataGridTemplateColumn Header="Form" Width="66">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Form}" VerticalAlignment="Center" Margin="4,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Hot}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource Positive}" />
-                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Cold}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource Negative}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Org" Binding="{Binding Org}" />
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
+        </Border>
+
+        <!-- Cards (default) -->
+        <controls:CardWall Grid.Row="1" ItemsSource="{Binding Cards}" CardWidth="300" Padding="16,4,4,8"
+                           CardTemplate="{StaticResource WorldFighterCardTemplate}"
+                           Visibility="{Binding ShowCards, Converter={StaticResource BoolToVis}}" />
+
+        <!-- Table: the same matches, sortable, for comparing -->
+        <DataGrid Grid.Row="1" Margin="16,4,16,12" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                  RowHeight="40" mvvm:FighterLink.OpenOnDoubleClick="True" EnableRowVirtualization="True"
+                  Visibility="{Binding ShowTable, Converter={StaticResource BoolToVis}}">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="" Width="44">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Image Source="{Binding Thumb}" Width="34" Height="34" Margin="2" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="160" />
+                <DataGridTextColumn Header="Honors" Binding="{Binding Badges}" Width="76" />
+                <DataGridTextColumn Header="Age" Binding="{Binding Age}" />
+                <DataGridTextColumn Header="Division" Binding="{Binding Division}" />
+                <DataGridTextColumn Header="Style" Binding="{Binding Style}" />
+                <DataGridTextColumn Header="Scout" Binding="{Binding Ovr}" />
+                <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort" />
+                <DataGridTemplateColumn Header="Form" Width="66" SortMemberPath="Momentum">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Form}" VerticalAlignment="Center" Margin="4,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Hot}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Positive}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Cold}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Negative}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Org" Binding="{Binding Org}" />
+                <DataGridTextColumn Header="From" Binding="{Binding CountryName}" />
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Nothing matches -->
+        <controls:EmptyState Grid.Row="1" Icon="Search" Title="Nobody by that name here."
+                             Message="Check the spelling, try just a surname or a nickname, or clear the filters to search the whole world."
+                             ActionText="Clear filters" ActionCommand="{Binding ClearCommand}"
+                             Visibility="{Binding NoMatches, Converter={StaticResource BoolToVis}}" />
+    </Grid>
 </UserControl>

@@ -152,6 +152,12 @@ public sealed class FighterRow
     /// <summary>The fighter's portrait (see <see cref="Portraits"/> for the style choice).</summary>
     public ImageSource Portrait => Portraits.For(_f, _w);
 
+    /// <summary>The same face decoded small, for table rows.</summary>
+    public ImageSource Thumb => Portraits.Thumb(_f, _w);
+
+    /// <summary>The fighter's country ("Brazil").</summary>
+    public string CountryName => _w.Get(_f.Country)?.Name ?? Pretty(_f.Nationality.ToString());
+
     /// <summary>The matching full-body shot (profile hero image).</summary>
     public ImageSource BodyShot => Portraits.Body(_f, _w);
 

@@ -8,6 +8,7 @@ using MmaManager.Core.Sim.Org;
 // Modes:
 //   (default)            single 30-year sim with yearly breakdowns (seed 2026)
 //   compare <n> <years>  n seeds (1..n) x years, run in parallel, comparison report
+if (args.Length > 0 && args[0] == "fightlab") { FightLabMode.Run(args); return; }   // engine benchmark: FightLabMode.cs
 if (args.Length > 0 && args[0] == "compare")
 {
     int n = args.Length > 1 ? int.Parse(args[1]) : 10;

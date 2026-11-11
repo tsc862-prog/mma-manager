@@ -33,6 +33,13 @@ public sealed class MasonryPanel : Panel
         "FullWidth", typeof(bool), typeof(MasonryPanel),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsParentMeasure));
 
+    public static readonly DependencyProperty EvenBottomsProperty = DependencyProperty.Register(
+        nameof(EvenBottoms), typeof(bool), typeof(MasonryPanel),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    /// <summary>Stretch the last panel in each column so every column ends on one line.</summary>
+    public bool EvenBottoms { get => (bool)GetValue(EvenBottomsProperty); set => SetValue(EvenBottomsProperty, value); }
+
     public static bool GetFullWidth(DependencyObject d) => (bool)d.GetValue(FullWidthProperty);
     public static void SetFullWidth(DependencyObject d, bool value) => d.SetValue(FullWidthProperty, value);
 
@@ -69,7 +76,25 @@ public sealed class MasonryPanel : Panel
         Columns = cols;
         double colWidth = Math.Max(0, (width - gap * (cols - 1)) / cols);
         var heights = new double[cols];
+        var lastInCol = new int[cols];
+        Array.Fill(lastInCol, -1);
         _slots.Clear();
+
+        // Even bottoms: the last panel of each column grows down to the tallest
+        // column, so a band of panels ends on one clean line instead of ragged gaps.
+        void EvenBand()
+        {
+            if (!EvenBottoms || cols < 2) return;
+            double bottom = heights.Max() - gap;
+            for (int c = 0; c < cols; c++)
+            {
+                int i = lastInCol[c];
+                if (i < 0) continue;
+                var r = _slots[i];
+                _slots[i] = new Rect(r.X, r.Y, r.Width, Math.Max(r.Height, bottom - r.Y));
+                lastInCol[c] = -1;
+            }
+        }
 
         foreach (UIElement child in InternalChildren)
         {
@@ -81,6 +106,7 @@ public sealed class MasonryPanel : Panel
             }
             if (GetFullWidth(child))
             {
+                EvenBand();
                 double top = heights.Max();
                 if (measure) child.Measure(new Size(width, double.PositiveInfinity));
                 double h = child.DesiredSize.Height;
@@ -92,10 +118,12 @@ public sealed class MasonryPanel : Panel
                 int col = Array.IndexOf(heights, heights.Min());
                 if (measure) child.Measure(new Size(colWidth, double.PositiveInfinity));
                 double h = child.DesiredSize.Height;
+                lastInCol[col] = _slots.Count;
                 _slots.Add(new Rect(col * (colWidth + gap), heights[col], colWidth, h));
                 heights[col] += h + gap;
             }
         }
+        EvenBand();
         return Math.Max(0, heights.Max() - gap);
     }
 }

@@ -111,9 +111,15 @@ public sealed class MainViewModel : ObservableObject
         Dashboard.OpenFighterCommand = OpenFighterCommand;
         Dashboard.IsFightNight = () => IsFightNight;
         MyRoster.OpenContracts = () => NavigateTo(Tab.Contracts);   // the empty gym's way out
+        AppCommands.OpenFighter = OpenFighterCommand;             // what every card template binds
+        AppCommands.ToggleShortlist = ToggleShortlistCommand;
+        AppCommands.OpenOrg = OpenOrgCommand;
+        AppCommands.OpenEvent = OpenEventCommand;
+        News.OpenFighterCommand = OpenFighterCommand;             // follow a story to its people
+        News.OpenOrgCommand = OpenOrgCommand;
+        News.OpenEventCommand = OpenEventCommand;
+        WireMail();
 
-        RosterFilters = new ObservableCollection<string>(new[] { "All divisions" }
-            .Concat(Enum.GetValues<WeightClass>().Select(w => FighterRow.Pretty(w.ToString()))));
         RankingDivisions = new ObservableCollection<DivisionPick>(
             Enum.GetValues<WeightClass>().Select(w => new DivisionPick(w, Sex.Male))
                 .Concat(new[] { WeightClass.Strawweight, WeightClass.Flyweight, WeightClass.Bantamweight }
@@ -125,6 +131,28 @@ public sealed class MainViewModel : ObservableObject
         if (HeadlessAutoBoot)
             StartWorld(new WorldBuilder.Options { Seed = 2026 },
                 "Quick start — you run the Apex Fighting Championship. Hit New Game to found your own promotion.");
+    }
+
+    /// <summary>
+    /// The inbox acts inside its letters through commands that already exist —
+    /// the desk's decisions (Home), the sponsor and media offers (Finance, Media),
+    /// contract talks, and the tier step-up (HQ). Nothing new is decided here.
+    /// </summary>
+    private void WireMail()
+    {
+        Mail.AcceptDecisionCommand = Dashboard.AcceptDecisionCommand;   // refreshes the app itself
+        Mail.DeclineDecisionCommand = Dashboard.DeclineDecisionCommand;
+        Mail.AcceptSponsorCommand = Finance.AcceptOfferCommand;
+        Mail.DeclineSponsorCommand = Finance.DeclineOfferCommand;
+        Mail.AcceptMediaCommand = Media.AcceptOfferCommand;
+        Mail.DeclineMediaCommand = Media.DeclineOfferCommand;
+        Mail.NegotiateCommand = NegotiateFighterCommand;
+        Mail.PromoteCommand = Org.AcceptPromotionCommand;                 // Org.OnChanged refreshes
+        Mail.Navigate = NavigateTo;
+        Mail.AfterAction = RefreshAll;
+        if (!HeadlessAutoBoot)
+            Mail.Confirm = (heading, body, detail, confirm) =>
+                MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
     }
 
     /// <summary>Start-screen shortcut: a fresh random world with you at the helm of the AFC.</summary>
@@ -193,6 +221,7 @@ public sealed class MainViewModel : ObservableObject
             StatusText = $"☆ {f.FullName} pinned to the shortlist — manage it in Notes.";
         }
         Notes.Attach(_world);
+        FightersPage.ShortlistChanged();
         OnPropertyChanged(nameof(ShortlistButtonText));
     }
 
@@ -213,8 +242,9 @@ public sealed class MainViewModel : ObservableObject
     public void OpenFighter(int fighterId)
     {
         if (_world.Get(new FighterId(fighterId)) is not { } f) return;
-        SelectedFighter = Roster.FirstOrDefault(r => r.Id == fighterId) ?? new FighterRow(f, _world, _fightIndex);
+        SelectedFighter = new FighterRow(f, _world, _fightIndex);
         MyRoster.SelectedFighterId = fighterId;   // the roster remembers who was opened last
+        FightersPage.SelectedFighterId = fighterId;   // and so does the world database
         NavigateTo(Tab.Fighter);
     }
 
@@ -270,6 +300,12 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The Roster screen (your fighters with the front-office columns).</summary>
     public MyRosterViewModel MyRoster { get; } = new();
+
+    /// <summary>The Fighters app: every fighter in the world, searchable.</summary>
+    public FightersViewModel FightersPage { get; } = new();
+
+    /// <summary>The Fighters app's current matches (best first by the scout's read) — the harness reads these.</summary>
+    public ObservableCollection<FighterRow> Roster => FightersPage.Rows;
 
     /// <summary>The Events screen (world card list + full event pages).</summary>
     public EventsViewModel EventsPage { get; } = new();
@@ -354,19 +390,11 @@ public sealed class MainViewModel : ObservableObject
 
     // --- Collections --------------------------------------------------------
     public ObservableCollection<PromotionRow> Promotions { get; } = new();
-    public ObservableCollection<FighterRow> Roster { get; } = new();
     public ObservableCollection<RankRow> Standings { get; } = new();
 
-    public ObservableCollection<string> RosterFilters { get; }
     public ObservableCollection<DivisionPick> RankingDivisions { get; }
 
     // --- Selections ---------------------------------------------------------
-    private string _rosterFilter = "All divisions";
-    public string RosterFilter { get => _rosterFilter; set { if (Set(ref _rosterFilter, value)) RefreshRoster(); } }
-
-    private bool _myRosterOnly;
-    public bool MyRosterOnly { get => _myRosterOnly; set { if (Set(ref _myRosterOnly, value)) RefreshRoster(); } }
-
     private FighterRow? _selectedFighter;
     public FighterRow? SelectedFighter
     {
@@ -732,7 +760,6 @@ public sealed class MainViewModel : ObservableObject
         {
             _world = SaveGame.Load(path);
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
-            Core.Sim.Booking.GlobalRankings.Recompute(_world);   // derived data isn't saved
             LastAdvance = $"Loaded {Path.GetFileName(path)}.";
             StatusText = "";   // the last career's results don't carry over
             IsGameStarted = true;
@@ -907,27 +934,18 @@ public sealed class MainViewModel : ObservableObject
     {
         if (_world is null) return;
         int? keepId = SelectedFighter?.Id;
-        Roster.Clear();
-        IEnumerable<Fighter> fighters = _world.Fighters.Values.Where(f => f.Status != FighterStatus.Retired);
-        if (MyRosterOnly)
-            fighters = fighters.Where(f => f.Contract?.Promotion == _world.PlayerPromotion);
-        if (RosterFilter != "All divisions")
-            fighters = fighters.Where(f => FighterRow.Pretty(f.WeightClass.ToString()) == RosterFilter);
+        // The world database: search and filters run over everyone (built lazily,
+        // only once the Fighters app has been opened).
+        FightersPage.Attach(_world, _fightIndex);
 
-        // Best first by YOUR scout's read (the Scout column), never the truth —
-        // list position must not leak what the fog hides. Id breaks ties.
-        foreach (var f in fighters.OrderByDescending(f => FighterRow.Scouted(_world, f)).ThenBy(f => f.Id.Value).Take(400))
-            Roster.Add(new FighterRow(f, _world, _fightIndex));
-
-        // Keep the same fighter selected across advances/filters — including one
-        // who isn't on the (top-400, filtered, non-retired) list at all, e.g.
-        // opened from an event page or the free-agent market: the profile must
-        // never silently become someone else. Only a fresh world with no
-        // selection falls back to the top of the list.
-        SelectedFighter = Roster.FirstOrDefault(r => r.Id == keepId)
-            ?? (keepId is { } id && _world.Get(new FighterId(id)) is { } kept
-                ? new FighterRow(kept, _world, _fightIndex)
-                : Roster.FirstOrDefault());
+        // Keep the same fighter on the profile across advances — whoever was opened,
+        // wherever from: the profile must never silently become someone else. A fresh
+        // world with no selection starts on the best fighter by the scout's read.
+        SelectedFighter = keepId is { } id && _world.Get(new FighterId(id)) is { } kept
+            ? new FighterRow(kept, _world, _fightIndex)
+            : _world.Fighters.Values.Where(f => f.Status != FighterStatus.Retired)
+                .OrderByDescending(f => FighterRow.Scouted(_world, f)).ThenBy(f => f.Id.Value)
+                .Select(f => new FighterRow(f, _world, _fightIndex)).FirstOrDefault();
     }
 
     private void RefreshStandings()
