@@ -327,6 +327,11 @@ public sealed class WorldTick
             if (f.ReadyToFightOn is { } ready) availableSince = Math.Max(availableSince, ready.DayNumber);
             availableSince = Math.Max(availableSince, c.SignedOn.DayNumber);
             if (date.DayNumber - availableSince < LoyaltyNeglectDays) continue;
+            // A lifer left on the shelf long enough to hold it against the org
+            // (Contracts.Lifers' Benched grievance, from 180 days) is worn down
+            // by that grievance instead — one bite a month, never two.
+            if (Lifers.IsLifer(world, f)
+                && Lifers.GrievanceOf(world, f, date)?.Kind == Lifers.GrievanceKind.Benched) continue;
             // How hard being benched bites is a matter of character: the restless
             // are already taking calls, the company man assumes there's a reason.
             // (A modifier on the existing decay, not a second drift — an

@@ -138,7 +138,7 @@ public static class Lifers
         int score = Score(world, f);
         bool lifer = IsLifer(world, f);
         var g = f.Contract is null || f.Disposition == Disposition.Mercenary ? null : GrievanceOf(world, f, world.CurrentDate);
-        string? repair = g is not null ? RepairFor(g.Kind)
+        string? repair = g is not null ? RepairFor(f, g.Kind)
             : !lifer && score >= Threshold - 15 && f.Disposition != Disposition.Mercenary
                 ? "a retention bonus (or the posters) would rebuild his loyalty past the lifer bar"
                 : null;
@@ -148,14 +148,14 @@ public static class Lifers
     }
 
     /// <summary>What repairs each grievance — the same conditions <see cref="GrievanceOf"/> stops reading.</summary>
-    public static string RepairFor(GrievanceKind kind) => kind switch
+    public static string RepairFor(Fighter f, GrievanceKind kind) => Gendered(f, kind switch
     {
         GrievanceKind.OrgInTrouble => "get the books back in the black",
         GrievanceKind.PassedOver => "book him the title shot",
         GrievanceKind.Benched => "put him on a card",
         GrievanceKind.Underpaid => "re-sign him on a raise",
         _ => "get him a win",
-    };
+    });
 
     /// <summary>
     /// The first standing reason this fighter has to doubt his promotion, or null.
@@ -342,7 +342,7 @@ public static class Lifers
                     $"{f.FullName} is unhappy",
                     (Voice(f, g.Kind, date) is { Length: > 0 } v ? v.Trim() + " " : "")
                     + Gendered(f, $"What's wrong: {g.Reason}. Until it's fixed he's taking calls and won't give us the hometown "
-                    + $"discount, and every month it stands wears his loyalty down. What would fix it: {RepairFor(g.Kind)}."),
+                    + $"discount, and every month it stands wears his loyalty down. What would fix it: {RepairFor(f, g.Kind)}."),
                     aboutFighter: f.Id);
             }
         }
@@ -456,7 +456,7 @@ public static class Lifers
         Living.News.Post(world, date, NewsCategory.Milestone,
             $"{f.FullName} leaves {from.Name}{tenure} — {reason}",
             (dest is not null ? $"The {from.Abbreviation} lifer signs with {dest.Name}. " : $"The {from.Abbreviation} lifer is gone. ")
-            + background + Voice(f, hisChoice ? g?.Kind : null, date, leaving: true),
+            + background + Voice(f, hisChoice ? g?.Kind : null, date, sentAway: !hisChoice),
             from.Id, f.Id);
 
         if (from.Id == world.PlayerPromotion)
@@ -505,13 +505,16 @@ public static class Lifers
         || (f.Contract is { } c && world.Get(c.Promotion)?.FaceOfCompany == f.Id)
         || world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
 
-    private static string Voice(Fighter f, GrievanceKind? kind, DateOnly date, bool leaving = false)
+    // sentAway: the promotion ended it (released, let the deal lapse, folded,
+    // sold) — the company man's "Cut" lines are written for exactly that, and
+    // would read wrong from a man who walked out himself.
+    private static string Voice(Fighter f, GrievanceKind? kind, DateOnly date, bool sentAway = false)
     {
         var moment = kind switch
         {
             GrievanceKind.PassedOver => Flavor.Moment.PassedOver,
             GrievanceKind.Underpaid => Flavor.Moment.Lowball,
-            _ when leaving && f.Disposition == Disposition.CompanyMan => Flavor.Moment.Cut,
+            _ when sentAway && f.Disposition == Disposition.CompanyMan => Flavor.Moment.Cut,
             _ => (Flavor.Moment?)null,
         };
         return moment is { } m ? " " + Flavor.Quotes.Attributed(f, m, date) : "";

@@ -348,6 +348,41 @@ public class LiferTests
         Assert.Contains(world.Mail, m => m.Subject == $"{lifer.FullName} has left us");
     }
 
+    [Fact]
+    public void ABenchedLifer_IsBittenOnce_NotTwice()
+    {
+        var (world, lifer) = HoldingLifer();
+        Backdate(lifer, days: 200);   // past both the neglect clock (120) and the Benched grievance (180)
+        Assert.Equal(Lifers.GrievanceKind.Benched, Lifers.GrievanceOf(world, lifer, world.CurrentDate)!.Kind);
+
+        int before = lifer.Loyalty;
+        Lifers.RunMonthly(world, world.CurrentDate);
+        int afterGrievance = lifer.Loyalty;
+        WorldTick.DecayNeglectedLoyalty(world, world.CurrentDate);
+
+        Assert.True(afterGrievance < before, "the grievance bites");
+        Assert.Equal(afterGrievance, lifer.Loyalty);   // the neglect decay stands aside for him
+    }
+
+    [Fact]
+    public void DayOne_AuthoredLifers_AreNeitherBenchedNorTornUp()
+    {
+        // Day-one contracts are signed on the start date (not back-dated), so
+        // neither the shelf clock nor the pay clock has started for anyone.
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 3 });
+        world.PlayerPromotion = default;
+        var lifers = world.Fighters.Values.Where(f => f.Designed && Lifers.IsLifer(world, f)).ToList();
+        Assert.NotEmpty(lifers);
+        var signed = lifers.ToDictionary(f => f.Id, f => f.Contract!.SignedOn);
+
+        var month1 = world.CurrentDate.AddDays(31);
+        foreach (var f in lifers)
+            Assert.True(Lifers.GrievanceOf(world, f, month1) is not { Kind: Lifers.GrievanceKind.Benched or Lifers.GrievanceKind.Underpaid },
+                $"{f.FullName}: {Lifers.GrievanceOf(world, f, month1)?.Reason}");
+        Lifers.RunMonthly(world, month1);
+        Assert.All(lifers, f => Assert.Equal(signed[f.Id], f.Contract!.SignedOn));
+    }
+
     // --- Mercenaries stay mercenaries --------------------------------------------------
 
     [Fact]
