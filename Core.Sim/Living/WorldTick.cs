@@ -383,6 +383,9 @@ public sealed class WorldTick
         Storylines.AfterEvent(world, ev, ev.Date, rng);
         Bonds.AfterEvent(world, ev, ev.Date);   // a bout between friends/family leaves a mark
         Camps.AfterEvent(world, ev, ev.Date);   // teammates colliding + a protégé's golden night
+        // A belt that changed hands tonight may sit on a later card of the player's
+        // without its champion: put his other cards right now, not at the next tick.
+        if (ev.Promotion == world.PlayerPromotion) ForwardCalendar.AuditPlayerCards(world, ev.Date);
 
         if (report is not null)
         {

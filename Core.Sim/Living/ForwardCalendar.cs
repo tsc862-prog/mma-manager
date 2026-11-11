@@ -776,6 +776,31 @@ public static class ForwardCalendar
                 PullPlayerBout(world, ev, fight, f.Id, reason, date);
     }
 
+    /// <summary>
+    /// The audit of the player's cards alone (see <see cref="Audit"/>): run after
+    /// one of his cards is fought between ticks, since a belt that changed hands
+    /// on it may be on a later card's bout that no longer has its champion.
+    /// </summary>
+    public static void AuditPlayerCards(World world, DateOnly today)
+    {
+        if (world.Get(world.PlayerPromotion) is null) return;
+        var mine = world.Events.Values
+            .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == world.PlayerPromotion)
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+            .ToList();
+        var claim = new Dictionary<FighterId, FightId>();
+        foreach (var ev in mine)
+            foreach (var f in ev.Card)
+                foreach (var id in new[] { f.RedCorner, f.BlueCorner })
+                    claim.TryAdd(id, f.Id);
+        foreach (var ev in mine)
+            foreach (var fight in ev.Card.ToList())
+            {
+                bool Elsewhere(FighterId id) => claim.TryGetValue(id, out var first) && first != fight.Id;
+                KeepPlayerBoutHonest(world, ev, fight, Elsewhere, today);
+            }
+    }
+
     // Fight night on the player's card: the audit normally leaves nothing for
     // this to do, but a fighter released or retired after the week's last audit
     // (between ticks, by the player or a test) is caught here.
@@ -823,7 +848,7 @@ public static class ForwardCalendar
             Mail.Post(world, date, MailCategory.General, "Matchmaking",
                 $"Title off the line at {ev.Name}",
                 $"{Names(world, fight)} goes ahead at {ev.Name}, but the {belt.Name} is no longer on the line: {why}.",
-                aboutFighter: fight.RedCorner, aboutEvent: ev.Id);
+                aboutFighter: fight.RedCorner);
         }
         return true;
     }
@@ -854,7 +879,7 @@ public static class ForwardCalendar
         if (ev.Card.Count == 0) body += " The card has no bouts left.";
         if (outF is not null) body = Contracts.Lifers.Gendered(outF, body);
         Mail.Post(world, date, MailCategory.General, "Matchmaking",
-            $"{name} is off {ev.Name}", body, aboutFighter: outId, aboutEvent: ev.Id);
+            $"{name} is off {ev.Name}", body, aboutFighter: outId);   // (no event link: the player may cancel the card)
     }
 
     // "he retired" / "he was released" / "he signed with X" for the player's mail, from the audit's reason.

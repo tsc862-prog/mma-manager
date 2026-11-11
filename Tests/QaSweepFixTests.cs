@@ -51,7 +51,7 @@ public class QaSweepFixTests
         Assert.Contains("retired", mail.Body);
         Assert.Contains(blue.FullName, mail.Body);
         Assert.Contains("main event", mail.Body);
-        Assert.Equal(ev.Id, mail.AboutEvent);
+        Assert.Null(mail.AboutEvent);   // no event link: the player may cancel the card, and a mail must never dangle
         // ...and the Card Desk sees the changed card
         Assert.Equal(bouts - 1, new PlayerBooking().Project(world, ev).BoutsBooked);
     }
@@ -152,6 +152,32 @@ public class QaSweepFixTests
         Assert.Same(ev, report.MainEventLost);
         Assert.Equal(start.AddDays(7), world.CurrentDate);   // stopped after the first week
         Assert.Null(report.PendingPlayerEvent);
+    }
+
+    [Fact]
+    public void ABeltWonOnOneOfThePlayersCardsComesOffALaterCardsBoutAtOnce()
+    {
+        var world = Build(7);
+        var promo = world.Get(world.PlayerPromotion)!;
+        var booking = new PlayerBooking();
+        var div = promo.Divisions.First(d => d.Sex == Sex.Male && d.Title is not null);
+        var title = world.Get(div.Title!.Value)!;
+        if (title.Lineage.LastOrDefault(r => r.LostOn is null) is { } reign) reign.LostOn = world.CurrentDate;
+        title.CurrentChampion = null;   // vacant: both cards may put it on the line
+
+        var first = booking.CreateEvent(world, world.CurrentDate.AddDays(14));
+        var later = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        var pool = booking.AvailableRoster(world, first, div.WeightClass).Take(4).ToList();
+        Assert.Equal(4, pool.Count);
+        Assert.True(booking.AddBout(world, first, pool[0].Id, pool[1].Id, 5, true, out var e1), e1);
+        Assert.True(booking.AddBout(world, later, pool[2].Id, pool[3].Id, 5, true, out var e2), e2);
+        var laterBout = later.Card[0];
+
+        new WorldTick().RunEventLive(world, first, playByPlay: false);
+        if (title.CurrentChampion is null) return;   // the vacant-belt bout was pulled or drawn on this seed: nothing to check
+
+        Assert.False(laterBout.IsTitleFight);
+        Assert.Null(laterBout.Title);
     }
 
     // --- 2. The local circuit runs on its dates ------------------------------
