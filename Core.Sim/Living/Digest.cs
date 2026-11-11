@@ -52,11 +52,17 @@ public static class Digest
         }
 
         // One to watch: a young riser on a streak, rotated deterministically so
-        // the column doesn't fixate on a single name.
+        // the column doesn't fixate on a single name. The "ceiling" is the
+        // player's own scouting read projected forward by age (a 20-year-old
+        // reading 56 counts, a 24-year-old needs 62) — never true potential,
+        // which nobody in the world can see.
+        var mine = world.Get(world.PlayerPromotion)!;
         var prospect = world.Fighters.Values
             .Where(f => f.Status == FighterStatus.Active && !f.LocalTalent
-                && f.AgeOn(date) <= 24 && f.PotentialAbility.Value >= 68 && f.Record.CurrentStreak >= 3)
+                && f.AgeOn(date) <= 24 && f.Record.CurrentStreak >= 3
+                && Scouting.ScoutingService.PerceivedAbility(world, mine, f) + 2 * (25 - f.AgeOn(date)) >= 64)
             .OrderBy(f => (f.Id.Value * 31 + date.DayOfYear / 7) % 97)
+            .ThenBy(f => f.Id.Value)
             .FirstOrDefault();
         if (prospect is not null)
         {

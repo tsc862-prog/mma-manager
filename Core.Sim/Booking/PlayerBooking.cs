@@ -9,7 +9,7 @@ namespace MmaManager.Core.Sim.Booking;
 /// who's available/eligible. The <see cref="WorldTick"/> runs these events when
 /// their date arrives — this class only builds and schedules them.
 /// </summary>
-public sealed class PlayerBooking
+public sealed partial class PlayerBooking
 {
     /// <summary>
     /// Create an empty scheduled card for the player's promotion — in the chosen
@@ -151,7 +151,8 @@ public sealed class PlayerBooking
     public IReadOnlyList<Fighter> AvailableRoster(World world, Event ev, WeightClass weightClass, Sex sex = Sex.Male) =>
         world.RosterOf(world.PlayerPromotion)
             .Where(f => f.WeightClass == weightClass && f.Sex == sex && f.IsMatchReady(ev.Date) && !BookedOnCard(ev, f.Id))
-            .OrderByDescending(FighterAbility.CurrentAbility)
+            .OrderByDescending(f => MatchmakingAdvisor.ScoutedRead(world, f))   // the scout's read, never the truth
+            .ThenBy(f => f.Id.Value)
             .ToList();
 
     /// <summary>Eligible opponents for a chosen fighter (same class AND sex, available, not already booked).</summary>
@@ -161,7 +162,8 @@ public sealed class PlayerBooking
         if (f is null) return Array.Empty<Fighter>();
         return world.RosterOf(world.PlayerPromotion)
             .Where(o => o.Id != forFighter && o.WeightClass == f.WeightClass && o.Sex == f.Sex && o.IsMatchReady(ev.Date) && !BookedOnCard(ev, o.Id))
-            .OrderByDescending(FighterAbility.CurrentAbility)
+            .OrderByDescending(o => MatchmakingAdvisor.ScoutedRead(world, o))   // the scout's read, never the truth
+            .ThenBy(o => o.Id.Value)
             .ToList();
     }
 

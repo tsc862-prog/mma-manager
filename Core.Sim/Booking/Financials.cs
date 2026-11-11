@@ -47,7 +47,37 @@ public static class Financials
         };
     }
 
-    public static EventFinancials Compute(World world, Event ev)
+    public static EventFinancials Compute(World world, Event ev) => Compute(world, ev, capByRoom: true);
+
+    /// <summary>
+    /// The house this card would draw with no walls: the same model as
+    /// <see cref="Compute(World, Event)"/> without the room's capacity cap, so a
+    /// booker can see how much a small room leaves outside. Read-only.
+    /// </summary>
+    public static int Demand(World world, Event ev) => Compute(world, ev, capByRoom: false).Attendance;
+
+    /// <summary>Days either side of a card inside which another promotion's card splits the audience.</summary>
+    public const int ClashWindowDays = 3;
+
+    /// <summary>What a clash costs the house (a share of attendance).</summary>
+    public const double ClashPenalty = 0.08;
+
+    /// <summary>
+    /// The other promotions' cards that clash with this one under the box
+    /// office's rule (any non-cancelled card within <see cref="ClashWindowDays"/>),
+    /// ordered by date then id. Card dates are public, so a booker may see this.
+    /// </summary>
+    public static IReadOnlyList<Event> ClashingCards(World world, Event ev) =>
+        world.Events.Values
+            .Where(o => IsClash(ev, o))
+            .OrderBy(o => o.Date).ThenBy(o => o.Id.Value)
+            .ToList();
+
+    private static bool IsClash(Event ev, Event o) =>
+        o.Id != ev.Id && o.Promotion != ev.Promotion
+        && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - ev.Date.DayNumber) <= ClashWindowDays;
+
+    private static EventFinancials Compute(World world, Event ev, bool capByRoom)
     {
         var promo = world.Get(ev.Promotion);
         int prestige = promo?.Prestige.Value ?? 40;
@@ -77,9 +107,8 @@ public static class Financials
         // trinket adds a line to the poster.
         if (main is { IsTitleFight: true, Title: { } beltId } && world.Get(beltId) is { } belt)
             drawPower += (int)(belt.Prestige.Value * 0.3);
-        bool clash = world.Events.Values.Any(o => o.Id != ev.Id && o.Promotion != ev.Promotion
-            && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - ev.Date.DayNumber) <= 3);
-        double counterProgramming = clash ? -0.08 : 0;
+        bool clash = world.Events.Values.Any(o => IsClash(ev, o));
+        double counterProgramming = clash ? -ClashPenalty : 0;
 
         // Head-to-head market split: sharing a region with same-or-bigger promotions
         // carves up the fanbase, so each gets a thinner house.
@@ -103,7 +132,7 @@ public static class Financials
             * (1 + marketing + grudge + counterProgramming + ev.HypeBonus * 0.6) * competition * interest * market);
         // The building caps the house — a big draw in a small room leaves money on the table.
         var venue = ev.VenueId is { } vid ? world.Get(vid) : null;
-        if (venue is not null) attendance = Math.Min(attendance, venue.Capacity);
+        if (venue is not null && capByRoom) attendance = Math.Min(attendance, venue.Capacity);
 
         // Card scale: a marquee super-card commands premium pricing and PPV but costs more to stage.
         decimal gateMult = ev.Tier switch { EventTier.Ppv => 1.3m, EventTier.SuperCard => 1.6m, _ => 1.0m };
@@ -172,7 +201,7 @@ public static class Financials
     }
 
     // Local talent fights for a flat appearance fee, no contract needed.
-    private const decimal LocalAppearanceFee = 1_000m;
+    internal const decimal LocalAppearanceFee = 1_000m;
 
     private static Money PursePlusBonus(Fighter? f, Fight fight)
     {
