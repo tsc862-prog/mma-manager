@@ -353,6 +353,10 @@ public sealed partial class BookingViewModel
             foreach (var s in _booking.Suggest(w, ev, BoutSlot.MainEvent, 3)) HeadlineIdeas.Add(Card(s, BoutSlot.MainEvent));
         else
             foreach (var s in _booking.Suggest(w, ev, _nextSlot, 2)) NextSlotIdeas.Add(Card(s, _nextSlot));
+        if (n > 0 && NextSlotIdeas.Count == 0 && HasRoster)
+            NextSlotHint = HasLocalOption
+                ? "Nobody else of yours can be paired on this date. Open the picker for a local opponent, or sign more fighters."
+                : "Nobody else of yours can be paired on this date.";
 
         BuildNight(p, ev, promo);
         foreach (var partner in n == 0 ? Array.Empty<PartnerProjection>() : p.Partners)
