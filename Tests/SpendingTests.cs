@@ -167,4 +167,44 @@ public class SpendingTests
 
         Assert.False(f.MarketingPush, "a campaign the org can't afford should quietly end");
     }
+
+    // --- The AI front office's reserve ---------------------------------------
+
+    [Fact]
+    public void AnAiFrontOffice_KeepsAQuarterOfRunningCosts_BeforeItMarkets()
+    {
+        // The flagship used to market down to a $5M floor while spending ~$20M a
+        // quarter on purses: no runway at all when income dipped.
+        var (w, p, _) = Setup();
+        w.PlayerPromotion = default;
+        p.Ledger.Clear();
+        var day = w.CurrentDate;
+        for (int i = 0; i < 6; i++)
+            p.Ledger.Add(new LedgerEntry(day.AddDays(-80 + i * 14), FinanceCategory.FighterPurse, new Money(-3_000_000m), "purses"));
+        // Discretionary spend and old costs don't raise the bar.
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-60), FinanceCategory.OrgMarketing, new Money(-5_000_000m), "campaign"));
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-30), FinanceCategory.RetentionBonus, new Money(-700_000m), "bonus"));
+        p.Ledger.Insert(0, new LedgerEntry(day.AddDays(-200), FinanceCategory.FighterPurse, new Money(-9_000_000m), "last year"));
+        p.Ledger.Sort((a, b) => a.Date.CompareTo(b.Date));
+
+        Assert.Equal(18_000_000m, AiFrontOffice.QuarterRunningCosts(p, day));
+        Assert.Equal(18_000_000m, AiFrontOffice.Buffer(p, day));
+
+        p.Balance = new Money(12_000_000m);   // well above the old prestige floor, under a quarter's costs
+        AiFrontOffice.RunMonthly(w, day);
+        Assert.Equal(0m, p.MarketingBudget.Amount);
+
+        p.Balance = new Money(40_000_000m);
+        AiFrontOffice.RunMonthly(w, day);
+        Assert.True(p.MarketingBudget.Amount > 0, "real surplus above the reserve still funds a campaign");
+    }
+
+    [Fact]
+    public void ASmallOrgsReserve_IsStillThePrestigeFloor()
+    {
+        var (w, p, _) = Setup();
+        p.Ledger.Clear();
+        p.Prestige = 20;
+        Assert.Equal(800_000m + 20 * 60_000m, AiFrontOffice.Buffer(p, w.CurrentDate));
+    }
 }

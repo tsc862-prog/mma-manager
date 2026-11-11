@@ -21,7 +21,7 @@ public static class AiFrontOffice
             // Everything discretionary is paid out of SURPLUS — cash above a survival
             // buffer of a few months' running costs. No surplus, no spending: an org
             // scraping by during a climb won't market or retain itself into the red.
-            decimal buffer = 800_000m + promo.Prestige.Value * 60_000m;
+            decimal buffer = Buffer(promo, date);
             decimal surplus = promo.Balance.Amount - buffer;
             var roster = world.RosterOf(promo.Id).Where(f => f.Status != FighterStatus.Retired).ToList();
 
@@ -75,6 +75,42 @@ public static class AiFrontOffice
             BuildAProspect(promo, roster, surplus);
             SendAProspectToCamp(world, promo, roster, surplus);
         }
+    }
+
+    /// <summary>
+    /// The cash an AI front office keeps back before it spends a dollar on the
+    /// discretionary sinks: the old prestige-scaled floor, or ONE QUARTER of the
+    /// org's running costs, whichever is bigger. The floor alone was sized for a
+    /// club ($5.2M at prestige 74) and the flagship runs ~$20M a quarter in purses
+    /// and production, so it marketed and retained down to about two weeks of
+    /// payroll and had no runway when a TV deal went (seed 8: $105M of brand
+    /// marketing and $29M of retention bonuses over the run, then folded on a
+    /// $20M net loss). Running costs are read off the ledger, not estimated.
+    /// </summary>
+    public static decimal Buffer(Promotion promo, DateOnly date) =>
+        Math.Max(800_000m + promo.Prestige.Value * 60_000m, QuarterRunningCosts(promo, date));
+
+    /// <summary>
+    /// What the business spent in the trailing 91 days on the things it can't
+    /// switch off this month (purses, signings, buyouts, production, overhead,
+    /// streaming ops, fines). The discretionary sinks this office controls
+    /// (brand marketing, retention bonuses, promo pushes, camp stipends) and
+    /// one-off acquisitions are left out, so cutting them never lowers the bar.
+    /// </summary>
+    public static decimal QuarterRunningCosts(Promotion promo, DateOnly date)
+    {
+        decimal spent = 0m;
+        for (int i = promo.Ledger.Count - 1; i >= 0; i--)
+        {
+            var e = promo.Ledger[i];
+            if (date.DayNumber - e.Date.DayNumber > 91) break;   // appended in date order
+            if (e.Amount.Amount >= 0) continue;
+            if (e.Category is FinanceCategory.OrgMarketing or FinanceCategory.RetentionBonus
+                or FinanceCategory.FighterMarketing or FinanceCategory.CampFees
+                or FinanceCategory.Acquisition) continue;
+            spent -= e.Amount.Amount;
+        }
+        return spent;
     }
 
     // Pour a chunk of surplus into brand marketing — and pour in HARD when within

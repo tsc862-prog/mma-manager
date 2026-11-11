@@ -92,12 +92,34 @@ public static class Financials
         && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - date.DayNumber) <= ClashWindowDays
         && !(o.Status == EventStatus.Scheduled && o.Date > date && o.Promotion != world.PlayerPromotion);
 
-    private static EventFinancials Compute(World world, Event ev, bool capByRoom)
+    /// <summary>
+    /// The room in <paramref name="rooms"/> that makes this card the most money at
+    /// the door: the house it would draw there (capped by the walls) at the
+    /// card's ticket price, less the production that house costs and the rent.
+    /// Same box-office model as settlement, so a room is only "too big" when its
+    /// rent and staffing outrun the extra seats it sells. Ties go to the lower
+    /// venue id. Null when there are no rooms. Read-only. The rooms must all be
+    /// in the card's city (the draw is judged there).
+    /// </summary>
+    public static Venue? BestRoom(World world, Event ev, IEnumerable<Venue> rooms)
+    {
+        Venue? best = null;
+        decimal bestNet = decimal.MinValue;
+        foreach (var room in rooms.OrderBy(r => r.Id.Value))
+        {
+            var fin = Compute(world, ev, capByRoom: true, room);
+            decimal net = fin.GateRevenue.Amount - fin.ProductionCost.Amount;   // production includes the rent
+            if (net > bestNet) { best = room; bestNet = net; }
+        }
+        return best;
+    }
+
+    private static EventFinancials Compute(World world, Event ev, bool capByRoom, Venue? roomOverride = null)
     {
         var promo = world.Get(ev.Promotion);
         int prestige = promo?.Prestige.Value ?? 40;
         int drawPower = MainEventDraw(world, ev);
-        var hostCity = Geography.WorldMap.CityOf(world, ev);
+        var hostCity = roomOverride is not null ? roomOverride.City : Geography.WorldMap.CityOf(world, ev);
         int cityPop = promo is not null && hostCity is { } hc ? Geography.Reputation.OrgInCity(promo, hc) : 0;
         int regionPop = promo is null ? 0 : Geography.Reputation.OrgInRegion(world, promo, ev.Region);
 
@@ -146,7 +168,7 @@ public static class Financials
         int attendance = (int)((190 + prestige * 38 + drawPower * 30 + cityPop * 78 + regionPop * 14)
             * (1 + marketing + grudge + counterProgramming + ev.HypeBonus * 0.6) * competition * interest * market);
         // The building caps the house — a big draw in a small room leaves money on the table.
-        var venue = ev.VenueId is { } vid ? world.Get(vid) : null;
+        var venue = roomOverride ?? (ev.VenueId is { } vid ? world.Get(vid) : null);
         if (venue is not null && capByRoom) attendance = Math.Min(attendance, venue.Capacity);
 
         // Card scale: a marquee super-card commands premium pricing and PPV but costs more to stage.

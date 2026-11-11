@@ -733,9 +733,10 @@ public static class ForwardCalendar
     }
 
     /// <summary>
-    /// The room is fitted to the draw the promotion has ON THE NIGHT, as it was
-    /// when AI cards were booked on the day. A card announced a month ahead
-    /// keeps its city, but moves to the room that now fits its following: a
+    /// The room is fitted to the draw the card has ON THE NIGHT (the box office's
+    /// most profitable room in the announced city, <see cref="Booking.Financials.BestRoom"/>).
+    /// A card announced a month ahead keeps its city, but moves to the room that
+    /// fits the card it actually became: a
     /// startup announced in its first week would otherwise be stuck in a
     /// thousand-seat club while twice that many want in (that capped every new
     /// promotion's gate and killed them faster). Flagships keep their big
@@ -747,7 +748,16 @@ public static class ForwardCalendar
     {
         if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;
         if (ev.VenueId is not { } current || world.Get(current) is not { } room) return;
-        if (Geography.WorldMap.PickVenueIn(world, promo, room.City) is not { } fit || fit.Id == current) return;
+        // Fitted to the CARD, not to a guess: the house this card would draw in
+        // each of the town's rooms, at its ticket price, less production and
+        // rent. PickVenueIn's estimate (still used to announce the card a month
+        // out, before its headliner is certain) leaves out the main event's
+        // pull, the brand campaign and the belt, so it under-roomed every big
+        // draw: the AFC sold out 4,200 seats in Las Vegas with ~21,000 wanting
+        // in and a 21,200 arena across town, about $16M of gate lost a quarter.
+        var fit = Booking.Financials.BestRoom(world, ev,
+            world.Venues.Values.Where(v => v.City == room.City));
+        if (fit is null || fit.Id == current) return;
         ev.VenueId = fit.Id;
         ev.Venue = fit.Name;
         if (world.Get(fit.City) is { } city) ev.Region = city.Region;

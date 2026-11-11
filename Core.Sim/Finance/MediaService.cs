@@ -674,7 +674,26 @@ public static class MediaService
                     new Money(deal.RightsFeePerEvent.Amount * premium * (honoured ? 1m : 0.5m)),
                     $"{ev.Name} — {deal.Partner} rights{(honoured ? "" : " (terms missed)")}");
 
-            if (honoured) continue;
+            if (honoured)
+            {
+                // A clean card earns a strike back. Strikes used to be forever,
+                // which made a strict partner a cliff on a timer: the flagship's
+                // ordinary cards miss a 50 quality floor about half the time and a
+                // 45 floor one time in five, so every prime-time deal it signed was
+                // gone within months however good the rest of its nights were (the
+                // AFC lost seven in three years and folded, seed 8, 2029). Now the
+                // partner judges the RUN of cards: an org that delivers more often
+                // than it misses keeps the deal; one that keeps missing still walks.
+                if (deal.Strikes > 0)
+                {
+                    deal.Strikes--;
+                    if (promo.Id == world.PlayerPromotion)
+                        Living.Mail.Post(world, ev.Date, MailCategory.General, deal.Partner,
+                            $"{deal.Partner} liked {ev.Name}",
+                            $"The card met every term, and they've taken a strike off the slate ({deal.Strikes} of {StrikeLimit} now).");
+                }
+                continue;
+            }
             deal.Strikes++;
             if (promo.Id == world.PlayerPromotion)
                 Living.Mail.Post(world, ev.Date, MailCategory.BoardNote, deal.Partner,

@@ -148,12 +148,50 @@ public class RevenueTests
         Assert.Contains(promo.Ledger, e => e.Category == FinanceCategory.Broadcast && e.Amount.Amount == 15_000m);
         Assert.Equal(1, deal.Strikes);
 
-        // The same card split to a 4-fight window airs clean at full rights.
+        // The same card split to a 4-fight window airs clean at full rights,
+        // and a clean card earns the strike back.
         var ok = SettledEvent(world, promo, fights: 6);
         ok.MainCardFights = 4;
         RevenueService.SettleEvent(world, promo, ok);
         Assert.Contains(promo.Ledger, e => e.Category == FinanceCategory.Broadcast && e.Amount.Amount == 30_000m);
-        Assert.Equal(1, deal.Strikes);
+        Assert.Equal(0, deal.Strikes);
+    }
+
+    [Fact]
+    public void Strikes_AreJudgedOnTheRunOfCards_NotForever()
+    {
+        // The cliff this replaced: three misses at any distance ended the deal,
+        // so a partner whose floor an org met most nights still walked within
+        // months. Now miss-clean-miss-clean never reaches the limit, while
+        // three misses in a row still do.
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 5, Founding = new WorldBuilder.FoundingSpec() });
+        var promo = world.Get(world.PlayerPromotion)!;
+        var deal = new MediaDeal
+        {
+            Kind = MediaKind.SpecialtyCable, Partner = "Combat One",
+            RightsFeePerEvent = new Money(30_000m), MonthsRemaining = 18, SignedOn = world.CurrentDate,
+            Requirements = { new DealRequirement(DealRequirementKind.MaxMainCard, 5) },
+        };
+        promo.MediaDeals.Add(deal);
+
+        Event Card(bool clean)
+        {
+            var ev = SettledEvent(world, promo, fights: 6);
+            if (clean) ev.MainCardFights = 4;
+            return ev;
+        }
+
+        for (int i = 0; i < 5; i++)
+        {
+            RevenueService.SettleEvent(world, promo, Card(clean: false));
+            RevenueService.SettleEvent(world, promo, Card(clean: true));
+        }
+        Assert.Contains(deal, promo.MediaDeals);
+        Assert.Equal(0, deal.Strikes);
+
+        for (int i = 0; i < MediaService.StrikeLimit; i++)
+            RevenueService.SettleEvent(world, promo, Card(clean: false));
+        Assert.DoesNotContain(deal, promo.MediaDeals);
     }
 
     [Fact]
