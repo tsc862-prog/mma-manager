@@ -301,6 +301,27 @@ public sealed class FighterRow
           }.Where(t => t is not null))
         : "";
 
+    private string? _askLine;
+    /// <summary>
+    /// What he'd ask across YOUR negotiating table — the number the room opens
+    /// at, and why it isn't the market rate. Only for free agents and your own
+    /// fighters (anyone else is under another promotion's paper); "" otherwise.
+    /// </summary>
+    public string AskLine => _askLine ??= BuildAskLine();
+
+    private string BuildAskLine()
+    {
+        if (_f.Status != FighterStatus.Active || _w.Get(_w.PlayerPromotion) is not { } mine) return "";
+        if (_f.Contract is { } c && c.Promotion != mine.Id) return "";
+        var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(_w, _f);
+        var q = MmaManager.Core.Sim.Contracts.AskingQuote.For(_w, mine, _f, exp);
+        return (_f.Contract is null ? "Would ask you " : "To re-sign, asks ") + $"~{q.Purse} / fight" + AskText.Because(q);
+    }
+
+    private string? _bondLine;
+    /// <summary>His bond with your promotion, in a line — your own fighters only ("" otherwise).</summary>
+    public string BondLine => _bondLine ??= AskText.Bond(_w, _f);
+
     /// <summary>The current promotion's id for the click-through (0 = none).</summary>
     public int CompanyId => _f.Contract is { } cc ? cc.Promotion.Value : 0;
     public bool HasCompany => CompanyId != 0;

@@ -26,6 +26,8 @@ public sealed class NegotiationViewModel : ObservableObject
     private readonly World _world;
     private readonly Fighter _fighter;
     private readonly NegotiationSession _session;
+    private readonly Promotion _promo;
+    private readonly ContractExpectations _exp;
 
     /// <summary>Set when the agent accepted — the deal for the caller to sign.</summary>
     public ContractOffer? SignedOffer { get; private set; }
@@ -39,6 +41,9 @@ public sealed class NegotiationViewModel : ObservableObject
         _world = world;
         _fighter = fighter;
         _session = session;
+        _promo = promo;
+        _exp = exp;
+        BondLine = renewal ? AskText.Bond(world, fighter) : "";
 
         Name = fighter.FullName;
         Portrait = Portraits.For(fighter, world);
@@ -75,6 +80,12 @@ public sealed class NegotiationViewModel : ObservableObject
     public string Sub { get; }
     public string StanceLine { get; }
     public ImageSource? Portrait { get; }
+    /// <summary>One of your fighters' bond with you, at renewal talks ("" otherwise).</summary>
+    public string BondLine { get; }
+
+    private string _askWhy = "";
+    /// <summary>Why their opening number on these terms isn't the market rate ("" when it is).</summary>
+    public string AskWhy { get => _askWhy; private set => Set(ref _askWhy, value); }
 
     public ObservableCollection<TranscriptRow> Transcript { get; } = new();
     public ObservableCollection<ReactionRow> Reactions { get; } = new();
@@ -200,6 +211,8 @@ public sealed class NegotiationViewModel : ObservableObject
             ? _session.DemandSigning(OfferExclusive, OfferChampionsClause).ToString()
             : "not needed";
         TheirFights = $"{_session.DemandFights}";
+        var q = AskingQuote.For(_world, _promo, _fighter, _exp, OfferExclusive, OfferChampionsClause);
+        AskWhy = q.Reasons.Count == 0 ? "" : $"Opened at {q.Purse} / fight: {q.Why} (market rate {q.MarketRate}).";
         OnPropertyChanged(nameof(Mood));
         OnPropertyChanged(nameof(MoodLabel));
         OnPropertyChanged(nameof(PatienceText));

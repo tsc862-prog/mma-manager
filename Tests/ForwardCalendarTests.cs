@@ -587,15 +587,19 @@ public class ForwardCalendarTests
         var date = AiScheduled(world).First().Date;
         var (rivals, penalty) = ForwardCalendar.RivalCardsNear(world, player, date);
         Assert.NotEmpty(rivals);
-        Assert.All(rivals, c =>
+        Assert.All(rivals, r =>
         {
-            Assert.NotEqual(player, c.Promotion.Id);
-            Assert.InRange(Math.Abs(c.Date.DayNumber - date.DayNumber), 0, Financials.CounterProgrammingDays);
+            Assert.NotEqual(player, r.Card.Promotion.Id);
+            Assert.InRange(Math.Abs(r.Card.Date.DayNumber - date.DayNumber), 0, Financials.ClashWindowDays);
+            // Charged exactly when the box office's rule counts it: an AI card
+            // dated after the show is listed but not charged.
+            Assert.Equal(r.Card.Date <= date, r.Charged);
         });
-        Assert.Equal(Financials.CounterProgrammingPenalty, penalty);
+        Assert.Equal(Financials.ClashPenalty, penalty);
+        Assert.Equal(Financials.ClashingCards(world, player, date).Count > 0 ? Financials.ClashPenalty : 0, penalty);
         // Narrowed to a region, only that region's cards.
         var asia = ForwardCalendar.RivalCardsNear(world, player, date, Region.Asia).Rivals;
-        Assert.All(asia, c => Assert.Equal(Region.Asia, c.Region));
+        Assert.All(asia, r => Assert.Equal(Region.Asia, r.Card.Region));
     }
 
     // --- the feed ----------------------------------------------------------------

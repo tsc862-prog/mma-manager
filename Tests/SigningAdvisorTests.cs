@@ -95,13 +95,16 @@ public class SigningAdvisorTests
         var promo = world.Get(world.PlayerPromotion)!;
         var pick = SigningAdvisor.Suggest(world, promo)!;
 
-        var effective = Negotiator.EffectiveAskingPurse(promo, pick.Fighter, pick.Expectations);
-        Assert.Equal(effective, pick.Ask);
-        Assert.Contains($"asking ~{effective}/fight", pick.Reason);
+        // The figure the negotiating room opens at, on the room's opening terms.
+        var room = new NegotiationSession(world, pick.Fighter, promo, pick.Expectations)
+            .DemandPurse(Negotiator.WantsExclusivity(promo), clause: false);
+        Assert.Equal(room, pick.Ask);
+        Assert.Contains($"asking ~{room}/fight", pick.Reason);
         // A small hall deals non-exclusive, so its quote undercuts the exclusive
-        // rate — and the advisor names both rather than mixing them up.
+        // rate — and the advisor names both, with the real reason.
         Assert.False(Negotiator.WantsExclusivity(promo));
         Assert.True(pick.Ask.Amount < pick.Expectations.AskingPurse.Amount);
-        Assert.Contains($"exclusive rate {pick.Expectations.AskingPurse}", pick.Reason);
+        Assert.Contains("non-exclusive deal", pick.Reason);
+        Assert.Contains($"market rate {pick.Expectations.AskingPurse}", pick.Reason);
     }
 }

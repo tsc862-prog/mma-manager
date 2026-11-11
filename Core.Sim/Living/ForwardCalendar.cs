@@ -24,6 +24,9 @@ public sealed record UpcomingCard(
             ? $"{r.LastName} vs {b.LastName}" : "";
 }
 
+/// <summary>A rival card near a date, and whether the box office counts it against the house there.</summary>
+public sealed record RivalCard(UpcomingCard Card, bool Charged);
+
 /// <summary>
 /// THE WORLD'S CLOCK. AI promotions used to build a card and fight it in the
 /// same tick, so nothing was ever on the calendar ahead of the player. Now every
@@ -737,6 +740,8 @@ public static class ForwardCalendar
     /// thousand-seat club while twice that many want in (that capped every new
     /// promotion's gate and killed them faster). Flagships keep their big
     /// house, and superfights keep the room they were booked into a month out.
+    /// If the card's announcement made the news (and so named the room), the
+    /// move is a headline too, so the announcement and the result never disagree.
     /// </summary>
     private static void RefreshVenue(World world, Promotion promo, Event ev)
     {
@@ -746,6 +751,14 @@ public static class ForwardCalendar
         ev.VenueId = fit.Id;
         ev.Venue = fit.Name;
         if (world.Get(fit.City) is { } city) ev.Region = city.Region;
+        // A card whose announcement made the news named its room: say it moved.
+        if (MeritsHeadline(world, ev, AuthoredBookingOn(world, ev) is not null))
+            News.Post(world, ev.Date, NewsCategory.General,
+                $"{ev.Name} moves to {fit.Name}",
+                fit.Capacity > room.Capacity
+                    ? $"Demand outgrew {room.Name}; {promo.Abbreviation} takes the bigger room."
+                    : $"{promo.Abbreviation} trades {room.Name} for a room it can fill.",
+                promo.Id, aboutEvent: ev.Id);
     }
 
     // --- Reading the calendar -----------------------------------------------
@@ -802,22 +815,24 @@ public static class ForwardCalendar
     }
 
     /// <summary>
-    /// For a show <paramref name="promotion"/> is thinking of staging on
-    /// <paramref name="date"/>: the other promotions' scheduled cards inside the
-    /// counter-programming window (optionally only those in one region, for
-    /// display), and the attendance cut the box office would actually apply
-    /// (<see cref="Booking.Financials.ClashingEvents"/>, which today counts any
-    /// card anywhere, the local circuit included, regardless of region).
+    /// For a show <paramref name="promotion"/> stages (or is thinking of staging)
+    /// on <paramref name="date"/>: every other promotion's scheduled card inside
+    /// the clash window (optionally one region's, for display), each flagged
+    /// <see cref="RivalCard.Charged"/> when the box office counts it against the
+    /// house (<see cref="Booking.Financials.IsClash"/>), and the attendance cut
+    /// that will actually apply. An uncharged card is information only: an AI
+    /// card announced for a later date, which today's rule doesn't charge.
     /// </summary>
-    public static (IReadOnlyList<UpcomingCard> Rivals, double Penalty) RivalCardsNear(World world, PromotionId promotion,
+    public static (IReadOnlyList<RivalCard> Rivals, double Penalty) RivalCardsNear(World world, PromotionId promotion,
         DateOnly date, Region? region = null, EventId? except = null)
     {
-        int window = Booking.Financials.CounterProgrammingDays;
+        int window = Booking.Financials.ClashWindowDays;
         var rivals = Upcoming(world, date.AddDays(-window), date.AddDays(window), region: region)
             .Where(c => c.Promotion.Id != promotion && c.Event.Id != except)
+            .Select(c => new RivalCard(c, Booking.Financials.IsClash(world, promotion, date, except, c.Event)))
             .ToList();
-        double penalty = Booking.Financials.ClashingEvents(world, promotion, date, except).Any()
-            ? Booking.Financials.CounterProgrammingPenalty : 0;
+        double penalty = Booking.Financials.ClashingCards(world, promotion, date, except).Count > 0
+            ? Booking.Financials.ClashPenalty : 0;
         return (rivals, penalty);
     }
 
