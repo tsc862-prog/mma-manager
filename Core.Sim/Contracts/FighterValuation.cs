@@ -109,8 +109,16 @@ public sealed class FighterValuation
         };
     }
 
-    /// <summary>The reputation at which a fighter carries himself like a star (short deals, a signing bonus).</summary>
-    public const int StarLevel = 72;
+    /// <summary>
+    /// The reputation at which a fighter carries himself like a star (short deals,
+    /// a signing bonus). Was true ability 78; reputation runs on a compressed
+    /// scale (public facts can't separate the very best), and 74 keeps the same
+    /// share of the world in star mode: 4.4% of active fighters read 74+ on day
+    /// one against 4.1% who were 78+, and 8.0% against 8.7% after five years
+    /// (40 seeds). The four-fight line moved 60 -> 58 for the same reason: 28%
+    /// and 53% read 58+ against 33% and 48% who were truly 60+.
+    /// </summary>
+    public const int StarLevel = 74;
 
     /// <summary>
     /// The discovered local's open-market floor, from the accolade the town saw:
