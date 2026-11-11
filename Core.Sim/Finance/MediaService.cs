@@ -23,17 +23,18 @@ public static class MediaService
     public const int StrikeLimit = 3;
 
     /// <summary>
-    /// What an ordinary card from the sport's best promotions rates on
-    /// average (the median of their fight-night <see cref="Flavor.MatchRating"/>
-    /// averages). Every card-quality clause is written RELATIVE to this, so when
-    /// the fight engine changes how fights rate, this one number is re-measured
-    /// (longsim `diagnose`, the top orgs' card lines) and the whole term sheet
-    /// follows. Measured on the stoppage/scoring engine (#37), 4 seeds x 2
-    /// years, 200 fight nights each: AFC 45, VMMA 45, ICF 46, IFA 48.
-    /// The floors below put the #1 promotion's ordinary cards over its
-    /// strictest partner's floor about 80-85% of the time.
+    /// What a card at the top of the sport rates: the median of International
+    /// promotions' card averages as <see cref="DealCompliance"/> reads them.
+    /// Every card-quality clause is written RELATIVE to this, so when the
+    /// fight engine changes how fights rate, this one number is re-measured
+    /// (`longsim compare` prints card quality by tier) and the whole term sheet
+    /// follows. Measured on the #37 engine (40 seeds x 5 years): International
+    /// median 48.6, p10 40.8, p25 44.5; share of cards clearing 42 / 45 = 86% / 72%.
+    /// Prime time sits at par-7 (41) and its strict flagship partner at 43, so
+    /// the #1 promotion's ordinary cards clear its strictest partner about 80-85%
+    /// of the time; cable sports at par-12 (36, flagship 38) clears ~95%.
     /// </summary>
-    public const int CardQualityPar = 45;
+    public const int CardQualityPar = 48;
 
     // --- The ladder -----------------------------------------------------------
 
@@ -92,7 +93,7 @@ public static class MediaService
             {
                 new DealRequirement(DealRequirementKind.MinMainCard, 4),
                 new DealRequirement(DealRequirementKind.MaxMainCard, 6),
-                new DealRequirement(DealRequirementKind.MinCardQuality, CardQualityPar - 10),
+                new DealRequirement(DealRequirementKind.MinCardQuality, CardQualityPar - 12),
                 new DealRequirement(DealRequirementKind.EventCadence, 60),
             }),
 
@@ -113,7 +114,7 @@ public static class MediaService
                 new DealRequirement(DealRequirementKind.MinMainCard, 5),
                 new DealRequirement(DealRequirementKind.MaxMainCard, 5),
                 new DealRequirement(DealRequirementKind.MinStarPower, 60),
-                new DealRequirement(DealRequirementKind.MinCardQuality, CardQualityPar - 6),
+                new DealRequirement(DealRequirementKind.MinCardQuality, CardQualityPar - 7),
                 new DealRequirement(DealRequirementKind.EventCadence, 75),
             }),
 
@@ -190,8 +191,8 @@ public static class MediaService
                     if (strictness < 0) continue;                    // the easy-going don't grade your cards
                     // A couple of points stricter, not five: the old +5 on prime
                     // time's flat 45 wrote a 50 floor the #1 promotion missed on
-                    // 56% of nights (80% on the #37 engine) — a contract nobody in
-                    // the world could keep. Now par-6+2 = 41 (AFC misses ~20%).
+                    // 56-58% of nights (both engines) — a contract nobody in
+                    // the world could keep. Now par-7+2 = 43 (~82% of top cards clear it).
                     adjusted.Add(req with { Threshold = req.Threshold + 2 });
                     break;
                 case DealRequirementKind.MinStarPower:
