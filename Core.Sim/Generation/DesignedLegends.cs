@@ -101,11 +101,11 @@ public static class DesignedLegends
             AgeNow: 48, Wins: 25, Losses: 4, Popularity: 82,
             Reigns: new[] { new DesignedReign("AFC", WeightClass.Welterweight, 17, 12, 8) },
             HeadCoachOf: "Bandeira Jiu-Jitsu",
-            Bio: "Eight defenses, a game built to finish on the mat, and the third generation of his family to run the academy that carries their name. Bandeira never lost the belt — he vacated it at thirty-six, went home to Rio, and has been quietly building other people's champions ever since."),
+            Bio: "Eight defenses, a game built to finish on the mat, and the third generation of his family to run the academy that carries their name. Bandeira never lost the belt — he vacated it at thirty-six, went home to Rio, and has been quietly building other people's champions ever since. His nephew Wallace is the Cage Kings heavyweight champion, a house his family's academy now trains against; the picture of the two of them is still on the academy wall."),
         new("Danielle", "Cross", "The Original", Region.NorthAmerica, "USA", WeightClass.Bantamweight, PrimaryStyle.Brawler,
             AgeNow: 41, Wins: 18, Losses: 4, Popularity: 79, Sex: Sex.Female,
             Reigns: new[] { new DesignedReign("AFC", WeightClass.Bantamweight, 12, 8, 5, Sex.Female) },
-            Bio: "There was no women's division until Cross spent two years embarrassing the promoters who said there was no market. She won the first belt, defended it five times, and retired the moment the sport stopped treating her division as an experiment. Everything Volkova headlines today, Cross argued into existence."),
+            Bio: "There was no women's division until Cross spent two years embarrassing the promoters who said there was no market. She won the first belt, defended it five times, and retired the moment the sport stopped treating her division as an experiment. Everything Volkova headlines today, Cross argued into existence. She has told television audiences that nobody has asked Volkova a hard question yet, and she works Sarah Donovan's corner as the woman most likely to."),
 
         // ============ VMMA — the establishment's own past ============
         new("Hendrik", "Vos", "Zwaarhand", Region.Europe, "NED", WeightClass.Heavyweight, PrimaryStyle.Kickboxer,

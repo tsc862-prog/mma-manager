@@ -30,9 +30,37 @@ public static class Prologue
         OpenMarket(world, startDate, items);
         TurfWars(world, startDate, items);
         TheOldGuard(world, startDate, items);
+        AuthoredStories(world, startDate, items);
 
         foreach (var i in items.OrderBy(i => i.Date).ThenBy(i => i.Head, StringComparer.Ordinal))
             News.Post(world, i.Date, i.Cat, i.Head, i.Body, i.Promo, i.About);
+    }
+
+    /// <summary>
+    /// The hand-written lines (<see cref="Generation.DesignedHeadlines"/>): spin and
+    /// ambition the sim cannot derive. A line whose subject or house is not in this
+    /// build (a world made without the designed roster) is dropped whole.
+    /// </summary>
+    private static void AuthoredStories(World world, DateOnly startDate, List<(DateOnly, NewsCategory, string, string, PromotionId, FighterId?)> items)
+    {
+        if (!world.Fighters.Values.Any(f => f.Designed)) return;   // no designed roster, no authored feed
+        foreach (var h in Generation.DesignedHeadlines.All)
+        {
+            FighterId? about = null;
+            if (h.About is not null)
+            {
+                var hit = world.Fighters.Values.Where(f => f.Designed && $"{f.FirstName} {f.LastName}" == h.About).ToList();
+                if (hit.Count != 1) continue;
+                about = hit[0].Id;
+            }
+            PromotionId promo = default;
+            if (h.Org is not null)
+            {
+                if (world.Promotions.Values.FirstOrDefault(p => p.Abbreviation == h.Org) is not { } p) continue;
+                promo = p.Id;
+            }
+            items.Add((startDate.AddDays(-h.DaysBeforeStart), h.Cat, h.Headline, h.Body, promo, about));
+        }
     }
 
     // --- the belts ----------------------------------------------------------
@@ -285,6 +313,8 @@ public static class Prologue
             facts.Add($"Both train out of {room.Name}.");
 
         if (sameHouse) facts.Add($"{pa!.Abbreviation} can book it whenever it likes.");
+        if (a.Designed && b.Designed && Generation.DesignedRoster.FeudReason(a.LastName, b.LastName) is { } why)
+            facts.Add(why);
         return string.Join(" ", facts);
     }
 
