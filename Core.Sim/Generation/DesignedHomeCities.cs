@@ -101,6 +101,7 @@ public static class DesignedHomeCities
 
             // --- Legends (where they live now) -------------------------------
             ["Randall Boyd"] = "Las Vegas",           // runs Apex Combat Club
+            ["Danielle Cross"] = "Las Vegas",         // the Original: built the division where the AFC was born
             ["Nathan Kroll"] = "Chicago",             // runs Iron Range Wrestling
             ["Paulo Bandeira"] = "Rio de Janeiro",    // went home to Rio
             ["Hendrik Vos"] = "Amsterdam",            // holds the door at Low Country

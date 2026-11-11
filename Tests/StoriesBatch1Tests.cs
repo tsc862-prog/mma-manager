@@ -279,6 +279,7 @@ public class StoriesBatch1Tests
         "Undefeated and twenty-one",          // Saengkham: asserted below
         "second decade",                      // Halloran's bio says it
         "in three years",                     // Bisset's forecast, in her own words
+        "two inches thick",                   // Diallo's file: a figure of speech about a heavy folder
         "four languages",                     // Donovan's existing bio line
         "four words",                         // Volkov: 'Ask her, not me.' is counted below
         "Nobody has signed her yet",          // Diallo is unsigned on day one: asserted below
@@ -331,6 +332,10 @@ public class StoriesBatch1Tests
         ["Pryor"] = "He and Tyshawn Cole of Coastal Combat are the two young lightweights the scouts put side by side.",
         ["Cole"] = "The other lightweight prospect the scouts mention in the same breath is DeShawn Pryor of Great Lakes, and Cole has noticed.",
         ["Cross"] = "She has told television audiences that nobody has asked Volkova a hard question yet, and she works Sarah Donovan's corner as the woman most likely to.",
+        ["Diallo"] = "Rosalind Okoye has a file on her two inches thick; Margaux Bisset has her highlight reel on her phone.",
+        ["Tanner"] = "He says this is the last year, and his surgeon agrees.",
+        ["Hattori"] = "He has said, publicly, that this is his last year and that he would like it to end in Tokyo.",
+        ["Lindqvist"] = "He says this is his last year, and the exam has a closing date.",
         ["Paulo"] = "His nephew Wallace is the Cage Kings heavyweight champion, a house his family's academy now trains against; the picture of the two of them is still on the academy wall.",
     };
 

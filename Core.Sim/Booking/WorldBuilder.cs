@@ -198,9 +198,9 @@ public sealed class WorldBuilder
             new("Baltic Brawl", "BLB", 12, 50, new Money(220_000m), Region.Europe, HeavyHall, Women: false,
                 Lore: "Baltic Brawl is the old school preserved in amber: big men, small halls, sambo pedigrees, and an announcer who sounds like a dockyard foreman. It runs the Baltic ferry circuit from an office and home hall in Stockholm, where the ferries leave from, and its fighters and crowds are Baltic to the bone. It survives on stubbornness and the region's inexhaustible supply of enormous, uncomplaining heavyweights."),
             new("Mekong Fight Club", "MFC", 14, 50, new Money(250_000m), Region.Asia, FeederLight, Women: false,
-                Lore: "Mekong Fight Club grew out of the temple-fair circuit, where fighters have traded leather at festivals up and down the river for generations. It runs the lighter weights the region breeds best, and its cards double as open auditions for every scout in Asia."),
+                Lore: "Mekong Fight Club grew out of the temple-fair circuit, where fighters have traded leather at festivals up and down the river for generations. It runs the lighter weights the region breeds best, and its cards double as open auditions for every scout in Asia. Each November it stages MFC Temple Fair Night in the biggest house in Bangkok, the one card a year the whole circuit travels to."),
             new("Cape Fury", "CPF", 11, 48, new Money(210_000m), Region.Africa, HeavyHall, Women: false,
-                Lore: "Cape Fury throws big men from the townships into a cage at the foot of Table Mountain and lets the neighbourhood settle its arguments legally. The purses are small and the heavyweights are not; every card sells out on local pride alone."),
+                Lore: "Cape Fury throws big men from the townships into a cage at the foot of Table Mountain and lets the neighbourhood settle its arguments legally. The purses are small and the heavyweights are not; every card sells out on local pride alone. Each December it stages CPF Mountain Night, the one card a year the whole city seems to hold a ticket for."),
             new("Pampas Fight League", "PMP", 15, 60, new Money(270_000m), Region.SouthAmerica, CoreThree, Women: false,
                 Lore: "The Pampas Fight League is Argentine showmanship applied to cage fighting — entrances longer than some of the fights, crowds that sing in full voice, and a soft spot for brawlers who play to the cheap seats. Buenos Aires adores it; its accountants do not."),
         };
@@ -242,6 +242,12 @@ public sealed class WorldBuilder
 
         /// <summary>Authored hometowns for designed fighters and legends (off only in the RNG-guard test).</summary>
         internal bool AuthoredHomeCities { get; init; } = true;
+
+        /// <summary>
+        /// The day-one story tables that need no draw: contract stages, feud heat and
+        /// the faces of the companies (off only in the RNG-guard test).
+        /// </summary>
+        internal bool AuthoredStories { get; init; } = true;
     }
 
     public World Build(Options? options = null)
@@ -268,7 +274,7 @@ public sealed class WorldBuilder
         // first cards have grudges to book and the news has stories to tell.
         foreach (var (spec, fighter) in designedFighters.Where(x => x.Spec.RivalOf is not null))
             if (designedFighters.FirstOrDefault(x => x.Spec.Last == spec.RivalOf).Fighter is { } enemy)
-                world.Rivalries.Add(new Rivalry { A = fighter.Id, B = enemy.Id, Intensity = 60, Since = o.StartDate });
+                world.Rivalries.Add(new Rivalry { A = fighter.Id, B = enemy.Id, Intensity = o.AuthoredStories ? Generation.DesignedRoster.RivalHeatOf(spec.Last, spec.RivalOf!) : 60, Since = o.StartDate });
 
         var rostersByPromo = specs.Select(_ => new List<Fighter>()).ToArray();
         foreach (var (spec, fighter) in designedFighters.Where(x => x.Spec.Sex == Sex.Male))
@@ -338,7 +344,7 @@ public sealed class WorldBuilder
 
             foreach (var f in rostersByPromo[p])
                 f.Contract = PromotionSetup.SignContract(world, promo, o.StartDate, f, rng);
-            ApplyAuthoredPurses(rostersByPromo[p]);
+            ApplyAuthoredPurses(rostersByPromo[p], o.AuthoredStories);
 
             var designedChampions = designedFighters
                 .Where(x => x.Spec.Champion && x.Spec.Sex == Sex.Male && OrgIndexOf(x.Spec.Org) == p)
@@ -399,6 +405,14 @@ public sealed class WorldBuilder
         // Last: the sport reports on the world that was just built, so day one
         // opens on a feed with eighteen months of history in it instead of a
         // blank page. Everything in it is derived from what actually exists.
+        // The faces of the companies, as the stories have them (no news, no draw).
+        if (o.UseDesignedRoster && o.AuthoredStories)
+            foreach (var (org, name) in Generation.DesignedRoster.Faces)
+                if (world.Promotions.Values.FirstOrDefault(p => p.Abbreviation == org) is { IsPlayerControlled: false } house   // the player picks their own face
+                    && world.Fighters.Values.FirstOrDefault(f => f.Designed && $"{f.FirstName} {f.LastName}" == name) is { } face
+                    && face.Contract?.Promotion == house.Id)
+                    house.FaceOfCompany = face.Id;
+
         Living.Prologue.Write(world, o.StartDate);
         return world;
     }
@@ -409,11 +423,15 @@ public sealed class WorldBuilder
     /// the prospects whose whole story is that they're worth more than they're
     /// being paid. Applied after the formula so the ordinary roster is untouched.
     /// </summary>
-    private static void ApplyAuthoredPurses(List<Fighter> roster)
+    private static void ApplyAuthoredPurses(List<Fighter> roster, bool stories = true)
     {
         foreach (var f in roster)
         {
             if (!f.Designed || f.Contract is not { } c) continue;
+            // Where the deal stands is read off the contract the shared stream already
+            // produced (see DesignedRoster.ContractStages): nothing is drawn or skipped.
+            if (stories && Generation.DesignedRoster.ContractStages.TryGetValue(f.LastName, out var fights))
+                c.FightsRemaining = fights;
             if (!Generation.DesignedRoster.PurseFactors.TryGetValue(f.LastName, out var factor)) continue;
             c.PursePerFight = new Money(Math.Round(c.PursePerFight.Amount * factor / 500m) * 500m);
             c.WinBonus = new Money(Math.Round(c.PursePerFight.Amount * 0.75m / 500m) * 500m);
@@ -531,7 +549,7 @@ public sealed class WorldBuilder
         {
             foreach (var f in femaleRosters[p])
                 f.Contract = PromotionSetup.SignContract(world, promos[p], o.StartDate, f, rng);
-            ApplyAuthoredPurses(femaleRosters[p]);
+            ApplyAuthoredPurses(femaleRosters[p], o.AuthoredStories);
             var champions = designedWomen
                 .Where(x => x.Spec.Champion && x.Spec.Org == specs[p].Abbreviation)
                 .ToDictionary(x => x.Spec.WeightClass, x => x.Fighter.Id);

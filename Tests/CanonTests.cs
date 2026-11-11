@@ -47,6 +47,7 @@ public class CanonTests
         var keys = DesignedRoster.Dispositions.Keys
             .Concat(DesignedRoster.CampHomes.Keys)
             .Concat(DesignedRoster.PurseFactors.Keys)
+            .Concat(DesignedRoster.ContractStages.Keys)
             .Concat(DesignedRoster.All.Where(d => d.RivalOf is not null).Select(d => d.RivalOf!));
         foreach (var key in keys.Distinct())
         {
