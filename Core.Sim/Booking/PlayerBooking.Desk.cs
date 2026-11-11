@@ -39,15 +39,29 @@ public enum TermStatus { Met, Missed, JudgedOnTheNight }
 /// <summary>One clause of a partner's term sheet, checked against the projected card.</summary>
 public sealed record TermCheck(DealRequirement Requirement, string Text, TermStatus Status, string? Gap);
 
-/// <summary>What one sponsor or rights partner would pay for this card, and why.</summary>
+/// <summary>
+/// What one sponsor or rights partner would pay for this card, and why.
+/// <see cref="PendingStrikes"/> are the cadence strikes the monthly checks will
+/// add before the card airs (media only): enough of them and the partner has
+/// walked before the night (<see cref="GoneBeforeCard"/>, fee zero).
+/// </summary>
 public sealed record PartnerProjection(
     string Partner, bool IsMedia, Money FullFee, Money ExpectedFee, int Strikes, int StrikeLimit,
-    IReadOnlyList<TermCheck> Terms)
+    IReadOnlyList<TermCheck> Terms, int PendingStrikes = 0)
 {
     public bool AtRisk => Terms.Any(t => t.Status == TermStatus.Missed);
 
-    /// <summary>A miss on this card would be the strike that ends the deal.</summary>
-    public bool WouldWalk => AtRisk && Strikes + 1 >= StrikeLimit;
+    /// <summary>Strikes on the deal by the time the card airs.</summary>
+    public int StrikesBeforeCard => Strikes + PendingStrikes;
+
+    /// <summary>The cadence strikes alone end the deal before this card airs.</summary>
+    public bool GoneBeforeCard => StrikesBeforeCard >= StrikeLimit;
+
+    /// <summary>The deal ends by this card: gone before it, or a miss on it is the last strike.</summary>
+    public bool WouldWalk => GoneBeforeCard || (AtRisk && StrikesBeforeCard + 1 >= StrikeLimit);
+
+    /// <summary>Clauses only the night can settle (card quality, a house or a star too close to call).</summary>
+    public bool HasClausesOnTheNight => Terms.Any(t => t.Status == TermStatus.JudgedOnTheNight);
 }
 
 /// <summary>The kinds of trouble the desk can see coming.</summary>
@@ -96,17 +110,36 @@ public sealed class CardProjection
     public Money WinBonusMax { get; init; }         // every bout won by the dearer corner
     public Money WinBonusExpected => new((WinBonusMin.Amount + WinBonusMax.Amount) / 2m);
     public Money FightOfTheNight { get; init; }     // both corners of the best bout, if it rates
-    public Money Filler { get; init; }              // what the house's padding will cost
+    public Money Filler { get; init; }              // what the house's padding is expected to cost
+    public Money FillerFloor { get; init; }         // padding purses only (no bonus won)
+    public Money FillerCeiling { get; init; }       // padding purses plus the dearer bonus in every padded bout
 
+    /// <summary>What the clauses judged on the night could cost if they all went against us (half those partners' fees).</summary>
+    public Money PartnerFeesAtStakeOnTheNight { get; init; }
+
+    /// <summary>The expected night: average win bonuses, Fight of the Night paid, every partner as projected.</summary>
     public Money Net => Income - Production - Rent - Purses - PpvPoints - WinBonusExpected - FightOfTheNight - Filler;
-    public Money NetLow => Income - Production - Rent - Purses - PpvPoints - WinBonusMax - FightOfTheNight - Filler;
-    public Money NetHigh => Income - Production - Rent - Purses - PpvPoints - WinBonusMin - Filler;
+
+    /// <summary>
+    /// The worst the fights can make it, at the projected house: every bout won
+    /// by the dearer corner (padding too), Fight of the Night paid, and every
+    /// clause judged on the night missed.
+    /// </summary>
+    public Money NetLow => Income - PartnerFeesAtStakeOnTheNight - Production - Rent - Purses - PpvPoints
+                           - WinBonusMax - FightOfTheNight - FillerCeiling;
+
+    /// <summary>
+    /// The best the fights can make it, at the projected house: no win bonus paid
+    /// anywhere (draws and no-contests pay none), no Fight of the Night, every
+    /// clause judged on the night met.
+    /// </summary>
+    public Money NetHigh => Income - Production - Rent - Purses - PpvPoints - FillerFloor;
 
     // The card as it will run
     public int BoutsBooked { get; init; }
     public int BoutsOnTheNight { get; init; }
     public int MainCardOnTheNight { get; init; }
-    public FillerPreview Padding { get; init; } = new(Array.Empty<FillerBout>(), Money.Zero, 0, 0);
+    public FillerPreview Padding { get; init; } = FillerPreview.None(0);
 
     public IReadOnlyList<PartnerProjection> Partners { get; init; } = Array.Empty<PartnerProjection>();
     public IReadOnlyList<Event> ClashingCards { get; init; } = Array.Empty<Event>();
@@ -168,7 +201,7 @@ public sealed partial class PlayerBooking
     /// across the media deals, else the whole card), over the padded card.
     /// </summary>
     public int MainCardOnTheNight(World world, Event ev) =>
-        MainCardOnTheNight(world, ev, CardFiller.Preview(world, ev).BoutsAfter);
+        IsMine(world, ev) ? MainCardOnTheNight(world, ev, CardFiller.Preview(world, ev).BoutsAfter) : 0;
 
     private static int MainCardOnTheNight(World world, Event ev, int boutsOnTheNight)
     {
@@ -188,14 +221,25 @@ public sealed partial class PlayerBooking
     /// The incoming fighter is checked exactly as <see cref="AddBout"/> checks a corner.
     /// </summary>
     public bool ReplaceFighter(World world, Event ev, FightId fight, FighterId outgoing, FighterId incoming, out string? error) =>
-        ReplaceFighter(world, ev, fight, outgoing, incoming, out error, out _);
+        ReplaceFighter(world, ev, fight, outgoing, incoming, out error, out _, out _);
 
     /// <inheritdoc cref="ReplaceFighter(World, Event, FightId, FighterId, FighterId, out string?)"/>
     /// <param name="titleKept">False when the bout was a title fight and the belt had to come off.</param>
     public bool ReplaceFighter(World world, Event ev, FightId fight, FighterId outgoing, FighterId incoming,
-        out string? error, out bool titleKept)
+        out string? error, out bool titleKept) =>
+        ReplaceFighter(world, ev, fight, outgoing, incoming, out error, out titleKept, out _);
+
+    /// <inheritdoc cref="ReplaceFighter(World, Event, FightId, FighterId, FighterId, out string?)"/>
+    /// <param name="titleKept">False when the bout was a title fight and the belt had to come off.</param>
+    /// <param name="note">
+    /// What the swap did to the belt, for the screen to say (null when nothing
+    /// to say): it came off, or it stays on the line against an unranked challenger.
+    /// </param>
+    public bool ReplaceFighter(World world, Event ev, FightId fight, FighterId outgoing, FighterId incoming,
+        out string? error, out bool titleKept, out string? note)
     {
         titleKept = false;
+        note = null;
         if (!Editable(world, ev, out error)) return false;
         int idx = ev.Card.FindIndex(f => f.Id == fight);
         if (idx < 0) { error = "That bout isn't on this card."; return false; }
@@ -218,7 +262,22 @@ public sealed partial class PlayerBooking
 
         bool keepTitle = false;
         if (bout.IsTitleFight && bout.Title is { } tid && world.Get(tid) is { } title)
+        {
             keepTitle = title.CurrentChampion is not { } champ || champ == stayId || champ == incoming;
+            if (!keepTitle)
+                note = "The belt comes off: the champion is no longer in the bout.";
+            else
+            {
+                // Same rule as AddBout (any challenger may face the champion), but
+                // the screen should say when the challenger hasn't earned a ranking.
+                var rankings = world.Get(world.PlayerPromotion)?.Divisions.FirstOrDefault(d => d.Title == tid)?.Rankings;
+                var challengers = new[] { stayId, incoming }.Where(id => id != title.CurrentChampion);
+                var unranked = challengers.Where(id => rankings is null || !rankings.Contains(id))
+                    .Select(id => world.Get(id)?.FullName ?? "the challenger").ToList();
+                if (unranked.Count > 0)
+                    note = $"The belt stays on the line, but {string.Join(" and ", unranked)} {(unranked.Count == 1 ? "is" : "are")} unranked.";
+            }
+        }
         titleKept = keepTitle;
 
         ev.Card[idx] = new Fight
@@ -250,7 +309,7 @@ public sealed partial class PlayerBooking
     public IReadOnlyList<VenueOption> VenueOptions(World world, Event ev)
     {
         var promo = world.Get(ev.Promotion);
-        if (promo is null || WorldMap.CityOf(world, ev) is not { } city) return Array.Empty<VenueOption>();
+        if (!IsMine(world, ev) || promo is null || WorldMap.CityOf(world, ev) is not { } city) return Array.Empty<VenueOption>();
         var simPick = WorldMap.PickVenueIn(world, promo, city)?.Id;
         var list = new List<VenueOption>();
         int demand = -1;
@@ -305,7 +364,9 @@ public sealed partial class PlayerBooking
     // --- Filler ----------------------------------------------------------------
 
     /// <summary>What the house would add on fight night to bring a short card up to length, and its cost.</summary>
-    public FillerPreview PreviewPadding(World world, Event ev) => CardFiller.Preview(world, ev);
+    /// <remarks>Your cards only: another promotion's padding would name its roster's best by true ability. Empty for theirs.</remarks>
+    public FillerPreview PreviewPadding(World world, Event ev) =>
+        IsMine(world, ev) ? CardFiller.Preview(world, ev) : FillerPreview.None(ev.Card.Count);
 
     // --- The all-in projection --------------------------------------------------
 
@@ -317,8 +378,13 @@ public sealed partial class PlayerBooking
     /// as a range, production and rent, filler, and the risks in plain words.
     /// Read-only and draw-free.
     /// </summary>
+    /// <remarks>
+    /// Your cards only: another promotion's purses, partner terms and strikes are
+    /// its private business, so its card projects as empty.
+    /// </remarks>
     public CardProjection Project(World world, Event ev)
     {
+        if (!IsMine(world, ev)) return new CardProjection();
         var promo = world.Get(ev.Promotion);
         var padding = CardFiller.Preview(world, ev);
         var fin = Financials.Compute(world, ev);
@@ -376,6 +442,11 @@ public sealed partial class PlayerBooking
             WinBonusMax = bonusMax,
             FightOfTheNight = fotn,
             Filler = padding.Cost,
+            FillerFloor = padding.Purses,
+            FillerCeiling = padding.Purses + padding.WinBonusMax,
+            PartnerFeesAtStakeOnTheNight = partners
+                .Where(p => !p.GoneBeforeCard && !p.AtRisk && p.HasClausesOnTheNight)
+                .Aggregate(Money.Zero, (s, p) => s + p.FullFee * 0.5m),
             BoutsBooked = ev.Card.Count,
             BoutsOnTheNight = padding.BoutsAfter,
             MainCardOnTheNight = mainCard,
@@ -385,6 +456,12 @@ public sealed partial class PlayerBooking
             Risks = risks,
         };
     }
+
+    /// <summary>A projected house within this share of an attendance clause is judged on the night.</summary>
+    public const double AttendanceMargin = 0.10;
+
+    /// <summary>A main-eventer within this many popularity points of a star clause is judged on the night.</summary>
+    public const int StarPowerMargin = 3;
 
     private static Money Purse(Fighter? f) =>
         f?.Contract is { } c ? c.PursePerFight
@@ -418,14 +495,50 @@ public sealed partial class PlayerBooking
             if (deal.Kind == MediaKind.PpvCarrier && !ppvNight) continue;   // the carrier only judges PPV nights
             var terms = Terms(world, ev, deal.Requirements, attendance, locals, mainCard);
             var full = new Money(deal.RightsFeePerEvent.Amount * mediaPremium);
-            list.Add(new PartnerProjection(deal.Partner, true, full, Expected(full, terms),
-                deal.Strikes, MediaService.StrikeLimit, terms));
+            int pending = CadenceBeforeCard(world, ev, deal).Strikes;
+            bool gone = deal.Strikes + pending >= MediaService.StrikeLimit;
+            list.Add(new PartnerProjection(deal.Partner, true, full, gone ? Money.Zero : Expected(full, terms),
+                deal.Strikes, MediaService.StrikeLimit, terms, pending));
         }
         return list;
     }
 
     private static Money Expected(Money full, IReadOnlyList<TermCheck> terms) =>
         terms.Any(t => t.Status == TermStatus.Missed) ? full * 0.5m : full;
+
+    /// <summary>
+    /// The cadence strikes a media deal takes before this card airs, walking the
+    /// weekly ticks from today the way <see cref="Living.WorldTick"/> runs them:
+    /// each week our cards that fall due air first (resetting the clock), then on
+    /// a month turn <see cref="MediaService"/>'s cadence check strikes a deal that
+    /// has gone more than its threshold without a card and resets the clock to
+    /// that day. The card itself runs on the first tick on or after its date, so
+    /// only ticks strictly before it count. Stops at the strike that ends the deal.
+    /// </summary>
+    private static (int Strikes, DealRequirement? Cadence, DateOnly Clock) CadenceBeforeCard(World world, Event ev, MediaDeal deal)
+    {
+        var clock = deal.LastAiredOn ?? deal.SignedOn;
+        if (deal.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence) is not { } cadence)
+            return (0, null, clock);
+        var ours = world.Events.Values
+            .Where(e => e.Promotion == ev.Promotion && e.Id != ev.Id && e.Status == EventStatus.Scheduled
+                        && e.Card.Count > 0 && e.Date < ev.Date)   // an empty card never airs
+            .Select(e => e.Date).OrderBy(d => d).ToList();
+        int strikes = 0;
+        var prev = world.CurrentDate;
+        for (var t = prev.AddDays(7); t < ev.Date && deal.Strikes + strikes < MediaService.StrikeLimit; t = t.AddDays(7))
+        {
+            foreach (var d in ours)
+                if (d <= t && d > clock) clock = d;
+            if (t.Month != prev.Month && t.DayNumber - clock.DayNumber > cadence.Threshold)
+            {
+                strikes++;
+                clock = t;
+            }
+            prev = t;
+        }
+        return (strikes, cadence, clock);
+    }
 
     private static List<TermCheck> Terms(World world, Event ev, IEnumerable<DealRequirement> reqs,
         int attendance, int locals, int mainCard)
@@ -443,8 +556,14 @@ public sealed partial class PlayerBooking
                     list.Add(new TermCheck(req, text, TermStatus.JudgedOnTheNight, "judged on how the fights go"));
                     break;
                 case DealRequirementKind.MinAttendance:
-                    list.Add(Check(attendance >= req.Threshold,
-                        $"projected house {attendance:N0}, {req.Threshold - attendance:N0} short"));
+                    // The house is settled after the fights (popularity moves with
+                    // results), so a projection this close to the line is a coin-flip.
+                    if (Math.Abs(attendance - req.Threshold) <= req.Threshold * AttendanceMargin)
+                        list.Add(new TermCheck(req, text, TermStatus.JudgedOnTheNight,
+                            $"projected house {attendance:N0} against {req.Threshold:N0}: too close to call"));
+                    else
+                        list.Add(Check(attendance >= req.Threshold,
+                            $"projected house {attendance:N0}, {req.Threshold - attendance:N0} short"));
                     break;
                 case DealRequirementKind.MinLocalFighters:
                     list.Add(Check(locals >= req.Threshold, $"{locals} local, {req.Threshold - locals} short"));
@@ -459,8 +578,14 @@ public sealed partial class PlayerBooking
                     int top = ev.Card.Count == 0 ? 0 : Math.Max(
                         world.Get(ev.Card[^1].RedCorner)?.Intangibles.Popularity.Value ?? 0,
                         world.Get(ev.Card[^1].BlueCorner)?.Intangibles.Popularity.Value ?? 0);
-                    list.Add(Check(top >= req.Threshold,
-                        ev.Card.Count == 0 ? "no main event yet" : $"main event's best name is at {top}, {req.Threshold - top} short"));
+                    // Popularity is read after the main event is fought, so a name
+                    // a few points either side of the bar is decided on the night.
+                    if (ev.Card.Count > 0 && Math.Abs(top - req.Threshold) <= StarPowerMargin)
+                        list.Add(new TermCheck(req, text, TermStatus.JudgedOnTheNight,
+                            $"main event's best name is at {top} against {req.Threshold}: too close to call"));
+                    else
+                        list.Add(Check(top >= req.Threshold,
+                            ev.Card.Count == 0 ? "no main event yet" : $"main event's best name is at {top}, {req.Threshold - top} short"));
                     break;
                 case DealRequirementKind.TitleFight:
                     list.Add(Check(DealCompliance.Meets(world, ev, req), "no belt on the card"));
@@ -505,36 +630,32 @@ public sealed partial class PlayerBooking
                     risks.Add(new(BookingRiskKind.NotMatchReady, $"{f.FullName} {NotReadyWhy(f, ev.Date)}", id));
             }
 
-        foreach (var p in partners.Where(p => p.AtRisk))
+        // Cadence first: those strikes land before the card, and can end a deal
+        // before any clause on the card is judged.
+        if (promo is not null)
+            foreach (var deal in promo.MediaDeals)
+            {
+                var (strikes, cadence, _) = CadenceBeforeCard(world, ev, deal);
+                if (strikes == 0 || cadence is null) continue;
+                int total = deal.Strikes + strikes;
+                risks.Add(new(BookingRiskKind.CadenceBroken,
+                    $"{deal.Partner} wants {DealCompliance.Describe(cadence)}, and nothing of ours airs in time: "
+                    + $"{(strikes == 1 ? "a strike lands" : $"{strikes} strikes land")} on the monthly check before this card"
+                    + (total >= MediaService.StrikeLimit
+                        ? $", which ends the deal before the card airs (they won't pay for it)."
+                        : $" (strike {total} of {MediaService.StrikeLimit})."),
+                    Partner: deal.Partner));
+            }
+
+        foreach (var p in partners.Where(p => p.AtRisk && !p.GoneBeforeCard))
         {
             var missed = p.Terms.Where(t => t.Status == TermStatus.Missed)
                 .Select(t => $"{t.Text} ({t.Gap})");
             string consequence = p.WouldWalk
                 ? "they pay half, and that strike ends the deal"
-                : $"they pay half and it is strike {p.Strikes + 1} of {p.StrikeLimit}";
+                : $"they pay half and it is strike {p.StrikesBeforeCard + 1} of {p.StrikeLimit}";
             risks.Add(new(BookingRiskKind.PartnerTermMissed,
                 $"{p.Partner}: {string.Join("; ", missed)}. On this card {consequence}.", Partner: p.Partner));
-        }
-
-        if (promo is not null)
-        {
-            // Cadence: the clock resets at each card the partner airs. An earlier
-            // scheduled card of ours resets it first.
-            var earlier = world.Events.Values
-                .Where(e => e.Promotion == ev.Promotion && e.Id != ev.Id && e.Status == EventStatus.Scheduled && e.Date < ev.Date)
-                .Select(e => (DateOnly?)e.Date).Max();
-            foreach (var deal in promo.MediaDeals)
-            {
-                if (deal.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence) is not { } cadence) continue;
-                var clock = deal.LastAiredOn ?? deal.SignedOn;
-                if (earlier is { } e && e > clock) clock = e;
-                int gap = ev.Date.DayNumber - clock.DayNumber;
-                if (gap > cadence.Threshold)
-                    risks.Add(new(BookingRiskKind.CadenceBroken,
-                        $"{deal.Partner} wants {DealCompliance.Describe(cadence)}; by this card it will be {gap} days since "
-                        + $"{(deal.LastAiredOn is null && clock == deal.SignedOn ? "the deal was signed" : "their last card")}"
-                        + $", {gap - cadence.Threshold} too many. Expect a strike before this card airs.", Partner: deal.Partner));
-            }
         }
 
         foreach (var o in clashes)
@@ -694,6 +815,9 @@ public sealed partial class PlayerBooking
     private const int ContenderDepth = 8;
 
     // --- Shared guards ---------------------------------------------------------
+
+    // The read-only desk helpers answer for the player's own cards only.
+    private static bool IsMine(World world, Event ev) => ev.Promotion == world.PlayerPromotion;
 
     private static bool Editable(World world, Event ev, out string? error)
     {

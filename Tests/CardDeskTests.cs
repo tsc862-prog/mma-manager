@@ -220,20 +220,33 @@ public class CardDeskTests
             .Select(d => (d, c: d.Title is { } t && world.Get(t)?.CurrentChampion is { } cid ? world.Get(cid) : null))
             .First(x => x.c is not null && x.c.IsMatchReady(ev.Date) && x.c.Contract?.Promotion == promo.Id
                         && world.RosterOf(promo.Id).Count(f => x.d.Matches(f) && f.IsMatchReady(ev.Date)) >= 4);
+        // Ranked challengers first, so the first swap is to a ranked one.
         var others = world.RosterOf(promo.Id)
             .Where(f => div.Matches(f) && f.Id != champ!.Id && f.IsMatchReady(ev.Date))
-            .OrderBy(f => f.Id.Value).ToList();
+            .OrderBy(f => div.Rankings.Contains(f.Id) ? 0 : 1).ThenBy(f => f.Id.Value).ToList();
+        Assert.True(div.Rankings.Contains(others[1].Id), "need two ranked challengers");
 
         Assert.True(booking.AddBout(world, ev, champ!.Id, others[0].Id, 5, true, out var err), err);
         var bout = ev.Card[0];
 
-        Assert.True(booking.ReplaceFighter(world, ev, bout.Id, others[0].Id, others[1].Id, out err, out bool kept), err);
+        Assert.True(booking.ReplaceFighter(world, ev, bout.Id, others[0].Id, others[1].Id, out err, out bool kept, out var note), err);
         Assert.True(kept);
+        Assert.Null(note);   // a ranked challenger: nothing to say
         Assert.True(ev.Card[0].IsTitleFight);
         Assert.Equal(div.Title, ev.Card[0].Title);
 
-        Assert.True(booking.ReplaceFighter(world, ev, bout.Id, champ.Id, others[2].Id, out err, out kept), err);
+        // An unranked challenger keeps the belt on (as AddBout allows) but the desk says so.
+        if (others.FirstOrDefault(f => !div.Rankings.Contains(f.Id)) is { } unranked)
+        {
+            Assert.True(booking.ReplaceFighter(world, ev, bout.Id, others[1].Id, unranked.Id, out err, out kept, out note), err);
+            Assert.True(kept);
+            Assert.Contains("unranked", note);
+            Assert.True(booking.ReplaceFighter(world, ev, bout.Id, unranked.Id, others[1].Id, out err), err);
+        }
+
+        Assert.True(booking.ReplaceFighter(world, ev, bout.Id, champ.Id, others[2].Id, out err, out kept, out note), err);
         Assert.False(kept);
+        Assert.Contains("comes off", note);
         Assert.False(ev.Card[0].IsTitleFight);
         Assert.Null(ev.Card[0].Title);
         Assert.Equal(5, ev.Card[0].ScheduledRounds);
@@ -499,5 +512,316 @@ public class CardDeskTests
         Assert.Equal(promo.Rules.TitleRounds, main[0].Rounds);
         Assert.Contains("title", main[0].Reason, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(booking.Suggest(world, ev, BoutSlot.Prelim, 50), p => p.TitleFight);
+    }
+
+    // --- Review fixes --------------------------------------------------------
+
+    [Fact]
+    public void ReadOnlyHelpers_AnswerForYourCardsOnly()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        // A rival's short card (one bout), so padding would have names to leak.
+        var rival = world.Promotions.Values.Where(x => x.Id != world.PlayerPromotion && !x.Defunct)
+            .OrderByDescending(x => world.RosterOf(x.Id).Count()).ThenBy(x => x.Id.Value).First();
+        var pair = world.RosterOf(rival.Id).GroupBy(f => (f.WeightClass, f.Sex)).First(g => g.Count() >= 2).Take(2).ToList();
+        var theirs = new EventService().CreateEvent(world, rival.Id, "Rival Night", world.CurrentDate.AddDays(30),
+            new[] { new Matchup(pair[0].Id, pair[1].Id, pair[0].WeightClass, 3, false, null) });
+        Assert.True(CardFiller.Preview(world, theirs).WouldPad);   // the sim knows; the player's desk won't say
+
+        var p = booking.Project(world, theirs);
+        Assert.Empty(p.Partners);
+        Assert.Empty(p.Risks);
+        Assert.Equal(Money.Zero, p.Purses);
+        Assert.Equal(0, p.Attendance);
+        Assert.False(booking.PreviewPadding(world, theirs).WouldPad);
+        Assert.Empty(booking.VenueOptions(world, theirs));
+        Assert.Equal(0, booking.MainCardOnTheNight(world, theirs));
+        Assert.Empty(booking.Suggest(world, theirs, BoutSlot.MainCard, 5));
+    }
+
+    [Fact]
+    public void Padding_OnYourCard_PicksByTheScoutsRead_AndTheNightMatchesThePreview()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        BookCard(world, booking, ev, 1);
+        var preview = booking.PreviewPadding(world, ev);
+        var first = preview.Bouts.First(b => !b.LocalFiller);
+
+        // The first padded pair is the top two of its division by OUR read (id breaks ties).
+        var r = world.Get(first.Red!.Value)!;
+        var group = world.RosterOf(promo.Id)
+            .Where(f => f.WeightClass == r.WeightClass && f.Sex == r.Sex && f.IsMatchReady(ev.Date)
+                        && !ev.Card.Any(b => b.RedCorner == f.Id || b.BlueCorner == f.Id))
+            .OrderByDescending(f => ScoutingService.PerceivedAbility(world, promo, f)).ThenBy(f => f.Id.Value)
+            .ToList();
+        Assert.Equal(new[] { group[0].Id, group[1].Id }, new[] { first.Red!.Value, first.Blue!.Value });
+
+        AssertNightMatchesPreview(world, ev, preview);
+    }
+
+    [Fact]
+    public void Padding_SmallPromotion_LocalPairs_NightMatchesThePreview()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options
+        {
+            Seed = 21,
+            Founding = new WorldBuilder.FoundingSpec { Prestige = 15, Divisions = new[] { WeightClass.Lightweight, WeightClass.Welterweight } },
+        });
+        var booking = new PlayerBooking();
+        var a = SignFreeAgent(world, f => f.WeightClass == WeightClass.Lightweight && f.Sex == Sex.Male);
+        var b = SignFreeAgent(world, f => f.WeightClass == WeightClass.Lightweight && f.Sex == Sex.Male && f.Id != a.Id);
+        SignFreeAgent(world, f => f.WeightClass == WeightClass.Welterweight && f.Sex == Sex.Male);
+        SignFreeAgent(world, f => f.WeightClass == WeightClass.Welterweight && f.Sex == Sex.Male
+                                  && f.Contract?.Promotion != world.PlayerPromotion);
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(30));
+        Assert.True(booking.AddBout(world, ev, a.Id, b.Id, 3, false, out var err), err);
+
+        var preview = booking.PreviewPadding(world, ev);
+        Assert.True(preview.LocalPairs > 0, "a small org runs out of roster and pads with locals");
+        Assert.Contains(preview.Bouts, x => !x.LocalFiller);
+        AssertNightMatchesPreview(world, ev, preview);
+    }
+
+    private static void AssertNightMatchesPreview(World world, Event ev, FillerPreview preview)
+    {
+        var before = ev.Card.Select(f => f.Id).ToList();
+        CardFiller.PadToMinimum(world, ev);
+        Assert.Equal(preview.BoutsAfter, ev.Card.Count);
+        var added = ev.Card.Where(f => !before.Contains(f.Id)).Reverse().ToList();   // inserted at the front, newest first
+        Assert.Equal(preview.Bouts.Count, added.Count);
+        for (int i = 0; i < added.Count; i++)
+        {
+            var want = preview.Bouts[i];
+            Assert.Equal(want.WeightClass, added[i].WeightClass);
+            if (want.LocalFiller)
+            {
+                Assert.True(world.Get(added[i].RedCorner)!.LocalTalent);
+                Assert.True(world.Get(added[i].BlueCorner)!.LocalTalent);
+            }
+            else
+            {
+                Assert.Equal(want.Red, added[i].RedCorner);
+                Assert.Equal(want.Blue, added[i].BlueCorner);
+            }
+        }
+    }
+
+    private static Fighter SignFreeAgent(World world, Func<Fighter, bool> pick)
+    {
+        var promo = world.Get(world.PlayerPromotion)!;
+        var f = world.FreeAgents().Where(x => !x.LocalTalent && x.IsMatchReady(world.CurrentDate.AddDays(30)) && pick(x))
+            .OrderBy(x => x.Id.Value).First();
+        var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(world, f);
+        MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(world, f, new ContractOffer
+        {
+            Fighter = f.Id, Promotion = promo.Id,
+            PursePerFight = exp.AskingPurse, WinBonus = exp.AskingWinBonus, Fights = exp.DesiredFights,
+        }, world.CurrentDate);
+        return f;
+    }
+
+    [Fact]
+    public void Terms_TooCloseToCall_AreJudgedOnTheNight_AndWidenTheRange()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        BookCard(world, booking, ev, 3);
+        var p0 = booking.Project(world, ev);
+        int star = Math.Max(world.Get(ev.Card[^1].RedCorner)!.Intangibles.Popularity.Value,
+                            world.Get(ev.Card[^1].BlueCorner)!.Intangibles.Popularity.Value);
+        promo.SponsorDeals.Add(new SponsorDeal
+        {
+            Partner = "Close Call Co.",
+            FeePerEvent = new Money(20_000m),
+            EventsRemaining = 4,
+            Requirements =
+            {
+                new DealRequirement(DealRequirementKind.MinAttendance, p0.Attendance + 1),   // one short: a coin-flip
+                new DealRequirement(DealRequirementKind.MinStarPower, star + 2),
+            },
+        });
+
+        var p = booking.Project(world, ev);
+        var deal = Assert.Single(p.Partners, x => x.Partner == "Close Call Co.");
+        Assert.All(deal.Terms, t => Assert.Equal(TermStatus.JudgedOnTheNight, t.Status));
+        Assert.Contains("too close to call", deal.Terms[0].Gap);
+        Assert.False(deal.AtRisk);
+        Assert.Equal(deal.FullFee, deal.ExpectedFee);
+        Assert.True(p.PartnerFeesAtStakeOnTheNight.Amount >= deal.FullFee.Amount * 0.5m);
+        Assert.True(p.NetLow.Amount < p.Net.Amount && p.Net.Amount < p.NetHigh.Amount);
+    }
+
+    [Fact]
+    public void NetRange_IsABound_NoBonusAtBest_EveryBonusAndFillerCeilingAtWorst()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        BookCard(world, booking, ev, 2);   // short, so the padding counts too
+        var p = booking.Project(world, ev);
+        Assert.True(p.Padding.WouldPad);
+        var fixedCosts = p.Production + p.Rent + p.Purses + p.PpvPoints;
+        Assert.Equal(p.Income - fixedCosts - p.FillerFloor, p.NetHigh);
+        Assert.Equal(p.Income - p.PartnerFeesAtStakeOnTheNight - fixedCosts - p.WinBonusMax - p.FightOfTheNight - p.FillerCeiling, p.NetLow);
+        Assert.True(p.FillerFloor.Amount <= p.Filler.Amount && p.Filler.Amount <= p.FillerCeiling.Amount);
+        Assert.True(p.NetLow.Amount <= p.Net.Amount && p.Net.Amount <= p.NetHigh.Amount);
+    }
+
+    [Fact]
+    public void Cadence_StrikesBeforeTheCard_CountTowardWalking()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(75));
+        BookCard(world, booking, ev, 2);
+        promo.MediaDeals.Add(new MediaDeal
+        {
+            Kind = MediaKind.SpecialtyCable,
+            Partner = "Quiet Channel",
+            RightsFeePerEvent = new Money(50_000m),
+            MonthsRemaining = 12,
+            Strikes = 1,
+            SignedOn = world.CurrentDate.AddDays(-200),
+            LastAiredOn = world.CurrentDate.AddDays(-40),
+            Requirements =
+            {
+                new DealRequirement(DealRequirementKind.EventCadence, 45),
+                new DealRequirement(DealRequirementKind.TitleFight, 0),   // missed on this card
+            },
+        });
+
+        var p = booking.Project(world, ev);
+        var deal = Assert.Single(p.Partners, x => x.Partner == "Quiet Channel");
+        Assert.True(deal.PendingStrikes >= 1, "75 days dark against a 45-day clause strikes before the card");
+        Assert.True(deal.AtRisk);
+        // Without the cadence strike this miss would be strike 2 of 3; with it, the deal ends.
+        Assert.True(deal.WouldWalk);
+        Assert.Equal(deal.Strikes + deal.PendingStrikes >= MmaManager.Core.Sim.Finance.MediaService.StrikeLimit, deal.GoneBeforeCard);
+        Assert.Equal(deal.GoneBeforeCard ? Money.Zero : deal.FullFee * 0.5m, deal.ExpectedFee);
+        Assert.Contains(p.Risks, r => r.Kind == BookingRiskKind.CadenceBroken && r.Partner == "Quiet Channel");
+
+        // Fully served deal with no strikes and nothing missed: the cadence strike alone doesn't walk it.
+        var clean = promo.MediaDeals.Single(d => d.Partner == "Quiet Channel");
+        clean.Strikes = 0;
+        clean.Requirements.RemoveAll(r => r.Kind == DealRequirementKind.TitleFight);
+        var q = booking.Project(world, ev).Partners.Single(x => x.Partner == "Quiet Channel");
+        Assert.Equal(q.PendingStrikes >= MmaManager.Core.Sim.Finance.MediaService.StrikeLimit, q.WouldWalk);
+    }
+
+    [Fact]
+    public void ReplaceFighter_ReleasesAnUnfoughtLocal()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options
+        {
+            Seed = 21,
+            Founding = new WorldBuilder.FoundingSpec { Prestige = 15, Divisions = new[] { WeightClass.Lightweight } },
+        });
+        var booking = new PlayerBooking();
+        var a = SignFreeAgent(world, f => f.WeightClass == WeightClass.Lightweight && f.Sex == Sex.Male);
+        var b = SignFreeAgent(world, f => f.WeightClass == WeightClass.Lightweight && f.Sex == Sex.Male && f.Id != a.Id);
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(30));
+        Assert.True(booking.AddLocalBout(world, ev, a.Id, PrimaryStyle.Striker, 3, out var err), err);
+        var bout = Assert.Single(ev.Card);
+        var local = bout.BlueCorner;
+        Assert.True(world.Get(local)!.LocalTalent);
+
+        Assert.True(booking.ReplaceFighter(world, ev, bout.Id, local, b.Id, out err), err);
+        Assert.Null(world.Get(local));   // back into the scene
+        Assert.Equal(b.Id, ev.Card[0].BlueCorner);
+    }
+
+    [Fact]
+    public void PickLists_AreOrderedByTheScoutsRead()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        var pool = ReadyPool(world, ev, 4);
+        var f0 = pool[0];
+
+        var roster = booking.AvailableRoster(world, ev, f0.WeightClass, f0.Sex);
+        Assert.Equal(roster.OrderByDescending(f => MatchmakingAdvisor.ScoutedRead(world, f)).ThenBy(f => f.Id.Value).Select(f => f.Id),
+                     roster.Select(f => f.Id));
+        var opponents = booking.EligibleOpponents(world, ev, f0.Id);
+        Assert.Equal(opponents.OrderByDescending(f => MatchmakingAdvisor.ScoutedRead(world, f)).ThenBy(f => f.Id.Value).Select(f => f.Id),
+                     opponents.Select(f => f.Id));
+    }
+
+    [Fact]
+    public void PulloutShortlist_IsRankedByTheScoutsRead()
+    {
+        var world = Build(11);
+        var promo = world.Get(world.PlayerPromotion)!;
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        BookCard(world, booking, ev, 1);
+        var fight = ev.Card[0];
+        var booked = new HashSet<FighterId>(world.Events.Values.Where(e => e.Status == EventStatus.Scheduled)
+            .SelectMany(e => e.Card).SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
+
+        var list = Storylines.PlayerShortlist(world, ev, fight, booked, fight.BlueCorner);
+        Assert.InRange(list.Count, 1, 3);
+        Assert.Equal(list.OrderByDescending(f => ScoutingService.PerceivedAbility(world, promo, f)).ThenBy(f => f.Id.Value).Select(f => f.Id),
+                     list.Select(f => f.Id));
+        // Nobody left out reads higher than the last name on the list.
+        int floor = ScoutingService.PerceivedAbility(world, promo, list[^1]);
+        var stay = world.Get(fight.BlueCorner)!;
+        var div = promo.Divisions.First(d => d.Matches(stay));
+        var candidates = world.RosterOf(promo.Id).Concat(world.FreeAgents().Where(f => f.Record.TotalBouts >= 3))
+            .Where(c => c.Status == FighterStatus.Active && !c.LocalTalent && c.Id != stay.Id && !booked.Contains(c.Id)
+                        && c.IsMatchReady(ev.Date) && div.Matches(c) && world.BiddingWars.All(w => w.Fighter != c.Id))
+            .Where(c => !list.Any(l => l.Id == c.Id));
+        Assert.All(candidates, c => Assert.True(ScoutingService.PerceivedAbility(world, promo, c) <= floor));
+    }
+
+    [Fact]
+    public void Suggest_TwoFightersWeReadTheSame_ScoreTheSame_WhateverTheTruth()
+    {
+        foreach (ulong seed in new ulong[] { 11, 13, 17, 19, 23, 29 })
+        {
+            var world = Build(seed);
+            var booking = new PlayerBooking();
+            var promo = world.Get(world.PlayerPromotion)!;
+            var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+            var city = MmaManager.Core.Sim.Geography.WorldMap.CityOf(world, ev)!.Value;
+            var champs = promo.Divisions.Where(d => d.Title is not null).Select(d => world.Get(d.Title!.Value)!.CurrentChampion).ToHashSet();
+            int Read(Fighter f) => ScoutingService.PerceivedAbility(world, promo, f);
+
+            foreach (var div in promo.Divisions)
+            {
+                // Plain unranked bodies: no belt, no hometown pull, no camp or feud ties.
+                var plain = world.RosterOf(promo.Id)
+                    .Where(f => div.Matches(f) && f.IsMatchReady(ev.Date) && !div.Rankings.Contains(f.Id) && !champs.Contains(f.Id)
+                                && f.HomeCity != city && MmaManager.Core.Sim.Geography.Reputation.FighterInCity(f, city) < 40)
+                    .OrderBy(f => f.Id.Value).ToList();
+                bool Clean(Fighter p, Fighter q) =>
+                    (p.Camp is null || p.Camp != q.Camp) && !Bonds.WontFight(world, p.Id, q.Id)
+                    && Storylines.RivalryBetween(world, p.Id, q.Id) is null && !p.BoutHistory.Intersect(q.BoutHistory).Any();
+
+                foreach (var red in plain)
+                    foreach (var x in plain.Where(x => x.Id != red.Id && Clean(red, x)))
+                        foreach (var y in plain.Where(y => y.Id.Value > x.Id.Value && y.Id != red.Id && Clean(red, y)
+                                                           && Read(y) == Read(x)
+                                                           && FighterAbility.CurrentAbility(y) != FighterAbility.CurrentAbility(x)))
+                        {
+                            y.Intangibles.Popularity = x.Intangibles.Popularity;   // same public facts
+                            var all = booking.Suggest(world, ev, BoutSlot.MainCard, 100_000);
+                            var px = all.Single(p => (p.Red == red.Id && p.Blue == x.Id) || (p.Red == x.Id && p.Blue == red.Id));
+                            var py = all.Single(p => (p.Red == red.Id && p.Blue == y.Id) || (p.Red == y.Id && p.Blue == red.Id));
+                            Assert.Equal(px.Score, py.Score);
+                            Assert.Equal(px.Appraisal.Competitiveness, py.Appraisal.Competitiveness);
+                            Assert.Equal(px.Appraisal.Appeal, py.Appraisal.Appeal);
+                            return;
+                        }
+            }
+        }
+        Assert.Fail("no seed had two same-read, different-truth unranked fighters to compare");
     }
 }

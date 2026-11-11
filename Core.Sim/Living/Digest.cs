@@ -62,6 +62,7 @@ public static class Digest
                 && f.AgeOn(date) <= 24 && f.Record.CurrentStreak >= 3
                 && Scouting.ScoutingService.PerceivedAbility(world, mine, f) + 2 * (25 - f.AgeOn(date)) >= 64)
             .OrderBy(f => (f.Id.Value * 31 + date.DayOfYear / 7) % 97)
+            .ThenBy(f => f.Id.Value)
             .FirstOrDefault();
         if (prospect is not null)
         {

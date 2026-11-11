@@ -6,6 +6,26 @@ using MmaManager.Core.Sim.Org;
 namespace MmaManager.Core.Sim.Booking;
 
 /// <summary>
+/// One bout the house would add on the night (a local pair has no names yet).
+/// <see cref="Cost"/> is the expected bill (purses plus one win bonus on average);
+/// <see cref="Purses"/> is the floor (a draw pays no bonus) and
+/// <see cref="Purses"/> + <see cref="WinBonusMax"/> the ceiling.
+/// </summary>
+public sealed record FillerBout(FighterId? Red, FighterId? Blue, WeightClass WeightClass, bool LocalFiller, Money Cost,
+    Money Purses, Money WinBonusMax);
+
+/// <summary>What padding would add to a card: the bouts, their cost, and the card length before and after.</summary>
+public sealed record FillerPreview(IReadOnlyList<FillerBout> Bouts, Money Cost, int BoutsBefore, int BoutsAfter)
+{
+    public bool WouldPad => Bouts.Count > 0;
+    public int LocalPairs => Bouts.Count(b => b.LocalFiller);
+    public Money Purses => Bouts.Aggregate(Money.Zero, (s, b) => s + b.Purses);
+    public Money WinBonusMax => Bouts.Aggregate(Money.Zero, (s, b) => s + b.WinBonusMax);
+
+    public static FillerPreview None(int bouts) => new(Array.Empty<FillerBout>(), Money.Zero, bouts, bouts);
+}
+
+/// <summary>
 /// Every card runs at a realistic length — nobody pays to see a two-fight show.
 /// A promotion first fleshes out the undercard from its own available roster;
 /// a small org that's run out of contracted fighters papers the rest with
@@ -13,16 +33,6 @@ namespace MmaManager.Core.Sim.Booking;
 /// big promotions have the depth to never need it. Filler slots in as prelims,
 /// ahead of the booked main event.
 /// </summary>
-/// <summary>One bout the house would add on the night (a local pair has no names yet).</summary>
-public sealed record FillerBout(FighterId? Red, FighterId? Blue, WeightClass WeightClass, bool LocalFiller, Money Cost);
-
-/// <summary>What padding would add to a card: the bouts, their cost, and the card length before and after.</summary>
-public sealed record FillerPreview(IReadOnlyList<FillerBout> Bouts, Money Cost, int BoutsBefore, int BoutsAfter)
-{
-    public bool WouldPad => Bouts.Count > 0;
-    public int LocalPairs => Bouts.Count(b => b.LocalFiller);
-}
-
 public static class CardFiller
 {
     /// <summary>The fewest bouts a professional card should carry.</summary>
@@ -72,11 +82,11 @@ public static class CardFiller
     /// would pay for them: purses plus one win bonus on average for a roster bout,
     /// two appearance fees for a local pair. Read-only, draw-free.
     /// </summary>
-    public static FillerPreview Preview(World world, Event ev)
+    internal static FillerPreview Preview(World world, Event ev)
     {
         var bouts = new List<FillerBout>();
         if (ev.Card.Count == 0 || world.Get(ev.Promotion) is not { } promo)
-            return new FillerPreview(bouts, Money.Zero, ev.Card.Count, ev.Card.Count);
+            return FillerPreview.None(ev.Card.Count);
 
         var booked = new HashSet<FighterId>(ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
         bool small = OrgSizing.SizeOf(promo) <= OrgSize.Regional;
@@ -85,18 +95,25 @@ public static class CardFiller
         {
             if (RosterPair(world, promo, ev.Date, booked) is { } pair)
             {
-                var cost = Money.Zero;
+                Money purses = Money.Zero, halfBonuses = Money.Zero;
+                decimal maxBonus = 0m;
                 foreach (var f in new[] { pair.Red, pair.Blue })
-                    if (f.Contract is { } c) cost += c.PursePerFight + new Money(c.WinBonus.Amount * 0.5m);
-                bouts.Add(new FillerBout(pair.Red.Id, pair.Blue.Id, pair.WeightClass, false, cost));
+                    if (f.Contract is { } c)
+                    {
+                        purses += c.PursePerFight;
+                        halfBonuses += new Money(c.WinBonus.Amount * 0.5m);
+                        maxBonus = Math.Max(maxBonus, c.WinBonus.Amount);
+                    }
+                bouts.Add(new FillerBout(pair.Red.Id, pair.Blue.Id, pair.WeightClass, false,
+                    purses + halfBonuses, purses, new Money(maxBonus)));
                 booked.Add(pair.Red.Id);
                 booked.Add(pair.Blue.Id);
                 count++;
                 continue;
             }
             if (!small) break;
-            bouts.Add(new FillerBout(null, null, FillerWeightClass(promo), true,
-                new Money(2 * Financials.LocalAppearanceFee)));
+            var fees = new Money(2 * Financials.LocalAppearanceFee);
+            bouts.Add(new FillerBout(null, null, FillerWeightClass(promo), true, fees, fees, Money.Zero));
             count++;
         }
         var total = Money.Zero;
@@ -124,7 +141,13 @@ public static class CardFiller
                      .Where(f => f.IsMatchReady(date) && !booked.Contains(f.Id))
                      .GroupBy(f => (f.WeightClass, f.Sex)))
         {
-            var pool = group.OrderByDescending(FighterAbility.CurrentAbility).ToList();
+            // The player's own card is padded by the player's scouts' read (id as
+            // the last word), so neither the preview nor the night picks from the
+            // truth. AI cards keep the order they always had.
+            var pool = promo.Id == world.PlayerPromotion
+                ? group.OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
+                       .ThenBy(f => f.Id.Value).ToList()
+                : group.OrderByDescending(FighterAbility.CurrentAbility).ToList();
             if (pool.Count < 2) continue;
             return (pool[0], pool[1], group.Key.WeightClass);
         }
