@@ -21,9 +21,9 @@ public static class MatchRating
         bool finish = IsFinish(o.Method);
 
         double score = strikes * 0.5
-                     + knockdowns * 12
+                     + knockdowns * 30
                      + subAttempts * 6
-                     + (finish ? 20 : 0)
+                     + (finish ? 22 : 0)
                      + (finish && o.EndRound >= 3 ? 6 : 0);   // a war that ends late
 
         // A split decision means it was competitive to the wire.
