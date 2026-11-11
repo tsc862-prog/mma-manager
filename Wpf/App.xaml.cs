@@ -770,7 +770,12 @@ public partial class App : Application
                 }
                 Console.WriteLine($"RENDERAPP world ready in {clock.ElapsedMilliseconds} ms");
                 if (e.Args.Contains("--table"))
+                {
                     vm.MyRoster.ShowTable = true;
+                    vm.FightersPage.ShowTable = true;
+                }
+                if (e.Args.Contains("--bykind")) vm.News.ByKind = true;
+                if (e.Args.Contains("--syncfaces")) Portraits.SyncThumbs = true;   // A/B: the old full-size, UI-thread decode
                 var root = (FrameworkElement)win.Content;
                 var size = new Size(W, H);
                 void Layout()
@@ -780,11 +785,36 @@ public partial class App : Application
                         System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
                     root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
                 }
+                // Card faces decode on worker threads; the still image waits for them.
+                void WaitThumbs(string what)
+                {
+                    var t = System.Diagnostics.Stopwatch.StartNew();
+                    while (Portraits.PendingThumbs > 0 && t.ElapsedMilliseconds < 15000)
+                    {
+                        System.Threading.Thread.Sleep(2);
+                        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => { }));
+                    }
+                    Layout();
+                    if (what.Length > 0) Console.WriteLine($"RENDERAPP {what}: every face in {t.ElapsedMilliseconds} ms more");
+                }
                 Layout();
+                WaitThumbs("");
                 clock.Restart();
+                double cpu0 = UiCpuMs();
                 vm.Desktop.Open(appId);
+                // First frame: the window built, laid out and drawn once (what the player waits for
+                // before the app is on screen and answers clicks). Faces decoding off-thread come after.
+                double cpuOpen = UiCpuMs() - cpu0;
+                root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                double cpuLayout = UiCpuMs() - cpu0 - cpuOpen;
+                new RenderTargetBitmap(64, 64, 96, 96, PixelFormats.Pbgra32).Render(root);
+                Console.WriteLine($"RENDERAPP   UI-thread CPU split: open {cpuOpen:0} ms, layout {cpuLayout:0} ms, render {UiCpuMs() - cpu0 - cpuOpen - cpuLayout:0} ms");
+                Console.WriteLine($"RENDERAPP open {appId}, first frame: {clock.ElapsedMilliseconds} ms wall, {UiCpuMs() - cpu0:0} ms UI-thread CPU");
+                var settle = System.Diagnostics.Stopwatch.StartNew();
+                while (Portraits.PendingThumbs > 0 && settle.ElapsedMilliseconds < 15000)
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => { }));
                 Layout();
-                Console.WriteLine($"RENDERAPP open {appId} + first layout: {clock.ElapsedMilliseconds} ms");
+                Console.WriteLine($"RENDERAPP open {appId} + first layout: {clock.ElapsedMilliseconds} ms wall, {UiCpuMs() - cpu0:0} ms UI-thread CPU (every face in and laid out)");
                 if (e.Args.Contains("--floating") && vm.Desktop.Windows.FirstOrDefault(w => w.Spec.Id == appId) is { } app)
                 {
                     app.IsMaximized = false;
@@ -804,8 +834,14 @@ public partial class App : Application
                 Layout();
                 Console.WriteLine($"RENDERAPP second refresh + relayout (warm): {clock.ElapsedMilliseconds} ms");
                 clock.Restart();
-                if (appId == "home") vm.Dashboard.Attach(vm.LiveWorld!); else if (appId == "roster") vm.MyRoster.Attach(vm.LiveWorld!);
+                if (appId == "home") vm.Dashboard.Attach(vm.LiveWorld!);
+                else if (appId == "roster") vm.MyRoster.Attach(vm.LiveWorld!);
+                else if (appId == "fighters") vm.FightersPage.Attach(vm.LiveWorld!, new Dictionary<MmaManager.Core.Model.FightId, (MmaManager.Core.Model.Fight, MmaManager.Core.Model.Event)>());
+                else if (appId == "news") vm.News.Attach(vm.LiveWorld!);
+                else if (appId == "inbox") vm.Mail.Attach(vm.LiveWorld!);
                 long attach = clock.ElapsedMilliseconds;
+                if (appId == "fighters")
+                    Console.WriteLine($"RENDERAPP fighters index (scouted read for every active fighter) {vm.FightersPage.LastIndexMs} ms, filter {vm.FightersPage.LastFilterMs} ms; {vm.FightersPage.CountLine}");
                 Layout();
                 Console.WriteLine($"RENDERAPP this app alone: rebuild {attach} ms + relayout {clock.ElapsedMilliseconds - attach} ms");
                 if (e.Args.Contains("--advance"))
@@ -816,9 +852,45 @@ public partial class App : Application
                     Layout();
                     Console.WriteLine($"RENDERAPP advance a week with {appId} open: {clock.ElapsedMilliseconds} ms");
                 }
+                // --search <text>: type it into the Fighters search one key at a time, timing
+                // each keystroke's filter + relayout (search-as-you-type), and leave it there.
+                if (e.Args.Contains("--search"))
+                {
+                    string text = e.Args[Array.IndexOf(e.Args, "--search") + 1];
+                    var times = new List<long>();
+                    for (int i = 1; i <= text.Length; i++)
+                    {
+                        clock.Restart();
+                        vm.FightersPage.Search = text[..i];
+                        Layout();
+                        times.Add(clock.ElapsedMilliseconds);
+                    }
+                    Console.WriteLine($"RENDERAPP search '{text}': per keystroke (filter + relayout) {string.Join(", ", times)} ms; max {times.Max()} ms, " +
+                                      $"last filter alone {vm.FightersPage.LastFilterMs} ms -> {vm.FightersPage.CountLine}");
+                }
+                // --folder <name>: open an inbox folder; --letter: open the first letter with an action in it.
+                if (e.Args.Contains("--folder"))
+                {
+                    var name = e.Args[Array.IndexOf(e.Args, "--folder") + 1];
+                    if (Enum.TryParse<MailFolder>(name, true, out var folder)) vm.Mail.ShowFolder(folder);
+                    Layout();
+                }
+                if (e.Args.Contains("--letter"))
+                {
+                    var letter = vm.Mail.Letters.FirstOrDefault(l => l.Actions.Any(a => a.Parameter is MmaManager.Core.Model.Decision))
+                                 ?? vm.Mail.Letters.FirstOrDefault(l => l.HasActions)
+                                 ?? vm.Mail.Letters.FirstOrDefault();
+                    vm.Mail.Selected = letter;
+                    Console.WriteLine($"RENDERAPP letter: '{letter?.Subject}' from {letter?.Sender} — actions: {string.Join(" | ", letter?.Actions.Select(a => a.Text) ?? Array.Empty<string>())}");
+                    Layout();
+                }
+                WaitThumbs("before the still");
                 foreach (var wall in FindAll<MmaManager.Wpf.Controls.CardWall>(root))
                     Console.WriteLine($"RENDERAPP card wall: {wall.Lines.Count} lines x {wall.Columns} columns, {wall.ActualWidth:0}x{wall.ActualHeight:0} px, "
-                        + $"cards drawn {FindAll<MmaManager.Wpf.Controls.RatingBadge>(wall).Count()}");
+                        + $"cards drawn {FindAll<MmaManager.Wpf.Controls.RatingBadge>(wall).Count()}, lines realised "
+                        + $"{FindAll<System.Windows.Controls.VirtualizingStackPanel>(wall).FirstOrDefault()?.Children.Count} "
+                        + $"(viewport {FindAll<System.Windows.Controls.ScrollViewer>(wall).FirstOrDefault()?.ViewportHeight:0}, line heights "
+                        + string.Join(",", (FindAll<System.Windows.Controls.VirtualizingStackPanel>(wall).FirstOrDefault()?.Children.OfType<FrameworkElement>() ?? Enumerable.Empty<FrameworkElement>()).Take(8).Select(c => c.ActualHeight.ToString("0"))) + ")");
 
                 var rtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
                 rtb.Render(root);
@@ -841,7 +913,7 @@ public partial class App : Application
                 var win = new MainWindow();
                 var vm = (MainViewModel)win.DataContext;
                 for (int i = 0; i < 12; i++) vm.AdvanceMonthCommand.Execute(null);   // a year of world events
-                if (e.Args.Contains("--myroster")) vm.MyRosterOnly = true;           // check the roster filter
+                if (e.Args.Contains("--myroster")) vm.FightersPage.ShowMyPromotion(); // check the promotion filter
                 vm.NavigateTo(idx);
 
                 var root = (FrameworkElement)win.Content;
@@ -1191,6 +1263,50 @@ public partial class App : Application
                     if (!rowKept || !cardKept) throw new InvalidOperationException("a refresh lost the roster's picked fighter");
                 }
 
+                // Fighters: search reaches ANY fighter in the world, not just a pre-cut top list.
+                {
+                    var w = vm.LiveWorld!;
+                    var everyone = w.Fighters.Values.Where(f => f.Status != MmaManager.Core.Model.FighterStatus.Retired)
+                        .OrderByDescending(f => FighterRow.Scouted(w, f)).ThenBy(f => f.Id.Value).ToList();
+                    var deep = everyone.Skip(400).Where(f => everyone.Count(o => o.FirstName == f.FirstName && o.LastName == f.LastName) == 1)
+                        .Skip(everyone.Count / 3).First();
+                    int rank = everyone.IndexOf(deep) + 1;
+                    var fp = vm.FightersPage;
+                    _ = fp.Rows;   // open the app (builds the index)
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    fp.Search = $"{deep.FirstName} {deep.LastName}";
+                    bool found = fp.Rows.Any(r => r.Id == deep.Id.Value) && fp.Cards.OfType<FighterCardModel>().Any(c => c.Id == deep.Id.Value);
+                    Console.WriteLine($"Fighters search finds #{rank} by the scout's read ({deep.FullName}): {found} in {sw.ElapsedMilliseconds} ms — {fp.CountLine}");
+                    if (!found) throw new InvalidOperationException("Fighters search did not reach a fighter outside the old top 400");
+                    fp.Search = "";
+                    bool capped = fp.IsCapped && fp.Rows.Count == FightersViewModel.ShowLimit && fp.MatchCount == everyone.Count;
+                    Console.WriteLine($"Fighters unfiltered: {fp.CountLine} (capped and counted honestly: {capped})");
+                    if (!capped) throw new InvalidOperationException("Fighters does not say how many are shown of how many match");
+                }
+
+                // Inbox: a desk decision is answered from inside its letter, through the desk's own command.
+                {
+                    LetterModel? FindDecisionLetter() => vm.Mail.Letters.Concat(Enumerable.Empty<LetterModel>())
+                        .FirstOrDefault(l => l.Actions.Any(a => a.Parameter is MmaManager.Core.Model.Decision));
+                    vm.Mail.ShowFolder(MailFolder.Everything);
+                    int weeks = 0;
+                    while (FindDecisionLetter() is null && weeks < 60) { vm.AdvanceWeekCommand.Execute(null); weeks++; if (vm.IsFightNight) vm.SimTonightCommand.Execute(null); }
+                    var letter = FindDecisionLetter();
+                    if (letter is null) throw new InvalidOperationException("no desk decision reached the inbox in 60 weeks");
+                    var pass = letter.Actions.First(a => a.Text == "Pass");
+                    var decision = (MmaManager.Core.Model.Decision)pass.Parameter!;
+                    var message = letter.Model;
+                    vm.Mail.Selected = letter;
+                    pass.Command.Execute(pass.Parameter);
+                    bool resolved = !vm.LiveWorld!.Decisions.Any(d => ReferenceEquals(d, decision) && d.State == MmaManager.Core.Model.DecisionState.Pending);
+                    var after = vm.Mail.Letters.FirstOrDefault(l => ReferenceEquals(l.Model, message));
+                    bool letterSays = after is not null && !after.HasActions && after.ActionNote.Length > 0;
+                    bool keptOpen = ReferenceEquals(vm.Mail.Selected?.Model, message);
+                    Console.WriteLine($"Inbox decision '{message.Subject}' (after {weeks} weeks): passed from the letter -> resolved {resolved}, " +
+                                      $"letter now says '{after?.ActionNote}', still open {keptOpen}");
+                    if (!resolved || !letterSays || !keptOpen) throw new InvalidOperationException("the inbox action did not resolve the desk decision");
+                }
+
                 var bookedId = bk.SelectedEvent?.Model.Id;
                 vm.AdvanceMonthCommand.Execute(null);
                 Console.WriteLine("After advancing, player event ran = " +
@@ -1229,6 +1345,13 @@ public partial class App : Application
 
         base.OnStartup(e);
     }
+
+    // Harness helper: CPU time spent on the calling (UI) thread, in ms — steadier than the wall
+    // clock when the machine is busy with other work.
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GetCurrentThread();
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern bool GetThreadTimes(IntPtr thread, out long creation, out long exit, out long kernel, out long user);
+    private static double UiCpuMs() { GetThreadTimes(GetCurrentThread(), out _, out _, out long k, out long u); return (k + u) / 10_000.0; }
 
     // Harness helper: every element of a type under a visual root.
     private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject

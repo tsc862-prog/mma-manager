@@ -37,7 +37,7 @@ public sealed class SectionHeader : Control
 /// What an empty panel shows instead of blank controls: a picture or glyph, a
 /// friendly title, one sentence on what to do, and the button that does it.
 /// <code>
-/// &lt;controls:EmptyState Glyph="🥊" Title="Your gym is empty — for now."
+/// &lt;controls:EmptyState Icon="People" Title="Your gym is empty — for now."
 ///                       Message="..." ActionText="Find fighters ▸" ActionCommand="{Binding ...}" /&gt;
 /// </code>
 /// </summary>
@@ -53,7 +53,12 @@ public sealed class EmptyState : Control
     public static readonly DependencyProperty ActionCommandProperty = DependencyProperty.Register(nameof(ActionCommand), typeof(ICommand), typeof(EmptyState));
     public static readonly DependencyProperty FootnoteProperty = DependencyProperty.Register(nameof(Footnote), typeof(string), typeof(EmptyState), new PropertyMetadata(""));
 
+    public static readonly DependencyProperty IconProperty = DependencyProperty.Register(nameof(Icon), typeof(string), typeof(EmptyState), new PropertyMetadata(""));
+
+    /// <summary>Text glyph (kept for compatibility); prefer <see cref="Icon"/>.</summary>
     public string Glyph { get => (string)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
+    /// <summary>A line icon from the App.xaml set (Envelope, Calendar, People, Search, …).</summary>
+    public string Icon { get => (string)GetValue(IconProperty); set => SetValue(IconProperty, value); }
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string Message { get => (string)GetValue(MessageProperty); set => SetValue(MessageProperty, value); }
     public string ActionText { get => (string)GetValue(ActionTextProperty); set => SetValue(ActionTextProperty, value); }
