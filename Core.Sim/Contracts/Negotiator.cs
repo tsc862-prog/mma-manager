@@ -262,6 +262,44 @@ public sealed class Negotiator
         return Math.Max(2_000m, Math.Round((gate - production) * 0.9m / 22m / 500m) * 500m);
     }
 
+    /// <summary>The headliner draw a brand-new promotion can expect: a known local name, not a star.</summary>
+    public const int FoundingHeadlinerDraw = 40;
+
+    /// <summary>The share of a new promotion's net gate it can put into purses and still pay the rent and the staff.</summary>
+    public const decimal FoundingPayrollShare = 0.75m;
+
+    /// <summary>
+    /// The per-fight purse a promotion founded mid-game can afford on its opening
+    /// cards. <see cref="PurseCap"/> prices an ESTABLISHED house; a startup has no
+    /// following yet, and the box office (<see cref="Booking.Financials"/>) is
+    /// fanbase-driven, so its first gates come in at roughly half of that. Pricing
+    /// the founding roster at the established cap had the startups that died
+    /// paying ~$175k a card in purses against ~$125k gates and folding inside
+    /// half a year. This projects the opening house the way settlement does
+    /// (prestige, a modest headliner's draw, the founding buzz at home, the
+    /// city's appetite for the sport and the market share it splits) and leaves
+    /// room for overhead. Public numbers only: nothing about any fighter. Never
+    /// above <see cref="PurseCap"/>.
+    /// </summary>
+    public static decimal FoundingPurseCap(World world, Promotion promo)
+    {
+        int prestige = promo.Prestige.Value;
+        var home = promo.HomeCity ?? Geography.WorldMap.AnchorCity(world, promo.BaseRegion)?.Id;
+        int cityPop = home is { } hc ? Geography.Reputation.OrgInCity(promo, hc) : 0;
+        int regionPop = Geography.Reputation.OrgInRegion(world, promo, promo.BaseRegion);
+        double interest = home is { } ic ? Geography.MmaInterest.Factor(Geography.MmaInterest.InCity(world, ic), 0.4) : 1.0;
+        double market = Org.MarketShare.Factor(world, promo);
+        decimal attendance = (decimal)((190 + prestige * 38 + FoundingHeadlinerDraw * 30 + cityPop * 78 + regionPop * 14)
+                                       * interest * market);
+        var venue = Geography.WorldMap.PickVenue(world, promo);
+        if (venue is not null) attendance = Math.Min(attendance, venue.Capacity);
+
+        decimal gate = attendance * (55m + prestige * 1.4m);
+        decimal production = 10_000m + attendance * 12m + (venue?.Rent.Amount ?? 0m);
+        decimal cap = Math.Max(1_500m, Math.Round((gate - production) * FoundingPayrollShare / 22m / 500m) * 500m);
+        return Math.Min(cap, PurseCap(world, promo));
+    }
+
     /// <summary>One offer's per-fight worth, all levers blended — shared by AI bidding and the player's negotiating room.</summary>
     public static decimal MoneyValue(World world, ContractOffer o)
     {

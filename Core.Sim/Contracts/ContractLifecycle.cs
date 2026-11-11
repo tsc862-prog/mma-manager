@@ -89,21 +89,26 @@ public static class ContractLifecycle
         Living.News.Signed(world, promo, f, offer.PursePerFight, on, renewal);
     }
 
+    /// <summary>What is still owed on a deal if it is torn up today: the purses left on it, when they are guaranteed.</summary>
+    public static Money GuaranteedOwed(Contract c) =>
+        c.Guaranteed && c.FightsRemaining > 0 ? c.PursePerFight * c.FightsRemaining : Money.Zero;
+
     /// <summary>
     /// Release a fighter to free agency. If their remaining purses are guaranteed,
     /// the promotion pays them out. Returns the money owed. Cutting a name
     /// mid-deal dents reputation (<paramref name="dentReputation"/>); routine
-    /// performance cuts of journeymen don't.
+    /// performance cuts of journeymen don't, and neither does letting go a man
+    /// whose deal has no fights left — that is a deal ending, not a cut.
     /// </summary>
     public static Money Release(World world, Fighter f, bool dentReputation = true)
     {
         if (f.Contract is not { } c) return Money.Zero;
 
-        var owed = c.Guaranteed ? c.PursePerFight * c.FightsRemaining : Money.Zero;
+        var owed = GuaranteedOwed(c);
         if (world.Get(c.Promotion) is { } promo)
         {
             Finance.Ledger.Expense(promo, world.CurrentDate, FinanceCategory.ContractBuyout, owed, $"Contract buyout — {f.FullName}");
-            if (dentReputation) Org.Standing.OnRelease(promo);
+            if (dentReputation && c.FightsRemaining > 0) Org.Standing.OnRelease(promo);
         }
         LeavePromotion(world, f, c.Promotion, world.CurrentDate,
             $"{world.Get(c.Promotion)?.Abbreviation ?? "his promotion"} released him");

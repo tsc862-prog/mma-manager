@@ -216,23 +216,9 @@ public static class WorldEvents
         // survive — with the occasional wide-slate gambler.
         var niche = StartupNiches[rng.WeightedIndex(stackalloc double[] { 3, 3, 2, 2 })];
 
-        // Stock it from the best available free agents, region-first (local heroes
-        // headline the new scene), and stand up its divisions + vacant belts.
-        var signed = new List<Fighter>();
-        foreach (var wc in niche.Classes)
-        {
-            var pool = world.FreeAgents()
-                .Where(f => f.WeightClass == wc && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
-                .OrderByDescending(f => f.Nationality == spec.Region ? 1 : 0)
-                .ThenByDescending(FighterAbility.CurrentAbility)
-                .Take(12).ToList();
-            foreach (var fa in pool)
-            {
-                fa.Contract = PromotionSetup.SignContract(world, promo, date, fa, rng);
-                fa.Loyalty = 20;   // a new signing starts the loyalty clock over, as ContractLifecycle.Sign does
-                signed.Add(fa);
-            }
-        }
+        // Stock it from the free agents, region-first (local heroes headline the
+        // new scene), and stand up its divisions + vacant belts.
+        var signed = StockStartup(world, promo, spec.Region, niche.Classes, date, rng);
         PromotionSetup.ConfigureDivisions(world, promo, signed, niche.Classes, date, 15, null, Sex.Male);
         Finance.RevenueService.SeedEstablished(world, promo, date, rng);
         // A little founding buzz in its home metro to build on.
@@ -251,6 +237,69 @@ public static class WorldEvents
             Mail.Post(world, date, MailCategory.General, Mail.Owner(world),
                 $"MMA is spreading — {Pretty(spec.Region)} gets its first promotion",
                 $"{spec.Name} just launched in {Pretty(spec.Region)}, a market that had no scene at all. The sport's map is growing — new talent, new fans, new places to run.");
+    }
+
+    /// <summary>How many fighters a startup signs per division it opens.</summary>
+    public const int StartupSigningsPerDivision = 12;
+
+    /// <summary>A free agent asking more than this multiple of the founding cap isn't worth the new house's call.</summary>
+    public const decimal StartupAskCeiling = 2m;
+
+    private static readonly Contracts.Negotiator StartupNegotiator = new();
+    private static readonly Contracts.FighterValuation StartupValuation = new();
+
+    /// <summary>
+    /// A new promotion's founding signings, through the market like anyone's: it
+    /// ranks each division's free agents on its OWN read of them (fog of war — a
+    /// brand-new house scouts poorly, so it misjudges), home region first; skips
+    /// anyone asking more than <see cref="StartupAskCeiling"/>x what it can pay
+    /// (<see cref="Contracts.Negotiator.FoundingPurseCap"/>) and anyone with a
+    /// public bidding war running; offers the rest the opening number capped at
+    /// the founding budget, and signs only those who accept, via
+    /// <see cref="Contracts.ContractLifecycle.Sign"/>. Up to
+    /// <see cref="StartupSigningsPerDivision"/> per division.
+    ///
+    /// RNG: one draw on the shared stream per fighter signed, exactly as the old
+    /// founding path took (it priced each deal off that draw); the draw is now
+    /// unused, kept so a founding with the same number of signings leaves the
+    /// stream where it always did.
+    /// </summary>
+    internal static List<Fighter> StockStartup(World world, Promotion promo, Region home, WeightClass[] classes,
+        DateOnly date, SimRandom rng)
+    {
+        decimal foundingCap = Contracts.Negotiator.FoundingPurseCap(world, promo);
+        decimal fullCap = Contracts.Negotiator.PurseCap(world, promo);
+        decimal stretch = fullCap > 0 ? foundingCap / fullCap : 1m;
+
+        var signed = new List<Fighter>();
+        foreach (var wc in classes)
+        {
+            var pool = world.FreeAgents()
+                .Where(f => f.WeightClass == wc && f.Sex == Sex.Male && f.Status == FighterStatus.Active)
+                .OrderByDescending(f => f.Nationality == home ? 1 : 0)
+                .ThenByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
+                .ThenBy(f => f.Id.Value)
+                .ToList();
+            int taken = 0;
+            foreach (var fa in pool)
+            {
+                if (taken >= StartupSigningsPerDivision) break;
+                if (world.BiddingWars.Any(w => w.Fighter == fa.Id)) continue;
+
+                var exp = StartupValuation.Evaluate(world, fa);
+                var ask = Contracts.Negotiator.EffectiveAskingPurse(world, promo, fa, exp);
+                if (ask.Amount > foundingCap * StartupAskCeiling) continue;
+
+                var offer = StartupNegotiator.AiOpeningOffer(world, promo, fa, exp, stretch);
+                if (StartupNegotiator.Evaluate(world, fa, offer, exp).Verdict != NegotiationVerdict.Accept) continue;
+
+                rng.NextULong();   // the founding path's per-signing draw, kept (see summary)
+                Contracts.ContractLifecycle.Sign(world, fa, offer, date);
+                signed.Add(fa);
+                taken++;
+            }
+        }
+        return signed;
     }
 
     // --- helpers -------------------------------------------------------------

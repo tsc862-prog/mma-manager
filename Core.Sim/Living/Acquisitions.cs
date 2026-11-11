@@ -186,6 +186,12 @@ public static class Acquisitions
             }
             else
             {
+                // The buyer took over the company's books, and its guarantees
+                // with them: a fighter cut loose in the merger is paid out what
+                // is left on his deal, as any release pays (ContractLifecycle.Release).
+                if (f.Contract is { } dropped && f.Status != FighterStatus.Retired)
+                    Finance.Ledger.Expense(buyer, date, FinanceCategory.ContractBuyout, ContractLifecycle.GuaranteedOwed(dropped),
+                        $"Contract buyout — {f.FullName} ({target.Abbreviation} merger)");
                 Contracts.Lifers.OnLeaving(world, f, target, $"he was cut loose when {buyer.Name} bought {target.Name}", date);
                 f.Contract = null;
                 released++;
