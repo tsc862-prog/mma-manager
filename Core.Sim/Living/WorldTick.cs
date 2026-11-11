@@ -216,11 +216,13 @@ public sealed class WorldTick
 
             // Refresh the cross-org and pound-for-pound rankings.
             GlobalRankings.Recompute(world);
-
-            // The month's exits (expiries, cuts, retirements, washouts, sales,
-            // closures) come off the calendar tonight, not next week.
-            ForwardCalendar.Audit(world, after);
         }
+
+        // Whatever changed tonight comes off the calendar tonight, not next
+        // week: the month's exits (expiries, cuts, retirements, sales, closures)
+        // and the week's own (a belt passed on when a champion is suspended
+        // after a card, a signing out of a bidding war).
+        ForwardCalendar.Audit(world, after);
 
         return report;
     }
