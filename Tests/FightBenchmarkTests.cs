@@ -61,7 +61,9 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     /// generator, so changes to generation or the designed roster never move these hashes.
     /// </summary>
     private const string GoldenResults = "ce24ec976588fde0";
-    private const string GoldenScorecards = "44461ed3557b9b37";
+    // Moved in "Fight engine correctness and copy" (was 44461ed3557b9b37): decisions now store
+    // a deciding judge's card instead of the noiseless card. GoldenResults did not move.
+    private const string GoldenScorecards = "937bdf982dea33b4";
 
     [Fact]
     public void GoldenMaster_OutcomesAreUnchanged()
@@ -143,11 +145,12 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     public void Band_Scorecards()
     {
         Assert.InRange(_r.TenEightPct, 29.0, 36.5);             // wrong today: any knockdown is a 10-8 — step 3
-        // Wrong today: the stored card is built apart from the judges who decide the result
-        // and does not favour the official winner in ~15% of decisions. Plan step 2 stores a
-        // deciding judge's card instead and moves this to 0 (and updates this band).
-        Assert.InRange(_r.CardMismatchPct, 11.0, 18.5);         // today 14.6
-        Assert.InRange(_r.CardReversedPct, 2.0, 6.5);           // today 4.0: the card says the LOSER won
+        // The stored card is a deciding judge's card, so it never says the loser won (was 4.0%).
+        // What remains (6.0%, was 14.6% incl. reversed) are LEVEL cards: every judge who voted for
+        // the winner had it level and the raw-merit tie-break decided. Step 3 removes that
+        // tie-break (draws become possible) and should move this to ~0.
+        Assert.Equal(0.0, _r.CardReversedPct);
+        Assert.InRange(_r.CardMismatchPct, 3.5, 8.5);           // today 6.0, all level cards
     }
 
     [Fact]

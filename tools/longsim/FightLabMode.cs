@@ -31,6 +31,28 @@ static class FightLabMode
             return;
         }
 
+        if (args.Length > 1 && args[1] == "pbp")
+        {
+            // fightlab pbp [count] [seed]: print sample play-by-plays (alternating men's/women's, 3/5 rounds).
+            int count = args.Length > 2 ? int.Parse(args[2]) : 4;
+            ulong ps = args.Length > 3 ? ulong.Parse(args[3]) : 1;
+            var gen = new MmaManager.Core.Sim.Generation.FighterGenerator(ps);
+            var styles = Enum.GetValues<MmaManager.Core.Model.PrimaryStyle>();
+            for (int i = 0; i < count; i++)
+            {
+                var sex = i % 2 == 0 ? MmaManager.Core.Model.Sex.Female : MmaManager.Core.Model.Sex.Male;
+                var wc = sex == MmaManager.Core.Model.Sex.Female ? MmaManager.Core.Model.WeightClass.Flyweight : MmaManager.Core.Model.WeightClass.Lightweight;
+                MmaManager.Core.Model.Fighter Make(int id) => gen.Generate(new MmaManager.Core.Model.FighterId(id), new DateOnly(2026, 1, 1),
+                    new MmaManager.Core.Sim.Generation.GenOptions { Overall = 65, Style = styles[(id * 7) % styles.Length], Sex = sex, WeightClass = wc, WithRecord = false });
+                var o = new FightEngine().Simulate(Make(2 * i + 1), Make(2 * i + 2),
+                    new FightParams { ScheduledRounds = i % 4 < 2 ? 3 : 5, TextSeed = (ulong)i }, MmaManager.Core.Sim.Rng.SimRandom.Mix(ps, (ulong)i));
+                Console.WriteLine($"##### {o.Method} R{o.EndRound} card [{string.Join(" ", o.RoundScores!.Select(s => $"{s.Red}-{s.Blue}"))}]");
+                foreach (var line in o.PlayByPlay!) Console.WriteLine(line);
+                Console.WriteLine();
+            }
+            return;
+        }
+
         if (args.Length > 1 && args[1] == "sections")
         {
             // fightlab sections: what each block of the scale-1 report costs (wall clock).
