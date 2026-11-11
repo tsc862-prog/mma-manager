@@ -65,6 +65,21 @@ static class FightLabMode
             var t1 = Stopwatch.StartNew(); FightLab.GoldenMaster(); Console.WriteLine($"  golden master      {t1.Elapsed.TotalSeconds,5:0.0} s");
             return;
         }
+        if (args.Length > 1 && args[1] == "quick")
+        {
+            // fightlab quick [scale] [seed]: the populations only (method mix, divisions, upset curve,
+            // cards) — no style matrix, attribute block, text or timing. For tuning loops.
+            int qs = args.Length > 2 ? int.Parse(args[2]) : 1;
+            ulong qseed = args.Length > 3 ? ulong.Parse(args[3]) : FightLab.ReportOptions.Small.Seed;
+            var t = Stopwatch.StartNew();
+            Console.Write(FightLab.Report(FightLab.ReportOptions.Small.Scaled(qs) with
+            {
+                Seed = qseed, IncludeStyles = false, IncludeAttributes = false, IncludeText = false, IncludeTiming = false,
+            }).ToText());
+            Console.WriteLine($"[fightlab quick scale {qs} seed {qseed}: {t.Elapsed.TotalSeconds:0.0} s]");
+            return;
+        }
+
         int scale = args.Length > 1 ? int.Parse(args[1]) : 1;
         ulong seed = args.Length > 2 ? ulong.Parse(args[2]) : FightLab.ReportOptions.Small.Seed;
         var opts = FightLab.ReportOptions.Small.Scaled(scale) with { Seed = seed };
