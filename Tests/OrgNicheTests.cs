@@ -83,7 +83,10 @@ public class OrgNicheTests
             .Where(p => !dayOne.Contains(p.Id) && !p.Defunct).ToList();
         Assert.True(startups.Count >= 2, "five years should birth a few startups");
         foreach (var s in startups)
-            Assert.InRange(s.Divisions.Count(d => d.Sex == Sex.Male), 3, 7);   // a lane, not a monolith
+            // A lane, not a monolith — and a startup opens only the divisions of
+            // its lane it could staff at a price it can carry (at least two
+            // bouts' worth each), so a three-division core may open with two.
+            Assert.InRange(s.Divisions.Count(d => d.Sex == Sex.Male), 2, 7);
         // The old world stood every startup up with the same 7 divisions — the
         // regression guard is that lean lanes actually happen.
         Assert.Contains(startups, s => s.Divisions.Count(d => d.Sex == Sex.Male) < 7);
