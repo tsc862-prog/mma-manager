@@ -31,6 +31,16 @@ public class PersistenceTests
                 Id = world.Decisions.Select(d => d.Id).DefaultIfEmpty(0).Max() + 1, Kind = DecisionKind.TitleShotRequest,
                 Created = world.CurrentDate, Deadline = world.CurrentDate.AddDays(7),
             });
+            // Likewise a pending media offer: whether one happens to be on the table
+            // on the save date is seed noise (none was, at week 30 of seed 99, once
+            // the small promotions' rosters went local).
+            if (!world.Promotions.Values.Any(p => p.Offers.Any(o => o.Media is not null && o.Requirements.Count > 0)))
+                world.Promotions.Values.OrderBy(p => p.Id.Value).First().Offers.Add(new DealOffer
+                {
+                    Media = MediaKind.SpecialtyCable, Partner = "Sample Network", FeePerEvent = new Money(25_000m), Term = 12,
+                    Requirements = { new DealRequirement(DealRequirementKind.MinAttendance, 2_000) },
+                    OfferedOn = world.CurrentDate, ExpiresOn = world.CurrentDate.AddDays(30),
+                });
             PersistenceGraph.FillUnpopulated(world);
         }
         return world;
