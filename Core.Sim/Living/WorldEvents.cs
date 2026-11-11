@@ -216,12 +216,23 @@ public static class WorldEvents
         // survive — with the occasional wide-slate gambler.
         var niche = StartupNiches[rng.WeightedIndex(stackalloc double[] { 3, 3, 2, 2 })];
 
+        // Its open tryouts bring in a founding class of local kids (their own
+        // keyed stream, never this one): green, cheap, and grateful for the shot.
+        var tryouts = FoundingClass.Generate(world, promo, spec.Region, niche.Classes, date);
+
         // Stock it from the free agents, region-first (local heroes headline the
         // new scene), and stand up its divisions + vacant belts.
         var signed = StockStartup(world, promo, spec.Region, niche.Classes, date, rng);
         // Not enough fighters would sign for this money to run a card: the
-        // launch falls through (nobody was signed, nothing more is drawn).
-        if (signed.Count == 0) { world.Promotions.Remove(promo.Id); return; }
+        // launch falls through (nobody was signed, nothing more is drawn, and
+        // there were no tryouts).
+        if (signed.Count == 0)
+        {
+            FoundingClass.Withdraw(world, tryouts);
+            world.Promotions.Remove(promo.Id);
+            return;
+        }
+        int locals = signed.Count(f => f.DiscoveredBy == promo.Id);
         // It opens the divisions it could actually staff.
         var opened = niche.Classes.Where(wc => signed.Any(f => f.WeightClass == wc)).ToArray();
         PromotionSetup.ConfigureDivisions(world, promo, signed, opened, date, 15, null, Sex.Male);
@@ -235,8 +246,8 @@ public static class WorldEvents
                 ? $"MMA arrives: {spec.Name} launches in {Pretty(spec.Region)}"
                 : $"A new promotion is born: {spec.Name} launches",
             firstInRegion
-                ? $"For the first time, {Pretty(spec.Region)} has a professional MMA promotion of its own — {spec.Abbrev} opens its doors with {signed.Count} fighters, {niche.Flavor}."
-                : $"{spec.Abbrev} enters the scene with {signed.Count} fighters — {niche.Flavor}.",
+                ? $"For the first time, {Pretty(spec.Region)} has a professional MMA promotion of its own — {spec.Abbrev} opens its doors with {signed.Count} fighters, {niche.Flavor}.{Tryouts(locals)}"
+                : $"{spec.Abbrev} enters the scene with {signed.Count} fighters — {niche.Flavor}.{Tryouts(locals)}",
             promo.Id);
         if (firstInRegion)
             Mail.Post(world, date, MailCategory.General, Mail.Owner(world),
@@ -378,6 +389,13 @@ public static class WorldEvents
             .ToList();
 
     // --- helpers -------------------------------------------------------------
+
+    private static string Tryouts(int locals) => locals switch
+    {
+        0 => "",
+        1 => " One of them came in off its open tryouts.",
+        _ => $" {locals} of them came in off its open tryouts.",
+    };
 
     private static decimal Up500(decimal amount) => Math.Ceiling(amount / 500m) * 500m;
 

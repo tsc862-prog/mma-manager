@@ -34,6 +34,9 @@ public static class FoundingClass
 
     private const ulong Salt = 0xF0_0D_C1A5_5UL;
 
+    // Ids tried per tryout slot for a kid from the home region (see Generate).
+    private const int LocalTries = 6;
+
     /// <summary>Generate the class for <paramref name="promo"/>'s planned divisions and add it to the world as free agents.</summary>
     public static List<Fighter> Generate(World world, Promotion promo, Region home, IReadOnlyList<WeightClass> classes, DateOnly date)
     {
@@ -48,8 +51,7 @@ public static class FoundingClass
             for (int i = 0; i < PerDivision; i++)
             {
                 bool talent = rng.Chance(TalentShare);
-                var id = world.NewFighterId();
-                var f = gen.Generate(id, date, new GenOptions
+                var options = new GenOptions
                 {
                     WeightClass = wc,
                     Sex = Sex.Male,
@@ -57,7 +59,17 @@ public static class FoundingClass
                     Age = rng.Range(18, 23),
                     Overall = talent ? rng.Range(48, 58) : rng.GaussianInt(38, 6, 26, 50),
                     WithRecord = false,   // a debut is 0-0: the record is written in the cage from here
-                });
+                };
+                // Portrait-first generation can give a kid a portrait identity
+                // from another continent (and the nationality that goes with
+                // it); a tryout is local, so take the first who is from here
+                // (a handful of tries; without an art catalog the first always is).
+                Fighter f = null!;
+                for (int attempt = 0; attempt < LocalTries; attempt++)
+                {
+                    f = gen.Generate(world.NewFighterId(), date, options);
+                    if (f.Nationality == home) break;
+                }
                 gen.AssignHometown(world, f);
                 // Most of the class came up in the founding metro's gyms.
                 if (anchor is not null && f.Nationality == home && rng.Chance(0.7) && f.HomeCity != anchor.Id)
@@ -66,10 +78,15 @@ public static class FoundingClass
                     f.HomeCity = anchor.Id;
                     f.CityReputation[anchor.Id] = Math.Min(60, f.Intangibles.Popularity.Value);
                 }
+                // Nobody has heard of them yet: a tryout kid's name is his gym's
+                // and his family's (whatever the generator's sense of his talent).
+                f.Intangibles.Popularity = rng.Range(3, 15);
+                foreach (var city in f.CityReputation.Keys.ToList())
+                    f.CityReputation[city] = Math.Min(f.CityReputation[city].Value, f.Intangibles.Popularity.Value);
                 f.Momentum = 0;
                 f.DiscoveredBy = promo.Id;
                 f.Accolades.Add(new Accolade(date, $"Founding class — tried out for {promo.Name}"));
-                world.Fighters[id] = f;
+                world.Fighters[f.Id] = f;
                 gen.EnsureUniqueName(world, f);
                 Camps.JoinLocalCamp(world, f, rng);
                 made.Add(f);
