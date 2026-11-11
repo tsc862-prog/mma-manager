@@ -632,9 +632,6 @@ public partial class App : Application
                         var slot = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(tb);
                         double room = Math.Min(tb.ActualWidth, slot.Width - tb.Margin.Left - tb.Margin.Right);
                         need = Math.Max(need, tb.ActualWidth);
-                        if (Environment.GetEnvironmentVariable("DESK_DEBUG") is { Length: > 0 } dbg
-                            && new System.Windows.Documents.TextRange(tb.ContentStart, tb.ContentEnd).Text.Contains(dbg))
-                            Console.WriteLine($"  DEBUG need {need:0} actual {tb.ActualWidth:0} slot {slot.Width:0} wrap {tb.TextWrapping}");
                         if (need > room + 1)
                         {
                             trimmed++;

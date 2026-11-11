@@ -216,6 +216,9 @@ public sealed partial class BookingViewModel
     public string PartnersSummary { get => _partnersSummary; private set => Set(ref _partnersSummary, value); }
     public ObservableCollection<RiskLine> Risks { get; } = new();
     public bool HasRisks => Risks.Count > 0;
+    /// <summary>Other promotions' cards announced near ours that cost us nothing (public facts).</summary>
+    public ObservableCollection<string> AlsoThatWeek { get; } = new();
+    public bool HasAlsoThatWeek => AlsoThatWeek.Count > 0;
     private string _nightLine = "";
     /// <summary>The night in one line (the rail's busy, or the window is small).</summary>
     public string NightLine { get => _nightLine; private set => Set(ref _nightLine, value); }
@@ -476,7 +479,8 @@ public sealed partial class BookingViewModel
     private void ClearNight()
     {
         HouseHeadline = ""; HouseDetail = ""; HouseFill = 0; PpvLine = "";
-        MoneyIn.Clear(); MoneyOut.Clear(); Partners.Clear(); Risks.Clear();
+        MoneyIn.Clear(); MoneyOut.Clear(); Partners.Clear(); Risks.Clear(); AlsoThatWeek.Clear();
+        OnPropertyChanged(nameof(HasAlsoThatWeek));
         NetRange = ""; NetExpected = ""; HasMoney = false; NightLine = ""; PartnersSummary = ""; TermsShortLine = "";
     }
 
@@ -603,6 +607,17 @@ public sealed partial class BookingViewModel
             };
             Risks.Add(new RiskLine(r.Text, tone, icon));
         }
+
+        // Rival cards announced near ours that the house doesn't charge for: public
+        // information only, never a cost (the charged ones are clashes, in the risks).
+        AlsoThatWeek.Clear();
+        foreach (var rc in p.NearbyRivalCards.Where(r => !r.Charged).OrderBy(r => r.Card.Date))
+        {
+            string main = rc.Card.MainEventLabel(_world!);
+            AlsoThatWeek.Add($"{rc.Card.Event.Name} ({rc.Card.Promotion.Abbreviation}), {rc.Card.Date:ddd d MMM}"
+                             + (main.Length > 0 ? $": {main}" : "") + (rc.Card.TitleOnTheLine ? ", a belt on the line" : ""));
+        }
+        OnPropertyChanged(nameof(HasAlsoThatWeek));
 
         NightLine = n == 0 ? "No bouts yet"
             : $"{HouseHeadline}{(p.Capacity is { } c3 && p.Attendance < c3 ? $" of {c3:N0}" : "")}"

@@ -156,7 +156,7 @@
                                 <MouseBinding Gesture="LeftClick" Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Red.Id}" />
                             </TextBlock.InputBindings>
                         </TextBlock>
-                        <TextBlock x:Name="redFacts" Text="{Binding Red.Facts}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" />
+                        <TextBlock x:Name="redFacts" Text="{Binding Red.Facts}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap" />
                     </StackPanel>
                     <Border x:Name="redFace" Grid.Column="2" Style="{StaticResource CornerFace}" BorderBrush="#A8453C" VerticalAlignment="Center">
                         <Border.InputBindings>
@@ -178,7 +178,7 @@
                                 <MouseBinding Gesture="LeftClick" Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Blue.Id}" />
                             </TextBlock.InputBindings>
                         </TextBlock>
-                        <TextBlock x:Name="blueFacts" Text="{Binding Blue.Facts}" Style="{StaticResource Text.Caption}" />
+                        <TextBlock x:Name="blueFacts" Text="{Binding Blue.Facts}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource Button.Icon}" Content="▲" ToolTip="Up the bill (toward the main event)"
@@ -640,7 +640,7 @@
                         </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Rk" Binding="{Binding Rank}" SortMemberPath="RankSort" Width="44" />
                         <DataGridTextColumn Header="Fighter" Binding="{Binding Name}" Width="*" MinWidth="230" />
-                        <DataGridTextColumn Header="Division" Binding="{Binding Division}" Width="140" />
+                        <DataGridTextColumn Header="Division" Binding="{Binding Division}" Width="128" />
                         <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort" Width="104" />
                         <DataGridTextColumn Header="Our read" Binding="{Binding ReadText}" SortMemberPath="Read" Width="90" />
                         <DataGridTextColumn Header="Pop" Binding="{Binding Popularity}" Width="50" />
@@ -648,7 +648,7 @@
                         <DataGridTextColumn Header="Left" Binding="{Binding FightsLeft}" Width="46" />
                         <DataGridTextColumn Header="Morale" Binding="{Binding Morale}" Width="62" />
                         <DataGridTextColumn Header="For this card" Binding="{Binding Availability}" Width="170" />
-                        <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="150" />
+                        <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="128" />
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>
@@ -669,7 +669,7 @@
                             Visibility="{Binding ShowNightLine, Converter={StaticResource BoolToVis}}">
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="The night ▸" Command="{Binding CloseRailCommand}" />
-                            <TextBlock TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                            <TextBlock TextWrapping="Wrap" VerticalAlignment="Center">
                                 <Run Text="NIGHT  " FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding NightLine, Mode=OneWay}" FontSize="12.5" />
                             </TextBlock>
                         </DockPanel>
@@ -725,6 +725,21 @@
                                                     <DataTrigger Binding="{Binding Tone}" Value="Bad"><Setter TargetName="ic" Property="Brush" Value="{StaticResource ToneBad}" /></DataTrigger>
                                                     <DataTrigger Binding="{Binding Tone}" Value="Info"><Setter TargetName="ic" Property="Brush" Value="{StaticResource ToneInfo}" /></DataTrigger>
                                                 </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <!-- other cards announced near ours that cost nothing: information only -->
+                                <StackPanel Visibility="{Binding HasAlsoThatWeek, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Also that week" Style="{StaticResource Text.Heading}" Margin="0,10,0,4" />
+                                    <ItemsControl ItemsSource="{Binding AlsoThatWeek}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,0,0,4">
+                                                    <controls:Icon DockPanel.Dock="Left" Kind="Calendar" Width="16" Height="16" Brush="{StaticResource TextSecondary}" Margin="0,1,8,0" VerticalAlignment="Top" />
+                                                    <TextBlock Text="{Binding}" Style="{StaticResource Text.Secondary}" FontSize="12" />
+                                                </DockPanel>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
