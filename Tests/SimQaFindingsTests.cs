@@ -45,7 +45,7 @@ public class SimQaFindingsTests
 
     // playcheck seed 6 (UFL takeover), 2026-05-13: PLAY-RAN-UNAVAILABLE. Retirement is rolled monthly and Lifecycle.Retire
     // strips rankings and belts but not scheduled bouts, so the card runs a retired man.
-    [Fact(Skip = "SQA-01: a fighter who retires while booked on a scheduled card still fights it (Lifecycle.Retire leaves the bout)")]
+    [Fact(Skip = "CONFIRMED on main a92a60e by the GitHub sweep (simqa run 43087892940) - SQA-01: a fighter who retires while booked on a scheduled card still fights it (Lifecycle.Retire leaves the bout)")]
     public void ARetiredFighterIsNotFoughtOnAScheduledCard()
     {
         var bad = new List<string>();
@@ -62,7 +62,7 @@ public class SimQaFindingsTests
     // playcheck seed 5 (founded), 2030-05-02, and seed 2 (ICF takeover), 2031-03-06: CHAMP-CONTRACT and LINEAGE. A champion who
     // retires while booked to defend has the belt handed to the next contender at once; the stale title bout then still runs, the
     // retired man can win it back, and the lineage closes a reign on the card's date before the reign opened on the retirement date.
-    [Fact(Skip = "SQA-01b: a retired champion booked in a title defence still fights it and can hold the belt; the lineage ends a reign before it begins")]
+    [Fact(Skip = "not reproduced by the sweep on main a92a60e (may be fixed by the forward calendar) - re-verify before un-skipping - SQA-01b: a retired champion booked in a title defence still fights it and can hold the belt; the lineage ends a reign before it begins")]
     public void ARetiredChampionsStaleTitleBoutDoesNotReclaimTheBelt()
     {
         var bad = new List<string>();
@@ -97,7 +97,7 @@ public class SimQaFindingsTests
 
     // playcheck seed 5 (founded), 2026-06-06: releasing a booked fighter leaves the bout on the card; he fights as a free
     // agent for the org that just let him go (and is paid from its books).
-    [Fact(Skip = "SQA-02: releasing (or losing) a fighter who is booked on a scheduled card leaves the bout on the card; he fights unsigned")]
+    [Fact(Skip = "CONFIRMED on main a92a60e by the GitHub sweep (simqa run 43087892940) - SQA-02: releasing (or losing) a fighter who is booked on a scheduled card leaves the bout on the card; he fights unsigned")]
     public void AReleasedFighterIsNotFoughtOnAScheduledCard()
     {
         var bad = new List<string>();
@@ -113,7 +113,7 @@ public class SimQaFindingsTests
 
     // check seed 3, 2026-03-05 (and seed 1, 2026-10-29): MaybeSuperfight books a champ-vs-champ card 28 days out, then the
     // AI matchmaker builds that night's ordinary card with no knowledge of cards already scheduled, so the champions fight twice in a day.
-    [Fact(Skip = "SQA-03: Matchmaker.BuildCard ignores fighters already booked on another scheduled card (same-date double booking)")]
+    [Fact(Skip = "not reproduced by the sweep on main a92a60e (may be fixed by the forward calendar) - re-verify before un-skipping - SQA-03: Matchmaker.BuildCard ignores fighters already booked on another scheduled card (same-date double booking)")]
     public void TheMatchmakerDoesNotBookSomeoneAlreadyOnAScheduledCard()
     {
         var world = Build(3);
@@ -133,7 +133,7 @@ public class SimQaFindingsTests
 
     // playcheck seed 1 (founded), 2026-06-18: nothing stops the player scheduling two cards on one date, and CardFiller.PadToMinimum
     // fills a thin card from the roster without looking at the other card, so the same fighters fight on both.
-    [Fact(Skip = "SQA-03b: CardFiller.PadToMinimum pads a card with fighters already booked on another card the same night")]
+    [Fact(Skip = "not reproduced by the sweep on main a92a60e (may be fixed by the forward calendar) - re-verify before un-skipping - SQA-03b: CardFiller.PadToMinimum pads a card with fighters already booked on another card the same night")]
     public void PaddingACardDoesNotUseFightersBookedOnASecondCardTheSameNight()
     {
         var bad = new List<string>();
@@ -173,7 +173,7 @@ public class SimQaFindingsTests
     // check seed 1, 2026-02-05: LocalCircuit.StageCard dates a card on day 6..25 of the month and runs it at once, so results
     // exist up to three weeks before the world clock reaches the card. Fighters on it are not held for recovery, so the
     // same fighter can be on a promotion card dated the same day (check seed 2, 2026-11-19) or earlier (BOUT-ORDER).
-    [Fact(Skip = "SQA-04: the local circuit completes cards dated in the future of the world clock (and does not stamp recovery)")]
+    [Fact(Skip = "CONFIRMED on main a92a60e by the GitHub sweep (simqa run 43087892940) - SQA-04: the local circuit completes cards dated in the future of the world clock (and does not stamp recovery)")]
     public void NoCardIsCompletedBeforeItsOwnDate()
     {
         var world = Build(1);
@@ -186,7 +186,7 @@ public class SimQaFindingsTests
 
     // check seeds 1-8, first month onward: a prospect minted as a famous woman's junior inherits her sex but gets a random
     // weight class, so there are women at heavyweight, in classes no women's division runs.
-    [Fact(Skip = "SQA-05: NewgenService dynasty prospects copy the elder's sex but roll any weight class (women at 170-265 lb)")]
+    [Fact(Skip = "CONFIRMED on main a92a60e by the GitHub sweep (simqa run 43087892940) - SQA-05: NewgenService dynasty prospects copy the elder's sex but roll any weight class (women at 170-265 lb)")]
     public void EveryWomanIsInAWeightClassWomenFight()
     {
         var world = Build(2);
@@ -200,7 +200,7 @@ public class SimQaFindingsTests
 
     // check seed 1 (1 year, 4 seeds had 14 of these): a camp stipend is the paying org's promise, but nothing clears
     // Fighter.CampStipend when he leaves, so a free agent still reads "stipend paid" and the NEXT org that signs him is billed.
-    [Fact(Skip = "SQA-06: Fighter.CampStipend survives leaving the org that granted it; the next signing org is billed for it")]
+    [Fact(Skip = "CONFIRMED on main a92a60e by the GitHub sweep (simqa run 43087892940) - SQA-06: Fighter.CampStipend survives leaving the org that granted it; the next signing org is billed for it")]
     public void ACampStipendDoesNotFollowAFighterToAnotherOrg()
     {
         var world = Build(4);
