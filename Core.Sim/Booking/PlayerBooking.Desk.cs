@@ -142,7 +142,16 @@ public sealed class CardProjection
     public FillerPreview Padding { get; init; } = FillerPreview.None(0);
 
     public IReadOnlyList<PartnerProjection> Partners { get; init; } = Array.Empty<PartnerProjection>();
+    /// <summary>The rival cards the box office charges this card for (what <see cref="Clash"/> and the attendance use).</summary>
     public IReadOnlyList<Event> ClashingCards { get; init; } = Array.Empty<Event>();
+
+    /// <summary>
+    /// Every other promotion's announced card inside the clash window, for the
+    /// Desk's view of the date: each flagged Charged when it is one of
+    /// <see cref="ClashingCards"/>. The uncharged ones (AI cards announced for a
+    /// later date) are information only: no cost is claimed for them.
+    /// </summary>
+    public IReadOnlyList<Living.RivalCard> NearbyRivalCards { get; init; } = Array.Empty<Living.RivalCard>();
     public IReadOnlyList<BookingRisk> Risks { get; init; } = Array.Empty<BookingRisk>();
 }
 
@@ -453,6 +462,7 @@ public sealed partial class PlayerBooking
             Padding = padding,
             Partners = partners,
             ClashingCards = clashes,
+            NearbyRivalCards = Living.ForwardCalendar.RivalCardsNear(world, ev.Promotion, ev.Date, except: ev.Id).Rivals,
             Risks = risks,
         };
     }

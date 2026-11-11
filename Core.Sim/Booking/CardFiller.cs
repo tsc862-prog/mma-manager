@@ -43,7 +43,7 @@ public static class CardFiller
     {
         if (ev.Card.Count == 0 || world.Get(ev.Promotion) is not { } promo) return;
 
-        var booked = new HashSet<FighterId>(ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
+        var booked = Unavailable(world, ev);
         bool small = OrgSizing.SizeOf(promo) <= OrgSize.Regional;
         int guard = 0;
 
@@ -88,7 +88,7 @@ public static class CardFiller
         if (ev.Card.Count == 0 || world.Get(ev.Promotion) is not { } promo)
             return FillerPreview.None(ev.Card.Count);
 
-        var booked = new HashSet<FighterId>(ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
+        var booked = Unavailable(world, ev);
         bool small = OrgSizing.SizeOf(promo) <= OrgSize.Regional;
         int count = ev.Card.Count, guard = 0;
         while (count < MinCardBouts && guard++ < 40)
@@ -119,6 +119,21 @@ public static class CardFiller
         var total = Money.Zero;
         foreach (var b in bouts) total += b.Cost;
         return new FillerPreview(bouts, total, ev.Card.Count, count);
+    }
+
+    // Who can't pad this card: anyone already on it, anyone committed to another
+    // scheduled card (the forward calendar holds the org's next announced
+    // nights), and champions, who only fight for the belt. Shared by the night
+    // and the preview, so the preview shows what the night will do.
+    private static HashSet<FighterId> Unavailable(World world, Event ev)
+    {
+        var booked = new HashSet<FighterId>(ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
+        foreach (var other in world.Events.Values)
+            if (other.Id != ev.Id && other.Status == EventStatus.Scheduled)
+                foreach (var f in other.Card) { booked.Add(f.RedCorner); booked.Add(f.BlueCorner); }
+        foreach (var t in world.Titles.Values)
+            if (t.CurrentChampion is { } champ) booked.Add(champ);
+        return booked;
     }
 
     // The best same-division pairing among unbooked, available roster fighters.

@@ -64,18 +64,33 @@ public static class Financials
 
     /// <summary>
     /// The other promotions' cards that clash with this one under the box
-    /// office's rule (any non-cancelled card within <see cref="ClashWindowDays"/>),
-    /// ordered by date then id. Card dates are public, so a booker may see this.
+    /// office's rule (<see cref="IsClash"/>), ordered by date then id: exactly
+    /// what the house is charged for. Card dates are public, so a booker may see this.
     /// </summary>
     public static IReadOnlyList<Event> ClashingCards(World world, Event ev) =>
+        ClashingCards(world, ev.Promotion, ev.Date, ev.Id);
+
+    /// <summary>The clashing cards for a show <paramref name="promotion"/> would stage on <paramref name="date"/>.</summary>
+    public static IReadOnlyList<Event> ClashingCards(World world, PromotionId promotion, DateOnly date, EventId? except = null) =>
         world.Events.Values
-            .Where(o => IsClash(ev, o))
+            .Where(o => IsClash(world, promotion, date, except, o))
             .OrderBy(o => o.Date).ThenBy(o => o.Id.Value)
             .ToList();
 
-    private static bool IsClash(Event ev, Event o) =>
-        o.Id != ev.Id && o.Promotion != ev.Promotion
-        && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - ev.Date.DayNumber) <= ClashWindowDays;
+    /// <summary>
+    /// The box office's clash rule, for a show <paramref name="promotion"/>
+    /// stages on <paramref name="date"/>: another promotion's non-cancelled card
+    /// (anywhere, scheduled or already run, the promotion-less local circuit
+    /// included) within <see cref="ClashWindowDays"/>, EXCEPT an AI card still
+    /// scheduled for a LATER date. Before the forward calendar an AI card didn't
+    /// exist until its own night, so no card was ever charged for AI shows dated
+    /// after it; that is kept until the clash model is redesigned. The rule has
+    /// no region test, so it nearly always fires.
+    /// </summary>
+    public static bool IsClash(World world, PromotionId promotion, DateOnly date, EventId? except, Event o) =>
+        o.Id != except && o.Promotion != promotion
+        && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - date.DayNumber) <= ClashWindowDays
+        && !(o.Status == EventStatus.Scheduled && o.Date > date && o.Promotion != world.PlayerPromotion);
 
     private static EventFinancials Compute(World world, Event ev, bool capByRoom)
     {
@@ -107,7 +122,7 @@ public static class Financials
         // trinket adds a line to the poster.
         if (main is { IsTitleFight: true, Title: { } beltId } && world.Get(beltId) is { } belt)
             drawPower += (int)(belt.Prestige.Value * 0.3);
-        bool clash = world.Events.Values.Any(o => IsClash(ev, o));
+        bool clash = world.Events.Values.Any(o => IsClash(world, ev.Promotion, ev.Date, ev.Id, o));
         double counterProgramming = clash ? -ClashPenalty : 0;
 
         // Head-to-head market split: sharing a region with same-or-bigger promotions

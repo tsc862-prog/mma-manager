@@ -176,7 +176,7 @@ public sealed partial class PlayerBooking
     private static bool BookedOnCard(Event ev, FighterId id) =>
         ev.Card.Any(f => f.RedCorner == id || f.BlueCorner == id);
 
+    // Committed to any other scheduled card, the AI's announced cards included.
     private static bool BookedElsewhere(World world, Event ev, FighterId id) =>
-        world.Events.Values.Any(e => e.Id != ev.Id && e.Status == EventStatus.Scheduled &&
-            e.Card.Any(f => f.RedCorner == id || f.BlueCorner == id));
+        Living.ForwardCalendar.IsCommitted(world, id, ev.Id);
 }
