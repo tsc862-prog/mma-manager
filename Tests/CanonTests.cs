@@ -75,7 +75,11 @@ public class CanonTests
         var mentor = world.Relationships.Single(r => r.Kind == RelationshipKind.Mentor && r.B == souza.Id);
         Assert.Equal(paulo.Id, mentor.A);
         Assert.Equal(FighterStatus.Retired, paulo.Status);
-        Assert.DoesNotContain(world.Relationships, r => r.Involves(wallace.Id));
+        // Wallace has no mentor: his only bond is the family tie to his uncle, the same man.
+        Assert.DoesNotContain(world.Relationships, r => r.Kind == RelationshipKind.Mentor && r.Involves(wallace.Id));
+        var tie = Assert.Single(world.Relationships, r => r.Involves(wallace.Id));
+        Assert.Equal(RelationshipKind.Family, tie.Kind);
+        Assert.True(tie.IsBetween(wallace.Id, paulo.Id));
     }
 
     [Fact]
