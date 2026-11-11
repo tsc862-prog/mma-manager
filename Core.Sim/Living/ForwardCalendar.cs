@@ -579,8 +579,9 @@ public static class ForwardCalendar
             if (world.Get(ev.Promotion) is not { } promo) continue;
             if (promo.Defunct) { ev.Status = EventStatus.Cancelled; continue; }
 
-            bool changed = false;
             int daysOut = ev.Date.DayNumber - today.DayNumber;
+            var announcedMain = ev.Card.Count > 0 ? ev.Card[^1] : null;
+            bool mainGone = false;
             foreach (var fight in ev.Card.ToList())
             {
                 bool Elsewhere(FighterId id) => claim.TryGetValue(id, out var first) && first != fight.Id;
@@ -588,20 +589,40 @@ public static class ForwardCalendar
                 var blue = WhyOff(world, ev, fight.BlueCorner, Elsewhere);
                 if (red is null && blue is null)
                 {
-                    changed |= CheckBelt(world, ev, fight);
+                    CheckBelt(world, ev, fight);
                     continue;
                 }
 
-                changed = true;
                 var (outId, why) = red is not null ? (fight.RedCorner, red) : (fight.BlueCorner, blue!);
                 bool bothGone = red is not null && blue is not null;
-                if (!bothGone && daysOut > FightWeekDays)
-                    Storylines.SaveBout(world, ev, fight, outId, committed, today, why);
-                else
+                bool saved = !bothGone && daysOut > FightWeekDays
+                    && Storylines.SaveBout(world, ev, fight, outId, committed, today, why);
+                if (!saved && ev.Card.Contains(fight))
                     Storylines.ScrapBout(world, ev, fight, outId, today, why);
+                // A stand-in keeps the headline slot; only a bout that came off
+                // the card leaves the show without its announced main event.
+                if (!saved && ReferenceEquals(fight, announcedMain)) mainGone = true;
             }
-            if (changed) RestoreHeadliner(world, ev);
+            if (ev.Card.Count == 0) Collapse(world, ev, today);
+            else if (mainGone) RestoreHeadliner(world, ev);
         }
+    }
+
+    /// <summary>
+    /// An announced AI card that has lost every bout is cancelled at once, with
+    /// the same consequence as a card that collapses in fight week (the
+    /// promotion's standing takes the hit) and a headline, so the date doesn't
+    /// sit dead on the calendar.
+    /// </summary>
+    internal static void Collapse(World world, Event ev, DateOnly date)
+    {
+        if (ev.Status != EventStatus.Scheduled || world.Get(ev.Promotion) is not { } promo) return;
+        ev.Status = EventStatus.Cancelled;
+        Org.Standing.OnCancelled(world, promo, ev);
+        News.Post(world, date, NewsCategory.Withdrawal,
+            $"{ev.Name} is cancelled",
+            $"Every bout on the card fell through. {promo.Abbreviation} had to call off its {ev.Date:d MMMM} show.",
+            promo.Id, aboutEvent: ev.Id);
     }
 
     // Why this corner can't be on this card any more (null = he can).
@@ -637,9 +658,11 @@ public static class ForwardCalendar
     }
 
     /// <summary>
-    /// After a card loses bouts, keep it a proper show: a belt still on the card
-    /// moves to the top of the bill, and whatever headlines goes the title
-    /// distance. (AI cards only — the player orders their own bill.)
+    /// After a card has LOST ITS ANNOUNCED MAIN EVENT, keep it a proper show: a
+    /// belt still on the card moves to the top of the bill, and whatever
+    /// headlines goes the title distance. Callers use this only when the main
+    /// event came off the card; a feud headliner over a belt co-main is a choice,
+    /// not a mistake to correct. (AI cards only: the player orders their own bill.)
     /// </summary>
     internal static void RestoreHeadliner(World world, Event ev)
     {
@@ -678,7 +701,6 @@ public static class ForwardCalendar
         }
         var seen = new HashSet<FighterId>();   // and nobody fights twice on one card
 
-        bool changed = false;
         foreach (var fight in ev.Card.ToList())
         {
             bool Elsewhere(FighterId id) => elsewhere.Contains(id) || seen.Contains(id);
@@ -686,14 +708,10 @@ public static class ForwardCalendar
                     : WhyOff(world, ev, fight.BlueCorner, Elsewhere) is { } b ? (fight.BlueCorner, b)
                     : ((FighterId, string)?)null;
             if (why is null) { seen.Add(fight.RedCorner); seen.Add(fight.BlueCorner); }
-            if (why is { } off)
-            {
-                Storylines.ScrapBout(world, ev, fight, off.Item1, ev.Date, off.Item2);
-                changed = true;
-            }
-            else changed |= CheckBelt(world, ev, fight);
+            if (why is { } off) Storylines.ScrapBout(world, ev, fight, off.Item1, ev.Date, off.Item2);
+            else CheckBelt(world, ev, fight);
         }
-        if (changed) RestoreHeadliner(world, ev);
+        // (The caller restores a headliner if the announced main event is gone.)
     }
 
     // --- Reading the calendar -----------------------------------------------

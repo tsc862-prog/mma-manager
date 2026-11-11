@@ -24,6 +24,14 @@ public static class CardFiller
         if (ev.Card.Count == 0 || world.Get(ev.Promotion) is not { } promo) return;
 
         var booked = new HashSet<FighterId>(ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
+        // Nobody committed to another scheduled card (the forward calendar holds
+        // the org's next announced nights) pads this one, and champions only
+        // fight for the belt.
+        foreach (var other in world.Events.Values)
+            if (other.Id != ev.Id && other.Status == EventStatus.Scheduled)
+                foreach (var f in other.Card) { booked.Add(f.RedCorner); booked.Add(f.BlueCorner); }
+        foreach (var t in world.Titles.Values)
+            if (t.CurrentChampion is { } champ) booked.Add(champ);
         bool small = OrgSizing.SizeOf(promo) <= OrgSize.Regional;
         int guard = 0;
 

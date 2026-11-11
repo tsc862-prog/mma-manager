@@ -14,12 +14,6 @@ public static class Financials
     private const decimal TicketBase = 55m;
     private const decimal PpvPrice = 45m;
 
-    /// <summary>
-    /// Projected box office for a still-scheduled card: same attendance/gate/
-    /// production model as settlement, with payroll estimated at purses plus
-    /// half the win bonuses (winners unknown). Lets the booker see whether a
-    /// card makes money BEFORE committing to it.
-    /// </summary>
     /// <summary>How close (days either side) another card has to be to count as counter-programming.</summary>
     public const int CounterProgrammingDays = 3;
 
@@ -28,15 +22,25 @@ public static class Financials
 
     /// <summary>
     /// The cards that count as counter-programming against a show on this date:
-    /// ANY other promotion's card (anywhere in the world, scheduled or already
+    /// any other promotion's card (anywhere in the world, scheduled or already
     /// run, and the promotion-less local-circuit nights too) within
-    /// <see cref="CounterProgrammingDays"/> days. The rule as it stands has no
-    /// region test, so with a world calendar this busy it nearly always fires.
+    /// <see cref="CounterProgrammingDays"/> days, EXCEPT an AI card still
+    /// scheduled for a later date. Before the forward calendar an AI card
+    /// didn't exist until its own night, so a card was never cut by AI shows
+    /// dated after it; that rule is kept until the clash model is redesigned.
+    /// The rule has no region test, so it nearly always fires.
     /// </summary>
     public static IEnumerable<Event> ClashingEvents(World world, PromotionId promotion, DateOnly date, EventId? except = null) =>
         world.Events.Values.Where(o => o.Id != except && o.Promotion != promotion
-            && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - date.DayNumber) <= CounterProgrammingDays);
+            && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - date.DayNumber) <= CounterProgrammingDays
+            && !(o.Status == EventStatus.Scheduled && o.Date > date && o.Promotion != world.PlayerPromotion));
 
+    /// <summary>
+    /// Projected box office for a still-scheduled card: same attendance/gate/
+    /// production model as settlement, with payroll estimated at purses plus
+    /// half the win bonuses (winners unknown). Lets the booker see whether a
+    /// card makes money BEFORE committing to it.
+    /// </summary>
     public static EventFinancials Estimate(World world, Event ev)
     {
         var fin = Compute(world, ev);

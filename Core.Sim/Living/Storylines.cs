@@ -92,8 +92,12 @@ public static class Storylines
                 }
 
                 // The AI saves the bout if anyone plausible will take the call.
+                bool wasMain = ev.Card.Count > 0 && ReferenceEquals(ev.Card[^1], fight);
                 if (!SaveBout(world, ev, fight, hurt, booked, date, "Injured in camp"))
-                    ForwardCalendar.RestoreHeadliner(world, ev);
+                {
+                    if (ev.Card.Count == 0) ForwardCalendar.Collapse(world, ev, date);
+                    else if (wasMain) ForwardCalendar.RestoreHeadliner(world, ev);
+                }
             }
         }
     }
@@ -236,7 +240,10 @@ public static class Storylines
         // An AI house only phones the free agents it can pay: the stand-in signs at
         // 1.25x his asking price, and a club show that rings a star's agent for a
         // one-night fill-in bankrupts itself (it did, in the shoestring run).
-        decimal cap = ai ? Contracts.Negotiator.PurseCap(world, promo) : decimal.MaxValue;
+        // (A bleeding house tightens as its free agency does: DistressedPurseFactor.)
+        int distress = Org.Solvency.Distress(promo);
+        decimal cap = !ai ? decimal.MaxValue
+            : Contracts.Negotiator.PurseCap(world, promo) * (distress > 0 ? Org.Solvency.DistressedPurseFactor(distress) : 1m);
         var valuation = new FighterValuation();
         var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList()
             .Where(c => !ai || valuation.Evaluate(world, c).AskingPurse.Amount * 1.25m <= cap);

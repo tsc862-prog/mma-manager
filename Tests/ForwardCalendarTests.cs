@@ -160,12 +160,97 @@ public class ForwardCalendarTests
         Assert.Equal(announced[newYear.Id], (newYear.Card[^1].RedCorner, newYear.Card[^1].BlueCorner));
         Assert.NotNull(newYear.Card[^1].Outcome);
 
-        // And across half a year, when nothing intervenes, a card is what it said
-        // it would be: the great majority of announced main events happen.
+        // And across half a year: whenever both announced headliners are still on
+        // the card on fight night, their bout IS the main event (nothing may
+        // reshuffle a standing headliner), and most announced mains do happen.
         var ran = announced.Keys.Select(id => world.Events[id]).Where(e => e.Status == EventStatus.Completed).ToList();
         Assert.True(ran.Count > 100, $"only {ran.Count} announced AI cards ran in 26 weeks");
-        int asAnnounced = ran.Count(e => (e.Card[^1].RedCorner, e.Card[^1].BlueCorner) == announced[e.Id]);
+        int asAnnounced = 0;
+        foreach (var e in ran)
+        {
+            var (r, b) = announced[e.Id];
+            var bout = e.Card.FirstOrDefault(f => (f.RedCorner == r && f.BlueCorner == b) || (f.RedCorner == b && f.BlueCorner == r));
+            if (bout is null) continue;   // a headliner left; the card was rebuilt around it
+            Assert.True(ReferenceEquals(bout, e.Card[^1]), $"{e.Name}: the announced main event was moved down the card");
+            asAnnounced++;
+        }
         Assert.True(asAnnounced >= ran.Count * 0.8, $"{asAnnounced}/{ran.Count} main events ran as announced");
+    }
+
+    [Fact]
+    public void AFeudHeadlinerOverABeltCoMain_StaysOnTopToFightNight()
+    {
+        // The shape AnnounceCard builds when bad blood outranks the belt: a
+        // non-title main event above a title co-main. Losing an undercard bout,
+        // and the run itself, must not promote the belt over it.
+        var world = Build();
+        var ev = AiScheduled(world).First(e => e.Card.Count >= 2 && e.Card[^1].IsTitleFight
+                                               && e.Date.DayNumber - world.CurrentDate.DayNumber <= ForwardCalendar.UndercardFillDays
+                                               && OrgSizing.SizeOf(world.Get(e.Promotion)!) >= OrgSize.Continental);
+        var belt = ev.Card[^1];
+        var feud = ev.Card.Take(ev.Card.Count - 1).Last(f => !f.IsTitleFight);
+        ev.Card.Remove(feud);
+        ev.Card.Add(feud);   // feud on top, belt as co-main
+        feud.ScheduledRounds = world.Get(ev.Promotion)!.Rules.TitleRounds;
+        Assert.Same(belt, ev.Card[^2]);
+
+        // An undercard corner leaves: the bout goes, the headliner doesn't move.
+        var under = ev.Card.First(f => !ReferenceEquals(f, feud) && !ReferenceEquals(f, belt));
+        world.Get(under.RedCorner)!.Contract = null;
+        ForwardCalendar.Audit(world, world.CurrentDate);
+        Assert.Same(feud, ev.Card[^1]);
+
+        // Fight night: unless a feud corner pulled out, the feud is still the main event.
+        new WorldTick().RunEventLive(world, ev, playByPlay: false);
+        if (ev.Card.Contains(feud)) Assert.Same(feud, ev.Card[^1]);
+    }
+
+    [Fact]
+    public void ASuperfightIsNeverPaddedWithFightersCommittedToALaterCard()
+    {
+        var world = Build();
+        var tick = new WorldTick();
+        for (int w = 0; w < 3; w++) tick.AdvanceWeek(world);
+        // An announced card two weeks out, and a superfight-style one-bout card today.
+        var later = AiScheduled(world).First(e => e.Date == world.CurrentDate.AddDays(14) && e.Card.Count >= 2
+                                                  && world.RosterOf(e.Promotion).Count() > 40);
+        var promo = world.Get(later.Promotion)!;
+        var committed = ForwardCalendar.Committed(world);
+        var pair = world.RosterOf(promo.Id)
+            .Where(f => f.IsMatchReady(world.CurrentDate) && !committed.Contains(f.Id)
+                        && !world.Titles.Values.Any(t => t.CurrentChampion == f.Id))
+            .GroupBy(f => (f.WeightClass, f.Sex)).First(g => g.Count() >= 2).Take(2).ToList();
+        var super = new EventService().CreateEvent(world, promo.Id, $"{Storylines.SuperfightPrefix}: {pair[0].LastName} vs {pair[1].LastName}",
+            world.CurrentDate, new[] { new Matchup(pair[0].Id, pair[1].Id, pair[0].WeightClass, 5, false, null) });
+        var laterFighters = later.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }).ToHashSet();
+
+        tick.RunEventLive(world, super, playByPlay: false);
+
+        Assert.True(super.Card.Count >= CardFiller.MinCardBouts, "the super-card is padded to a real card");
+        Assert.DoesNotContain(super.Card, f => laterFighters.Contains(f.RedCorner) || laterFighters.Contains(f.BlueCorner));
+        Assert.DoesNotContain(super.Card.Take(super.Card.Count - 1),
+            f => world.Titles.Values.Any(t => t.CurrentChampion == f.RedCorner || t.CurrentChampion == f.BlueCorner));
+    }
+
+    [Fact]
+    public void AWorldSavedMidCalendar_RunsTheSameCardsAsOneNeverSaved()
+    {
+        var straight = Build(seed: 6);
+        var split = Build(seed: 6);
+        var tick = new WorldTick();
+        tick.AdvanceWeeks(straight, 3);
+        tick.AdvanceWeeks(split, 3);
+        Assert.True(AiScheduled(split).Count() > 10, "announced cards are pending at the save");
+
+        string path = Path.Combine(Path.GetTempPath(), $"mma_calendar_{Guid.NewGuid():N}.db");
+        World resumed;
+        try { MmaManager.Persistence.SaveGame.Save(split, path); resumed = MmaManager.Persistence.SaveGame.Load(path); }
+        finally { File.Delete(path); }
+
+        new WorldTick().AdvanceWeeks(straight, 8);
+        new WorldTick().AdvanceWeeks(resumed, 8);
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 40);
+        Assert.True(diffs.Count == 0, "a world saved with announced cards diverged:\n" + PersistenceGraph.Describe(diffs));
     }
 
     [Fact]

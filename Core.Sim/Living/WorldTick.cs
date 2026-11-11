@@ -313,17 +313,29 @@ public sealed class WorldTick
     /// </summary>
     private void RunEventCore(World world, Event ev, SimRandom rng, bool playByPlay, WorldTickReport? report)
     {
-        if (ev.Card.Count == 0) { ev.Status = EventStatus.Cancelled; return; }   // never booked — a non-event
+        bool aiCard = ev.Promotion != world.PlayerPromotion && world.Get(ev.Promotion) is not null;
+        if (ev.Card.Count == 0)
+        {
+            // An announced AI card that lost everything is a collapse (standing
+            // hit and a headline); an empty card nobody booked is a non-event.
+            if (aiCard) ForwardCalendar.Collapse(world, ev, ev.Date);
+            else ev.Status = EventStatus.Cancelled;
+            return;
+        }
         // Fight night's last word on an AI card: only fighters signed to the
         // promotion (or its local filler), none retired, suspended or booked
         // elsewhere, and no belt on a bout it can't be on.
+        var announcedMain = ev.Card[^1];
         ForwardCalendar.GuardAtRun(world, ev);
         Storylines.RollPullouts(world, ev, ev.Date, rng);
-        ForwardCalendar.RestoreHeadliner(world, ev);             // AI cards: a lost main event leaves a proper headliner
+        // AI cards: only a main event that actually came off the card is replaced
+        // at the top of the bill (an announced feud headliner stays above a belt).
+        if (aiCard && ev.Card.Count > 0 && !ev.Card.Contains(announcedMain)) ForwardCalendar.RestoreHeadliner(world, ev);
         Storylines.RollWeightMisses(world, ev, ev.Date, rng);   // weigh-in day: fines, catchweights, stripped champs
         if (ev.Card.Count == 0)
         {
             // A promoted card that collapsed to nothing is a real black eye.
+            if (aiCard) { ForwardCalendar.Collapse(world, ev, ev.Date); return; }
             ev.Status = EventStatus.Cancelled;
             if (world.Get(ev.Promotion) is { } collapsed) Org.Standing.OnCancelled(world, collapsed, ev);
             return;
