@@ -31,23 +31,23 @@ public sealed class MyRosterRow
 
         if (f.Status == FighterStatus.Injured)
         {
-            Availability = f.ReadyToFightOn is { } back ? $"🤕 injured — back {back:d MMM}" : "🤕 injured";
+            Availability = f.ReadyToFightOn is { } back ? $"Injured — back {back:d MMM}" : "Injured";
             IsSidelined = true;
         }
         else if (bookedOn is not null)
-            Availability = $"📅 {bookedOn.Name} · {bookedOn.Date:d MMM}";
+            Availability = $"Booked: {bookedOn.Name} · {bookedOn.Date:d MMM}";
         else if (f.ReadyToFightOn is { } ready && ready > w.CurrentDate)
-            Availability = $"recovering — ready {ready:d MMM}";
+            Availability = $"Recovering — ready {ready:d MMM}";
         else
         {
-            Availability = "✔ ready";
+            Availability = "Ready";
             IsReady = true;
         }
     }
 
     public int FighterId => _f.Id.Value;
     public Fighter Model => _f;
-    public ImageSource Portrait => Portraits.For(_f, _w);
+    public ImageSource Portrait => Portraits.Thumb(_f, _w);
     public string Name => _f.FullName;
     public string Badges
     {
@@ -223,7 +223,7 @@ public sealed class MyRosterViewModel : ObservableObject
         if (_all.Count > 0)
         {
             SummaryChips.Add($"{_all.Count} fighter{(_all.Count == 1 ? "" : "s")}");
-            if (champs.Count > 0) SummaryChips.Add($"👑 {champs.Count} champion{(champs.Count == 1 ? "" : "s")}");
+            if (champs.Count > 0) SummaryChips.Add($"{champs.Count} champion{(champs.Count == 1 ? "" : "s")}");
             SummaryChips.Add($"{_all.Count(e => e.Row.IsReady)} ready to fight");
             int injured = _all.Count(e => e.Row.IsSidelined);
             if (injured > 0) SummaryChips.Add($"{injured} injured");

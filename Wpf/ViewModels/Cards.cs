@@ -22,7 +22,6 @@ public sealed class FighterCardModel : Controls.ICardKey
 {
     private readonly Fighter _f;
     private readonly World _w;
-    private ImageSource? _portrait;
 
     public FighterCardModel(Fighter f, World w, Event? bookedOn = null, string? why = null)
     {
@@ -81,12 +80,39 @@ public sealed class FighterCardModel : Controls.ICardKey
         }
         IsReady = f.Status != FighterStatus.Injured && bookedOn is null && !(f.ReadyToFightOn is { } r2 && r2 > w.CurrentDate);
         IsInjured = f.Status == FighterStatus.Injured;
+
+        // Who they fight for (the world wall shows this instead of the deal).
+        if (c is not null && w.Get(c.Promotion) is { } org)
+        {
+            _org = org;
+            Affiliation = org.Id == w.PlayerPromotion ? $"{org.Abbreviation} · your promotion" : $"{org.Abbreviation} · {org.Name}";
+            IsMine = org.Id == w.PlayerPromotion;
+        }
+        else Affiliation = "Free agent";
+        IsShortlisted = w.Shortlist.Contains(f.Id);
     }
+
+    private readonly Promotion? _org;
+    private ImageSource? _orgLogo;
 
     public int Id { get; }
     public Fighter Model => _f;
-    /// <summary>Loaded on first draw only (virtualised walls never draw off-screen cards).</summary>
-    public ImageSource Portrait => _portrait ??= Portraits.For(_f, _w);
+    /// <summary>Asked for on first draw only (virtualised walls never draw off-screen cards),
+    /// decoded small on a worker thread (<see cref="Portraits.Thumb(Fighter, World, Action{ImageSource})"/>);
+    /// the face appears when it is ready.</summary>
+    public ImageSource? Portrait => Face.Image;
+
+    /// <summary>The face as a tiny observable holder — templates bind <c>Face.Image</c>. Only this one
+    /// binding listens for the late arrival; the card itself stays a plain object (cheap to bind).</summary>
+    public LazyFace Face => _face ??= new LazyFace(ready => Portraits.Thumb(_f, _w, ready));
+    private LazyFace? _face;
+    /// <summary>"AFC · Apex Fighting Championship", or "Free agent".</summary>
+    public string Affiliation { get; } = "";
+    /// <summary>The promotion's logo (null for a free agent), drawn on first use.</summary>
+    public ImageSource? AffiliationLogo => _org is null ? null : _orgLogo ??= LogoFactory.ForPromotion(_org);
+    public bool HasAffiliationLogo => _org is not null;
+    public bool IsMine { get; }
+    public bool IsShortlisted { get; }
     public string Name { get; }
     public string Nickname { get; }
     public string Division { get; }
@@ -112,16 +138,45 @@ public sealed class FighterCardModel : Controls.ICardKey
     public bool IsSelected { get; init; }
 
     /// <summary>Everything the card draws, as one string: equal keys draw identically.</summary>
-    public string CardKey => $"{Id}|{Name}|{Nickname}|{Facts}|{Scout}|{IsChampion}|{IsFace}|{ContractText}|{StatusText}|{StatusTone}|{Why}|{IsSelected}";
+    public string CardKey => $"{Id}|{Name}|{Nickname}|{Facts}|{Scout}|{IsChampion}|{IsFace}|{ContractText}|{StatusText}|{StatusTone}|{Why}|{IsSelected}|{Affiliation}|{IsShortlisted}";
 }
 
 /// <summary>
-/// One thing that needs the player: a glyph, a plain sentence, when it is due,
+/// A picture that may arrive late: asked for on first read (so only drawn cards ask),
+/// returned at once when ready, otherwise filled in when the worker thread hands it back.
+/// </summary>
+public sealed class LazyFace : System.ComponentModel.INotifyPropertyChanged
+{
+    private readonly Func<Action<ImageSource>, ImageSource?> _load;
+    private ImageSource? _image;
+    private bool _asked;
+
+    public LazyFace(Func<Action<ImageSource>, ImageSource?> load) => _load = load;
+
+    public ImageSource? Image
+    {
+        get
+        {
+            if (!_asked)
+            {
+                _asked = true;
+                _image = _load(img => { _image = img; PropertyChanged?.Invoke(this, new(nameof(Image))); });
+            }
+            return _image;
+        }
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
+/// One thing that needs the player: a line icon, a plain sentence, when it is due,
 /// and up to two buttons. Ordered by the screen, most urgent first.
 /// </summary>
 public sealed class ActionItemModel
 {
-    public required string Glyph { get; init; }
+    /// <summary>A line icon from the App.xaml set (Calendar, Pen, Bell, Money, …).</summary>
+    public required string Icon { get; init; }
     public required string Title { get; init; }
     public string Detail { get; init; } = "";
     public string Due { get; init; } = "";
@@ -149,6 +204,51 @@ public sealed class HeadlineCardModel
     public bool AboutPlayer { get; init; }
     public ICommand? OpenCommand { get; init; }
     public object? OpenParameter { get; init; }
+}
+
+/// <summary>
+/// A news story as a card you can follow: a face (or the promotion's logo), the
+/// kind and day, the headline, what was said, and links to the people, the
+/// promotion and the event it is about. The picture is loaded on first draw only.
+/// </summary>
+public sealed class StoryCardModel : Controls.ICardKey
+{
+    /// <param name="picture">Returns the picture now, or null and calls back when it is decoded.</param>
+    public StoryCardModel(Func<Action<ImageSource>, ImageSource?> picture) => Face = new LazyFace(picture);
+
+    /// <summary>The face or logo; templates bind <c>Face.Image</c> (it may land after the card is drawn).</summary>
+    public LazyFace Face { get; }
+    public ImageSource? Picture => Face.Image;
+    /// <summary>Nothing to show at all (a wire story about no one): the template draws the paper's icon.</summary>
+    public bool HasNoPicture { get; init; }
+    /// <summary>True when the picture is a logo (drawn padded on a dark tile, not cropped like a face).</summary>
+    public bool PictureIsLogo { get; init; }
+    public required string Kicker { get; init; }
+    public required string Icon { get; init; }
+    public required string Headline { get; init; }
+    /// <summary>The story text with any quote taken out (the quote is shown on its own).</summary>
+    public string Body { get; init; } = "";
+    public bool HasBody => Body.Length > 0;
+    public string Quote { get; init; } = "";
+    public bool HasQuote => Quote.Length > 0;
+    public bool AboutPlayer { get; init; }
+
+    public int FighterId { get; init; }
+    public string FighterName { get; init; } = "";
+    public bool HasFighter => FighterId != 0;
+    public int PromotionId { get; init; }
+    public string PromotionLabel { get; init; } = "";
+    public bool HasPromotion => PromotionId != 0;
+    public int EventId { get; init; }
+    public string EventName { get; init; } = "";
+    public bool HasEvent => EventId != 0;
+
+    /// <summary>What clicking the card itself opens (the person, else the event, else the promotion).</summary>
+    public ICommand? OpenCommand { get; init; }
+    public object? OpenParameter { get; init; }
+
+    public string Key { get; init; } = "";
+    public string CardKey => Key;
 }
 
 /// <summary>A stop on a journey strip (the tier climb, the first-steps path).</summary>
