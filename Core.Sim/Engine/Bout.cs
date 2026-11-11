@@ -482,7 +482,7 @@ internal sealed class Bout
 
         if (_s[1 - a].Health <= 0)
         {
-            RecordFinish(a, FightMethod.Knockout);
+            RecordFinish(a, FightMethod.Knockout, "KO: knockdown");
             if (Logging)
                 switch (V(2))
                 {
@@ -588,7 +588,7 @@ internal sealed class Bout
 
         if (_s[1 - a].Health <= 0 && _finish is null)
         {
-            RecordFinish(a, FightMethod.TechnicalKnockout);
+            RecordFinish(a, FightMethod.TechnicalKnockout, "TKO: ground strikes");
             if (Logging)
                 switch (V(2))
                 {
@@ -708,7 +708,7 @@ internal sealed class Bout
         string hold = HoldFor(fromTop, _ground, _rng.NextULong());
         if (_rng.Chance(p))
         {
-            RecordFinish(a, FightMethod.SubmissionTap);
+            RecordFinish(a, FightMethod.SubmissionTap, "SUB");
             if (Logging)
                 switch (V(2))
                 {
@@ -851,8 +851,15 @@ internal sealed class Bout
 
     // --- Finish & decision --------------------------------------------------
 
-    private void RecordFinish(int winner, FightMethod method) =>
-        _finish ??= new Finish(winner, method, _round, (int)Math.Min(RoundSeconds, _clock));
+    private void RecordFinish(int winner, FightMethod method, string detail)
+    {
+        if (_finish is not null) return;
+        _finish = new Finish(winner, method, _round, (int)Math.Min(RoundSeconds, _clock));
+        FinishDetail = detail;
+    }
+
+    /// <summary>How the fight was finished, for the lab (not saved): null for a decision.</summary>
+    internal string? FinishDetail { get; private set; }
 
     private FightOutcome FinishOutcome(Finish f)
     {
