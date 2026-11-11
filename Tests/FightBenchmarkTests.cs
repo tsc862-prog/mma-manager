@@ -290,7 +290,7 @@ public class FightBenchmarkTests : IClassFixture<FightBenchmarkFixture>
     /// <see cref="StyleSpreadIsKnownFailure"/> to false in the PR that meets the target.
     /// </summary>
     private const double StyleSpreadTarget = 6.0;
-    private const bool StyleSpreadIsKnownFailure = true;
+    private static readonly bool StyleSpreadIsKnownFailure = true;   // readonly, not const: keeps both branches compiled
 
     [Fact]
     public void StyleSpread_KnownFailureAgainstTarget()
