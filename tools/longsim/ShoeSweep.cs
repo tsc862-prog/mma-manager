@@ -57,6 +57,7 @@ public static class ShoeSweep
         public int RenewedN, LeftN;
         public long IdleChecks, RosterChecks;
         public int DaysToResignSum, DaysToResignN;
+        public int ChampAiRenewals, ChampAiRenewBelowAsk, ChampLeft, AiRenewBelowAsk, BeltChecks, BeltHeldChecks, TitleFights, Cards;
         public void Add(Diag o)
         {
             foreach (var fl in typeof(Diag).GetFields())
@@ -73,7 +74,7 @@ public static class ShoeSweep
         int years = int.Parse(args[3]);
         bool scriptOnly = args.Contains("--script-only");
         bool dealRules = PlayerDealRules(args), resign = !args.Contains("--no-resign");
-        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable");
+        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable"); MimicAi = args.Contains("--mimic-ai") || args.Contains("--mimic-ai-no-champ"); MimicNoChampForce = args.Contains("--mimic-ai-no-champ");
         var runs = new ConcurrentBag<Run>();
         Parallel.ForEach(Enumerable.Range((int)from, (int)(to - from + 1)).Select(i => (ulong)i),
             new ParallelOptions { MaxDegreeOfParallelism = Parallelism(args) },
@@ -96,6 +97,8 @@ public static class ShoeSweep
             + $" · days from deal end to re-sign {R(d.DaysToResignSum, d.DaysToResignN)}");
         Console.WriteLine($"  DIAG who: renewed mean CA {R(d.RenewedCaSum, d.RenewedN)} pop {R(d.RenewedPopSum, d.RenewedN)} · left mean CA {R(d.LeftCaSum, d.LeftN)} pop {R(d.LeftPopSum, d.LeftN)}"
             + $" · roster share sitting at 0 fights (monthly checks) {(d.RosterChecks == 0 ? 0 : 100.0 * d.IdleChecks / d.RosterChecks):0.0}%");
+        Console.WriteLine($"  DIAG belts: champions renewed by the AI {d.ChampAiRenewals} (below his ask {d.ChampAiRenewBelowAsk}) · all AI renewals below his ask {d.AiRenewBelowAsk}/{d.AiRenewals}"
+            + $" · champions who left {d.ChampLeft} · belts filled {(d.BeltChecks == 0 ? 0 : 100.0 * d.BeltHeldChecks / d.BeltChecks):0.0}% of monthly checks · title fights {d.TitleFights} on {d.Cards} cards");
         foreach (var r in all.Where(r => r.Seed is 3 or 5))
             Console.WriteLine($"  DIAG seed {r.Seed}: final {r.FinalPrestige} · AI renew {r.D.AiRenewals} · script renew {r.D.ScriptRenewals} (early {r.D.EarlyRenewals}) · left org {r.D.PoachedOrSigned} · left market {r.D.ToMarket} · skip dear {r.D.SkipDear} skid {r.D.SkipSkid} broke {r.D.SkipBroke}"
                 + " · prestige by year " + string.Join(",", r.Years.Select(y => y.Prestige)) + " · roster by year " + string.Join(",", r.Years.Select(y => y.Roster)));
@@ -152,6 +155,27 @@ public static class ShoeSweep
         var due = world.RosterOf(org.Id)
             .Where(f => DealWindow.InWindow(world, f) || (Early && f.Status == FighterStatus.Active && f.Contract is { FightsRemaining: 1 }))
             .OrderBy(f => f.Contract!.FightsRemaining).ThenBy(f => f.Id.Value).ToList();
+        if (MimicAi)
+        {
+            // --mimic-ai: renew exactly as the AI expiry pass would for this org — a
+            // champion is ALWAYS re-signed at the AI's capped opening offer (no
+            // acceptance check: ContractLifecycle.ProcessExpiries' champion branch),
+            // anyone else at that offer if the org wants him and he accepts.
+            // --mimic-ai-no-champ: the same, but a champion must accept like anyone.
+            var neg = new Negotiator();
+            foreach (var f in due.Where(f => f.Contract!.FightsRemaining <= 0))
+            {
+                var exp = valuation.Evaluate(world, f);
+                var ai = neg.AiOpeningOffer(world, org, f, exp);
+                bool champ = world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
+                bool ok = (champ && !MimicNoChampForce) || (RosterPolicy.Wants(world, org, f) && neg.Evaluate(world, f, ai, exp).Verdict == NegotiationVerdict.Accept);
+                if (!ok) continue;
+                if (diag is not null) { diag.ScriptRenewals++; if (champ) diag.ChampAiRenewals++; }
+                ContractLifecycle.Sign(world, f, ai, world.CurrentDate);
+                n++;
+            }
+            return n;
+        }
         foreach (var f in due)
         {
             bool early = f.Contract!.FightsRemaining > 0;
@@ -196,7 +220,7 @@ public static class ShoeSweep
         return n;
     }
 
-    private static bool Early, KeepToCap, DepthBookable;   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
+    private static bool Early, KeepToCap, DepthBookable, MimicAi, MimicNoChampForce;   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
 
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;
 
@@ -250,6 +274,8 @@ public static class ShoeSweep
             {
                 for (int m = 0; m < 13 && !nwf.Defunct; m++)
                 {
+                    foreach (var div in nwf.Divisions)
+                        if (div.Title is { } tt && world.Get(tt) is { } belt) { run.D.BeltChecks++; if (belt.CurrentChampion is not null) run.D.BeltHeldChecks++; }
                     foreach (var f in world.RosterOf(nwf.Id).Where(f => f.Status == FighterStatus.Active))
                     {
                         run.D.RosterChecks++;
@@ -260,7 +286,9 @@ public static class ShoeSweep
                     var inWindow = dealRules ? world.RosterOf(nwf.Id).Where(f => DealWindow.InWindow(world, f)).Select(f => f.Id).ToList() : new();
                     // Every deal on the books before the four weeks, to class what became of it.
                     var before = world.RosterOf(nwf.Id).Where(f => f.Contract is not null)
-                        .ToDictionary(f => f.Id, f => (f.Contract!.SignedOn, Purse: f.Contract.PursePerFight.Amount, Ca: FighterAbility.CurrentAbility(f), Pop: f.Intangibles.Popularity.Value));
+                        .ToDictionary(f => f.Id, f => (f.Contract!.SignedOn, Purse: f.Contract.PursePerFight.Amount, Ca: FighterAbility.CurrentAbility(f), Pop: f.Intangibles.Popularity.Value,
+                            Champ: world.Titles.Values.Any(t => t.Promotion == nwf.Id && t.CurrentChampion == f.Id),
+                            Ask: f.Contract.FightsRemaining <= 1 ? Negotiator.EffectiveAskingPurse(world, nwf, f, valuation.Evaluate(world, f)).Amount : 0m));
                     tick.AdvanceWeeks(world, 4);
                     foreach (var (id, was) in before)
                     {
@@ -270,11 +298,15 @@ public static class ShoeSweep
                         {
                             if (f.Contract.SignedOn == was.SignedOn) continue;
                             run.D.AiRenewals++;   // re-signed during the advance: the world AI's renewal
+                            bool below = was.Ask > 0 && f.Contract.PursePerFight.Amount < was.Ask * 0.995m;
+                            if (below) run.D.AiRenewBelowAsk++;
+                            if (was.Champ) { run.D.ChampAiRenewals++; if (below) run.D.ChampAiRenewBelowAsk++; }
                             run.D.AiRenewRatioSum += (double)(f.Contract.PursePerFight.Amount / Math.Max(1m, was.Purse));
                             run.D.RenewedN++; run.D.RenewedCaSum += was.Ca; run.D.RenewedPopSum += was.Pop;
                             continue;
                         }
                         if (f.Contract is null) run.D.ToMarket++; else run.D.PoachedOrSigned++;
+                        if (was.Champ) run.D.ChampLeft++;
                         run.D.LeftN++; run.D.LeftCaSum += was.Ca; run.D.LeftPopSum += was.Pop;
                     }
                     // a window that closed in these four weeks: he walked to free agency
@@ -286,6 +318,7 @@ public static class ShoeSweep
                 lastTier = tier > lastTier ? tier : lastTier;
 
                 var evs = world.Events.Values.Where(e => e.Promotion == nwf.Id && e.Financials is not null && e.Date > world.CurrentDate.AddDays(-365)).ToList();
+                run.D.Cards += evs.Count; run.D.TitleFights += evs.Sum(e => e.Card.Count(x => x.IsTitleFight));
                 double cards = Math.Max(1, evs.Count);
                 var roster = world.RosterOf(nwf.Id).Where(f => f.Status == FighterStatus.Active).ToList();
                 // The market the script shops: free agents in its divisions (home region in brackets).
