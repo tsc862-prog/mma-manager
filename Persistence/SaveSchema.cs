@@ -118,6 +118,7 @@ internal static class SaveSchema
                 contract_promotion INTEGER, contract_signed_on TEXT, contract_type TEXT,
                 purse TEXT, win_bonus TEXT, fights_remaining INTEGER, is_exclusive INTEGER, has_champions_clause INTEGER,
                 signing_bonus TEXT, ppv_points INTEGER, performance_bonus TEXT, guaranteed INTEGER, poach_warned INTEGER, bond_notice_on TEXT,
+                window_ends_on TEXT, window_warned INTEGER,
                 injury_severity TEXT, injury_desc TEXT, injury_occurred TEXT, injury_return TEXT,
                 ready_to_fight_on TEXT, loyalty INTEGER NOT NULL, marketing_push INTEGER NOT NULL, camp_id INTEGER,
                 camp_stipend INTEGER NOT NULL DEFAULT 0, star_power INTEGER NOT NULL DEFAULT 0,
@@ -236,6 +237,12 @@ internal static class SaveSchema
             CREATE TABLE bidding_wars (
                 ordinal INTEGER NOT NULL, fighter_id INTEGER NOT NULL, round INTEGER NOT NULL,
                 current_bid TEXT NOT NULL, next_round_on TEXT NOT NULL, suitors TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE talks (
+                ordinal INTEGER NOT NULL, fighter_id INTEGER NOT NULL, promotion_id INTEGER NOT NULL,
+                demand_frac REAL NOT NULL, mood INTEGER NOT NULL, patience INTEGER NOT NULL, round INTEGER NOT NULL,
+                soured_until TEXT, last_talked TEXT NOT NULL
             );
 
             CREATE TABLE fight_stats (

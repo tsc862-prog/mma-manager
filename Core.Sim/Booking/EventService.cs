@@ -126,6 +126,8 @@ public sealed class EventService
             // against the card the player actually put on.
             if (promo.Id == world.PlayerPromotion)
                 Living.Decisions.OnPlayerEventSettled(world, promo, ev);
+            // Deals fought out tonight end: the player's re-sign windows open (no RNG).
+            Contracts.DealWindow.AfterCard(world, ev);
 
             // Staging the card builds the promotion's standing in that region,
             // and a big, well-run show lifts its prestige and reputation. How far

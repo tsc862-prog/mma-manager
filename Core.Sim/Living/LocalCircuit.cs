@@ -63,6 +63,9 @@ public static class LocalCircuit
             bool moonlighting = f.Contract is { IsExclusive: false };
             if ((!freeAgent && !moonlighting) || busy.Contains(f.Id)) continue;
             if (!rng.Chance(MonthlyChance)) continue;
+            // A player's man in his re-sign window is bookable by nobody — checked
+            // after the roll so the month's stream draws exactly as it did.
+            if (Contracts.DealWindow.OutOfDeal(world, f)) continue;
             takers.Add(f);
         }
         if (takers.Count == 0) return 0;

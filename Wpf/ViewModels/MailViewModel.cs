@@ -383,7 +383,9 @@ public sealed class MailViewModel : ObservableObject
             bool war = w.BiddingWars.Any(b => b.Fighter == about.Id);
             if (m.Category == MailCategory.ContractAlert && ours && about.Contract is { FightsRemaining: <= 1 })
             {
-                note = about.Contract.FightsRemaining <= 0 ? "The deal is up." : "One fight left on the deal.";
+                note = about.Contract.FightsRemaining > 0 ? "One fight left on the deal."
+                     : about.Contract.WindowEndsOn is { } end ? $"The deal is up — yours alone to re-sign until {end:MMM d}, then a free agent."
+                     : "The deal is up.";
                 actions.Add(new LetterAction { Text = "Talk terms ▸", Command = NegotiateCommand, Parameter = about.Id.Value, IsPrimary = true, Decides = false });
             }
             else if ((from == "The Agent" || m.Category == MailCategory.ContractAlert) && free)

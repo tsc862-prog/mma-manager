@@ -134,6 +134,12 @@ public static class CardFiller
                 foreach (var f in other.Card) { booked.Add(f.RedCorner); booked.Add(f.BlueCorner); }
         foreach (var t in world.Titles.Values)
             if (t.CurrentChampion is { } champ) booked.Add(champ);
+        // A player-rules promotion's fighter whose deal is fought out is in his
+        // re-sign window: nobody books him until he signs again (AI cards keep
+        // the order they always had).
+        if (Contracts.DealWindow.PlayerRules(world, ev.Promotion))
+            foreach (var f in world.RosterOf(ev.Promotion))
+                if (Contracts.DealWindow.OutOfDeal(world, f)) booked.Add(f.Id);
         return booked;
     }
 

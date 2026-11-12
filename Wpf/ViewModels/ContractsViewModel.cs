@@ -65,7 +65,11 @@ public sealed class MyContractRow
         Purse = f.Contract?.PursePerFight.ToString() ?? "—";
         PurseSort = f.Contract?.PursePerFight.Amount ?? 0m;
         FightsLeft = f.Contract?.FightsRemaining ?? 0;
-        Status = FightsLeft == 0 ? "Expired" : FightsLeft <= 1 ? "Expiring" : "Signed";
+        Status = FightsLeft == 0
+                ? (f.Contract?.WindowEndsOn is { } end
+                    ? (DealWindow.TalksClosed(w, f) ? $"Walked out · tests the market {end:MMM d}" : $"Deal up · re-sign by {end:MMM d}")
+                    : "Expired")
+            : FightsLeft <= 1 ? "Expiring" : "Signed";
         Terms = f.Contract is { } c
             ? (c.IsExclusive ? "exclusive" : "non-excl") + (c.HasChampionsClause ? " · clause" : "")
             : "—";
@@ -101,10 +105,6 @@ public sealed class ContractsViewModel : ObservableObject
     private FighterId? _targetId;
     private bool _targetIsOwn;
     private ContractExpectations? _expectations;
-
-    // Camps whose agents walked out on you: no fresh talks until the date passes.
-    // In-memory only — a reload clears the grudge, which is harmless.
-    private readonly Dictionary<FighterId, DateOnly> _souredUntil = new();
 
     public ContractsViewModel()
     {
@@ -354,9 +354,12 @@ public sealed class ContractsViewModel : ObservableObject
         if (_world is null || _targetId is null || _world.Get(_targetId.Value) is not { } f
             || _expectations is null || _world.Get(_world.PlayerPromotion) is not { } promo) return false;
 
-        var session = new NegotiationSession(_world, f, promo, _expectations);
+        if (NegotiationSession.SouredUntil(_world, f.Id, promo.Id) is not null) return false;
+        var session = NegotiationSession.Resume(_world, f, promo, _expectations);
         var offer = session.TheirTermsAsOffer(Negotiator.WantsExclusivity(promo), clause: false);
-        if (session.Table(offer).Verdict != TalkVerdict.Accept) return false;
+        bool signed = session.Table(offer).Verdict == TalkVerdict.Accept;
+        session.Remember(_world.CurrentDate);
+        if (!signed) return false;
         Sign(offer);
         return true;
     }
@@ -367,19 +370,24 @@ public sealed class ContractsViewModel : ObservableObject
         if (_world is null || _targetId is null || _world.Get(_targetId.Value) is not { } f
             || _expectations is null || _world.Get(_world.PlayerPromotion) is not { } promo) return;
 
-        if (_souredUntil.TryGetValue(f.Id, out var until) && _world.CurrentDate < until)
+        // A walk-out is remembered by the sim (World.Talks), so it survives a save.
+        if (NegotiationSession.SouredUntil(_world, f.Id, promo.Id) is { } until)
         {
             ResponseTone = "Bad";
-            Response = $"Their camp hasn't cooled off — no talks until {until:MMM d}.";
+            Response = DealWindow.TalksClosed(_world, f)
+                ? $"Talks are closed — {f.FullName} walked out and will test the market on {f.Contract!.WindowEndsOn:MMM d}."
+                : $"Their camp hasn't cooled off — no talks until {until:MMM d}.";
             return;
         }
 
-        var session = new NegotiationSession(_world, f, promo, _expectations);
+        // He remembers where the last sit-down left off: leaving and coming back is not a reset.
+        var session = NegotiationSession.Resume(_world, f, promo, _expectations);
         var vm = new NegotiationViewModel(_world, f, promo, _expectations, session, _targetIsOwn);
         var win = new NegotiationWindow { DataContext = vm };
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
             win.Owner = owner;
         win.ShowDialog();
+        session.Remember(_world.CurrentDate);
 
         if (vm.SignedOffer is { } deal)
         {
@@ -387,15 +395,18 @@ public sealed class ContractsViewModel : ObservableObject
         }
         else if (session.Outcome == TalkOutcome.TheyWalked)
         {
-            var cooloff = _world.CurrentDate.AddDays(21);
-            _souredUntil[f.Id] = cooloff;
+            var cooloff = NegotiationSession.SouredUntil(_world, f.Id, promo.Id) ?? _world.CurrentDate.AddDays(NegotiationSession.CoolOffDays);
             ResponseTone = "Bad";
-            Response = $"{f.FullName}'s camp walked out — talks are dead until {cooloff:MMM d}.";
+            Response = DealWindow.TalksClosed(_world, f)
+                ? $"{f.FullName} walked out — talks are closed, and on {f.Contract!.WindowEndsOn:MMM d} he tests the market."
+                : $"{f.FullName}'s camp walked out — talks are dead until {cooloff:MMM d}.";
         }
         else
         {
             ResponseTone = "Warn";
-            Response = "You left the table — the door stays open.";
+            Response = session.Round > 0
+                ? "You left the table — talks pick up where you left them, not from the top."
+                : "You left the table — the door stays open.";
         }
     }
 

@@ -79,6 +79,8 @@ public sealed partial class PlayerBooking
         if (red == blue) { error = "A fighter can't fight themselves."; return false; }
         if (r.Contract?.Promotion != world.PlayerPromotion || b.Contract?.Promotion != world.PlayerPromotion)
         { error = "Both fighters must be on your roster."; return false; }
+        if (Contracts.DealWindow.OutOfDeal(world, r) || Contracts.DealWindow.OutOfDeal(world, b))
+        { error = "A fighter's deal is up — re-sign them before you book them."; return false; }
         if (r.WeightClass != b.WeightClass) { error = "Fighters must be in the same weight class."; return false; }
         if (r.Sex != b.Sex) { error = "A bout can't cross men's and women's divisions."; return false; }
         if (!r.IsMatchReady(ev.Date) || !b.IsMatchReady(ev.Date)) { error = "A fighter is injured or still recovering."; return false; }
@@ -128,6 +130,7 @@ public sealed partial class PlayerBooking
         if (Org.OrgSizing.SizeOf(promo) > OrgSize.Regional)
         { error = "Local fights are beneath the promotion now — book real opponents."; return false; }
         if (r.Contract?.Promotion != world.PlayerPromotion) { error = "The fighter must be on your roster."; return false; }
+        if (Contracts.DealWindow.OutOfDeal(world, r)) { error = "The fighter's deal is up — re-sign them before you book them."; return false; }
         if (!r.IsMatchReady(ev.Date)) { error = "The fighter is injured or still recovering."; return false; }
         if (BookedOnCard(ev, red)) { error = "The fighter is already on this card."; return false; }
         if (BookedElsewhere(world, ev, red)) { error = "The fighter is already booked on another upcoming event."; return false; }
@@ -177,7 +180,8 @@ public sealed partial class PlayerBooking
     /// <summary>Player-roster fighters available to book in a division (weight + sex; not already on this card).</summary>
     public IReadOnlyList<Fighter> AvailableRoster(World world, Event ev, WeightClass weightClass, Sex sex = Sex.Male) =>
         world.RosterOf(world.PlayerPromotion)
-            .Where(f => f.WeightClass == weightClass && f.Sex == sex && f.IsMatchReady(ev.Date) && !BookedOnCard(ev, f.Id))
+            .Where(f => f.WeightClass == weightClass && f.Sex == sex && f.IsMatchReady(ev.Date) && !BookedOnCard(ev, f.Id)
+                        && !Contracts.DealWindow.OutOfDeal(world, f))
             .OrderByDescending(f => MatchmakingAdvisor.ScoutedRead(world, f))   // the scout's read, never the truth
             .ThenBy(f => f.Id.Value)
             .ToList();
@@ -188,7 +192,8 @@ public sealed partial class PlayerBooking
         var f = world.Get(forFighter);
         if (f is null) return Array.Empty<Fighter>();
         return world.RosterOf(world.PlayerPromotion)
-            .Where(o => o.Id != forFighter && o.WeightClass == f.WeightClass && o.Sex == f.Sex && o.IsMatchReady(ev.Date) && !BookedOnCard(ev, o.Id))
+            .Where(o => o.Id != forFighter && o.WeightClass == f.WeightClass && o.Sex == f.Sex && o.IsMatchReady(ev.Date) && !BookedOnCard(ev, o.Id)
+                        && !Contracts.DealWindow.OutOfDeal(world, o))
             .OrderByDescending(o => MatchmakingAdvisor.ScoutedRead(world, o))   // the scout's read, never the truth
             .ThenBy(o => o.Id.Value)
             .ToList();

@@ -52,7 +52,12 @@ a 10-seed × 5-yr sweep ~2–4 min (parallel), a 20-yr shoestring ~2–3 min.
   found New Wave Fighting (prestige 5, $250k, LW/WW/MW + women's straw/fly, empty
   roster) and run it for N years. Yearly: prestige/tier + % to next tier, bank,
   year P&L, events + avg house, TIER CROSSING banners, deals, champions, ace/draw,
-  and world rank.
+  and world rank. The founded org plays by the PLAYER's deal rules (since v45): a
+  deal fought out opens a 30-day exclusive re-sign window and then free agency
+  (`Contracts.DealWindow`), and the script re-signs inside the window at his table
+  terms when they fit its budget (`ShoeSweep.ReSignInWindow`). `--ai-renewals`
+  restores the old harness (the world AI renews or lets walk, with poaching at
+  expiry); `--no-resign` lets every deal end. Same flags for `shoesweep`.
 
 ## Checking modes (simulation QA)
 
@@ -175,7 +180,8 @@ all AI.
   survivable opening was a degenerate 2–3-fighter sponsorship farm.)
 - **Expiry churn is expected on a shoestring**: AI renewals go through `PurseCap`,
   so a tiny org's expiring fighters mostly walk and the agent re-hires from the
-  market. The churn fades as prestige (and the cap) grows.
+  market. The churn fades as prestige (and the cap) grows. (With `--ai-renewals`
+  only; by default the script renews in the deal window — see shoestring above.)
 - **Determinism**: same seed + same code = same world. Any change to generation,
   the designed DB, or tick order shifts all results — re-baseline with `compare`
   after such changes rather than comparing against old logs.

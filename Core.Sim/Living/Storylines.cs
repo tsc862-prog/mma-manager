@@ -236,7 +236,8 @@ public static class Storylines
 
     // Who could plausibly save the bout: roster bodies first (free, familiar),
     // then free agents hungry for the call — same division, healthy, unbooked.
-    // (On an AI card, nobody on a spent deal: his contract ends before the bout.)
+    // (Nobody on a spent deal: an AI deal ends before the bout, and the player's
+    // man is in his re-sign window, bookable by nobody.)
     private static IEnumerable<Fighter> ReplacementPool(World world, Event ev, Fight fight,
         HashSet<FighterId> booked, FighterId opponent)
     {
@@ -253,7 +254,7 @@ public static class Storylines
             // champion was once sent in to replace a man on an AFC super-card.
             && (div?.Matches(c) ?? (c.WeightClass == fight.WeightClass
                                     && world.Get(opponent) is { } foe && foe.Sex == c.Sex))
-            && !(ai && c.Contract is { FightsRemaining: <= 0 })
+            && c.Contract is not { FightsRemaining: <= 0 }   // a spent deal: the expiry pass (AI) or the re-sign window (player) has him
             && world.BiddingWars.All(w => w.Fighter != c.Id);
 
         var roster = world.RosterOf(promo.Id).Where(Fits).ToList();
@@ -601,6 +602,10 @@ public static class Storylines
 
                 var when = date.AddDays(28);
                 if (!challenger.IsMatchReady(when) || !champ.IsMatchReady(when)) continue;
+                // A champion whose deal is fought out under the player's rules (a
+                // harness stand-in org) is in his re-sign window: bookable by nobody.
+                // (Always false for an AI org's deal, so all-AI worlds are unchanged.)
+                if (Contracts.DealWindow.OutOfDeal(world, challenger) || Contracts.DealWindow.OutOfDeal(world, champ)) continue;
                 // A champion already announced for a card is spoken for.
                 if (ForwardCalendar.IsCommitted(world, challengerId) || ForwardCalendar.IsCommitted(world, champId)) continue;
 
