@@ -267,8 +267,23 @@ public static class Prologue
                             && ((f.RedCorner == a.Id && f.BlueCorner == b.Id) || (f.RedCorner == b.Id && f.BlueCorner == a.Id)))
                 .Select(f => (Event: e, Fight: f)))
             .ToList();
+        // Drawn meetings settle nothing but did happen.
+        var drew = world.Events.Values
+            .Where(e => e.Status == EventStatus.Completed)
+            .OrderBy(e => e.Date)
+            .SelectMany(e => e.Card
+                .Where(f => f.Outcome is { Winner: null, Method: FightMethod.Draw }
+                            && ((f.RedCorner == a.Id && f.BlueCorner == b.Id) || (f.RedCorner == b.Id && f.BlueCorner == a.Id)))
+                .Select(f => (Event: e, Fight: f)))
+            .ToList();
+        if (drew.Count > 0)
+            facts.Add(drew.Count == 1
+                ? $"They fought to a draw in {drew[^1].Event.Date:MMMM yyyy}{(drew[^1].Fight.IsTitleFight ? ", with a belt on the line" : "")}."
+                : $"They have fought to {drew.Count} draws, the latest in {drew[^1].Event.Date:MMMM yyyy}.");
         if (met.Count == 0)
-            facts.Add("They have never shared a cage.");
+        {
+            if (drew.Count == 0) facts.Add("They have never shared a cage.");
+        }
         else
         {
             var last = met[^1];

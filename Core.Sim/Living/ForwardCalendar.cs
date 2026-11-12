@@ -556,6 +556,7 @@ public static class ForwardCalendar
                 fights[i].Title = under[i].Title;
             }
             ev.Card.InsertRange(0, fights);
+            LocalCircuit.YieldTo(world, fights);   // a promotion's booking beats a club card
             foreach (var m in under) { committed.Add(m.Red); committed.Add(m.Blue); }
         }
     }
@@ -569,8 +570,10 @@ public static class ForwardCalendar
     /// week out, scrapped inside fight week — and a belt that is no longer on the
     /// line comes off the bout. Run at the top and the bottom of every tick, so
     /// the monthly exits (expiries, cuts, retirements, sales) never leave a stale
-    /// name on a card overnight. Draws no RNG. The player's own cards are theirs
-    /// to fix and are left alone (but they win any double-booking).
+    /// name on a card overnight. Draws no RNG. The player's own cards get the
+    /// same guarantee but are never re-booked for him: a lost bout comes off the
+    /// card and the player is told (<see cref="PullPlayerBout"/>). The player
+    /// wins any double-booking.
     /// </summary>
     public static void Audit(World world, DateOnly today)
     {
@@ -591,7 +594,15 @@ public static class ForwardCalendar
         var committed = new HashSet<FighterId>(claim.Keys);
         foreach (var ev in scheduled)
         {
-            if (ev.Promotion == world.PlayerPromotion) continue;
+            if (ev.Promotion == world.PlayerPromotion)
+            {
+                foreach (var fight in ev.Card.ToList())
+                {
+                    bool Elsewhere(FighterId id) => claim.TryGetValue(id, out var first) && first != fight.Id;
+                    KeepPlayerBoutHonest(world, ev, fight, Elsewhere, today);
+                }
+                continue;
+            }
             if (world.Get(ev.Promotion) is not { } promo) continue;
             if (promo.Defunct) { ev.Status = EventStatus.Cancelled; continue; }
 
@@ -702,7 +713,8 @@ public static class ForwardCalendar
     /// </summary>
     internal static void GuardAtRun(World world, Event ev)
     {
-        if (ev.Promotion == world.PlayerPromotion || world.Get(ev.Promotion) is not { } promo) return;
+        if (world.Get(ev.Promotion) is not { } promo) return;
+        if (ev.Promotion == world.PlayerPromotion) { GuardPlayerCardAtRun(world, ev); return; }
         RefreshVenue(world, promo, ev);
 
         // Spoken for elsewhere: a card that already ran today, the player's
@@ -713,7 +725,8 @@ public static class ForwardCalendar
         {
             if (e.Id == ev.Id) continue;
             bool first = e.Status == EventStatus.Completed ? e.Date == ev.Date
-                       : e.Status == EventStatus.Scheduled && (e.Promotion == world.PlayerPromotion || e.Date < ev.Date);
+                       : e.Status == EventStatus.Scheduled && !LocalCircuit.IsLocalCard(e)   // a club card loses to us
+                         && ((e.Promotion == world.PlayerPromotion && world.Get(e.Promotion) is not null) || e.Date < ev.Date);
             if (!first) continue;
             foreach (var f in e.Card) { elsewhere.Add(f.RedCorner); elsewhere.Add(f.BlueCorner); }
         }
@@ -731,6 +744,159 @@ public static class ForwardCalendar
         }
         // (The caller restores a headliner if the announced main event is gone.)
     }
+
+    // --- The player's cards ---------------------------------------------------
+    //
+    // The same guarantee as an AI card: no bout runs with a fighter who has
+    // retired, is suspended, is hurt past the date, is no longer signed to the
+    // player's promotion (the unsigned local filler aside — the player cannot
+    // book anyone else) or is booked on another card; and a belt is on a bout
+    // only while its champion is in it or the title is vacant. But the card is
+    // the PLAYER's: nothing is re-booked for him. A lost bout comes off the card
+    // at once (the model has no "opponent needed" corner), an unfought local
+    // opponent goes back to the scene, and the player gets a mail naming who is
+    // out and why. Draws no RNG.
+
+    /// <summary>
+    /// A fighter has just become unavailable (retired, released, signed away):
+    /// take him off every scheduled card of the player's at once, so the Card
+    /// Desk and the inbox see it the moment it happens rather than at the next
+    /// tick's audit. <paramref name="reason"/> completes "X is off AFC 161: ..."
+    /// ("he retired", "he was released", "he signed with Pacific Fight League").
+    /// AI cards are left to <see cref="Audit"/> (which may save their bouts).
+    /// </summary>
+    public static void OffPlayerCards(World world, Fighter f, DateOnly date, string reason)
+    {
+        if (f.LocalTalent || world.Get(world.PlayerPromotion) is null) return;
+        foreach (var ev in world.Events.Values
+                     .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == world.PlayerPromotion
+                                 && e.Card.Any(x => x.RedCorner == f.Id || x.BlueCorner == f.Id))
+                     .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+                     .ToList())
+            foreach (var fight in ev.Card.Where(x => x.RedCorner == f.Id || x.BlueCorner == f.Id).ToList())
+                PullPlayerBout(world, ev, fight, f.Id, reason, date);
+    }
+
+    /// <summary>
+    /// The audit of the player's cards alone (see <see cref="Audit"/>): run after
+    /// one of his cards is fought between ticks, since a belt that changed hands
+    /// on it may be on a later card's bout that no longer has its champion.
+    /// </summary>
+    public static void AuditPlayerCards(World world, DateOnly today)
+    {
+        if (world.Get(world.PlayerPromotion) is null) return;
+        var mine = world.Events.Values
+            .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == world.PlayerPromotion)
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+            .ToList();
+        var claim = new Dictionary<FighterId, FightId>();
+        foreach (var ev in mine)
+            foreach (var f in ev.Card)
+                foreach (var id in new[] { f.RedCorner, f.BlueCorner })
+                    claim.TryAdd(id, f.Id);
+        foreach (var ev in mine)
+            foreach (var fight in ev.Card.ToList())
+            {
+                bool Elsewhere(FighterId id) => claim.TryGetValue(id, out var first) && first != fight.Id;
+                KeepPlayerBoutHonest(world, ev, fight, Elsewhere, today);
+            }
+    }
+
+    // Fight night on the player's card: the audit normally leaves nothing for
+    // this to do, but a fighter released or retired after the week's last audit
+    // (between ticks, by the player or a test) is caught here.
+    private static void GuardPlayerCardAtRun(World world, Event ev)
+    {
+        // Spoken for elsewhere: a card that already ran tonight, and the
+        // player's own cards that come before this one. (The player wins any
+        // clash with an AI card, so those don't count against him.)
+        var elsewhere = new HashSet<FighterId>();
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Id == ev.Id) continue;
+            bool first = e.Status == EventStatus.Completed ? e.Date == ev.Date
+                       : e.Status == EventStatus.Scheduled && e.Promotion == ev.Promotion
+                         && (e.Date < ev.Date || (e.Date == ev.Date && e.Id.Value < ev.Id.Value));
+            if (!first) continue;
+            foreach (var f in e.Card) { elsewhere.Add(f.RedCorner); elsewhere.Add(f.BlueCorner); }
+        }
+        var seen = new HashSet<FighterId>();   // nobody fights twice on one card
+        foreach (var fight in ev.Card.ToList())
+        {
+            bool Elsewhere(FighterId id) => elsewhere.Contains(id) || seen.Contains(id);
+            if (!KeepPlayerBoutHonest(world, ev, fight, Elsewhere, ev.Date)) continue;
+            seen.Add(fight.RedCorner); seen.Add(fight.BlueCorner);
+        }
+    }
+
+    // One bout of the player's: pulled (false) if a corner can't fight, else
+    // kept (true) with any belt that can no longer be on it taken off.
+    private static bool KeepPlayerBoutHonest(World world, Event ev, Fight fight, Func<FighterId, bool> elsewhere, DateOnly date)
+    {
+        var red = WhyOff(world, ev, fight.RedCorner, elsewhere);
+        var blue = red is null ? WhyOff(world, ev, fight.BlueCorner, elsewhere) : null;
+        if (red is not null || blue is not null)
+        {
+            var outId = red is not null ? fight.RedCorner : fight.BlueCorner;
+            PullPlayerBout(world, ev, fight, outId, PlayerReason(world, outId, red ?? blue!), date);
+            return false;
+        }
+        var belt = fight.Title is { } tid ? world.Get(tid) : null;
+        if (CheckBelt(world, ev, fight) && belt is not null)
+        {
+            string why = belt.CurrentChampion is { } holder && world.Get(holder) is { } champ
+                ? $"{champ.FullName} holds it now and isn't in the bout" : $"it is no longer {world.Get(ev.Promotion)?.Abbreviation ?? "your"}'s to give";
+            Mail.Post(world, date, MailCategory.General, "Matchmaking",
+                $"Title off the line at {ev.Name}",
+                $"{Names(world, fight)} goes ahead at {ev.Name}, but the {belt.Name} is no longer on the line: {why}.",
+                aboutFighter: fight.RedCorner);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Take one bout off the player's card because <paramref name="outId"/> can't
+    /// fight it: the bout comes off, an unfought local opponent goes back to the
+    /// scene, and the player gets the mail. The remaining corner stays on the
+    /// roster, free to be re-booked from the event screen.
+    /// </summary>
+    internal static void PullPlayerBout(World world, Event ev, Fight fight, FighterId outId, string reason, DateOnly date)
+    {
+        if (!ev.Card.Contains(fight)) return;
+        bool wasMain = ReferenceEquals(ev.Card[^1], fight);
+        ev.Card.Remove(fight);
+        var stayId = fight.RedCorner == outId ? fight.BlueCorner : fight.RedCorner;
+        var stay = world.Get(stayId);
+        bool stayIsLocal = stay is { LocalTalent: true };
+        PlayerBooking.ReleaseLocals(world, fight);
+
+        var outF = world.Get(outId);
+        string name = outF?.FullName ?? "A booked fighter";
+        string body = $"{name} is off {ev.Name}: {reason}. ";
+        body += stay is null || stayIsLocal
+            ? "The local opponent booked against him has gone back to the scene."
+            : $"His bout with {stay.FullName} needs a new opponent — rebook from the event screen.";
+        if (wasMain) body += " That was your main event: the card needs a new headliner.";
+        if (ev.Card.Count == 0) body += " The card has no bouts left.";
+        if (outF is not null) body = Contracts.Lifers.Gendered(outF, body);
+        Mail.Post(world, date, MailCategory.General, "Matchmaking",
+            $"{name} is off {ev.Name}", body, aboutFighter: outId);   // (no event link: the player may cancel the card)
+    }
+
+    // "he retired" / "he was released" / "he signed with X" for the player's mail, from the audit's reason.
+    private static string PlayerReason(World world, FighterId id, string whyOff)
+    {
+        if (world.Get(id) is not { } f) return "he is no longer in the sport";
+        if (f.Status == FighterStatus.Retired) return "he retired";
+        if (f.Status == FighterStatus.Suspended) return "he is suspended";
+        if (f.Contract is null) return "he is no longer under contract";
+        if (f.Contract.Promotion != world.PlayerPromotion)
+            return $"he signed with {world.Get(f.Contract.Promotion)?.Name ?? "another promotion"}";
+        return "he " + whyOff;
+    }
+
+    private static string Names(World world, Fight fight) =>
+        $"{world.Get(fight.RedCorner)?.FullName ?? "?"} vs {world.Get(fight.BlueCorner)?.FullName ?? "?"}";
 
     /// <summary>
     /// The room is fitted to the draw the promotion has ON THE NIGHT, as it was
@@ -763,22 +929,26 @@ public static class ForwardCalendar
 
     // --- Reading the calendar -----------------------------------------------
 
-    /// <summary>Every fighter booked on any scheduled card, anywhere.</summary>
+    /// <summary>
+    /// Every fighter booked on any scheduled PROMOTION card, anywhere. A staged
+    /// local-circuit card commits nobody: it loses to a promotion that books
+    /// one of its fighters (<see cref="LocalCircuit.YieldTo(World, IEnumerable{FighterId})"/>).
+    /// </summary>
     public static HashSet<FighterId> Committed(World world)
     {
         var set = new HashSet<FighterId>();
         foreach (var e in world.Events.Values)
         {
-            if (e.Status != EventStatus.Scheduled) continue;
+            if (e.Status != EventStatus.Scheduled || LocalCircuit.IsLocalCard(e)) continue;
             foreach (var f in e.Card) { set.Add(f.RedCorner); set.Add(f.BlueCorner); }
         }
         return set;
     }
 
-    /// <summary>The scheduled card this fighter is committed to (other than <paramref name="except"/>), if any.</summary>
+    /// <summary>The scheduled promotion card this fighter is committed to (other than <paramref name="except"/>), if any (staged club cards don't count).</summary>
     public static Event? CommittedTo(World world, FighterId fighter, EventId? except = null) =>
         world.Events.Values
-            .Where(e => e.Status == EventStatus.Scheduled && e.Id != except
+            .Where(e => e.Status == EventStatus.Scheduled && e.Id != except && !LocalCircuit.IsLocalCard(e)
                         && e.Card.Any(f => f.RedCorner == fighter || f.BlueCorner == fighter))
             .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
             .FirstOrDefault();

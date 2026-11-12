@@ -57,6 +57,7 @@ public sealed class EventService
                 Title = m.Title,
             });
         }
+        Living.LocalCircuit.YieldTo(world, ev.Card);   // a promotion's booking beats a staged club card
 
         world.Events[ev.Id] = ev;
         return ev;
