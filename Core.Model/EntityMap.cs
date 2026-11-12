@@ -24,8 +24,8 @@ public interface IEntityId
 /// How: the backing dictionary is kept in id order. Ids are allocated monotonically, so the normal add
 /// (a key above every key present, into a map with no freed slots) is a plain append. A remove marks the
 /// map as holding freed slots; the next add, or any add below the highest key, rebuilds the backing
-/// dictionary compact and sorted (O(n log n), and rare: removals only happen on the player's cancel and
-/// release paths). Enumeration and lookup run straight on the backing dictionary.
+/// dictionary compact and sorted (O(n log n), and rare: removals happen on the player's cancel and release
+/// paths, and when a staged local-circuit bout or card falls through before its night). Enumeration and lookup run straight on the backing dictionary.
 /// </para>
 /// </summary>
 public sealed class EntityMap<TKey, TValue> : IReadOnlyDictionary<TKey, TValue>, IDictionary

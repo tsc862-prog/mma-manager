@@ -93,6 +93,7 @@ public static class Solvency
         {
             Contracts.Lifers.OnLeaving(world, f, promo, $"{promo.Name} closed its doors", date);
             f.Contract = null;   // the company is broke — nobody gets a payout
+            f.CampStipend = false;   // ...and nobody pays for his corner
             released++;
         }
         foreach (var d in promo.Divisions) d.Rankings.Clear();   // no roster, no contenders

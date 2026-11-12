@@ -173,6 +173,7 @@ public static class Storylines
             Title = beltStaysOn ? fight.Title : null,
         };
         ev.Card[ev.Card.IndexOf(fight)] = replacement;
+        LocalCircuit.YieldTo(world, new[] { sub.Id });   // the short-notice call beats a club card
         booked.Add(sub.Id);
 
         if (loud || Newsworthy(world, ev, replacement))
@@ -450,10 +451,28 @@ public static class Storylines
             var (a, b) = (fight.RedCorner, fight.BlueCorner);
             var existing = Between(world, a, b);
             bool closeDecision = o.Method is FightMethod.SplitDecision or FightMethod.MajorityDecision;
+            // A DRAW settles nothing: the closest result there is. A drawn title
+            // fight always leaves a grudge hot enough (DrawnTitleHeat) for the
+            // champion's matchmaker to book the rematch next (Matchmaker.PickChallenger's
+            // grudge rule); any other draw starts one half the time. Rolled on a
+            // stream keyed to the bout, never the shared one (a draw drew nothing here before).
+            if (o.Method == FightMethod.Draw && existing is null)
+            {
+                if (fight.IsTitleFight
+                    || new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)fight.Id.Value ^ DrawRivalrySalt)).Chance(0.5))
+                {
+                    world.Rivalries.Add(new Rivalry { A = a, B = b, Intensity = fight.IsTitleFight ? DrawnTitleHeat : 30, Since = date });
+                    if (Notable(world, ev) && world.Get(a) is { } fa && world.Get(b) is { } fb)
+                        News.Post(world, date, NewsCategory.Rivalry,
+                            $"Unfinished business: {fa.FullName} vs {fb.FullName}", "A draw settles nothing — both camps want it run back.", ev.Promotion);
+                }
+                continue;
+            }
 
             if (existing is not null)
             {
                 existing.Intensity = Math.Min(100, existing.Intensity + 20);   // they met again — it grows
+                if (o.Method == FightMethod.Draw && fight.IsTitleFight) existing.Intensity = Math.Max(existing.Intensity, DrawnTitleHeat);
                 if (existing.Intensity >= 60 && Notable(world, ev) &&
                     world.Get(a) is { } fa && world.Get(b) is { } fb)
                     News.Post(world, date, NewsCategory.Rivalry,
@@ -468,6 +487,10 @@ public static class Storylines
             }
         }
     }
+
+    /// <summary>The heat a drawn title fight leaves: past the matchmaker's grudge line (40), so the rematch is next.</summary>
+    internal const int DrawnTitleHeat = 45;
+    private const ulong DrawRivalrySalt = 0xD2A3_0B7EUL;
 
     private static void Callouts(World world, Event ev, DateOnly date, SimRandom rng)
     {

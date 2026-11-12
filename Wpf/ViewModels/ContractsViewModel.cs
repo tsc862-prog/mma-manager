@@ -431,12 +431,14 @@ public sealed class ContractsViewModel : ObservableObject
     private void Release()
     {
         if (_world is null || _targetId is null || _world.Get(_targetId.Value) is not { } f) return;
-        var owed = ContractLifecycle.Release(_world, f);
+        var bookedOn = Core.Sim.Booking.PlayerBooking.CardsBooking(_world, f.Id).Select(e => e.Name).ToList();
+        var owed = ContractLifecycle.Release(_world, f);   // takes him off your cards too
         var name = f.FullName;
         ClearTarget();
         RefreshLists();
         ResponseTone = "Warn";
-        Response = owed.Amount > 0 ? $"Released {name} — paid out {owed} in guarantees." : $"Released {name}.";
+        Response = (owed.Amount > 0 ? $"Released {name} — paid out {owed} in guarantees." : $"Released {name}.")
+            + (bookedOn.Count > 0 ? $" The bout on {string.Join(", ", bookedOn)} came off the card — see your inbox." : "");
         OnChanged?.Invoke();
     }
 

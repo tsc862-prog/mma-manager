@@ -71,8 +71,12 @@ public class LocalCircuitTests
 
         int fights = 0;
         for (int m = 1; m <= 6; m++)
-            fights += LocalCircuit.RunMonthly(world, new DateOnly(2026, m, 28),
+        {
+            // staged in the monthly pass, fought when the clock reaches the card's date
+            LocalCircuit.RunMonthly(world, new DateOnly(2026, m, 28),
                 new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)m)));
+            fights += LocalCircuit.RunDue(world, new DateOnly(2026, m, 28));
+        }
 
         int winsAdded = pool.Sum(f => f.Record.Wins) - winsBefore;
         int lossesAdded = pool.Sum(f => f.Record.Losses) - lossesBefore;
@@ -106,8 +110,11 @@ public class LocalCircuitTests
         int before = signed.Sum(f => f.Record.TotalBouts);
 
         for (int m = 1; m <= 6; m++)
+        {
             LocalCircuit.RunMonthly(world, new DateOnly(2026, m, 28),
                 new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)m)));
+            LocalCircuit.RunDue(world, new DateOnly(2026, m, 28));
+        }
 
         Assert.Equal(before, signed.Sum(f => f.Record.TotalBouts));
     }
@@ -121,8 +128,11 @@ public class LocalCircuitTests
         int before = f.Record.TotalBouts;
 
         for (int m = 1; m <= 12; m++)
+        {
             LocalCircuit.RunMonthly(world, new DateOnly(2026, m, 28),
                 new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)(100 + m))));
+            LocalCircuit.RunDue(world, new DateOnly(2026, m, 28));
+        }
 
         Assert.True(f.Record.TotalBouts > before, "a non-exclusive idle fighter should take local fights");
     }

@@ -20,7 +20,7 @@ public sealed partial class PlayerBooking
     public Event CreateEvent(World world, DateOnly date, string? name = null, EventTier tier = EventTier.FightNight, CityId? city = null)
     {
         var promo = world.Get(world.PlayerPromotion);
-        int number = world.Events.Values.Count(e => e.Promotion == world.PlayerPromotion) + 1;
+        int number = NextCardNumber(world, promo);
         if (promo is not null && city is { } want && !Org.OrgReach.CanBookIn(world, promo, want))
             city = promo.HomeCity;
         if (promo is not null && tier > Org.OrgPerks.MaxEventTier(promo))
@@ -42,6 +42,31 @@ public sealed partial class PlayerBooking
         };
         world.Events[ev.Id] = ev;
         return ev;
+    }
+
+    /// <summary>
+    /// The number the promotion's next card carries: one past the highest number
+    /// any of its cards has used ("AFC 161", "AFC Fight Night 162") or past its
+    /// card count, whichever is higher. Derived from the cards themselves, so a
+    /// cancelled card's number is never handed to a new one while any card still
+    /// carries it (counting cards did that whenever a card other than the newest
+    /// was cancelled).
+    /// </summary>
+    internal static int NextCardNumber(World world, Promotion? promo)
+    {
+        int count = 0, highest = 0;
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Promotion != world.PlayerPromotion) continue;
+            count++;
+            if (promo is null || !e.Name.StartsWith(promo.Abbreviation + " ", StringComparison.Ordinal)) continue;
+            int end = e.Name.Length, start = end;
+            while (start > 0 && char.IsAsciiDigit(e.Name[start - 1])) start--;
+            if (start < end && start > 0 && e.Name[start - 1] == ' '
+                && int.TryParse(e.Name.AsSpan(start, end - start), out int n))
+                highest = Math.Max(highest, n);
+        }
+        return Math.Max(count, highest) + 1;
     }
 
     /// <summary>Add a bout to a card, or return false with a reason.</summary>
@@ -85,6 +110,7 @@ public sealed partial class PlayerBooking
             IsTitleFight = titleFight,
             Title = title,
         });
+        Living.LocalCircuit.YieldTo(world, new[] { red, blue });   // your booking beats a staged club card
         return true;
     }
 
@@ -118,6 +144,7 @@ public sealed partial class PlayerBooking
             ScheduledRounds = rounds,
             IsTitleFight = false,
         });
+        Living.LocalCircuit.YieldTo(world, new[] { red });
         return true;
     }
 
@@ -140,7 +167,7 @@ public sealed partial class PlayerBooking
     }
 
     // A local minted for a booking that never happened has no history to keep.
-    private static void ReleaseLocals(World world, Fight fight)
+    internal static void ReleaseLocals(World world, Fight fight)
     {
         foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
             if (world.Get(id) is { LocalTalent: true } jobber && jobber.BoutHistory.Count == 0)
@@ -166,6 +193,14 @@ public sealed partial class PlayerBooking
             .ThenBy(o => o.Id.Value)
             .ToList();
     }
+
+    /// <summary>The player's scheduled cards this fighter is booked on (date order).</summary>
+    public static IReadOnlyList<Event> CardsBooking(World world, FighterId fighter) =>
+        world.Events.Values
+            .Where(e => e.Promotion == world.PlayerPromotion && e.Status == EventStatus.Scheduled
+                        && world.Get(e.Promotion) is not null && BookedOnCard(e, fighter))
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+            .ToList();
 
     public IEnumerable<Event> UpcomingEvents(World world) =>
         world.Events.Values

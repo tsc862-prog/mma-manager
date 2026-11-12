@@ -21,6 +21,7 @@ public sealed class WorldChecker
         ("LINEAGE",            "reigns do not overlap, at most one is open, the open reign is the current champion"),
         ("BOOK-DOUBLE-DATE",   "no fighter on two cards on one date, none twice on one card, none against himself"),
         ("EVENT-NAME",         "a promotion's events have distinct names (the local circuit, which belongs to nobody, repeats its names by design)"),
+        ("DRAW-TITLE",         "a drawn title fight crowns nobody: no reign of that belt begins on the card's date with either corner, unless the champion retired or was stripped that night (counts the drawn title fights seen)"),
         ("BOOK-SCHEDULED",     "scheduled cards: corners exist and are not retired; no fighter on two scheduled cards; title fights belong to the host org"),
         ("CONTRACT-LINK",      "no contract points at a missing or defunct promotion; no retired fighter holds a contract"),
         ("DEFUNCT",            "a defunct promotion runs no scheduled event, holds no champion, keeps no rankings, moves no money"),
@@ -306,6 +307,24 @@ public sealed class WorldChecker
                     if (!onCard.Add(id) && fight.RedCorner != fight.BlueCorner)
                         V("BOOK-DOUBLE-DATE", $"twice:{ev.Id.Value}:{id.Value}", $"{F(world, id)} is on {E(world, ev.Id)} twice");
             }
+            // (judged when the card is fresh: a stripped champion's suspension ends and he is Active again months later, so a
+            // world loaded long after the night — the soak's twin — cannot tell the hand-down from a bug any more)
+            if (ev.Status == EventStatus.Completed && ev.Date >= world.CurrentDate.AddDays(-35))
+                foreach (var fight in ev.Card)
+                {
+                    if (fight is not { IsTitleFight: true, Title: { } dt, Outcome: { Method: FightMethod.Draw } } || world.Get(dt) is not { } belt) continue;
+                    _log.Checked("DRAW-TITLE", 1);
+                    // the one legitimate way: the champion was retired (career injury) or stripped (failed test) that night and the
+                    // belt passed down the rankings to the man he had just drawn with
+                    bool Handed(TitleReign r)
+                    {
+                        int at = belt.Lineage.IndexOf(r);
+                        return at > 0 && belt.Lineage[at - 1] is { LostOn: { } lost } prev && lost == ev.Date
+                            && world.Get(prev.Champion) is { Status: FighterStatus.Retired or FighterStatus.Suspended };
+                    }
+                    if (belt.Lineage.Any(r => r.WonOn == ev.Date && (r.Champion == fight.RedCorner || r.Champion == fight.BlueCorner) && !Handed(r)))
+                        V("DRAW-TITLE", $"e{ev.Id.Value}:f{fight.Id.Value}", $"{E(world, ev.Id)}: {F(world, fight.RedCorner)} vs {F(world, fight.BlueCorner)} was a DRAW for {T(world, dt)}, yet a reign of one of them begins that night");
+                }
             if (ev.Status != EventStatus.Scheduled) _validatedEvents.Add(ev.Id);
         }
 
@@ -324,7 +343,10 @@ public sealed class WorldChecker
         {
             _log.Checked("BOOK-SCHEDULED", ev.Card.Count);
             var host = world.Get(ev.Promotion);
-            if (host is null) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:host", $"{E(world, ev.Id)} is run by {P(world, ev.Promotion)}");
+            // a local-circuit club card (no promotion) is staged in the monthly pass and runs on its date: its pros are free
+            // agents or moonlighters on non-exclusive deals, so only the who-is-on-it rules apply to it
+            bool local = ev.Promotion.Value == 0;
+            if (host is null && !local) V("BOOK-SCHEDULED", $"e{ev.Id.Value}:host", $"{E(world, ev.Id)} is run by {P(world, ev.Promotion)}");
             if (ev.Date < world.CurrentDate.AddDays(-35))
                 V("BOOK-SCHEDULED", $"e{ev.Id.Value}:overdue", $"{E(world, ev.Id)} ({P(world, ev.Promotion)}) is still Scheduled {(world.CurrentDate.DayNumber - ev.Date.DayNumber)} days after its date");
             foreach (var fight in ev.Card)
@@ -338,7 +360,9 @@ public sealed class WorldChecker
                     if (onScheduled.TryGetValue(id, out var other) && other.Id != ev.Id)
                         V("BOOK-SCHEDULED", $"{id.Value}:{other.Id.Value}-{ev.Id.Value}", $"{F(world, id)} is on two scheduled cards: {E(world, other.Id)} and {E(world, ev.Id)}");
                     else onScheduled[id] = ev;
-                    if (f is not null && !f.LocalTalent && f.Status != FighterStatus.Retired && f.Contract?.Promotion != ev.Promotion)
+                    if (local && f is not null && !f.LocalTalent && f.Contract is { IsExclusive: true })
+                        V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:excl", $"local card {E(world, ev.Id)} books {F(world, id)} who is on an EXCLUSIVE deal with {P(world, f.Contract.Promotion)}");
+                    else if (!local && f is not null && !f.LocalTalent && f.Status != FighterStatus.Retired && f.Contract?.Promotion != ev.Promotion)
                         V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:unrostered", $"{E(world, ev.Id)} ({P(world, ev.Promotion)}) books {F(world, id)} who is {(f.Contract is null ? "a free agent" : "contracted to " + P(world, f.Contract.Promotion))}{(fight.IsTitleFight ? " in a TITLE fight" : "")}");
                     if (fight.IsTitleFight && f is not null && f.Contract?.Promotion != ev.Promotion && f.Status != FighterStatus.Retired)
                         V("BOOK-SCHEDULED", $"e{ev.Id.Value}:{id.Value}:title", $"title fight on {E(world, ev.Id)} ({P(world, ev.Promotion)}) includes {F(world, id)} who is {(f.Contract is null ? "a free agent" : "contracted to " + P(world, f.Contract.Promotion))}");

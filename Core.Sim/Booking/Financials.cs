@@ -89,8 +89,12 @@ public static class Financials
     /// </summary>
     public static bool IsClash(World world, PromotionId promotion, DateOnly date, EventId? except, Event o) =>
         o.Id != except && o.Promotion != promotion
+        && !(Living.LocalCircuit.IsLocalCard(o) && o.Card.Count == 0)   // a club card that fell through is nobody's show
         && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - date.DayNumber) <= ClashWindowDays
-        && !(o.Status == EventStatus.Scheduled && o.Date > date && o.Promotion != world.PlayerPromotion);
+        && !(o.Status == EventStatus.Scheduled && o.Date > date && o.Promotion != world.PlayerPromotion
+             // a club card the local circuit has staged for later in the month is charged as it always was
+             // (it used to be run, and so exist, from the day it was staged)
+             && !Living.LocalCircuit.IsLocalCard(o));
 
     private static EventFinancials Compute(World world, Event ev, bool capByRoom)
     {
