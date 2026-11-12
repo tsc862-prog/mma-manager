@@ -17,6 +17,13 @@ public static class FreeAgencyService
     private static readonly Negotiator Negotiator = new();
     private static readonly FighterValuation Valuation = new();
 
+    /// <summary>
+    /// HARNESS ONLY (tools/longsim's shoestring, "script alone" variant): a
+    /// promotion whose roster an outside hand runs, so the monthly pass leaves it
+    /// alone the way it leaves the player's. Per thread; null in the game.
+    /// </summary>
+    [ThreadStatic] public static PromotionId? HarnessHandsOff;
+
     // How much an org wants to sign a fighter: their ability plus the draw they
     // bring — a popular name is sought after even a notch below the best pure pro.
     // How much an org wants a fighter: its READ of their ability (Fog of War — the
@@ -52,11 +59,27 @@ public static class FreeAgencyService
         - (f.Record.TotalBouts >= 5 && f.Record.Losses > f.Record.Wins ? 15.0 : 0.0)
         + HomePull(promo, f);
 
+    /// <summary>
+    /// The read a City or Regional hall wants before it carries a fighter past
+    /// its card minimum: the Regional talent floor on its OWN read of him, or a
+    /// draw that beats the local filler's. Bigger stages already gate depth on
+    /// <see cref="Org.RosterPolicy"/> and their talent floors.
+    /// </summary>
+    public const int SmallHallDepthRead = 44;
+
+    /// <summary>The popularity that makes a body worth a small hall's purse over a local's on draw alone.</summary>
+    public const int SmallHallDepthDraw = 30;
+
+    internal static bool EarnsADepthSlot(World world, Promotion promo, Fighter f) =>
+        Org.OrgSizing.SizeOf(promo) > OrgSize.Regional
+        || Scouting.ScoutingService.PerceivedAbility(world, promo, f) >= SmallHallDepthRead
+        || f.Intangibles.Popularity.Value >= SmallHallDepthDraw;
+
     public static int RunMonthly(World world, DateOnly date)
     {
         int signings = 0;
         foreach (var promo in world.Promotions.Values
-                     .Where(p => p.Id != world.PlayerPromotion && !p.Defunct)
+                     .Where(p => p.Id != world.PlayerPromotion && p.Id != HarnessHandsOff && !p.Defunct)
                      .OrderByDescending(p => p.Prestige.Value)
                      .ThenBy(p => p.Id.Value))
         {
@@ -106,6 +129,11 @@ public static class FreeAgencyService
                     // A big org won't roster a journeyman — unless the division is
                     // so thin it needs bodies just to put on a card.
                     if (Have() >= MinToRunDivision && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
+                    // A small hall's cards are padded with $1k local filler; past the
+                    // card minimum it only adds a pro who is better than filler on
+                    // its own read or brings a crowd — a body who draws no more than
+                    // a local just puts his purse on every card in the local's place.
+                    if (Have() >= MinToRunDivision && !EarnsADepthSlot(world, promo, fa)) continue;
 
                     var exp = Valuation.Evaluate(world, fa);
                     if (exp.AskingPurse.Amount > purseCeiling) continue;   // out of a distressed budget

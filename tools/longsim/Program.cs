@@ -37,7 +37,8 @@ if (args.Length > 0 && args[0] == "diagnose")
 if (args.Length > 0 && args[0] == "shoestring")
 {
     RunShoestring(args.Length > 1 ? ulong.Parse(args[1]) : 42UL,
-                  args.Length > 2 ? int.Parse(args[2]) : 20);
+                  args.Length > 2 && int.TryParse(args[2], out var sy) ? sy : 20,
+                  scriptOnly: args.Contains("--script-only"));
     return;
 }
 
@@ -48,7 +49,10 @@ if (args.Length > 0 && args[0] == "shoestring")
 // AGENT: at prestige 5 the purse cap is ~zero, so AI negotiation can never land
 // anyone (the known founded-org artifact). The agent does what a human does —
 // follow the signing advisor and pay the asking price while the bank allows.
-static void RunShoestring(ulong seed, int years)
+// --script-only: the AI free-agency pass never signs for the shoestring
+// promotion (FreeAgencyService.HarnessHandsOff), so the script alone builds the
+// roster — closer to a real player. Renewals at expiry stay with the world.
+static void RunShoestring(ulong seed, int years, bool scriptOnly = false)
 {
     var world = new WorldBuilder().Build(new WorldBuilder.Options
     {
@@ -57,6 +61,7 @@ static void RunShoestring(ulong seed, int years)
     });
     var nwf = world.Get(world.PlayerPromotion)!;
     world.PlayerPromotion = default;                  // the world AI books/markets/promotes it
+    if (scriptOnly) MmaManager.Core.Sim.Contracts.FreeAgencyService.HarnessHandsOff = nwf.Id;
     var tick = new WorldTick();
 
     var valuation = new MmaManager.Core.Sim.Contracts.FighterValuation();
@@ -96,7 +101,7 @@ static void RunShoestring(ulong seed, int years)
         }
     }
 
-    Console.WriteLine($"=== SHOESTRING PLAYTHROUGH — {nwf.Name} ({nwf.Abbreviation}), seed {seed}, {years} years ===");
+    Console.WriteLine($"=== SHOESTRING PLAYTHROUGH — {nwf.Name} ({nwf.Abbreviation}), seed {seed}, {years} years{(scriptOnly ? " · SCRIPT ONLY (no AI free-agency signings)" : "")} ===");
     Console.WriteLine($"Day one: prestige {nwf.Prestige.Value} ({OrgSizing.Label(OrgSizing.SizeOf(nwf))}) · {nwf.Balance} · roster {world.RosterOf(nwf.Id).Count()} · divisions {nwf.Divisions.Count} · HQ {world.Get(nwf.HomeCity!.Value)?.Name}");
     Console.WriteLine();
 

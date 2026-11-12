@@ -294,4 +294,38 @@ public class HonestAskTests
             }
         }
     }
+
+    [Fact]
+    public void ADetachedProjection_NeverEntersTheBoutIndex()
+    {
+        // The Card Desk projects a hypothetical bout on a detached copy of the
+        // event (same event id, the slot's fight id or -1). The public record
+        // must only ever be read off the world's own events.
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 11 });
+        var booking = new PlayerBooking();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(30));
+        var div = promo.Divisions.OrderBy(d => d.Sex).ThenBy(d => d.WeightClass)
+            .First(d => world.RosterOf(promo.Id).Count(f => d.Matches(f) && f.IsMatchReady(ev.Date)) >= 5);
+        var pool = world.RosterOf(promo.Id).Where(f => div.Matches(f) && f.IsMatchReady(ev.Date)).OrderBy(f => f.Id.Value).ToList();
+        Assert.True(booking.AddBout(world, ev, pool[0].Id, pool[1].Id, 3, false, out var err), err);
+        var slot = ev.Card[0];
+        var spare = pool[4];
+        string spareAsk = Snapshot(Valuation.Evaluate(world, spare));
+
+        // Project the spare into the booked slot, and as a new bout (id -1); look things up in between.
+        booking.ProjectWith(world, ev, slot.RedCorner, spare.Id, 3, false, BoutSlot.MainEvent, slot.Id);
+        foreach (var f in world.Fighters.Values.Take(200)) PublicStanding.Read(world, f);
+        booking.ProjectWith(world, ev, pool[2].Id, pool[3].Id, 3, false, BoutSlot.MainEvent);
+        foreach (var f in world.Fighters.Values.Take(200)) PublicStanding.Read(world, f);
+        Assert.Equal(spareAsk, Snapshot(Valuation.Evaluate(world, spare)));
+
+        // The real card runs as booked: the real corners carry the bout, the spare doesn't.
+        new EventService().RunEvent(world, ev);
+        var real = ev.Card.First(x => x.Id == slot.Id);
+        Assert.NotNull(real.Outcome);
+        foreach (var id in new[] { real.RedCorner, real.BlueCorner })
+            Assert.Contains(PublicStanding.RecentPublicBouts(world, world.Get(id)!, PublicStanding.RecentBouts), b => b.Date == ev.Date);
+        Assert.DoesNotContain(PublicStanding.RecentPublicBouts(world, spare, PublicStanding.RecentBouts), b => b.Date == ev.Date);
+    }
 }
