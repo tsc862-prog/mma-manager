@@ -307,7 +307,9 @@ public sealed class WorldChecker
                     if (!onCard.Add(id) && fight.RedCorner != fight.BlueCorner)
                         V("BOOK-DOUBLE-DATE", $"twice:{ev.Id.Value}:{id.Value}", $"{F(world, id)} is on {E(world, ev.Id)} twice");
             }
-            if (ev.Status == EventStatus.Completed)
+            // (judged when the card is fresh: a stripped champion's suspension ends and he is Active again months later, so a
+            // world loaded long after the night — the soak's twin — cannot tell the hand-down from a bug any more)
+            if (ev.Status == EventStatus.Completed && ev.Date >= world.CurrentDate.AddDays(-35))
                 foreach (var fight in ev.Card)
                 {
                     if (fight is not { IsTitleFight: true, Title: { } dt, Outcome: { Method: FightMethod.Draw } } || world.Get(dt) is not { } belt) continue;
