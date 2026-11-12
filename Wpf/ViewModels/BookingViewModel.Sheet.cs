@@ -123,6 +123,11 @@ public sealed partial class BookingViewModel
             SheetSource.Proposal => true,
             _ => _rail == DeskRail.Proposals,
         };
+        // A proposal that got booked (or whose fighter did) is no longer a proposal.
+        var card = SelectedEvent.Model.Card;
+        if (_ask.Source is SheetSource.Proposal or SheetSource.Bulk
+            && card.Any(f => f.RedCorner == _ask.Red || f.BlueCorner == _ask.Red || f.RedCorner == _ask.Blue || f.BlueCorner == _ask.Blue))
+            live = false;
         if (!live || _world.Get(_ask.Red) is null || _world.Get(_ask.Blue) is null) { _ask = null; Sheet = null; return; }
         Sheet = BuildSheet(_ask);
     }
@@ -375,6 +380,8 @@ public sealed partial class BookingViewModel
         };
     }
 
+    private static string Ordinal(int n) => n + (n % 100 is >= 11 and <= 13 ? "th" : (n % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" });
+
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
     private static string Join(IEnumerable<string?> parts) => string.Join(", ", parts.Where(p => p is not null));
 
@@ -415,7 +422,7 @@ public sealed partial class BookingViewModel
             l.Add("little lost: he was the lower-ranked man");
         }
         if (streak >= 2) { w.Add($"makes it {streak + 1} straight"); l.Add($"ends a {streak}-fight win streak"); }
-        else if (streak <= -2) { w.Add($"snaps a {-streak}-fight skid"); l.Add($"a {1 - streak}th straight loss"); }
+        else if (streak <= -2) { w.Add($"snaps a {-streak}-fight skid"); l.Add($"a {Ordinal(1 - streak)} straight loss"); }
         if (f.Record.TotalBouts == 0) w.Add("a winning debut");
         if (f.Contract is { FightsRemaining: <= 1 } && f.Contract.Promotion == _world!.PlayerPromotion)
             w.Add("his price goes up at the table");

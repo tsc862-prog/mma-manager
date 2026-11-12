@@ -362,6 +362,8 @@ public sealed partial class BookingViewModel : ObservableObject
         var dropped = new List<string>();
         if (!sameWorld)
         {
+            _ask = null;
+            Sheet = null;
             NewEventDate = today.AddDays(21);
             Rail = DeskRail.Night;
             View = DeskView.Card;
@@ -458,6 +460,7 @@ public sealed partial class BookingViewModel : ObservableObject
         if (UpcomingEvents.Count == 0 && _world is not null) Rail = DeskRail.Plan;
         else if (_rail == DeskRail.Plan && SelectedEvent is not null && _planFromEmpty) Rail = DeskRail.Night;
         RefreshRail();
+        RefreshSheet();   // the sheet re-reads the world (or drops a pairing that's gone)
         RaiseHints();
     }
 

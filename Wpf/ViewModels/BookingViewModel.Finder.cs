@@ -200,6 +200,8 @@ public sealed partial class BookingViewModel
     /// <summary>The finder's search and chips are showing (browsing the roster, or finding an opponent).</summary>
     public bool ShowFinderTools => _rail == DeskRail.Picker && (IsReplacing || (IsPickingSlot && !PickSuggested && !(PickLocal && SelectedRed is not null)));
     public bool ShowScope => ShowFinderTools && !OpponentMode;
+    /// <summary>The picker's hint line: for the suggestions only (the finder and the local box explain themselves).</summary>
+    public bool ShowPickerHint => !ShowFinderTools && !(IsPickingSlot && PickLocal);
 
     // === The facts, once per refresh ==============================================
 
@@ -471,7 +473,7 @@ public sealed partial class BookingViewModel
     private void RaiseFinder()
     {
         OnPropertyChanged(nameof(HasRedPick)); OnPropertyChanged(nameof(HasPairing));
-        OnPropertyChanged(nameof(SelectedSort)); OnPropertyChanged(nameof(ShowFinderTools)); OnPropertyChanged(nameof(ShowScope));
+        OnPropertyChanged(nameof(SelectedSort)); OnPropertyChanged(nameof(ShowFinderTools)); OnPropertyChanged(nameof(ShowScope)); OnPropertyChanged(nameof(ShowPickerHint));
         OnPropertyChanged(nameof(ShowLocalInstead)); OnPropertyChanged(nameof(ShowNeedsStrip));
         OnPropertyChanged(nameof(ShowSuggestOne)); OnPropertyChanged(nameof(LocalPickLine)); OnPropertyChanged(nameof(FiltersLine));
     }

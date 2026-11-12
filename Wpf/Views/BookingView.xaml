@@ -102,12 +102,14 @@
                 <DockPanel>
                     <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,10,0"
                               ToolTip="Untick to leave this one out" />
-                    <Border DockPanel.Dock="Left" Style="{StaticResource CornerFace}" Width="36" Height="36" BorderBrush="#A8453C">
-                        <Image Source="{Binding Red.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
-                    </Border>
-                    <Border DockPanel.Dock="Left" Style="{StaticResource CornerFace}" Width="36" Height="36" BorderBrush="#3C639E" Margin="4,0,10,0">
-                        <Image Source="{Binding Blue.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
-                    </Border>
+                    <StackPanel DockPanel.Dock="Left" Margin="0,0,10,0" VerticalAlignment="Top">
+                        <Border Style="{StaticResource CornerFace}" Width="34" Height="34" BorderBrush="{StaticResource CornerRed}">
+                            <Image Source="{Binding Red.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                        </Border>
+                        <Border Style="{StaticResource CornerFace}" Width="34" Height="34" BorderBrush="{StaticResource CornerBlue}" Margin="0,4,0,0">
+                            <Image Source="{Binding Blue.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                        </Border>
+                    </StackPanel>
                     <StackPanel VerticalAlignment="Center">
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Content="Look closer" Style="{StaticResource Button.Link}" FontSize="12" Margin="6,-2,0,0"
@@ -459,7 +461,7 @@
                 <TextBlock Text="{Binding WinsText}" FontSize="12" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding LossesText}" FontSize="12" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" />
                 <!-- the last five, oldest first -->
-                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <StackPanel x:Name="form" Orientation="Horizontal" Margin="0,6,0,0">
                     <TextBlock Text="LAST 5" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <ItemsControl ItemsSource="{Binding Form}" ItemTemplate="{StaticResource FormChipTemplate}" Focusable="False">
                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -477,6 +479,7 @@
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding IsRed}" Value="False"><Setter TargetName="name" Property="Foreground" Value="{StaticResource CornerBlueText}" /></DataTrigger>
                 <DataTrigger Binding="{Binding HasWins}" Value="False"><Setter TargetName="bar" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasForm}" Value="False"><Setter TargetName="form" Property="Visibility" Value="Collapsed" /></DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -1194,7 +1197,7 @@
                                 <TextBlock Text="{Binding PickerTitle}" Style="{StaticResource Text.Title}" />
                             </DockPanel>
                             <TextBlock DockPanel.Dock="Top" Text="{Binding PickerHint}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,6,10"
-                                       Visibility="{Binding ShowFinderTools, Converter={StaticResource InverseBoolToVis}}" />
+                                       Visibility="{Binding ShowPickerHint, Converter={StaticResource BoolToVis}}" />
 
                             <!-- replace a corner -->
                             <DockPanel DockPanel.Dock="Top" Margin="0,0,6,8" Visibility="{Binding IsReplacing, Converter={StaticResource BoolToVis}}">

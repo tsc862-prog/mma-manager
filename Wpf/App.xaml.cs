@@ -482,8 +482,14 @@ public partial class App : Application
 
         // Offscreen screenshot of the Card Desk (Book Event):
         // `MmaManager.Wpf --renderbooking [W H] [--floating] [--founded] [--event] [--bouts N]
-        //  [--maincard N] [--picker suggest|division|replace|local] [--room] [--propose]
-        //  [--table] [--poster] [--confirm] <path>`.
+        //  [--maincard N] [--picker suggest|ladder|opponent|division|undercard|replace|local]
+        //  [--search text] [--filters NeedsFight,Ranked] [--room] [--propose] [--look]
+        //  [--sheettable] [--table] [--poster] [--confirm] <path>`.
+        // ladder: the finder browsing the roster; opponent: a first corner chosen
+        // (his opponents, best fight first); division: champion vs his best
+        // opponent on the fight sheet (a title fight); undercard: two unranked on
+        // the sheet; replace: a corner change previewed on the sheet; --look: the
+        // sheet for the first bulk proposal; --sheettable: the sheet's Table toggle.
         // W x H is the whole screen (desk + taskbar); the app is maximized on it,
         // or floating at its default size with --floating. The big org (AFC) by
         // default: a card at the top tier it can stage, filled the way a player
@@ -552,7 +558,21 @@ public partial class App : Application
                 }
                 switch (Arg("--picker"))
                 {
-                    case "suggest": bk.OpenNextSlotCommand.Execute(null); break;
+                    case "suggest":
+                    {
+                        var open = System.Diagnostics.Stopwatch.StartNew();
+                        bk.OpenNextSlotCommand.Execute(null);
+                        Console.WriteLine($"RENDERBOOKING suggestions: {bk.Suggestions.Count} cards with the night projected, opened in {open.Elapsed.TotalMilliseconds:0} ms");
+                        open.Restart();
+                        bk.PickMode = PickMode.Division;
+                        Console.WriteLine($"RENDERBOOKING finder: built {bk.Ladder.Count} rows in {open.Elapsed.TotalMilliseconds:0} ms (first build reads every fighter)");
+                        open.Restart();
+                        bk.PickMode = PickMode.Suggested;
+                        bk.PickMode = PickMode.Division;
+                        Console.WriteLine($"RENDERBOOKING finder: rebuilt {bk.Ladder.Count} rows in {open.Elapsed.TotalMilliseconds:0} ms (facts cached)");
+                        bk.PickMode = PickMode.Suggested;
+                        break;
+                    }
                     case "division":
                         bk.OpenNextSlotCommand.Execute(null);
                         bk.PickMode = PickMode.Division;
@@ -604,7 +624,8 @@ public partial class App : Application
                 {
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     bk.FinderSearch = q;
-                    Console.WriteLine($"RENDERBOOKING search '{q}': {bk.Ladder.Count} rows, filter+sort {bk.LastFinderMs:0.0} ms, rebuild {sw.Elapsed.TotalMilliseconds:0.0} ms");
+                    Console.WriteLine($"RENDERBOOKING search '{q}': {(bk.ShowTableView ? bk.TableRows.Count : bk.Ladder.Count)} rows ({bk.FinderCount}), "
+                                      + $"filter+sort {bk.LastFinderMs:0.0} ms, rebuild {sw.Elapsed.TotalMilliseconds:0.0} ms");
                 }
                 if (e.Args.Contains("--sheettable")) bk.ShowSheetTable = true;
                 if (e.Args.Contains("--room")) bk.ChangeRoomCommand.Execute(null);

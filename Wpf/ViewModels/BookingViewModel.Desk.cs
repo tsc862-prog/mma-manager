@@ -869,7 +869,7 @@ public sealed partial class BookingViewModel
                 ? $"Night: {after.Attendance:N0} in the house · {Compact(after.Net)} expected"
                 : $"Night: {Compact(d)} expected" + (seats != 0 ? $" · {(seats > 0 ? "+" : "−")}{Math.Abs(seats):N0} seats" : "");
             int met = after.Partners.Sum(p => p.Terms.Count(t => t.Status == TermStatus.Met)) - (ev.Card.Count == 0 ? 0 : before.Partners.Sum(p => p.Terms.Count(t => t.Status == TermStatus.Met)));
-            if (met > 0) effect += $" · meets {met} more partner term{(met == 1 ? "" : "s")}";
+            if (met > 0) effect += $" · meets {met}{(ev.Card.Count == 0 ? "" : " more")} partner term{(met == 1 ? "" : "s")}";
             tone = (ev.Card.Count == 0 ? after.Net : d).Amount >= 0 ? CardTone.Good : CardTone.Bad;
         }
 
