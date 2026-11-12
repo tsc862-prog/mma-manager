@@ -18,6 +18,7 @@ if (args.Length > 0 && args[0] == "digest")
 
 if (args.Length > 0 && args[0] == "fightlab") { FightLabMode.Run(args); return; }   // engine benchmark: FightLabMode.cs
 if (args.Length > 0 && args[0] == "asks") { LongSim.Asks.Run(args); return; }       // price levels by stage/ability: Asks.cs
+if (args.Length > 0 && args[0] == "ladders") { LongSim.Ladders.Run(args); return; }      // contender ladders of one world: Ladders.cs
 if (args.Length > 0 && args[0] == "shoesweep") { LongSim.ShoeSweep.Main(args); return; }   // shoestring over many seeds: ShoeSweep.cs
 if (args.Length > 0 && args[0] == "compare")
 {
@@ -269,6 +270,8 @@ static void RunCompare(int seeds, int years)
         world.PlayerPromotion = default;
         var tick = new WorldTick();
         var res = new SeedResult { Seed = seed };
+        var titleShots = new LongSim.TitleShots();
+        res.TitleShots = titleShots;
         var deadAtYear = new Dictionary<string, int>();
 
         var startDate = world.CurrentDate;   // day-one back-dated history is excluded from the rates below
@@ -284,7 +287,9 @@ static void RunCompare(int seeds, int years)
             // every week, well inside its 1000-item cap.
             for (int w = 0; w < 52; w++)
             {
+                titleShots.BeforeWeek(world);
                 tick.AdvanceWeeks(world, 1);
+                titleShots.AfterWeek(world, w % 4 == 3);
                 int from = 0;
                 if (lastSeen is not null)
                 {
@@ -479,6 +484,7 @@ static void RunCompare(int seeds, int years)
     PrintFightMix(all.SelectMany(r => r.Bouts).ToList());
     PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
+    LongSim.TitleShots.Print(results.Values.Select(r => (r.TitleShots!, r.Years)).ToList());
     // Every org's completed cards over the run, pooled by its tier at the end (or when it died): what each tier pays a card.
     Console.WriteLine();
     Console.WriteLine("  --- ALL ORGS by end tier (DURABLE: completed cards over the run; day-one orgs and startups) ---");
@@ -639,6 +645,7 @@ static void RunSingle(ulong seed, int years)
 sealed class SeedResult
 {
     public ulong Seed;
+    public LongSim.TitleShots? TitleShots;
     public List<OrgAutopsy> Orgs = new();
     public List<string> Folds = new();
     /// <summary>Defunct orgs that were NOT bought — the ones that actually went broke.</summary>
