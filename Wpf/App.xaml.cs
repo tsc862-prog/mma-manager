@@ -1105,6 +1105,27 @@ public partial class App : Application
                         }
                         break;
                     }
+                    case "window":
+                    case "lastweek":
+                    {
+                        // Harness only: your best-known champion fights out his deal (no fights left).
+                        // "window" lets the weekly pass open his 30-day re-sign window; "lastweek"
+                        // starts him twelve days from its end, so the week lands him in its last week.
+                        var champ = w.Titles.Values.Where(t => t.Promotion == w.PlayerPromotion && t.CurrentChampion is not null)
+                            .Select(t => w.Get(t.CurrentChampion!.Value)).OfType<MmaManager.Core.Model.Fighter>()
+                            .Where(f => f.Contract?.Promotion == w.PlayerPromotion)
+                            .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).First();
+                        champ.Contract!.FightsRemaining = 0;
+                        if (scenario == "lastweek")
+                        {
+                            champ.Contract.WindowEndsOn = w.CurrentDate.AddDays(12);
+                            champ.Contract.WindowWarned = false;
+                        }
+                        Console.WriteLine($"RENDERBRIEFING {champ.FullName}'s deal is fought out ({scenario})");
+                        vm.AdvanceWeekCommand.Execute(null);
+                        Report("after the week");
+                        break;
+                    }
                     case "desk":
                         break;
                     default:

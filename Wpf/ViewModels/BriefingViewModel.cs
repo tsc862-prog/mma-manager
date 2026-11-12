@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Media;
 using MmaManager.Core.Model;
+using MmaManager.Core.Sim.Contracts;
 using MmaManager.Core.Sim.Living;
 using MmaManager.Core.Sim.Org;
 using MmaManager.Wpf.Art;
@@ -42,8 +43,12 @@ public enum BriefingKind
     CardDone,
     /// <summary>A call on the desk only you can make.</summary>
     Decision,
-    /// <summary>A deal on its last fight, or already up.</summary>
+    /// <summary>Deals on their last fight (the softer, grouped heads-up).</summary>
     ExpiringDeal,
+    /// <summary>A deal is up: the 30-day exclusive re-sign window has opened (DealWindow).</summary>
+    DealUp,
+    /// <summary>A re-sign window in its last week (or talks broken off: he will test the market).</summary>
+    LastWeek,
     /// <summary>A sponsor or media offer waiting for an answer.</summary>
     Offer,
     /// <summary>Eligible to step up a tier.</summary>
@@ -169,7 +174,7 @@ public sealed class BriefingViewModel : ObservableObject
 
     // --- What stopped the clock (ids only; rebuilt into words on every refresh) ----
     private sealed record Stop(BriefingKind Kind, string Key, DateOnly On, int Weeks,
-        int EventId = 0, int OutId = 0, int StayId = 0, string Reason = "", int CardCount = 0, int Extra = 0);
+        int EventId = 0, int OutId = 0, int StayId = 0, string Reason = "", int CardCount = 0, int Extra = 0, bool Grouped = false);
 
     private Stop? _stop;
     private World? _world;
@@ -183,6 +188,7 @@ public sealed class BriefingViewModel : ObservableObject
         _stop = null;
         _announced.Clear();
         _digest = new();
+        _collapsed = new(); _collapsedSummary = null;
         _digestWindow = "";
         _world = null;
         ShowEverything = false;
@@ -237,6 +243,7 @@ public sealed class BriefingViewModel : ObservableObject
     {
         _stop = new Stop(BriefingKind.CardDone, $"done:{ev.Id.Value}", w.CurrentDate, 0, ev.Id.Value);
         _announced.Add(_stop.Key);
+        _collapsed = new(); _collapsedSummary = null;
         _digest = CardDigest(w, before, ev);
         _digestWindow = $"Tonight at {ev.Name}  ·  {Plural(ev.Card.Count(f => f.Outcome is not null), "bout")}";
         ShowEverything = false;
@@ -267,8 +274,15 @@ public sealed class BriefingViewModel : ObservableObject
     public ObservableCollection<BriefingItem> DigestShown { get; } = new();
     public bool HasDigest => _digest.Count > 0;
     public bool DigestEmpty => _digest.Count == 0;
-    public bool HasMoreDigest => _digest.Count > DigestCap;
-    public string EverythingText => ShowEverything ? "Show fewer ▴" : $"Show everything ({_digest.Count}) ▾";
+    public bool HasMoreDigest => _digest.Count > DigestCap || _collapsed.Count > 0;
+    public string EverythingText => ShowEverything ? "Show fewer ▴" : $"Show everything ({FullDigest().Count}) ▾";
+
+    // Low-profile retirements folded into one digest line; "show everything" lays them out.
+    private List<BriefingItem> _collapsed = new();
+    private BriefingItem? _collapsedSummary;
+
+    private List<BriefingItem> FullDigest() =>
+        _digest.SelectMany(i => ReferenceEquals(i, _collapsedSummary) ? _collapsed : new List<BriefingItem> { i }).ToList();
 
     private bool _showEverything;
     public bool ShowEverything
@@ -308,7 +322,7 @@ public sealed class BriefingViewModel : ObservableObject
         BuildHeadline(w, needs);
         BuildWaiting(w, needs);
         BuildNext(w);
-        if (_stop is null) { _digest = DeskDigest(w); _digestWindow = ""; }
+        if (_stop is null) { _collapsed = new(); _collapsedSummary = null; _digest = DeskDigest(w); _digestWindow = ""; }
         FillDigest();
         OnPropertyChanged(string.Empty);   // everything above is plain properties: redraw it all
     }
@@ -316,7 +330,7 @@ public sealed class BriefingViewModel : ObservableObject
     private void FillDigest()
     {
         DigestShown.Clear();
-        foreach (var i in ShowEverything ? _digest : _digest.Take(DigestCap)) DigestShown.Add(i);
+        foreach (var i in ShowEverything ? FullDigest() : _digest.Take(DigestCap)) DigestShown.Add(i);
         OnPropertyChanged(nameof(EverythingText));
         OnPropertyChanged(nameof(HasMoreDigest));
         OnPropertyChanged(nameof(HasDigest));
@@ -326,7 +340,28 @@ public sealed class BriefingViewModel : ObservableObject
     // =================================================================================
     // Needs: the standing calls on the desk, most pressing first.
     // =================================================================================
-    private sealed record Need(BriefingKind Kind, string Key, int Rank, int Id = 0, DealOffer? Offer = null, DateOnly? Due = null);
+    private sealed record Need(BriefingKind Kind, string Key, int Rank, int Id = 0, DealOffer? Offer = null, DateOnly? Due = null, bool Single = true);
+
+    /// <summary>
+    /// A fighter whose deal is worth a headline of its own: a champion, the face of the
+    /// company, or top-five in a division of yours (public facts only).
+    /// </summary>
+    private static bool Matters(World w, Promotion player, Fighter f) =>
+        w.Titles.Values.Any(t => t.Promotion == player.Id && t.CurrentChampion == f.Id)
+        || player.FaceOfCompany == f.Id
+        || player.Divisions.Any(d => d.Matches(f) && d.Rankings.Take(5).Contains(f.Id));
+
+    private static bool IsChampion(World w, Fighter f) => w.Titles.Values.Any(t => t.CurrentChampion == f.Id);
+
+    // Your fighters in their re-sign window of one stage (last week or not), fewest days left first.
+    private static List<Fighter> WindowFighters(World w, bool lastWeek) => w.Get(w.PlayerPromotion) is not { } p
+        ? new List<Fighter>()
+        : w.RosterOf(p.Id).Where(f => DealWindow.InWindow(w, f)
+                                      && ((DealWindow.DaysLeft(w, f) ?? 99) <= DealWindow.WarnDays) == lastWeek)
+            .OrderBy(f => DealWindow.DaysLeft(w, f) ?? 99).ThenBy(f => f.Id.Value).ToList();
+
+    private static string DaysLeftText(int days) =>
+        days <= 0 ? "last day" : days == 1 ? "1 day left" : $"{days} days left";
 
     private static List<Need> Needs(World w)
     {
@@ -338,11 +373,25 @@ public sealed class BriefingViewModel : ObservableObject
             list.Add(new Need(BriefingKind.Decision, $"decision:{d.Id}", 100, d.Id, Due: d.Deadline));
 
         var roster = w.RosterOf(player.Id).Where(f => f.Status != FighterStatus.Retired).ToList();
-        foreach (var f in roster.Where(f => f.Contract is { FightsRemaining: <= 1 })
-                     .OrderBy(f => f.Contract!.FightsRemaining)
-                     .ThenByDescending(f => FighterRow.Scouted(w, f)).ThenBy(f => f.Id.Value))
-            list.Add(new Need(BriefingKind.ExpiringDeal, $"deal:{f.Id.Value}:{f.Contract!.FightsRemaining}",
-                f.Contract.FightsRemaining <= 0 ? 200 : 300, f.Id.Value));
+
+        // Deals already up: the 30-day exclusive re-sign window (DealWindow). Fewest days left
+        // first; a fighter who matters gets his own headline, the rest are grouped.
+        foreach (var f in roster.Where(f => DealWindow.InWindow(w, f))
+                     .OrderBy(f => DealWindow.DaysLeft(w, f) ?? DealWindow.WindowDays).ThenBy(f => f.Id.Value))
+        {
+            int left = DealWindow.DaysLeft(w, f) ?? DealWindow.WindowDays;
+            var end = f.Contract!.WindowEndsOn ?? today.AddDays(left);
+            bool single = Matters(w, player, f);
+            if (left <= DealWindow.WarnDays)
+                list.Add(new Need(BriefingKind.LastWeek, $"closing:{f.Id.Value}:{end.DayNumber}", single ? 90 : 95, f.Id.Value, Due: end, Single: single));
+            else
+                list.Add(new Need(BriefingKind.DealUp, $"window:{f.Id.Value}:{end.DayNumber}", single ? 105 : 150, f.Id.Value, Due: end, Single: single));
+        }
+
+        // Deals on their last fight: the softer, grouped heads-up.
+        foreach (var f in roster.Where(f => f.Contract is { FightsRemaining: 1 } && !DealWindow.InWindow(w, f))
+                     .OrderByDescending(f => FighterRow.Scouted(w, f)).ThenBy(f => f.Id.Value))
+            list.Add(new Need(BriefingKind.ExpiringDeal, $"deal:{f.Id.Value}:1", 300, f.Id.Value));
 
         foreach (var o in player.Offers.Where(o => o.ExpiresOn >= today).OrderBy(o => o.ExpiresOn))
             list.Add(new Need(BriefingKind.Offer, $"offer:{o.Partner}:{o.ExpiresOn.DayNumber}", 400, Offer: o, Due: o.ExpiresOn));
@@ -369,12 +418,14 @@ public sealed class BriefingViewModel : ObservableObject
         var needs = Needs(w);
         if (needs.FirstOrDefault(n => !_announced.Contains(n.Key)) is { } fresh)
         {
-            if (fresh.Kind != BriefingKind.ExpiringDeal)
+            bool grouped = fresh.Kind == BriefingKind.ExpiringDeal
+                           || (fresh.Kind is BriefingKind.DealUp or BriefingKind.LastWeek && !fresh.Single);
+            if (!grouped)
                 return new Stop(fresh.Kind, fresh.Key, w.CurrentDate, weeks, fresh.Id);
             // Deals run out in batches on a big roster: one headline for all of them, not one a week.
-            var batch = needs.Where(n => n.Kind == BriefingKind.ExpiringDeal && !_announced.Contains(n.Key)).ToList();
+            var batch = needs.Where(n => n.Kind == fresh.Kind && n.Single == fresh.Single && !_announced.Contains(n.Key)).ToList();
             foreach (var n in batch) _announced.Add(n.Key);
-            return new Stop(fresh.Kind, fresh.Key, w.CurrentDate, weeks, fresh.Id, Extra: batch.Count - 1);
+            return new Stop(fresh.Kind, fresh.Key, w.CurrentDate, weeks, fresh.Id, Extra: batch.Count - 1, Grouped: true);
         }
         if (needs.FirstOrDefault(n => n.Kind == BriefingKind.Decision && n.Due is { } due
                                       && due.DayNumber - w.CurrentDate.DayNumber <= 7
@@ -532,6 +583,9 @@ public sealed class BriefingViewModel : ObservableObject
                 // A call on the desk. Find it again by key; gone = answered.
                 string key = stop.Key.StartsWith("last", StringComparison.Ordinal) ? stop.Key[4..] : stop.Key;
                 var need = needs.FirstOrDefault(n => n.Key == key);
+                // A grouped headline stays up while any of its group is still open.
+                if (need is null && stop.Grouped)
+                    need = needs.FirstOrDefault(n => n.Kind == stop.Kind && (stop.Kind == BriefingKind.ExpiringDeal || !n.Single));
                 string kicker = stretch.Length > 0 ? stretch : today.ToString("dddd d MMMM").ToUpperInvariant();
                 if (need is null)
                 {
@@ -602,31 +656,96 @@ public sealed class BriefingViewModel : ObservableObject
                 return;
             }
 
-            case BriefingKind.ExpiringDeal when w.Get(new FighterId(need.Id)) is { Contract: { } c } f:
+            case BriefingKind.ExpiringDeal when w.Get(new FighterId(need.Id)) is { Contract: { } } f:
             {
-                bool up = c.FightsRemaining <= 0;
-                Icon = "Pen"; Tone = up ? CardTone.Bad : CardTone.Warn;
-                Kicker = $"{kicker}  ·  CONTRACTS";
-                Headline = extra > 0
-                    ? $"{f.FirstName} {f.LastName} and {Plural(extra, "other")} are running out of contract."
-                    : up ? $"{f.FirstName} {f.LastName}'s deal is up." : $"{f.FirstName} {f.LastName} is on the last fight of the deal.";
+                // The softer heads-up: deals with one fight left (not up yet). Always read as a group.
+                var all = w.RosterOf(w.PlayerPromotion)
+                    .Where(x => x.Status != FighterStatus.Retired && x.Contract is { FightsRemaining: 1 } && !DealWindow.InWindow(w, x))
+                    .OrderBy(x => x.Id == f.Id ? 0 : 1).ThenByDescending(x => FighterRow.Scouted(w, x)).ThenBy(x => x.Id.Value).ToList();
+                Icon = "Pen"; Tone = CardTone.Warn;
+                Kicker = $"{kicker}  ·  CONTRACTS  ·  HEADS UP";
+                Headline = all.Count > 1
+                    ? $"{all.Count} deals are on their last fight."
+                    : $"{f.FirstName} {f.LastName} is on the last fight of the deal.";
                 var booked = w.Events.Values.Where(e => e.Status == EventStatus.Scheduled && e.Promotion == w.PlayerPromotion
                                                          && e.Card.Any(x => x.RedCorner == f.Id || x.BlueCorner == f.Id))
                     .OrderBy(e => e.Date).FirstOrDefault();
-                Lede = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}, {f.Record}. " +
-                       (booked is not null ? $"Booked on {booked.Name} ({booked.Date:d MMM}) — after that bout the deal is done. " : "") +
-                       "Re-sign now, before the bigger promotions come calling." +
-                       (extra > 0 ? $" {Plural(extra, "other deal")} {(extra == 1 ? "is" : "are")} on the last fight too — they're all on the Contracts desk." : "");
+                Lede = (all.Count > 1
+                           ? $"Nothing is up yet. When each of them fights out the deal, a {DealWindow.WindowDays}-day window opens to re-sign him before he walks — or talk terms now, while he's still under contract."
+                           : $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}, {f.Record}. " +
+                             (booked is not null ? $"Booked on {booked.Name} ({booked.Date:d MMM}); after that bout the deal is done and a {DealWindow.WindowDays}-day re-sign window opens. " : "") +
+                             "Re-sign now and there's no window to worry about.");
                 Art = Portraits.Body(f, w);
-                People.Add(Person(w, f, up ? "Deal is up" : "Final fight on the deal"));
-                if (extra > 0)
-                    foreach (var other in w.RosterOf(w.PlayerPromotion)
-                                 .Where(x => x.Id != f.Id && x.Status != FighterStatus.Retired && x.Contract is { FightsRemaining: <= 1 })
-                                 .OrderBy(x => x.Contract!.FightsRemaining).ThenByDescending(x => FighterRow.Scouted(w, x)).ThenBy(x => x.Id.Value).Take(3))
-                        People.Add(Person(w, other, other.Contract!.FightsRemaining <= 0 ? "Deal is up" : "Final fight"));
+                foreach (var x in all.Take(4))
+                    People.Add(Person(w, x, x.Id == f.Id && all.Count == 1 ? "Final fight on the deal" : "Final fight"));
                 if (NegotiateCommand is not null) Actions.Add(new BriefingAction($"Talk terms with {f.LastName} ▸", Then(NegotiateCommand, f.Id.Value), IsPrimary: true));
-                if (extra > 0) Actions.Add(new BriefingAction("All of them on Contracts", Do(() => Navigate?.Invoke(Tab.Contracts))));
+                if (all.Count > 1) Actions.Add(new BriefingAction("All of them on Contracts", Do(() => Navigate?.Invoke(Tab.Contracts))));
                 else Actions.Add(new BriefingAction("Profile", Do(() => OpenFighter?.Invoke(f.Id.Value))));
+                Actions.Add(new BriefingAction("Later", CarryOnCommand));
+                return;
+            }
+
+            case BriefingKind.DealUp or BriefingKind.LastWeek when w.Get(new FighterId(need.Id)) is { Contract: { } c } f && DealWindow.InWindow(w, f):
+            {
+                bool lastWeek = need.Kind == BriefingKind.LastWeek;
+                bool grouped = !need.Single;
+                var end = c.WindowEndsOn ?? today.AddDays(DealWindow.WindowDays);
+                int left = DealWindow.DaysLeft(w, f) ?? DealWindow.WindowDays;
+                bool walked = DealWindow.TalksClosed(w, f);
+                bool champ = IsChampion(w, f);
+                Icon = "Pen"; Tone = lastWeek ? CardTone.Bad : CardTone.Warn;
+                var group = grouped ? WindowFighters(w, lastWeek).Where(x => player is null || !Matters(w, player, x)).ToList() : new List<Fighter> { f };
+                if (group.Count == 0) group.Add(f);
+                var first = group[0];
+                var firstEnd = first.Contract!.WindowEndsOn ?? end;
+
+                if (grouped && group.Count > 1)
+                {
+                    Kicker = $"{kicker}  ·  {(lastWeek ? "LAST WEEK TO RE-SIGN" : "DEALS UP")}  ·  FIRST CLOSES {firstEnd:d MMM}".ToUpperInvariant();
+                    Headline = lastWeek
+                        ? $"Last week for {group.Count} deals: re-sign by {firstEnd:d MMM}."
+                        : $"{group.Count} deals are up: re-sign by {firstEnd:d MMM}.";
+                    Lede = $"They've fought out their deals. Each talks to nobody but you until his window closes, can't be booked until he re-signs, "
+                         + "and walks to free agency the day it closes. Fewest days left first:";
+                    Art = Portraits.Body(first, w);
+                    foreach (var x in group.Take(5))
+                        People.Add(Person(w, x, DealWindow.TalksClosed(w, x) ? "Walked out of talks" : DaysLeftText(DealWindow.DaysLeft(w, x) ?? 0)));
+                    if (NegotiateCommand is not null && !DealWindow.TalksClosed(w, first))
+                        Actions.Add(new BriefingAction($"Talk terms with {first.LastName} ▸", Then(NegotiateCommand, first.Id.Value), IsPrimary: true));
+                    Actions.Add(new BriefingAction("All of them on Contracts", Do(() => Navigate?.Invoke(Tab.Contracts)), IsPrimary: Actions.Count == 0));
+                    Actions.Add(new BriefingAction("Later", CarryOnCommand));
+                    return;
+                }
+
+                string he = Pronoun(f) == "her" ? "she" : "he";
+                string He = he == "she" ? "She" : "He";
+                Art = Portraits.Body(f, w);
+                if (walked)
+                {
+                    Tone = CardTone.Bad;
+                    Kicker = $"{kicker}  ·  CONTRACTS  ·  WINDOW CLOSES {end:d MMM}".ToUpperInvariant();
+                    Headline = $"{f.FirstName} {f.LastName} walked out. {He} tests the market on {end:d MMM}.";
+                    Lede = $"{He} won't sit down with you again before {Possessive(f)} window closes. Then {he}'s a free agent and anyone can have {Pronoun(f)} — you included."
+                         + (champ ? $" If {he} walks, the belt is vacant." : "");
+                    People.Add(Person(w, f, "Walked out of talks"));
+                    Actions.Add(new BriefingAction("Profile ▸", Do(() => OpenFighter?.Invoke(f.Id.Value)), IsPrimary: true));
+                    Actions.Add(new BriefingAction("Contracts", Do(() => Navigate?.Invoke(Tab.Contracts))));
+                    Actions.Add(new BriefingAction("Later", CarryOnCommand));
+                    return;
+                }
+                Kicker = $"{kicker}  ·  {(lastWeek ? "LAST WEEK TO RE-SIGN" : "A DEAL IS UP")}  ·  {(champ ? "YOUR CHAMPION" : "CONTRACTS")}  ·  WINDOW CLOSES {end:d MMM}".ToUpperInvariant();
+                Headline = lastWeek
+                    ? (left <= 0 ? $"Last day to re-sign {f.FirstName} {f.LastName}." : $"{Plural(left, "day")} left to re-sign {f.FirstName} {f.LastName}.")
+                    : $"{f.FirstName} {f.LastName}'s deal is up. {Plural(left, "day")} to re-sign.";
+                Lede = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}, {f.Record}. {He} talks to nobody but you until {end:d MMMM} and can't be booked until {he} re-signs. "
+                     + $"After that {he}'s a free agent and anyone can have {Pronoun(f)}."
+                     + (champ ? $" {He} keeps the belt until then; if {he} walks, it's vacant." : "")
+                     + (player?.FaceOfCompany == f.Id ? $" {He}'s the face of the company." : "");
+                People.Add(Person(w, f, DaysLeftText(left)));
+                if (NegotiateCommand is not null)
+                    Actions.Add(new BriefingAction($"Talk terms with {f.LastName} ▸", Then(NegotiateCommand, f.Id.Value), IsPrimary: true,
+                        Hint: "Opens contract talks with him on the Contracts desk."));
+                Actions.Add(new BriefingAction("Profile", Do(() => OpenFighter?.Invoke(f.Id.Value))));
                 Actions.Add(new BriefingAction("Later", CarryOnCommand));
                 return;
             }
@@ -696,6 +815,9 @@ public sealed class BriefingViewModel : ObservableObject
         {
             BriefingKind.Decision => "That call is made.",
             BriefingKind.ExpiringDeal when w.Get(new FighterId(stop.EventId)) is { } f => $"{f.FirstName} {f.LastName}'s deal is settled.",
+            BriefingKind.DealUp or BriefingKind.LastWeek when w.Get(new FighterId(stop.EventId)) is { } f =>
+                f.Contract?.Promotion == w.PlayerPromotion ? $"{f.FirstName} {f.LastName} re-signed."
+                : f.Contract is null ? $"{f.FirstName} {f.LastName} is a free agent now." : $"{f.FirstName} {f.LastName} has moved on.",
             BriefingKind.Offer => "The offer is answered.",
             BriefingKind.StepUp => "The step up is settled.",
             BriefingKind.EmptyCard => "The card has fights on it now.",
@@ -704,7 +826,7 @@ public sealed class BriefingViewModel : ObservableObject
         };
         Lede = "Nothing else on this needs you. The rest of the desk is below.";
         Resolve("Done");
-        if (stop.Kind == BriefingKind.ExpiringDeal && w.Get(new FighterId(stop.EventId)) is { } who)
+        if (stop.Kind is BriefingKind.ExpiringDeal or BriefingKind.DealUp or BriefingKind.LastWeek && w.Get(new FighterId(stop.EventId)) is { } who)
         {
             Art = Portraits.Body(who, w);
             People.Add(Person(w, who, who.Contract?.Promotion == w.PlayerPromotion ? $"{Plural(who.Contract.FightsRemaining, "fight")} on the deal" : "No longer yours"));
@@ -752,8 +874,27 @@ public sealed class BriefingViewModel : ObservableObject
         var today = w.CurrentDate;
         string? headKey = _stop?.Key is { } k && k.StartsWith("last", StringComparison.Ordinal) ? k[4..] : _stop?.Key;
         if (_stop is null && needs.Count > 0) headKey = needs[0].Key;   // the desk view headlines the first
-        bool headIsDeals = _stop is { Kind: BriefingKind.ExpiringDeal, Extra: > 0 };
-        var rest = needs.Where(n => n.Key != headKey && !(headIsDeals && n.Kind == BriefingKind.ExpiringDeal)).ToList();
+        // A grouped headline already shows its whole group.
+        // (The desk view, with no stop, headlines the first need and its group the same way.)
+        var top = _stop is null ? needs.FirstOrDefault() : null;
+        (BriefingKind Kind, bool Grouped)? head = _stop is { } st ? (st.Kind, st.Grouped)
+            : top is null ? null : (top.Kind, top.Kind == BriefingKind.ExpiringDeal || !top.Single);
+        bool InHeadGroup(Need n) => head is { Grouped: true } h && n.Kind == h.Kind
+                                    && (h.Kind == BriefingKind.ExpiringDeal || !n.Single);
+        var rest = needs.Where(n => n.Key != headKey && !InHeadGroup(n)).ToList();
+
+        // Deals already up, one row each with the days left (fewest first); a long tail is one line.
+        bool IsWindow(Need n) => n.Kind is BriefingKind.DealUp or BriefingKind.LastWeek;
+        var windows = rest.Where(IsWindow).OrderBy(n => n.Due ?? DateOnly.MaxValue).ThenBy(n => n.Id).ToList();
+        if (windows.Count > 0)
+        {
+            int at = rest.FindIndex(IsWindow);
+            rest.RemoveAll(IsWindow);
+            var shown = windows.Take(windows.Count > 4 ? 3 : 4).ToList();
+            rest.InsertRange(at, shown);
+            if (windows.Count > shown.Count)
+                rest.Insert(at + shown.Count, new Need(BriefingKind.DealUp, "moredeals", 0, -(windows.Count - shown.Count)));
+        }
         // Several deals running out read as one line (the Contracts desk lists them all).
         var deals = rest.Where(n => n.Kind == BriefingKind.ExpiringDeal).ToList();
         if (deals.Count > 1)
@@ -762,8 +903,33 @@ public sealed class BriefingViewModel : ObservableObject
             rest.RemoveAll(n => n.Kind == BriefingKind.ExpiringDeal);
             rest.Insert(at, new Need(BriefingKind.ExpiringDeal, "deals", 300, -deals.Count));
         }
-        foreach (var n in rest.Take(4))
+        foreach (var n in rest.Take(6))
         {
+            if (n.Kind == BriefingKind.DealUp && n.Id < 0)
+            {
+                Waiting.Add(new BriefingItem
+                {
+                    Icon = "Pen", Text = $"{-n.Id} more deal{(n.Id == -1 ? " is" : "s are")} up",
+                    Detail = "Every open re-sign window, soonest first", Tone = CardTone.Warn,
+                    ActionText = "Contracts ▸", Command = Do(() => Navigate?.Invoke(Tab.Contracts)),
+                });
+                continue;
+            }
+            if (IsWindow(n) && w.Get(new FighterId(n.Id)) is { } wf)
+            {
+                int left = DealWindow.DaysLeft(w, wf) ?? 0;
+                bool walked = DealWindow.TalksClosed(w, wf);
+                Waiting.Add(new BriefingItem
+                {
+                    Icon = "Pen", Picture = Portraits.Thumb(wf, w),
+                    Text = walked ? $"{wf.FirstName} {wf.LastName} walked out of talks" : $"{wf.FirstName} {wf.LastName}'s deal is up",
+                    Detail = walked ? $"Tests the market on {n.Due:d MMM}" : $"{DaysLeftText(left)}  ·  re-sign by {n.Due:d MMM}",
+                    Tone = n.Kind == BriefingKind.LastWeek || walked ? CardTone.Bad : CardTone.Warn,
+                    ActionText = walked ? "Profile ▸" : "Talk terms ▸",
+                    Command = walked || NegotiateCommand is null ? Do(() => OpenFighter?.Invoke(wf.Id.Value)) : Then(NegotiateCommand, wf.Id.Value),
+                });
+                continue;
+            }
             if (n.Kind == BriefingKind.ExpiringDeal && n.Id < 0)
             {
                 var faces = deals.Select(d => w.Get(new FighterId(d.Id))).OfType<Fighter>().ToList();
@@ -804,9 +970,9 @@ public sealed class BriefingViewModel : ObservableObject
                     Waiting.Add(new BriefingItem
                     {
                         Icon = "Pen", Picture = Portraits.Thumb(f, w),
-                        Text = c.FightsRemaining <= 0 ? $"{f.FirstName} {f.LastName}'s deal is up" : $"{f.FirstName} {f.LastName}: last fight on the deal",
+                        Text = $"{f.FirstName} {f.LastName}: last fight on the deal",
                         Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}  ·  {f.Record}",
-                        Tone = c.FightsRemaining <= 0 ? CardTone.Bad : CardTone.Warn,
+                        Tone = CardTone.Warn,
                         ActionText = "Talk terms ▸", Command = NegotiateCommand is null ? null : Then(NegotiateCommand, f.Id.Value),
                     });
                     break;
@@ -975,6 +1141,8 @@ public sealed class BriefingViewModel : ObservableObject
     private List<BriefingItem> Digest(World w, BriefingBaseline before, List<Hole> holes, (int Event, int Out)? skipHole)
     {
         var items = new List<BriefingItem>();
+        _collapsed = new();
+        _collapsedSummary = null;
         var player = w.Get(w.PlayerPromotion);
         if (player is null) return items;
         var rosterNow = w.RosterOf(player.Id).ToList();
@@ -1009,21 +1177,46 @@ public sealed class BriefingViewModel : ObservableObject
                 ActionText = "Profile ▸", Command = Do(() => OpenFighter?.Invoke(id)),
             });
         }
+        var newMail = before.NewMail(w).ToList();
+        var quietRetirements = new List<BriefingItem>();
         foreach (int gone in before.Roster.Where(id => !nowIds.Contains(id)).OrderBy(id => id))
         {
             var f = w.Get(new FighterId(gone));
             if (f is null || f.LocalTalent) continue;
-            string where = f.Status == FighterStatus.Retired ? "retired"
+            // Walked when his re-sign window closed (DealWindow mails "X is a free agent").
+            bool windowClosed = f.Contract is null && newMail.Any(m => m.From == "Matchmaking" && m.AboutFighter == f.Id
+                                                                       && m.Subject == $"{f.FullName} is a free agent");
+            bool retired = f.Status == FighterStatus.Retired;
+            string where = retired ? "retired"
+                : windowClosed ? $"left as a free agent when {Possessive(f)} window closed"
                 : f.Contract is { } c && w.Get(c.Promotion) is { } other ? $"signed with {other.Name}"
                 : "is a free agent now";
-            items.Add(new BriefingItem
+            var item = new BriefingItem
             {
-                Icon = "People", Picture = Portraits.Thumb(f, w), Weight = 80, Kicker = "LEFT",
+                Icon = "People", Picture = Portraits.Thumb(f, w), Kicker = retired ? "RETIRED" : "LEFT",
+                Weight = retired ? 60 : windowClosed ? 88 : 85,
                 Text = $"{f.FirstName} {f.LastName} {where}",
                 Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}  ·  {f.Record}",
-                Tone = f.Status == FighterStatus.Retired ? CardTone.Neutral : CardTone.Bad,
+                Tone = retired ? CardTone.Neutral : CardTone.Bad,
                 ActionText = "Profile ▸", Command = Do(() => OpenFighter?.Invoke(gone)),
-            });
+            };
+            // A retirement nobody outside the gym will notice is folded into one line.
+            bool notable = f.Record.Wins >= 12 || w.Titles.Values.Any(t => t.Lineage.Any(r => r.Champion == f.Id));
+            if (retired && !notable) quietRetirements.Add(item);
+            else items.Add(item);
+        }
+        if (quietRetirements.Count == 1) items.Add(quietRetirements[0]);
+        else if (quietRetirements.Count > 1)
+        {
+            var names = quietRetirements.Select(i => i.Text.Replace(" retired", "")).ToList();
+            _collapsedSummary = new BriefingItem
+            {
+                Icon = "People", Kicker = "RETIRED", Weight = 20,
+                Text = $"{quietRetirements.Count} fighters retired",
+                Detail = string.Join(", ", names.Take(4)) + (names.Count > 4 ? $" and {names.Count - 4} more" : "") + "  ·  show everything to see each",
+            };
+            items.Add(_collapsedSummary);
+            _collapsed = quietRetirements;
         }
 
         // Injuries.
@@ -1233,6 +1426,7 @@ public sealed class BriefingViewModel : ObservableObject
     private static string Plural(int n, string word) => n == 1 ? $"1 {word}" : $"{n} {word}s";
 
     private static string Pronoun(Fighter f) => f.Sex == Sex.Female ? "her" : "him";
+    private static string Possessive(Fighter f) => f.Sex == Sex.Female ? "her" : "his";
 
     private static bool IsDecision(FightMethod m) =>
         m is FightMethod.UnanimousDecision or FightMethod.SplitDecision or FightMethod.MajorityDecision;
