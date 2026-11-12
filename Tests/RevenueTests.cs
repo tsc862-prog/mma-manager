@@ -12,19 +12,29 @@ namespace MmaManager.Tests;
 /// </summary>
 public class RevenueTests
 {
-    private static Event SettledEvent(World world, Promotion promo, int fights = 6, int attendance = 2_000)
+    private static Event SettledEvent(World world, Promotion promo, int fights = 6, int attendance = 2_000,
+        DateOnly? date = null, bool fought = true, EventTier tier = EventTier.FightNight)
     {
         var ev = new Event
         {
             Id = world.NewEventId(),
             Promotion = promo.Id,
             Name = "Test Night",
-            Date = world.CurrentDate,
+            Date = date ?? world.CurrentDate,
             Region = promo.BaseRegion,
             Status = EventStatus.Completed,
+            Tier = tier,
         };
         for (int i = 0; i < fights; i++)
-            ev.Card.Add(new Fight { Id = world.NewFightId(), RedCorner = new FighterId(900_000 + i * 2), BlueCorner = new FighterId(900_001 + i * 2) });
+        {
+            var red = new FighterId(900_000 + i * 2);
+            var blue = new FighterId(900_001 + i * 2);
+            ev.Card.Add(new Fight
+            {
+                Id = world.NewFightId(), RedCorner = red, BlueCorner = blue,
+                Outcome = fought ? new FightOutcome { Winner = red, Loser = blue, Method = FightMethod.UnanimousDecision, EndRound = 3, EndTimeSeconds = 300 } : null,
+            });
+        }
         ev.Financials = new EventFinancials { Attendance = attendance };
         world.Events[ev.Id] = ev;
         return ev;
@@ -192,6 +202,71 @@ public class RevenueTests
         for (int i = 0; i < MediaService.StrikeLimit; i++)
             RevenueService.SettleEvent(world, promo, Card(clean: false));
         Assert.DoesNotContain(deal, promo.MediaDeals);
+    }
+
+    private static (World World, Promotion Promo, MediaDeal Deal) CadenceDeal(int signedDaysAgo, int strikes = 1,
+        MediaKind kind = MediaKind.SpecialtyCable, string partner = "Combat One")
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 5, Founding = new WorldBuilder.FoundingSpec() });
+        var promo = world.Get(world.PlayerPromotion)!;
+        var deal = new MediaDeal
+        {
+            Kind = kind, Partner = partner,
+            RightsFeePerEvent = new Money(30_000m), MonthsRemaining = 18,
+            SignedOn = world.CurrentDate.AddDays(-signedDaysAgo), Strikes = strikes,
+            LastAiredOn = world.CurrentDate.AddDays(-5),   // the monthly check's clock reset: NOT an airing
+            Requirements =
+            {
+                new DealRequirement(DealRequirementKind.MaxMainCard, 20),
+                new DealRequirement(DealRequirementKind.EventCadence, 100),
+            },
+        };
+        promo.MediaDeals.Add(deal);
+        return (world, promo, deal);
+    }
+
+    [Fact]
+    public void ALateCleanCard_DoesNotClearAStrike()
+    {
+        // 130 days since the deal's last card against a 100-day clause: the card is
+        // clean on every card term, but it is the late card that caused the cadence
+        // strike, so it can't wipe it (strike, clear, strike, clear forever).
+        var (world, promo, deal) = CadenceDeal(signedDaysAgo: 130);
+        int mail = world.Mail.Count;
+        RevenueService.SettleEvent(world, promo, SettledEvent(world, promo));
+        Assert.Equal(1, deal.Strikes);
+        Assert.Equal(mail, world.Mail.Count);
+    }
+
+    [Fact]
+    public void AnOnTimeCleanCard_ClearsOneStrike_WithOneMail()
+    {
+        var (world, promo, deal) = CadenceDeal(signedDaysAgo: 60, strikes: 2);
+        int mail = world.Mail.Count;
+        RevenueService.SettleEvent(world, promo, SettledEvent(world, promo));
+        Assert.Equal(1, deal.Strikes);
+        Assert.Equal(mail + 1, world.Mail.Count);
+
+        // The next card, a week later, is on cadence from THIS card: one more off.
+        var second = SettledEvent(world, promo, date: world.CurrentDate.AddDays(7));
+        second.Name = "Test Night 2";   // (identical unread mail is de-duplicated)
+        RevenueService.SettleEvent(world, promo, second);
+        Assert.Equal(0, deal.Strikes);
+        Assert.Equal(mail + 2, world.Mail.Count);
+    }
+
+    [Fact]
+    public void APpvCarrier_IsNotClearedByANonPpvNight_AndACardWithNothingFoughtProvesNothing()
+    {
+        var (world, promo, carrier) = CadenceDeal(signedDaysAgo: 10, kind: MediaKind.PpvCarrier, partner: "MainCard");
+        RevenueService.SettleEvent(world, promo, SettledEvent(world, promo));                       // a fight night
+        Assert.Equal(1, carrier.Strikes);
+        RevenueService.SettleEvent(world, promo, SettledEvent(world, promo, tier: EventTier.Ppv));  // the carrier's night
+        Assert.Equal(0, carrier.Strikes);
+
+        var (w2, p2, deal) = CadenceDeal(signedDaysAgo: 10);
+        RevenueService.SettleEvent(w2, p2, SettledEvent(w2, p2, fought: false));
+        Assert.Equal(1, deal.Strikes);
     }
 
     [Fact]

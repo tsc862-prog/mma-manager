@@ -207,4 +207,40 @@ public class SpendingTests
         p.Prestige = 20;
         Assert.Equal(800_000m + 20 * 60_000m, AiFrontOffice.Buffer(p, w.CurrentDate));
     }
+
+    [Fact]
+    public void OneOffs_DontRaiseTheReserve_RoutineBuyoutsDo()
+    {
+        var (w, p, _) = Setup();
+        p.Ledger.Clear();
+        var day = w.CurrentDate;
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-70), FinanceCategory.ContractBuyout, new Money(-400_000m), "Contract buyout — a journeyman"));
+        // A takeover: the price and, the same day, the target's cut fighters paid out of it.
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-40), FinanceCategory.ContractBuyout, new Money(-2_000_000m), "Contract buyout — X (ABC merger)"));
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-40), FinanceCategory.Acquisition, new Money(-9_000_000m), "Acquisition of ABC"));
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-20), FinanceCategory.Fines, new Money(-50_000m), "brawl"));
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-10), FinanceCategory.Production, new Money(-100_000m), "card"));
+        Assert.Equal(500_000m, AiFrontOffice.QuarterRunningCosts(p, day));
+    }
+
+    [Fact]
+    public void AnOrgSavingForTheLeap_KeepsItsTokenCampaign_UnderTheQuarterReserve()
+    {
+        // The leap plan is budgeted against the prestige floor as before: a
+        // climber whose quarter of costs is above its bank still runs the token
+        // campaign instead of going silent and stalling at its tier's ceiling.
+        var (w, p, _) = Setup();
+        w.PlayerPromotion = default;
+        p.TierClearance = OrgSize.Continental;
+        p.Prestige = OrgSizing.PrestigeCeiling(OrgSize.Continental) - 1;   // pinned near the ceiling
+        Assert.True(PromotionLadder.SavingForTheLeap(p));
+        p.Ledger.Clear();
+        var day = w.CurrentDate;
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-30), FinanceCategory.FighterPurse, new Money(-PromotionLadder.PromotionCushion(p)), "purses"));
+        p.Balance = new Money(PromotionLadder.PromotionCushion(p) * 0.5m);   // filling the chest
+        Assert.True(p.Balance.Amount < AiFrontOffice.Buffer(p, day));
+        Assert.True(p.Balance.Amount > AiFrontOffice.PrestigeFloor(p) + 1_500_000m);
+        AiFrontOffice.RunMonthly(w, day);
+        Assert.Equal(30_000m, p.MarketingBudget.Amount);
+    }
 }

@@ -497,6 +497,11 @@ public static class MediaService
                 deal.RightsFeePerEvent = new Money(rung.Fee(promo) * ProfileOf(deal.Partner).FeeScale);
                 deal.MonthsRemaining = rung.TermMonths;
                 deal.SignedOn = date;
+                // A renewal is a new contract: today's term sheet, not the one
+                // signed years ago (so a save from before a retune picks up the
+                // new clause thresholds at its next renewal).
+                deal.Requirements.Clear();
+                deal.Requirements.AddRange(AdjustTerms(rung.Terms(promo), ProfileOf(deal.Partner).Strictness));
                 if (promo.Id == world.PlayerPromotion)
                     Living.Mail.Post(world, date, MailCategory.General, deal.Partner,
                         $"{deal.Partner} renews",
@@ -665,6 +670,30 @@ public static class MediaService
     // --- Fight night ----------------------------------------------------------
 
     /// <summary>
+    /// The date of the promotion's last completed card before <paramref name="ev"/>
+    /// (read off the event history, which is durable: <see cref="MediaDeal.LastAiredOn"/>
+    /// is also moved by the monthly cadence check, so it can't say when a card last aired).
+    /// </summary>
+    public static DateOnly? LastCardBefore(World world, PromotionId promo, Event ev)
+    {
+        DateOnly? last = null;
+        foreach (var e in world.Events.Values)
+            if (e.Promotion == promo && e.Id != ev.Id && e.Status == EventStatus.Completed
+                && e.Date <= ev.Date && (last is null || e.Date > last))
+                last = e.Date;
+        return last;
+    }
+
+    /// <summary>When this partner last had a card to air: the last card, or the signing if none since.</summary>
+    public static DateOnly PreviousAiring(MediaDeal deal, DateOnly? lastCard) =>
+        lastCard is { } d && d > deal.SignedOn ? d : deal.SignedOn;
+
+    /// <summary>Does a card on <paramref name="date"/> keep the deal's cadence clause (true when it has none)?</summary>
+    public static bool KeptCadence(MediaDeal deal, DateOnly previousAiring, DateOnly date) =>
+        deal.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence) is not { } cadence
+        || date.DayNumber - previousAiring.DayNumber <= cadence.Threshold;
+
+    /// <summary>
     /// Air the card: every rights partner pays their per-event fee (checked
     /// against the contract's terms — half pay and a strike on a miss), the
     /// cadence clocks reset, the in-house platform converts the night into
@@ -676,9 +705,12 @@ public static class MediaService
         // A crowded band thins the rights money too — finite TV hours, split
         // more ways (see Org.MarketShare; the economy shapes the pyramid now).
         premium *= (decimal)Org.MarketShare.Factor(world, promo);
+        var lastCard = LastCardBefore(world, promo.Id, ev);
 
         foreach (var deal in promo.MediaDeals.ToList())
         {
+            // Read the cadence BEFORE the clock moves: was this card on time?
+            bool onCadence = KeptCadence(deal, PreviousAiring(deal, lastCard), ev.Date);
             deal.LastAiredOn = ev.Date;
             bool ppvNight = ev.Tier >= EventTier.Ppv;
             if (deal.Kind == MediaKind.PpvCarrier && !ppvNight) continue;   // the carrier only judges PPV nights
@@ -702,7 +734,12 @@ public static class MediaService
                 // AFC lost seven in three years and folded, seed 8, 2029). Now the
                 // partner judges the RUN of cards: an org that delivers more often
                 // than it misses keeps the deal; one that keeps missing still walks.
-                if (deal.Strikes > 0)
+                // Only a card that ALSO kept the cadence earns one back: a late
+                // card can't clear the cadence strike its own lateness caused (a
+                // card every 130 days on a 100-day clause would otherwise strike,
+                // clear, strike, clear forever). A card with nothing fought on it
+                // proves nothing either.
+                if (deal.Strikes > 0 && onCadence && ev.Card.Any(f => f.Outcome is not null))
                 {
                     deal.Strikes--;
                     if (promo.Id == world.PlayerPromotion)

@@ -41,24 +41,38 @@ public sealed record TermCheck(DealRequirement Requirement, string Text, TermSta
 
 /// <summary>
 /// What one sponsor or rights partner would pay for this card, and why.
-/// <see cref="PendingStrikes"/> are the cadence strikes the monthly checks will
-/// add before the card airs (media only): enough of them and the partner has
-/// walked before the night (<see cref="GoneBeforeCard"/>, fee zero).
+/// <see cref="PendingStrikes"/> is the net change to a media deal's strikes
+/// before the card airs, at WORST: cadence strikes from the monthly checks, plus
+/// strikes from our earlier cards that miss (or may miss) a clause, less one for
+/// each earlier card that is surely clean and on cadence.
+/// <see cref="PendingStrikesBest"/> is the same at best (every clause judged on
+/// the night goes our way). Only when even the best case ends the deal is the
+/// partner certainly gone (<see cref="GoneBeforeCard"/>, fee zero); when only
+/// the worst case does, it MAY be (<see cref="MayBeGoneBeforeCard"/>).
 /// </summary>
 public sealed record PartnerProjection(
     string Partner, bool IsMedia, Money FullFee, Money ExpectedFee, int Strikes, int StrikeLimit,
-    IReadOnlyList<TermCheck> Terms, int PendingStrikes = 0)
+    IReadOnlyList<TermCheck> Terms, int PendingStrikes = 0, int? PendingStrikesBest = null)
 {
     public bool AtRisk => Terms.Any(t => t.Status == TermStatus.Missed);
 
-    /// <summary>Strikes on the deal by the time the card airs.</summary>
+    /// <summary>Strikes on the deal by the time the card airs, at worst.</summary>
     public int StrikesBeforeCard => Strikes + PendingStrikes;
 
-    /// <summary>The cadence strikes alone end the deal before this card airs.</summary>
-    public bool GoneBeforeCard => StrikesBeforeCard >= StrikeLimit;
+    /// <summary>Strikes on the deal by the time the card airs, at best.</summary>
+    public int StrikesBeforeCardBest => Strikes + (PendingStrikesBest ?? PendingStrikes);
 
-    /// <summary>The deal ends by this card: gone before it, or a miss on it is the last strike.</summary>
-    public bool WouldWalk => GoneBeforeCard || (AtRisk && StrikesBeforeCard + 1 >= StrikeLimit);
+    /// <summary>The deal is certainly over before this card airs.</summary>
+    public bool GoneBeforeCard => StrikesBeforeCardBest >= StrikeLimit;
+
+    /// <summary>The deal may be over before this card airs (it turns on how earlier nights go).</summary>
+    public bool MayBeGoneBeforeCard => !GoneBeforeCard && StrikesBeforeCard >= StrikeLimit;
+
+    /// <summary>The deal certainly ends by this card: gone before it, or a miss on it is the last strike.</summary>
+    public bool WouldWalk => GoneBeforeCard || (AtRisk && StrikesBeforeCardBest + 1 >= StrikeLimit);
+
+    /// <summary>The deal may end by this card (it turns on how earlier nights go).</summary>
+    public bool MayWalk => !WouldWalk && (MayBeGoneBeforeCard || (AtRisk && StrikesBeforeCard + 1 >= StrikeLimit));
 
     /// <summary>Clauses only the night can settle (card quality, a house or a star too close to call).</summary>
     public bool HasClausesOnTheNight => Terms.Any(t => t.Status == TermStatus.JudgedOnTheNight);
@@ -505,50 +519,85 @@ public sealed partial class PlayerBooking
             if (deal.Kind == MediaKind.PpvCarrier && !ppvNight) continue;   // the carrier only judges PPV nights
             var terms = Terms(world, ev, deal.Requirements, attendance, locals, mainCard);
             var full = new Money(deal.RightsFeePerEvent.Amount * mediaPremium);
-            int pending = CadenceBeforeCard(world, ev, deal).Strikes;
-            bool gone = deal.Strikes + pending >= MediaService.StrikeLimit;
-            list.Add(new PartnerProjection(deal.Partner, true, full, gone ? Money.Zero : Expected(full, terms),
-                deal.Strikes, MediaService.StrikeLimit, terms, pending));
+            var walk = StrikesBeforeCard(world, promo, ev, deal);
+            var p = new PartnerProjection(deal.Partner, true, full, Money.Zero,
+                deal.Strikes, MediaService.StrikeLimit, terms, walk.Worst - deal.Strikes, walk.Best - deal.Strikes);
+            // Only a CERTAIN walk-out zeroes the fee; a "may" keeps the fee it would earn.
+            list.Add(p with { ExpectedFee = p.GoneBeforeCard ? Money.Zero : Expected(full, terms) });
         }
         return list;
     }
 
-    private static Money Expected(Money full, IReadOnlyList<TermCheck> terms) =>
-        terms.Any(t => t.Status == TermStatus.Missed) ? full * 0.5m : full;
+    private readonly record struct StrikeWalk(int Worst, int Best, int CadenceStrikes, DealRequirement? Cadence);
 
     /// <summary>
-    /// The cadence strikes a media deal takes before this card airs, walking the
-    /// weekly ticks from today the way <see cref="Living.WorldTick"/> runs them:
-    /// each week our cards that fall due air first (resetting the clock), then on
-    /// a month turn <see cref="MediaService"/>'s cadence check strikes a deal that
-    /// has gone more than its threshold without a card and resets the clock to
-    /// that day. The card itself runs on the first tick on or after its date, so
-    /// only ticks strictly before it count. Stops at the strike that ends the deal.
+    /// A media deal's strikes by the time this card airs, following the same
+    /// rules as settlement (<see cref="MediaService.SettleEvent"/>) and the monthly
+    /// cadence check. The weekly ticks from today are walked the way
+    /// <see cref="Living.WorldTick"/> runs them: each week our earlier scheduled
+    /// cards that fall due air first, then on a month turn a deal gone more than
+    /// its cadence without a card takes a strike and its clock resets to that day.
+    /// Each earlier card is judged on what booking can know: a clause it
+    /// misses is a strike; a card that meets every clause AND keeps the cadence
+    /// takes one off; a clause only the night can settle makes the card a maybe
+    /// either way, so the walk carries a worst and a best count. The card itself
+    /// runs on the first tick on or after its date, so only ticks strictly before
+    /// it count. Stops once even the best case has ended the deal.
     /// </summary>
-    private static (int Strikes, DealRequirement? Cadence, DateOnly Clock) CadenceBeforeCard(World world, Event ev, MediaDeal deal)
+    private static StrikeWalk StrikesBeforeCard(World world, Promotion promo, Event ev, MediaDeal deal)
     {
-        var clock = deal.LastAiredOn ?? deal.SignedOn;
-        if (deal.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence) is not { } cadence)
-            return (0, null, clock);
+        var cadence = deal.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence);
+        int limit = MediaService.StrikeLimit;
+        int worst = deal.Strikes, best = deal.Strikes, cadenceStrikes = 0;
+        var clock = deal.LastAiredOn ?? deal.SignedOn;   // the monthly check's clock (moved by its own strikes too)
+        var aired = MediaService.PreviousAiring(deal, MediaService.LastCardBefore(world, promo.Id, ev));   // a real airing
         var ours = world.Events.Values
             .Where(e => e.Promotion == ev.Promotion && e.Id != ev.Id && e.Status == EventStatus.Scheduled
                         && e.Card.Count > 0 && e.Date < ev.Date)   // an empty card never airs
-            .Select(e => e.Date).OrderBy(d => d).ToList();
-        int strikes = 0;
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value).ToList();
+        int next = 0;
         var prev = world.CurrentDate;
-        for (var t = prev.AddDays(7); t < ev.Date && deal.Strikes + strikes < MediaService.StrikeLimit; t = t.AddDays(7))
+        for (var t = prev.AddDays(7); t < ev.Date && best < limit; t = t.AddDays(7))
         {
-            foreach (var d in ours)
-                if (d <= t && d > clock) clock = d;
-            if (t.Month != prev.Month && t.DayNumber - clock.DayNumber > cadence.Threshold)
+            for (; next < ours.Count && ours[next].Date <= t && best < limit; next++)
             {
-                strikes++;
+                var e = ours[next];
+                bool judged = deal.Kind != MediaKind.PpvCarrier || e.Tier >= EventTier.Ppv;
+                if (judged)
+                {
+                    var padding = CardFiller.Preview(world, e);
+                    int main = MainCardOnTheNight(world, e, padding.BoutsAfter);
+                    var paddedIds = padding.Bouts.Where(p => !p.LocalFiller).SelectMany(p => new[] { p.Red!.Value, p.Blue!.Value });
+                    int locals = CountLocals(world, e, paddedIds) + 2 * padding.LocalPairs;
+                    var terms = Terms(world, e, deal.Requirements, Financials.Compute(world, e).Attendance, locals, main);
+                    bool onCadence = MediaService.KeptCadence(deal, aired, e.Date);
+                    if (terms.Any(x => x.Status == TermStatus.Missed)) { worst++; best++; }
+                    else if (terms.Any(x => x.Status == TermStatus.JudgedOnTheNight))
+                    {
+                        worst++;                                   // it may miss...
+                        if (onCadence) best = Math.Max(0, best - 1);   // ...or come off clean
+                    }
+                    else if (onCadence)
+                    {
+                        if (worst < limit) worst = Math.Max(0, worst - 1);   // a walked-out partner earns nothing back
+                        best = Math.Max(0, best - 1);
+                    }
+                }
+                if (e.Date > clock) clock = e.Date;
+                aired = e.Date;
+            }
+            if (cadence is not null && t.Month != prev.Month && t.DayNumber - clock.DayNumber > cadence.Threshold)
+            {
+                worst++; best++; cadenceStrikes++;
                 clock = t;
             }
             prev = t;
         }
-        return (strikes, cadence, clock);
+        return new StrikeWalk(Math.Min(worst, limit), Math.Min(best, limit), cadenceStrikes, cadence);
     }
+
+    private static Money Expected(Money full, IReadOnlyList<TermCheck> terms) =>
+        terms.Any(t => t.Status == TermStatus.Missed) ? full * 0.5m : full;
 
     private static List<TermCheck> Terms(World world, Event ev, IEnumerable<DealRequirement> reqs,
         int attendance, int locals, int mainCard)
@@ -645,15 +694,17 @@ public sealed partial class PlayerBooking
         if (promo is not null)
             foreach (var deal in promo.MediaDeals)
             {
-                var (strikes, cadence, _) = CadenceBeforeCard(world, ev, deal);
-                if (strikes == 0 || cadence is null) continue;
-                int total = deal.Strikes + strikes;
+                var walk = StrikesBeforeCard(world, promo, ev, deal);
+                if (walk.CadenceStrikes == 0 || walk.Cadence is null) continue;
+                int strikes = walk.CadenceStrikes;
                 risks.Add(new(BookingRiskKind.CadenceBroken,
-                    $"{deal.Partner} wants {DealCompliance.Describe(cadence)}, and nothing of ours airs in time: "
+                    $"{deal.Partner} wants {DealCompliance.Describe(walk.Cadence)}, and nothing of ours airs in time: "
                     + $"{(strikes == 1 ? "a strike lands" : $"{strikes} strikes land")} on the monthly check before this card"
-                    + (total >= MediaService.StrikeLimit
+                    + (walk.Best >= MediaService.StrikeLimit
                         ? $", which ends the deal before the card airs (they won't pay for it)."
-                        : $" (strike {total} of {MediaService.StrikeLimit})."),
+                        : walk.Worst >= MediaService.StrikeLimit
+                            ? $", which may end the deal before the card airs, depending on how our earlier cards go."
+                            : $" (strike {walk.Worst} of {MediaService.StrikeLimit} by then{(walk.Best < walk.Worst ? $", {walk.Best} if our earlier cards come off clean" : "")})."),
                     Partner: deal.Partner));
             }
 
@@ -663,7 +714,9 @@ public sealed partial class PlayerBooking
                 .Select(t => $"{t.Text} ({t.Gap})");
             string consequence = p.WouldWalk
                 ? "they pay half, and that strike ends the deal"
-                : $"they pay half and it is strike {p.StrikesBeforeCard + 1} of {p.StrikeLimit}";
+                : p.MayWalk
+                    ? "they pay half, and that strike may end the deal, depending on how our earlier cards go"
+                    : $"they pay half and it is strike {p.StrikesBeforeCard + 1} of {p.StrikeLimit}";
             risks.Add(new(BookingRiskKind.PartnerTermMissed,
                 $"{p.Partner}: {string.Join("; ", missed)}. On this card {consequence}.", Partner: p.Partner));
         }
