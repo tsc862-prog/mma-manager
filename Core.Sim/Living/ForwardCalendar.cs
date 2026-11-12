@@ -345,7 +345,6 @@ public static class ForwardCalendar
         {
             ev = events.CreateEvent(world, promo.Id, $"{promo.Abbreviation} Fight Night {number}", when, top,
                 Geography.WorldMap.PickTourStop(world, promo, when));
-            FitRoom(world, ev);   // announced in the room this headliner fills (the night re-checks)
         }
 
         foreach (var m in top) { committed.Add(m.Red); committed.Add(m.Blue); }
@@ -734,42 +733,24 @@ public static class ForwardCalendar
     }
 
     /// <summary>
-    /// Put an AI card in the room of its city sized to THIS card's draw
-    /// (<see cref="Booking.Financials.BestRoom"/>): the same picker at
-    /// announcement (headliner known) and again on fight night. True when the
-    /// room changed. PickVenueIn's estimate, used before, leaves out the main
-    /// event's pull, the brand campaign and the belt, so it under-roomed every
-    /// big draw: the AFC sold out 4,200 seats in Las Vegas with ~21,000 wanting
-    /// in and a 21,200 arena across town, about $16M of gate lost a quarter.
-    /// </summary>
-    internal static bool FitRoom(World world, Event ev)
-    {
-        if (ev.Card.Count == 0 || ev.VenueId is not { } current || world.Get(current) is not { } room) return false;
-        var fit = Booking.Financials.BestRoom(world, ev, room.City);
-        if (fit is null || fit.Id == current) return false;
-        ev.VenueId = fit.Id;
-        ev.Venue = fit.Name;
-        if (world.Get(fit.City) is { } city) ev.Region = city.Region;
-        return true;
-    }
-
-    /// <summary>
-    /// The room is fitted to the draw the card has ON THE NIGHT (the room in the
-    /// announced city the card nearly fills, <see cref="FitRoom"/>). A card
-    /// announced a month ahead keeps its city, but moves to the room that fits
-    /// the card it actually became: a startup announced in its first week would
-    /// otherwise be stuck in a thousand-seat club while twice that many want in
-    /// (that capped every new promotion's gate and killed them faster).
-    /// Flagships keep their big house, and superfights keep the room they were
-    /// booked into a month out. If the card's announcement made the news (and
-    /// so named the room), the move is a headline too, so the announcement and
-    /// the result never disagree.
+    /// The room is fitted to the draw the promotion has ON THE NIGHT, as it was
+    /// when AI cards were booked on the day. A card announced a month ahead
+    /// keeps its city, but moves to the room that now fits its following: a
+    /// startup announced in its first week would otherwise be stuck in a
+    /// thousand-seat club while twice that many want in (that capped every new
+    /// promotion's gate and killed them faster). Flagships keep their big
+    /// house, and superfights keep the room they were booked into a month out.
+    /// If the card's announcement made the news (and so named the room), the
+    /// move is a headline too, so the announcement and the result never disagree.
     /// </summary>
     private static void RefreshVenue(World world, Promotion promo, Event ev)
     {
         if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;
         if (ev.VenueId is not { } current || world.Get(current) is not { } room) return;
-        if (!FitRoom(world, ev) || world.Get(ev.VenueId!.Value) is not { } fit) return;
+        if (Geography.WorldMap.PickVenueIn(world, promo, room.City) is not { } fit || fit.Id == current) return;
+        ev.VenueId = fit.Id;
+        ev.Venue = fit.Name;
+        if (world.Get(fit.City) is { } city) ev.Region = city.Region;
         // A card whose announcement made the news named its room: say it moved.
         if (MeritsHeadline(world, ev, AuthoredBookingOn(world, ev) is not null))
             News.Post(world, ev.Date, NewsCategory.General,

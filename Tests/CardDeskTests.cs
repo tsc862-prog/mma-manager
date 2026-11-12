@@ -266,12 +266,7 @@ public class CardDeskTests
 
         var options = booking.VenueOptions(world, ev);
         Assert.Equal(world.Venues.Values.Count(v => v.City == city), options.Count);
-        // The sim's pick is the AI calendar's picker: the fanbase estimate's
-        // room, moved up only to a room this card would nearly fill.
-        Assert.Equal(Financials.BestRoom(world, ev, city)!.Id,
-            Assert.Single(options, o => o.SimPick).Venue);
-        var pick = options.Single(o => o.SimPick);
-        Assert.True(pick.Capacity >= MmaManager.Core.Sim.Geography.WorldMap.PickVenueIn(world, promo, city)!.Capacity);
+        Assert.Equal(MmaManager.Core.Sim.Geography.WorldMap.PickVenueIn(world, promo, city)!.Id, Assert.Single(options, o => o.SimPick).Venue);
         Assert.Equal(ev.VenueId, Assert.Single(options, o => o.Selected).Venue);
         Assert.All(options, o => Assert.True(o.ProjectedAttendance <= o.Capacity));
         Assert.All(options, o => Assert.Equal(Math.Min(o.Demand, o.Capacity), o.ProjectedAttendance));

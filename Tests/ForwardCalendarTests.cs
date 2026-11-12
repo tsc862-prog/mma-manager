@@ -733,68 +733,6 @@ public class ForwardCalendarTests
         }
     }
 
-    [Fact]
-    public void TheFlagship_PlaysTheRoomItsCardFills_NotTheClubAcrossTown()
-    {
-        // The old fight-night fit used PickVenueIn's estimate, which leaves out the
-        // headliner's pull and the brand campaign: the AFC sold out 4,200 seats in
-        // Las Vegas with ~21,000 wanting in and a 21,200 arena in the same town.
-        var world = Build(seed: 8);
-        world.PlayerPromotion = default;
-        var start = world.CurrentDate;
-        new WorldTick().AdvanceWeeks(world, 13);
-        var afc = world.Promotions.Values.OrderByDescending(p => p.Prestige.Value).ThenBy(p => p.Id.Value).First();
-        var cards = world.Events.Values
-            .Where(e => e.Promotion == afc.Id && e.Status == EventStatus.Completed && e.Date > start
-                        && !SignatureEvents.IsSignature(world, e) && !Storylines.IsSuperfight(e))
-            .ToList();
-        Assert.NotEmpty(cards);
-        foreach (var e in cards)
-        {
-            var room = world.Get(e.VenueId!.Value)!;
-            // No bigger room in town that this card would have filled (demand is
-            // re-read after the night, when fame has moved a little: allow 10%).
-            int demand = Financials.Demand(world, e);
-            var missed = world.Venues.Values.Where(v => v.City == room.City && v.Capacity > room.Capacity)
-                .FirstOrDefault(v => demand >= v.Capacity * (Financials.MoveUpFill + 0.10));
-            Assert.True(missed is null,
-                $"{e.Name}: {room.Capacity:N0} seats for a demand of {demand:N0} ({missed?.Capacity:N0} stood empty)");
-        }
-    }
-
-    [Fact]
-    public void BestRoom_MovesUpOnlyToARoomTheCardNearlyFills_AndNeverBelowTheEstimate()
-    {
-        var world = Build(seed: 8);
-        world.PlayerPromotion = default;
-        new WorldTick().AdvanceWeeks(world, 1);   // the calendar announces on the tick
-        var afc = world.Promotions.Values.OrderByDescending(p => p.Prestige.Value).ThenBy(p => p.Id.Value).First();
-        var ev = world.Events.Values.Where(e => e.Promotion == afc.Id && e.Status == EventStatus.Scheduled && e.Card.Count > 0 && e.VenueId is not null)
-            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value).First();
-        var city = world.Get(ev.VenueId!.Value)!.City;
-        var rooms = world.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Capacity).ToList();
-        Assert.True(rooms.Count >= 2);
-
-        // Never below the fanbase estimate's room; above it only into a room the
-        // card's own draw fills to MoveUpFill.
-        var estimate = MmaManager.Core.Sim.Geography.WorldMap.PickVenueIn(world, afc, city)!;
-        var pick = Financials.BestRoom(world, ev, city)!;
-        Assert.True(pick.Capacity >= estimate.Capacity);
-        if (pick.Id != estimate.Id)
-            Assert.True(Financials.Demand(world, ev) >= pick.Capacity * Financials.MoveUpFill);
-
-        // A nobody (no brand, no names) draws a few hundred: it stays in the
-        // estimate's room.
-        var nobody = new Promotion
-        {
-            Id = world.NewPromotionId(), Name = "Nobody", Abbreviation = "NBD",
-            BaseRegion = world.Get(city)!.Region, Prestige = 1, Reputation = 1,
-        };
-        world.Promotions[nobody.Id] = nobody;
-        var small = new Event { Id = world.NewEventId(), Promotion = nobody.Id, Name = "Nobody 1", Date = ev.Date, Region = nobody.BaseRegion, VenueId = rooms[^1].Id };
-        Assert.Equal(MmaManager.Core.Sim.Geography.WorldMap.PickVenueIn(world, nobody, city)!.Id, Financials.BestRoom(world, small, city)!.Id);
-    }
-
     // --- the player ----------------------------------------------------------------
 
     [Fact]

@@ -92,46 +92,12 @@ public static class Financials
         && o.Status != EventStatus.Cancelled && Math.Abs(o.Date.DayNumber - date.DayNumber) <= ClashWindowDays
         && !(o.Status == EventStatus.Scheduled && o.Date > date && o.Promotion != world.PlayerPromotion);
 
-    /// <summary>How full a bigger room must be on the card's own draw before a booker moves up to it.</summary>
-    public const double MoveUpFill = 0.75;
-
-    /// <summary>
-    /// The room in <paramref name="city"/> for THIS card: the room the fanbase
-    /// estimate picks (<see cref="Geography.WorldMap.PickVenueIn"/>), moved UP to
-    /// the biggest room the card's own draw (the same box-office model as
-    /// settlement, headliner, campaign and belt included) would fill at least
-    /// <see cref="MoveUpFill"/>. Never smaller than the estimate's room. Null
-    /// when the city has no rooms. Read-only.
-    /// <para>
-    /// Why this shape. The estimate leaves out the main event's pull and the
-    /// brand campaign, so it under-roomed every big draw (the AFC sold out 4,200
-    /// seats in Las Vegas to a ~21,000 demand with a 21,200 arena in town).
-    /// Two broader fixes were measured and rejected: the most-profitable room
-    /// put every org with a few thousand fans in the arena (AI gates ~+40%, a
-    /// second International in 40 of 40 seeds, no acquisitions); the room
-    /// closest to demand undercut the estimate for orgs between room sizes and
-    /// killed day-one Regionals (CC/CDC in ~45 of 100 seeds). Moving up only
-    /// to a room the card nearly fills fixes the undersell without either.
-    /// </para>
-    /// </summary>
-    public static Venue? BestRoom(World world, Event ev, CityId city)
-    {
-        if (world.Get(ev.Promotion) is not { } promo) return null;
-        var start = Geography.WorldMap.PickVenueIn(world, promo, city);
-        if (start is null) return null;
-        int demand = Compute(world, ev, capByRoom: false, start).Attendance;
-        return world.Venues.Values
-            .Where(v => v.City == city && v.Capacity > start.Capacity && demand >= v.Capacity * MoveUpFill)
-            .OrderByDescending(v => v.Capacity).ThenBy(v => v.Id.Value)
-            .FirstOrDefault() ?? start;
-    }
-
-    private static EventFinancials Compute(World world, Event ev, bool capByRoom, Venue? roomOverride = null)
+    private static EventFinancials Compute(World world, Event ev, bool capByRoom)
     {
         var promo = world.Get(ev.Promotion);
         int prestige = promo?.Prestige.Value ?? 40;
         int drawPower = MainEventDraw(world, ev);
-        var hostCity = roomOverride is not null ? roomOverride.City : Geography.WorldMap.CityOf(world, ev);
+        var hostCity = Geography.WorldMap.CityOf(world, ev);
         int cityPop = promo is not null && hostCity is { } hc ? Geography.Reputation.OrgInCity(promo, hc) : 0;
         int regionPop = promo is null ? 0 : Geography.Reputation.OrgInRegion(world, promo, ev.Region);
 
@@ -180,7 +146,7 @@ public static class Financials
         int attendance = (int)((190 + prestige * 38 + drawPower * 30 + cityPop * 78 + regionPop * 14)
             * (1 + marketing + grudge + counterProgramming + ev.HypeBonus * 0.6) * competition * interest * market);
         // The building caps the house — a big draw in a small room leaves money on the table.
-        var venue = roomOverride ?? (ev.VenueId is { } vid ? world.Get(vid) : null);
+        var venue = ev.VenueId is { } vid ? world.Get(vid) : null;
         if (venue is not null && capByRoom) attendance = Math.Min(attendance, venue.Capacity);
 
         // Card scale: a marquee super-card commands premium pricing and PPV but costs more to stage.
