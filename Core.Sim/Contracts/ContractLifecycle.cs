@@ -136,6 +136,7 @@ public static class ContractLifecycle
         string? door = null, PromotionId? to = null, bool hisChoice = false)
     {
         if (world.Get(from) is not { } promo) return;
+        OfferMarket.OnLeaving(world, f, from, date);   // a rival's offer for him dies with the deal, now
         Lifers.OnLeaving(world, f, promo, door ?? $"he left {promo.Abbreviation}", date, to, hisChoice);
         foreach (var d in promo.Divisions) d.Rankings.Remove(f.Id);
         // A camp stipend is the paying org's promise; it doesn't follow him out

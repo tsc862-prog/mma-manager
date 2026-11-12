@@ -311,6 +311,172 @@ public class RivalOfferTests
         Assert.DoesNotContain(world.Decisions, d => d.Kind == DecisionKind.RivalOffer);
     }
 
+    // --- Review fixes: the numbers the player is shown are the numbers he signs --------------------
+
+    [Fact]
+    public void TheDeskPrice_FollowsTheLiveMatchTerms_AndMatchSignsAtThatPrice()
+    {
+        var (world, f, o) = WithOffer(48);
+        // His last fight is fought: the live deal's floor is gone and his record moves.
+        f.Contract!.FightsRemaining = 0;
+        f.Record.Wins++; f.Record.CurrentStreak++;
+        DealWindow.Open(world, f, world.CurrentDate);
+        new WorldTick().AdvanceWeek(world);
+        Assert.Equal(RivalOfferState.Pending, o.State);
+
+        var desk = world.Decisions.Single(d => d.Kind == DecisionKind.RivalOffer && d.Fighter == f.Id);
+        var live = OfferMarket.MatchTerms(world, o);
+        Assert.Equal(live.PursePerFight, desk.Price);
+        Assert.Contains(live.PursePerFight.ToString(), desk.Detail);
+        Assert.Equal(o.Deadline, desk.Deadline);   // the window's end
+
+        Decisions.Accept(world, desk, world.CurrentDate);
+        Assert.Equal(RivalOfferState.Matched, o.State);
+        Assert.Equal(desk.Price, f.Contract!.PursePerFight);
+    }
+
+    [Fact]
+    public void AtTheTable_TheFloorPurseWithThinnerBonuses_DoesNotBeatTheRival()
+    {
+        var (world, f, o) = WithOffer(48);
+        var promo = world.Get(world.PlayerPromotion)!;
+        var exp = new FighterValuation().Evaluate(world, f);
+        var match = OfferMarket.MatchTerms(world, o);
+        var room = NegotiationSession.Resume(world, f, promo, exp);
+
+        var thin = OfferMarket.MatchTerms(world, o);   // the floor purse, on the rival's length...
+        thin.WinBonus = Money.Zero;                     // ...without the win money
+        Assert.True(OfferMarket.Score(world, f, thin, exp) < OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp),
+            "precondition: worth less to him than the rival's paper");
+        Assert.True(thin.PursePerFight.Amount >= match.PursePerFight.Amount);
+
+        var answer = room.Table(thin);
+        Assert.NotEqual(TalkVerdict.Accept, answer.Verdict);
+        if (answer.Verdict == TalkVerdict.Counter) Assert.Contains(world.Get(o.From)!.Abbreviation, answer.Line);
+
+        // Meeting his terms always beats the rival.
+        var again = NegotiationSession.Resume(world, f, promo, exp);
+        var full = again.TheirTermsAsOffer(Negotiator.WantsExclusivity(promo), false);
+        Assert.True(OfferMarket.Score(world, f, full, exp) >= OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp));
+        Assert.Equal(TalkVerdict.Accept, again.Table(full).Verdict);
+    }
+
+    [Fact]
+    public void WhenTheRivalFolds_TheOfferIsWithdrawn_AndAnotherRivalMayCallOnTheDeal()
+    {
+        var (world, f, o) = WithOffer(48);
+        Assert.True(f.Contract!.PoachWarned);
+        world.Get(o.From)!.Defunct = true;
+        OfferMarket.RunWeekly(world, world.CurrentDate.AddDays(7));
+
+        Assert.Equal(RivalOfferState.Withdrawn, o.State);
+        Assert.False(f.Contract.PoachWarned);
+        Assert.DoesNotContain(world.Decisions, d => d.Kind == DecisionKind.RivalOffer);
+        Assert.Contains(world.Mail, m => m.Subject == $"{world.Get(o.From)!.Abbreviation}'s offer for {f.FullName} is off");
+    }
+
+    [Fact]
+    public void Releasing_HimWithALiveOffer_SettlesItAtOnce()
+    {
+        var (world, f, o) = WithOffer(48);
+        ContractLifecycle.Release(world, f);
+
+        Assert.Equal(RivalOfferState.Withdrawn, o.State);
+        Assert.Equal(world.CurrentDate, o.Resolved);
+        Assert.Null(OfferMarket.LiveFor(world, f.Id));
+        Assert.DoesNotContain(world.Decisions, d => d.Kind == DecisionKind.RivalOffer);
+    }
+
+    [Fact]
+    public void AChampionsClause_ToppingTheDealUp_WithdrawsTheOffer_AndFreesTheDealForALaterCall()
+    {
+        var (world, f, o) = WithOffer(48);
+        f.Contract!.FightsRemaining = 3;   // a title win topped it up
+        OfferMarket.RunWeekly(world, world.CurrentDate.AddDays(7));
+
+        Assert.Equal(RivalOfferState.Withdrawn, o.State);
+        Assert.False(f.Contract.PoachWarned);
+        Assert.DoesNotContain(world.Decisions, d => d.Kind == DecisionKind.RivalOffer);
+    }
+
+    [Fact]
+    public void Matching_ChargesTheSigningBonusOnce_ToTheHolder()
+    {
+        var (world, f, o0) = WithOffer(48);
+        var o = WithSigning(world, o0, 20_000m);
+        var holder = world.Get(o.Holder)!;
+        var rival = world.Get(o.From)!;
+        int rivalLines = rival.Ledger.Count;
+        var terms = OfferMarket.MatchTerms(world, o);
+        Assert.True(terms.SigningBonus.Amount > 0);
+
+        Assert.True(OfferMarket.Match(world, o, world.CurrentDate));
+
+        var bonus = holder.Ledger.Where(l => l.Category == FinanceCategory.SigningBonus && l.Description.Contains(f.FullName)
+                                             && l.Date == world.CurrentDate).ToList();
+        Assert.Single(bonus);
+        Assert.Equal(-terms.SigningBonus.Amount, bonus[0].Amount.Amount);
+        Assert.Equal(rivalLines, rival.Ledger.Count);
+    }
+
+    [Fact]
+    public void TheRivalSigningHim_ChargesItsSigningBonusOnce_ToTheRival_WithOneHeadline()
+    {
+        var (world, f, o0) = WithOffer(48);
+        var o = WithSigning(world, o0, 20_000m);
+        var holder = world.Get(o.Holder)!;
+        var rival = world.Get(o.From)!;
+        rival.Balance = new Money(Math.Max(rival.Balance.Amount, 1_000_000m));
+        OfferMarket.LetGo(world, o, world.CurrentDate);
+        f.Contract!.FightsRemaining = 0;
+        DealWindow.Open(world, f, world.CurrentDate);
+        var end = f.Contract.WindowEndsOn!.Value;
+        int holderLines = holder.Ledger.Count(l => l.Category == FinanceCategory.SigningBonus);
+        int newsBefore = world.News.Count(n => n.Category == NewsCategory.Signing && n.Headline.Contains(f.FullName));
+
+        world.CurrentDate = end;
+        OfferMarket.RunWeekly(world, end);
+
+        Assert.Equal(RivalOfferState.Signed, o.State);
+        var bonus = rival.Ledger.Where(l => l.Category == FinanceCategory.SigningBonus && l.Description.Contains(f.FullName)).ToList();
+        Assert.Single(bonus);
+        Assert.Equal(-20_000m, bonus[0].Amount.Amount);
+        Assert.Equal(holderLines, holder.Ledger.Count(l => l.Category == FinanceCategory.SigningBonus));
+        Assert.True(world.News.Count(n => n.Category == NewsCategory.Signing && n.Headline.Contains(f.FullName)) - newsBefore <= 1);
+    }
+
+    [Fact]
+    public void AMatchTheHolderCantAfford_LeavesTheOfferAndTheCallOnTheDesk()
+    {
+        var (world, f, o0) = WithOffer(48);
+        var o = WithSigning(world, o0, 20_000m);
+        world.Get(o.Holder)!.Balance = new Money(1_000m);
+        var purse = f.Contract!.PursePerFight;
+        var desk = world.Decisions.Single(d => d.Kind == DecisionKind.RivalOffer && d.Fighter == f.Id);
+
+        Decisions.Accept(world, desk, world.CurrentDate);
+
+        Assert.Equal(RivalOfferState.Pending, o.State);
+        Assert.Contains(world.Decisions, d => d.Kind == DecisionKind.RivalOffer && d.Fighter == f.Id);
+        Assert.Equal(purse, f.Contract!.PursePerFight);
+        Assert.Equal(1, f.Contract.FightsRemaining);
+        Assert.Contains(world.Mail, m => m.Subject == $"We can't cover {f.FullName}'s signing bonus");
+    }
+
+    // The same offer with a signing bonus on it (a rival that pays one up front).
+    private static RivalOffer WithSigning(World world, RivalOffer o, decimal bonus)
+    {
+        var copy = new RivalOffer
+        {
+            Id = o.Id, Fighter = o.Fighter, From = o.From, Holder = o.Holder, Kind = o.Kind,
+            Purse = o.Purse, WinBonus = o.WinBonus, SigningBonus = new Money(bonus), Fights = o.Fights, Exclusive = o.Exclusive,
+            Made = o.Made, Deadline = o.Deadline, State = o.State, Resolved = o.Resolved,
+        };
+        world.RivalOffers[world.RivalOffers.IndexOf(o)] = copy;
+        OfferMarket.RefreshDesk(world);
+        return copy;
+    }
+
     // --- Helpers ----------------------------------------------------------------------------------
 
     private static (World World, Fighter F, RivalOffer O) WithOffer(ulong seed)

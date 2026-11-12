@@ -67,9 +67,6 @@ public static class OfferMarket
         Math.Min(0.35, 0.03 + f.Intangibles.Popularity.Value * 0.002
                        + (world.Titles.Values.Any(t => t.CurrentChampion == f.Id) ? 0.10 : 0.0));
 
-    /// <summary>A let-go offer for a fighter who never fights out his deal is forgotten after this long.</summary>
-    public const int StaleDays = 180;
-
     /// <summary>Resolved offers stay on the books this long (the yearly cap and the record read them), then are dropped.</summary>
     public const int KeepResolvedDays = 365;
 
@@ -93,14 +90,15 @@ public static class OfferMarket
     /// <summary>
     /// How much an offer is worth to HIM: its per-fight money (a non-exclusive deal
     /// counts for more, since he keeps his outside earnings), lifted by what he wants
-    /// from that promotion (<see cref="Negotiator.Appeal"/>, worth up to 25%), and — at
-    /// his own promotion — by his personal discount (a lifer's hometown rate, a
-    /// discovered local's gratitude: a dollar from home is worth more to him).
+    /// from that promotion (<see cref="Negotiator.Appeal"/>, worth up to 25%), and — only
+    /// at the promotion he is signed to — by his personal discount (a lifer's hometown
+    /// rate, a discovered local's gratitude: a dollar from home is worth more to him).
+    /// A rival that once discovered him gets no such lift: he owes the house he is in.
     /// </summary>
     public static decimal Score(World world, Fighter f, ContractOffer o, ContractExpectations exp)
     {
         decimal excl = o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor;
-        decimal home = Negotiator.TableDiscount(world, f, o.Promotion);
+        decimal home = f.Contract?.Promotion == o.Promotion ? Negotiator.TableDiscount(world, f, o.Promotion) : 1m;
         double appeal = Negotiator.Appeal(world, f, o, exp);
         return Negotiator.MoneyValue(world, o) / excl * (1m + (decimal)appeal * 0.25m) / home;
     }
@@ -126,7 +124,7 @@ public static class OfferMarket
         };
         double appeal = Negotiator.Appeal(world, f, ours, exp);
         decimal exclF = excl ? 1m : Negotiator.NonExclusiveMoneyFactor;
-        decimal home = Negotiator.TableDiscount(world, f, holder.Id);
+        decimal home = f.Contract?.Promotion == holder.Id ? Negotiator.TableDiscount(world, f, holder.Id) : 1m;
         decimal neededValue = theirs * home * exclF / (1m + (decimal)appeal * 0.25m);
         decimal signingPerFight = o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount;
         decimal purse = NegotiationSession.UpTo500(neededValue - 0.5m * o.WinBonus.Amount - signingPerFight);
@@ -135,7 +133,8 @@ public static class OfferMarket
         // table would bottom out: matching is not a back door to a cheap renewal.
         decimal tableFloor = NegotiationSession.UpTo500(
             AskingQuote.For(world, holder, f, exp, excl).Purse.Amount * (decimal)(1.0 - appeal * 0.25));
-        purse = Math.Max(purse, Math.Max(tableFloor, Negotiator.LivePurseFloor(f, holder.Id)?.Amount ?? 0m));
+        decimal liveFloor = Negotiator.LivePurseFloor(f, holder.Id) is { } lf ? NegotiationSession.UpTo500(lf.Amount) : 0m;
+        purse = Math.Max(purse, Math.Max(tableFloor, liveFloor));
         ours.PursePerFight = new Money(purse);
         return ours;
     }
@@ -304,6 +303,7 @@ public static class OfferMarket
         if (rival is null || rival.Defunct)
         {
             Close(world, o, RivalOfferState.Withdrawn, date);
+            c.PoachWarned = false;   // the rival fell away, not the deal: another may call on it
             if (o.Holder == world.PlayerPromotion)
                 Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
                     $"{rival?.Abbreviation ?? "The rival"}'s offer for {f.FullName} is off",
@@ -312,15 +312,18 @@ public static class OfferMarket
             return null;
         }
         // The deal grew back (a champion's clause): he is not on his last fight any more.
-        if (c.FightsRemaining > 1) return Close(world, o, RivalOfferState.Withdrawn, date);
+        if (c.FightsRemaining > 1)
+        {
+            c.PoachWarned = false;   // a new last fight will come: a rival may call on it then
+            return Close(world, o, RivalOfferState.Withdrawn, date);
+        }
 
         if (DealWindow.InWindow(world, f) && c.WindowEndsOn is { } end)
         {
             if (date >= end) { WindowCloses(world, o, f, rival, date); return null; }
             if (o.Deadline < end)
             {
-                o.Deadline = end;   // his window is the owner's time to keep him
-                SyncDesk(world, o);
+                o.Deadline = end;   // his window is the owner's time to keep him (the Desk card follows in RefreshDesk)
             }
         }
         else if (o.State == RivalOfferState.Pending && date > o.Deadline)
@@ -329,8 +332,6 @@ public static class OfferMarket
             LetGo(world, o, date, silent: true);
             return null;
         }
-        else if (o.State == RivalOfferState.LetGo && date.DayNumber - o.Made.DayNumber > StaleDays)
-            return Close(world, o, RivalOfferState.Withdrawn, date);
 
         // The last week to answer: the owner hears it, and the clock stops.
         int left = o.Deadline.DayNumber - date.DayNumber;
@@ -357,6 +358,7 @@ public static class OfferMarket
         if (Solvency.Distress(rival) > 0 || !PoachingService.HasRoom(world, rival, f) || rival.Balance.Amount < o.SigningBonus.Amount)
         {
             Close(world, o, RivalOfferState.Withdrawn, date);
+            f.Contract!.PoachWarned = false;   // the rival fell away
             if (mine)
                 Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
                     $"{rival.Abbreviation} pulled its offer for {f.FullName}",
@@ -370,10 +372,7 @@ public static class OfferMarket
         ContractLifecycle.LeavePromotion(world, f, o.Holder, date,
             $"{rival.Name} signed him when his deal ran out", rival.Id, hisChoice: true);
         f.Contract = null;
-        ContractLifecycle.Sign(world, f, AsContractOffer(o), date);
-        Living.News.Post(world, date, NewsCategory.Signing,
-            $"{rival.Abbreviation} signs {f.FullName} away from {holder?.Abbreviation ?? "his promotion"}",
-            $"{f.FullName} leaves for the bigger stage.", rival.Id, f.Id);
+        ContractLifecycle.Sign(world, f, AsContractOffer(o), date);   // (posts the signing news itself)
         if (mine)
             Living.Mail.Post(world, date, MailCategory.BoardNote, Living.Mail.Owner(world),
                 $"We lost {f.FullName} to {rival.Abbreviation}",
@@ -433,11 +432,28 @@ public static class OfferMarket
             aboutFighter: f.Id);
     }
 
-    /// <summary>A fighter signed a deal (any door): his live offer is settled by it.</summary>
+    /// <summary>A fighter signed a deal (any door): his live offer is settled by it, and the Desk's numbers follow.</summary>
     internal static void OnSigned(World world, Fighter f, PromotionId to, DateOnly date)
     {
-        if (LiveFor(world, f.Id) is not { } o) return;
-        Close(world, o, to == o.Holder ? RivalOfferState.Beaten : to == o.From ? RivalOfferState.Signed : RivalOfferState.Withdrawn, date);
+        if (world.RivalOffers.Count == 0) return;   // the AI world: nothing to settle
+        if (LiveFor(world, f.Id) is { } o)
+            Close(world, o, to == o.Holder ? RivalOfferState.Beaten : to == o.From ? RivalOfferState.Signed : RivalOfferState.Withdrawn, date);
+        // A signing to either side of a pending offer can move its terms (his people on that roster).
+        if (world.RivalOffers.Any(x => x.State == RivalOfferState.Pending && (x.Holder == to || x.From == to)))
+            RefreshDesk(world);
+    }
+
+    /// <summary>
+    /// He is leaving the promotion that holds his offer by some other door (released,
+    /// retired, his window run out): the offer dies with the deal, now — the Desk card
+    /// and the table's rival floor go at once.
+    /// </summary>
+    internal static void OnLeaving(World world, Fighter f, PromotionId from, DateOnly date)
+    {
+        if (world.RivalOffers.Count == 0) return;
+        if (LiveFor(world, f.Id) is { } o && o.Holder == from) Close(world, o, RivalOfferState.Withdrawn, date);
+        if (world.RivalOffers.Any(x => x.State == RivalOfferState.Pending && (x.Holder == from || x.From == from)))
+            RefreshDesk(world);
     }
 
     // --- Plumbing --------------------------------------------------------------------------
@@ -457,12 +473,7 @@ public static class OfferMarket
     private static void Tell(World world, RivalOffer o, Fighter f, Promotion holder, Promotion rival, DateOnly date)
     {
         var lean = LeaningOf(world, o);
-        var match = MatchTerms(world, o);
-        string tier = OrgSizing.Label(OrgSizing.SizeOf(rival));
-        string terms = $"{o.Purse} a fight for {o.Fights} fights"
-                     + (o.WinBonus.Amount > 0 ? $", {o.WinBonus} to win" : "")
-                     + (o.SigningBonus.Amount > 0 ? $", {o.SigningBonus} to sign" : "")
-                     + (o.Exclusive ? "" : ", non-exclusive");
+        string terms = TermsText(o);
         string voice = lean.Side switch
         {
             LeaningSide.Yours => "I'd rather stay. Show me you want me.",
@@ -470,16 +481,7 @@ public static class OfferMarket
             _ => "That's hard to say no to.",
         };
         int id = world.Decisions.Count == 0 ? 1 : world.Decisions.Max(d => d.Id) + 1;
-        world.Decisions.Add(new Decision
-        {
-            Id = id, Kind = DecisionKind.RivalOffer, Created = date, Deadline = o.Deadline,
-            Fighter = f.Id, Promotion = rival.Id, Price = match.PursePerFight,
-            Detail = Lifers.Gendered(f, $"{rival.Name} ({tier}) has offered {f.FullName} {terms}. {lean.Words} "
-                + $"Match: {match.PursePerFight} a fight for {match.Fights} fights"
-                + (match.SigningBonus.Amount > 0 ? $" and {match.SigningBonus} to sign" : "")
-                + $" keeps him. Let him go and he signs with {rival.Abbreviation} when his deal is up — "
-                + "his re-sign window is still ours until then."),
-        });
+        world.Decisions.Add(DeskCall(world, o, id, date));
         Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
             $"{f.FullName} has an offer from {rival.Abbreviation}",
             Lifers.Gendered(f, $"“{rival.Name} put paper in front of me: {terms}. {voice}” "
@@ -492,16 +494,49 @@ public static class OfferMarket
     private static void RemoveDesk(World world, RivalOffer o) =>
         world.Decisions.RemoveAll(d => d.Kind == DecisionKind.RivalOffer && d.Fighter == o.Fighter);
 
-    // The Desk's deadline follows the offer's (a Decision's deadline is fixed at creation).
-    private static void SyncDesk(World world, RivalOffer o)
+    // The offer's terms in a line ("$9,000 a fight for 4 fights, $4,500 to win").
+    private static string TermsText(RivalOffer o) =>
+        $"{o.Purse} a fight for {o.Fights} fights"
+        + (o.WinBonus.Amount > 0 ? $", {o.WinBonus} to win" : "")
+        + (o.SigningBonus.Amount > 0 ? $", {o.SigningBonus} to sign" : "")
+        + (o.Exclusive ? "" : ", non-exclusive");
+
+    // The Desk call for a pending offer, built from the LIVE match terms: the price on the
+    // card is the purse Match signs (a Decision is immutable, so it is rebuilt, not edited).
+    private static Decision DeskCall(World world, RivalOffer o, int id, DateOnly created)
     {
-        int i = world.Decisions.FindIndex(d => d.Kind == DecisionKind.RivalOffer && d.Fighter == o.Fighter);
-        if (i < 0 || o.State != RivalOfferState.Pending) return;
-        var d = world.Decisions[i];
-        world.Decisions[i] = new Decision
+        var f = world.Get(o.Fighter)!;
+        var rival = world.Get(o.From)!;
+        var lean = LeaningOf(world, o);
+        var match = MatchTerms(world, o);
+        string tier = OrgSizing.Label(OrgSizing.SizeOf(rival));
+        return new Decision
         {
-            Id = d.Id, Kind = d.Kind, Created = d.Created, Deadline = o.Deadline, Fighter = d.Fighter,
-            Detail = d.Detail, Sponsor = d.Sponsor, Promotion = d.Promotion, Price = d.Price, State = d.State,
+            Id = id, Kind = DecisionKind.RivalOffer, Created = created, Deadline = o.Deadline,
+            Fighter = f.Id, Promotion = rival.Id, Price = match.PursePerFight,
+            Detail = Lifers.Gendered(f, $"{rival.Name} ({tier}) has offered {f.FullName} {TermsText(o)}. {lean.Words} "
+                + $"Match: {match.PursePerFight} a fight for {match.Fights} fights"
+                + (match.SigningBonus.Amount > 0 ? $" and {match.SigningBonus} to sign" : "")
+                + $" keeps him. Let him go and he signs with {rival.Abbreviation} when his deal is up — "
+                + "his re-sign window is still ours until then."),
         };
+    }
+
+    /// <summary>
+    /// Rebuild every pending offer's Desk call from the live world — its deadline, the
+    /// match price (which moves when his last fight is fought, his record changes, or a
+    /// friend joins the roster) and his leaning — so the player signs at the number shown.
+    /// Run at the end of each week's tick and after any signing or departure. No RNG.
+    /// </summary>
+    public static void RefreshDesk(World world)
+    {
+        for (int i = 0; i < world.Decisions.Count; i++)
+        {
+            var d = world.Decisions[i];
+            if (d.Kind != DecisionKind.RivalOffer || d.Fighter is not { } fid) continue;
+            if (LiveFor(world, fid) is not { State: RivalOfferState.Pending } o
+                || world.Get(o.From) is null || world.Get(fid)?.Contract?.Promotion != o.Holder) continue;
+            world.Decisions[i] = DeskCall(world, o, d.Id, d.Created);
+        }
     }
 }

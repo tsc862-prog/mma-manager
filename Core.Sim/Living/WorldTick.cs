@@ -271,6 +271,10 @@ public sealed class WorldTick
         ForwardCalendar.Audit(world, after);
         LocalCircuit.Audit(world);
 
+        // The week has moved the world: a rival offer's Desk call shows today's match
+        // price (his last fight fought, his record, his people) — the number Match signs.
+        OfferMarket.RefreshDesk(world);
+
         return report;
     }
 

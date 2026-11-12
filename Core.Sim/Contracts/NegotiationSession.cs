@@ -42,6 +42,7 @@ public sealed class NegotiationSession
     private readonly Money? _liveFloor;       // a renewal of a live deal never goes under its show money (see Negotiator.LivePurseFloor)
     private Money? _rivalFloor;               // a rival's live offer is his walk-away: the match purse (OfferMarket.MatchTerms; set by Resume)
     private string? _rivalName;
+    private decimal? _rivalScore;             // the rival's paper by his lights (OfferMarket.Score): a deal here must be worth at least this
 
     public NegotiationSession(World world, Fighter fighter, Promotion promo, ContractExpectations exp)
     {
@@ -109,6 +110,7 @@ public sealed class NegotiationSession
         {
             session._rivalFloor = OfferMarket.MatchTerms(world, rival).PursePerFight;
             session._rivalName = world.Get(rival.From)?.Abbreviation ?? "the other side";
+            session._rivalScore = OfferMarket.Score(world, fighter, OfferMarket.AsContractOffer(rival), exp);
             session.OpeningLine = Lifers.Gendered(fighter,
                 $"\"{session._rivalName} has {fighter.FirstName} at {rival.Purse} a fight for {rival.Fights} fights. Beat that and we stay.\"");
         }
@@ -212,9 +214,37 @@ public sealed class NegotiationSession
         * (clause ? Negotiator.ChampionsClausePremium : 1m)
         * _home;
 
-    public Money DemandPurse(bool exclusive, bool clause) =>
-        new(Math.Max(Math.Max(_liveFloor?.Amount ?? 0m, _rivalFloor?.Amount ?? 0m),
-            UpTo500(_exp.AskingPurse.Amount * Factor(exclusive, clause) * (decimal)_demandFrac)));
+    public Money DemandPurse(bool exclusive, bool clause)
+    {
+        decimal p = Math.Max(Math.Max(_liveFloor?.Amount ?? 0m, _rivalFloor?.Amount ?? 0m),
+            UpTo500(_exp.AskingPurse.Amount * Factor(exclusive, clause) * (decimal)_demandFrac));
+        return new(_rivalScore is { } target ? BeatRival(p, target, exclusive, clause) : p);
+    }
+
+    // With a rival's paper in his pocket, his number on his own terms (his win bonus,
+    // his signing bonus, his length) must be worth more to him than the rival's whole
+    // deal: raise the purse, on the $500 step, until it is. (Score is linear in the
+    // purse: one closed-form step, then the rounding is checked.)
+    private decimal BeatRival(decimal purse, decimal target, bool exclusive, bool clause)
+    {
+        decimal ScoreAt(decimal p) => OfferMarket.Score(_world, _fighter, AtPurse(p, exclusive, clause), _exp);
+        decimal s = ScoreAt(purse);
+        if (s >= target) return purse;
+        decimal per500 = ScoreAt(purse + 500m) - s;
+        if (per500 > 0) purse += Math.Max(0m, Math.Floor((target - s) / per500) * 500m);
+        for (int i = 0; i < 40 && ScoreAt(purse) < target; i++) purse += 500m;
+        return purse;
+    }
+
+    // His terms at a given purse (what TheirTermsAsOffer tables, with that purse).
+    private ContractOffer AtPurse(decimal purse, bool exclusive, bool clause) => new()
+    {
+        Fighter = _fighter.Id, Promotion = _promo.Id,
+        PursePerFight = new Money(purse),
+        WinBonus = DemandWinBonus(exclusive, clause),
+        SigningBonus = _exp.WantsSigningBonus ? new Money(UpTo500(purse * 0.5m)) : Money.Zero,
+        Fights = _exp.DesiredFights, Exclusive = exclusive, ChampionsClause = clause,
+    };
 
     public Money DemandWinBonus(bool exclusive, bool clause) =>
         new(UpTo500(_exp.AskingWinBonus.Amount * Factor(exclusive, clause) * (decimal)_demandFrac));
@@ -259,7 +289,11 @@ public sealed class NegotiationSession
         bool lengthOk = Math.Abs(offer.Fights - _exp.DesiredFights) <= 1;
         // A live deal is never torn up for less show money (unless he's skidding).
         bool payOk = _liveFloor is not { } floor || offer.PursePerFight.Amount >= floor.Amount;
-        bool beatsRival = _rivalFloor is not { } rf || offer.PursePerFight.Amount >= rf.Amount;
+        // A rival's paper is live: the purse may not go under the match price, and the
+        // whole deal must be worth more to him than theirs (a thin win bonus, a short
+        // signing bonus or a different length can't undercut it).
+        bool beatsRival = (_rivalFloor is not { } rf || offer.PursePerFight.Amount >= rf.Amount)
+                          && (_rivalScore is not { } rs || OfferMarket.Score(_world, _fighter, offer, _exp) >= rs);
         bool guaranteedOk = GuaranteedOk(offer);
         var reactions = React(offer);
 
@@ -293,7 +327,7 @@ public sealed class NegotiationSession
 
         string line = ratio < 0.70 ? Line(LowballLines)
                     : !payOk ? $"\"{_fighter.FirstName} is signed at {_liveFloor} a fight. We're not tearing that up for less.\""
-                    : !beatsRival ? $"\"{_rivalName} is offering real money. {_fighter.FirstName} stays for {_rivalFloor} a fight or better.\""
+                    : !beatsRival ? $"\"{_rivalName} has real paper on the table. {_fighter.FirstName} stays for a deal worth more to him than theirs — on these terms that's {DemandPurse(offer.Exclusive, offer.ChampionsClause)} a fight or better, with the bonuses.\""
                     : !guaranteedOk ? $"\"Bonuses are nice. Guaranteed money pays the rent — {_fighter.FirstName} needs at least {GuaranteedNeeded(offer)} a fight he can count on.\""
                     : !signingOk ? "\"Close on the money — but no signing bonus, no signature.\""
                     : !lengthOk ? $"\"The money can work, but {_fighter.FirstName} wants a {_exp.DesiredFights}-fight deal.\""
