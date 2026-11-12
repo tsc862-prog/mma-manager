@@ -56,7 +56,10 @@ public static class Mail
             // Rivals sniff around your good fighters when their deals run low —
             // said only when a real suitor exists (the poaching market's own
             // check, on the rival's read), never off his true ability.
-            // (A holding lifer counts no suitor: he says no to the call.)
+            // (A holding lifer counts no suitor: he says no to the call, so one who
+            // turned a rival down and still holds hears nothing here. One who has
+            // since soured is circled like anyone — there is no poach at expiry
+            // any more to give him a separate warning.)
             string poaching = Contracts.PoachingService.HasSuitor(world, f)
                 ? " Rival promotions are already circling — lock them up before they walk."
                 : "";
