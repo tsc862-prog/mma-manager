@@ -36,6 +36,35 @@ public static class ShoeSweep
         public Dictionary<OrgSize, int> Crossed = new();
         public int ReSigned, Lapsed;
         public List<Year> Years = new();
+        public Diag D = new();
+    }
+
+    /// <summary>
+    /// Why the founded org keeps or loses its fighters (reporting only, read-only): every
+    /// deal that ended is classed by what became of him, renewals are priced against the
+    /// deal they replace and against what the AI's own renewal would have offered, and
+    /// the script's in-window refusals are counted by reason.
+    /// </summary>
+    public sealed class Diag
+    {
+        public int AiRenewals, ScriptRenewals, EarlyRenewals, PoachedOrSigned, ToMarket, Retired;
+        public double AiRenewRatioSum, ScriptRenewRatioSum, ScriptVsAiOfferSum;
+        public int ScriptVsAiN, AiOfferWouldBeTaken;
+        public decimal ScriptSigningBonus;
+        public int SkipSkid, SkipDear, SkipBroke, SkipRefused;
+        public double SkipDearAskOverPurseSum, SkipDearAskOverCapSum;
+        public double RenewedCaSum, LeftCaSum, RenewedPopSum, LeftPopSum;
+        public int RenewedN, LeftN;
+        public long IdleChecks, RosterChecks;
+        public int DaysToResignSum, DaysToResignN;
+        public void Add(Diag o)
+        {
+            foreach (var fl in typeof(Diag).GetFields())
+            {
+                var a = fl.GetValue(this)!; var b = fl.GetValue(o)!;
+                fl.SetValue(this, a switch { int x => (object)(x + (int)b), long x => x + (long)b, double x => x + (double)b, decimal x => x + (decimal)b, _ => a });
+            }
+        }
     }
 
     public static void Main(string[] args)
@@ -44,6 +73,7 @@ public static class ShoeSweep
         int years = int.Parse(args[3]);
         bool scriptOnly = args.Contains("--script-only");
         bool dealRules = PlayerDealRules(args), resign = !args.Contains("--no-resign");
+        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable");
         var runs = new ConcurrentBag<Run>();
         Parallel.ForEach(Enumerable.Range((int)from, (int)(to - from + 1)).Select(i => (ulong)i),
             new ParallelOptions { MaxDegreeOfParallelism = Parallelism(args) },
@@ -51,9 +81,24 @@ public static class ShoeSweep
 
         var all = runs.OrderBy(r => r.Seed).ToList();
         Console.WriteLine($"=== SHOESWEEP seeds {from}-{to} · {years} years · {(scriptOnly ? "SCRIPT ONLY" : "default harness (world AI also signs)")}"
-            + $" · {(dealRules ? (resign ? "player deal rules, script re-signs in the window" : "player deal rules, NO re-signing") : "AI renewals")} ===");
+            + $" · {(dealRules ? (resign ? "player deal rules, script re-signs in the window" : "player deal rules, NO re-signing") : "AI renewals")}"
+            + $"{(Early ? " · re-signs on the LAST FIGHT" : "")}{(KeepToCap ? " · keeps up to the org's purse cap" : "")}{(DepthBookable ? " · hires around men in their window" : "")} ===");
         Console.WriteLine($"  re-signed in the window (all seeds): {all.Sum(r => r.ReSigned)} · windows lapsed to free agency: {all.Sum(r => r.Lapsed)}");
         Console.WriteLine("  per seed: " + string.Join(" ", all.Select(r => $"{r.Seed}:{r.FinalPrestige}{(r.Folded ? "F" : "")}")));
+        var d = new Diag(); foreach (var r in all) d.Add(r.D);
+        static string R(double sum, int n) => n == 0 ? "-" : (sum / n).ToString("0.00");
+        int ended = d.AiRenewals + d.ScriptRenewals + d.PoachedOrSigned + d.ToMarket;
+        Console.WriteLine($"  DIAG deals ended (all seeds): {ended} · renewed by AI {d.AiRenewals} (new/old purse {R(d.AiRenewRatioSum, d.AiRenewals)})"
+            + $" · renewed by script {d.ScriptRenewals} (of which before expiry {d.EarlyRenewals}; new/old purse {R(d.ScriptRenewRatioSum, d.ScriptRenewals)};"
+            + $" table purse / AI renewal offer {R(d.ScriptVsAiOfferSum, d.ScriptVsAiN)}, AI offer would have been taken {d.AiOfferWouldBeTaken}/{d.ScriptVsAiN}; signing bonuses {d.ScriptSigningBonus:C0})"
+            + $" · left to another org {d.PoachedOrSigned} · left to the market {d.ToMarket} · retired off the roster {d.Retired}");
+        Console.WriteLine($"  DIAG script skipped in window: skid {d.SkipSkid} · too dear {d.SkipDear} (ask/purse {R(d.SkipDearAskOverPurseSum, d.SkipDear)}, ask/PurseCap {R(d.SkipDearAskOverCapSum, d.SkipDear)}) · bank under $100k {d.SkipBroke} · table refused {d.SkipRefused}"
+            + $" · days from deal end to re-sign {R(d.DaysToResignSum, d.DaysToResignN)}");
+        Console.WriteLine($"  DIAG who: renewed mean CA {R(d.RenewedCaSum, d.RenewedN)} pop {R(d.RenewedPopSum, d.RenewedN)} · left mean CA {R(d.LeftCaSum, d.LeftN)} pop {R(d.LeftPopSum, d.LeftN)}"
+            + $" · roster share sitting at 0 fights (monthly checks) {(d.RosterChecks == 0 ? 0 : 100.0 * d.IdleChecks / d.RosterChecks):0.0}%");
+        foreach (var r in all.Where(r => r.Seed is 3 or 5))
+            Console.WriteLine($"  DIAG seed {r.Seed}: final {r.FinalPrestige} · AI renew {r.D.AiRenewals} · script renew {r.D.ScriptRenewals} (early {r.D.EarlyRenewals}) · left org {r.D.PoachedOrSigned} · left market {r.D.ToMarket} · skip dear {r.D.SkipDear} skid {r.D.SkipSkid} broke {r.D.SkipBroke}"
+                + " · prestige by year " + string.Join(",", r.Years.Select(y => y.Prestige)) + " · roster by year " + string.Join(",", r.Years.Select(y => y.Roster)));
         var finals = all.Select(r => (double)r.FinalPrestige).OrderBy(x => x).ToList();
         Console.WriteLine($"  final prestige: mean {finals.Average():0.0} · median {Median(finals):0.0} · min {finals.Min()} · max {finals.Max()} · folded {all.Count(r => r.Folded)}/{all.Count}");
         foreach (var t in new[] { OrgSize.Regional, OrgSize.National, OrgSize.Continental })
@@ -97,23 +142,61 @@ public static class ShoeSweep
     /// every deal end). Called before each 4-week advance, so every 30-day window
     /// sees at least one pass. Returns how many were re-signed.
     /// </summary>
-    public static int ReSignInWindow(World world, Promotion org, decimal maxAsk, FighterValuation valuation)
+    public static int ReSignInWindow(World world, Promotion org, decimal maxAsk, FighterValuation valuation, Diag? diag = null)
     {
         int n = 0;
-        foreach (var f in world.RosterOf(org.Id).Where(f => DealWindow.InWindow(world, f)).OrderBy(f => f.Id.Value).ToList())
+        // --early-resign: a real owner re-signs on the LAST fight of the deal, before it
+        // ends, as well as anyone already in his window. --keep-to-cap: the budget for a
+        // renewal is at least the org's own purse cap (what the AI renewal pays up to),
+        // not just the shoestring hiring budget or 1.5x his old purse.
+        var due = world.RosterOf(org.Id)
+            .Where(f => DealWindow.InWindow(world, f) || (Early && f.Status == FighterStatus.Active && f.Contract is { FightsRemaining: 1 }))
+            .OrderBy(f => f.Contract!.FightsRemaining).ThenBy(f => f.Id.Value).ToList();
+        foreach (var f in due)
         {
-            if (org.Balance.Amount < 100_000m) break;
-            if (f.Record.CurrentStreak <= -3) continue;
+            bool early = f.Contract!.FightsRemaining > 0;
+            if (org.Balance.Amount < 100_000m) { if (diag is not null && !early) diag.SkipBroke++; continue; }
+            if (f.Record.CurrentStreak <= -3) { if (diag is not null && !early) diag.SkipSkid++; continue; }
             var exp = valuation.Evaluate(world, f);
             var session = NegotiationSession.Resume(world, f, org, exp);
             var offer = session.TheirTermsAsOffer(Negotiator.WantsExclusivity(org), clause: false);
-            if (offer.PursePerFight.Amount > Math.Max(maxAsk, f.Contract!.PursePerFight.Amount * 1.5m)) continue;
-            if (session.Table(offer).Verdict != TalkVerdict.Accept) continue;
+            decimal budget = Math.Max(maxAsk, f.Contract.PursePerFight.Amount * 1.5m);
+            if (KeepToCap) budget = Math.Max(budget, Negotiator.PurseCap(world, org));
+            if (offer.PursePerFight.Amount > budget)
+            {
+                if (diag is not null && !early)
+                {
+                    diag.SkipDear++;
+                    diag.SkipDearAskOverPurseSum += (double)(offer.PursePerFight.Amount / Math.Max(1m, f.Contract.PursePerFight.Amount));
+                    diag.SkipDearAskOverCapSum += (double)(offer.PursePerFight.Amount / Math.Max(1m, Negotiator.PurseCap(world, org)));
+                }
+                continue;
+            }
+            if (session.Table(offer).Verdict != TalkVerdict.Accept) { if (diag is not null && !early) diag.SkipRefused++; continue; }
+            if (diag is not null)
+            {
+                diag.ScriptRenewals++;
+                if (early) diag.EarlyRenewals++;
+                diag.ScriptRenewRatioSum += (double)(offer.PursePerFight.Amount / Math.Max(1m, f.Contract.PursePerFight.Amount));
+                diag.ScriptSigningBonus += offer.SigningBonus.Amount;
+                var ai = new Negotiator().AiOpeningOffer(world, org, f, exp);
+                diag.ScriptVsAiOfferSum += (double)(offer.PursePerFight.Amount / Math.Max(1m, ai.PursePerFight.Amount));
+                diag.ScriptVsAiN++;
+                if (new Negotiator().Evaluate(world, f, ai, exp).Verdict == NegotiationVerdict.Accept) diag.AiOfferWouldBeTaken++;
+                diag.RenewedN++; diag.RenewedCaSum += FighterAbility.CurrentAbility(f); diag.RenewedPopSum += f.Intangibles.Popularity.Value;
+                if (!early && f.Contract.WindowEndsOn is { } end)
+                {
+                    diag.DaysToResignSum += world.CurrentDate.DayNumber - (end.DayNumber - DealWindow.WindowDays);
+                    diag.DaysToResignN++;
+                }
+            }
             ContractLifecycle.Sign(world, f, offer, world.CurrentDate);
             n++;
         }
         return n;
     }
+
+    private static bool Early, KeepToCap, DepthBookable;   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
 
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;
 
@@ -139,7 +222,7 @@ public static class ShoeSweep
             {
                 if (nwf.Balance.Amount < 100_000m) return;
                 var thin = nwf.Divisions
-                    .Where(d => world.RosterOf(nwf.Id).Count(f => d.Matches(f) && f.Status == FighterStatus.Active) < depth)
+                    .Where(d => world.RosterOf(nwf.Id).Count(f => d.Matches(f) && f.Status == FighterStatus.Active && !(DepthBookable && DealWindow.OutOfDeal(world, f))) < depth)
                     .ToList();
                 if (thin.Count == 0) return;
                 var pick = world.FreeAgents()
@@ -167,10 +250,33 @@ public static class ShoeSweep
             {
                 for (int m = 0; m < 13 && !nwf.Defunct; m++)
                 {
-                    if (dealRules && resign && !nwf.Defunct) run.ReSigned += ReSignInWindow(world, nwf, MaxAsk(), valuation);
+                    foreach (var f in world.RosterOf(nwf.Id).Where(f => f.Status == FighterStatus.Active))
+                    {
+                        run.D.RosterChecks++;
+                        if (f.Contract is { FightsRemaining: <= 0 }) run.D.IdleChecks++;
+                    }
+                    if (dealRules && resign && !nwf.Defunct) run.ReSigned += ReSignInWindow(world, nwf, MaxAsk(), valuation, run.D);
                     PlayerAgent();
                     var inWindow = dealRules ? world.RosterOf(nwf.Id).Where(f => DealWindow.InWindow(world, f)).Select(f => f.Id).ToList() : new();
+                    // Every deal on the books before the four weeks, to class what became of it.
+                    var before = world.RosterOf(nwf.Id).Where(f => f.Contract is not null)
+                        .ToDictionary(f => f.Id, f => (f.Contract!.SignedOn, Purse: f.Contract.PursePerFight.Amount, Ca: FighterAbility.CurrentAbility(f), Pop: f.Intangibles.Popularity.Value));
                     tick.AdvanceWeeks(world, 4);
+                    foreach (var (id, was) in before)
+                    {
+                        var f = world.Get(id);
+                        if (f is null || f.Status == FighterStatus.Retired) { run.D.Retired++; continue; }
+                        if (f.Contract?.Promotion == nwf.Id)
+                        {
+                            if (f.Contract.SignedOn == was.SignedOn) continue;
+                            run.D.AiRenewals++;   // re-signed during the advance: the world AI's renewal
+                            run.D.AiRenewRatioSum += (double)(f.Contract.PursePerFight.Amount / Math.Max(1m, was.Purse));
+                            run.D.RenewedN++; run.D.RenewedCaSum += was.Ca; run.D.RenewedPopSum += was.Pop;
+                            continue;
+                        }
+                        if (f.Contract is null) run.D.ToMarket++; else run.D.PoachedOrSigned++;
+                        run.D.LeftN++; run.D.LeftCaSum += was.Ca; run.D.LeftPopSum += was.Pop;
+                    }
                     // a window that closed in these four weeks: he walked to free agency
                     run.Lapsed += inWindow.Count(id => world.Get(id) is { } f && f.Contract?.Promotion != nwf.Id && f.Status != FighterStatus.Retired);
                 }
