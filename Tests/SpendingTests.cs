@@ -188,9 +188,10 @@ public class SpendingTests
         p.Ledger.Sort((a, b) => a.Date.CompareTo(b.Date));
 
         Assert.Equal(18_000_000m, AiFrontOffice.QuarterRunningCosts(p, day));
-        Assert.Equal(18_000_000m, AiFrontOffice.Buffer(p, day));
+        Assert.Equal(18_000_000m * AiFrontOffice.ReserveShare, AiFrontOffice.Buffer(p, day));
 
-        p.Balance = new Money(12_000_000m);   // well above the old prestige floor, under a quarter's costs
+        p.Balance = new Money(AiFrontOffice.Buffer(p, day) - 500_000m);   // above the old prestige floor, under the reserve
+        Assert.True(p.Balance.Amount > AiFrontOffice.PrestigeFloor(p));
         AiFrontOffice.RunMonthly(w, day);
         Assert.Equal(0m, p.MarketingBudget.Amount);
 
@@ -236,7 +237,7 @@ public class SpendingTests
         Assert.True(PromotionLadder.SavingForTheLeap(p));
         p.Ledger.Clear();
         var day = w.CurrentDate;
-        p.Ledger.Add(new LedgerEntry(day.AddDays(-30), FinanceCategory.FighterPurse, new Money(-PromotionLadder.PromotionCushion(p)), "purses"));
+        p.Ledger.Add(new LedgerEntry(day.AddDays(-30), FinanceCategory.FighterPurse, new Money(-PromotionLadder.PromotionCushion(p) * 2m), "purses"));
         p.Balance = new Money(PromotionLadder.PromotionCushion(p) * 0.5m);   // filling the chest
         Assert.True(p.Balance.Amount < AiFrontOffice.Buffer(p, day));
         Assert.True(p.Balance.Amount > AiFrontOffice.PrestigeFloor(p) + 1_500_000m);

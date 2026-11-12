@@ -20,6 +20,9 @@ public sealed class MoneyFlows
     public readonly List<decimal> InternationalPurses = new();
     public readonly List<decimal> AfcBankByYear = new();
     public int Years;
+    public int AfcTvLost, TvLost;
+
+    private readonly Dictionary<PromotionId, HashSet<string>> _deals = new();
 
     private readonly Dictionary<FighterId, PromotionId?> _contract = new();
     private readonly HashSet<FighterId> _wars = new();
@@ -35,6 +38,20 @@ public sealed class MoneyFlows
             if (world.Get(id)?.Contract is { } c && world.CurrentDate.DayNumber - c.SignedOn.DayNumber <= 7
                 && world.Get(c.Promotion) is { } w)
                 WarsWon.Add((w.Abbreviation, OrgSizing.SizeOf(w), c.PursePerFight.Amount));
+        }
+
+        // TV deals lost: a partner gone from a live org's slate (dropped, not renewed, or replaced).
+        foreach (var p in world.Promotions.Values)
+        {
+            if (p.Defunct) continue;
+            var cur = p.MediaDeals.Select(d => d.Partner).ToHashSet();
+            if (_deals.TryGetValue(p.Id, out var before))
+            {
+                int gone = before.Count(x => !cur.Contains(x));
+                TvLost += gone;
+                if (p.Abbreviation == "AFC") AfcTvLost += gone;
+            }
+            _deals[p.Id] = cur;
         }
 
         // Poaches: org-to-org moves with the old org still in business.
@@ -92,6 +109,7 @@ public sealed class MoneyFlows
             Console.WriteLine($"  poached from {OrgSizing.Label(from)} orgs: {total / years:0.00}/seed-yr · to: "
                 + string.Join(", ", rows.GroupBy(r => r.Key.To).Select(g => (g.Key, N: g.Sum(r => r.Value))).OrderByDescending(x => x.N).ThenBy(x => x.Key).Take(6).Select(x => $"{x.Key} {x.N / years:0.00}")));
         }
+        Console.WriteLine($"  media deals lost (partner gone from a live org's slate): all orgs {seeds.Sum(s => s.TvLost) / years:0.00}/seed-yr · AFC {seeds.Sum(s => s.AfcTvLost) / years:0.00}/seed-yr");
         var purses = seeds.SelectMany(s => s.InternationalPurses).ToList();
         if (purses.Count > 0)
             Console.WriteLine($"  International purses at the end: n={purses.Count} mean {purses.Average():C0} median {Median(purses):C0} p90 {Pct(purses, 0.9):C0}");

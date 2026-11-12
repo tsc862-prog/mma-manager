@@ -54,6 +54,7 @@ public static class Solvency
     {
         foreach (var promo in world.Promotions.Values.Where(p => !p.Defunct).ToList())
         {
+            if (promo.Defunct) continue;   // bought earlier this pass
             bool isPlayer = promo.Id == world.PlayerPromotion;
             decimal ceiling = DebtCeilingFor(promo);
 
@@ -67,6 +68,8 @@ public static class Solvency
                 continue;
             }
 
+            // Sold before it folds, if anyone can carry it (see Acquisitions.TryRescue).
+            if (Acquisitions.TryRescue(world, promo, date)) continue;
             Close(world, promo, date);
         }
     }

@@ -86,16 +86,23 @@ public static class AiFrontOffice
 
     /// <summary>
     /// The cash an AI front office keeps back before it spends a dollar on the
-    /// discretionary sinks: the old prestige-scaled floor, or ONE QUARTER of the
-    /// org's running costs, whichever is bigger. The floor alone was sized for a
-    /// club ($5.2M at prestige 74) and the flagship runs ~$20M a quarter in purses
-    /// and production, so it marketed and retained down to about two weeks of
-    /// payroll and had no runway when a TV deal went (seed 8: $105M of brand
+    /// discretionary sinks: the old prestige-scaled floor, or <see cref="ReserveShare"/>
+    /// of a quarter's running costs, whichever is bigger. The floor alone was sized
+    /// for a club ($5.2M at prestige 74) and the flagship runs ~$20M a quarter in
+    /// purses and production, so it marketed and retained down to about two weeks
+    /// of payroll and had no runway when a TV deal went (seed 8: $105M of brand
     /// marketing and $29M of retention bonuses over the run, then folded on a
     /// $20M net loss). Running costs are read off the ledger, not estimated.
     /// </summary>
     public static decimal Buffer(Promotion promo, DateOnly date) =>
-        Math.Max(PrestigeFloor(promo), QuarterRunningCosts(promo, date));
+        Math.Max(PrestigeFloor(promo), QuarterRunningCosts(promo, date) * ReserveShare);
+
+    /// <summary>
+    /// How much of a quarter's running costs is held back: half (about six weeks).
+    /// A full quarter (measured, 100 seeds) also kept the mid-tier out of the red
+    /// so rarely that takeovers fell from main's 25 to 10; the summit is safe at half.
+    /// </summary>
+    public const decimal ReserveShare = 0.5m;
 
     /// <summary>The old club-sized reserve: $0.8M plus $60k a prestige point.</summary>
     public static decimal PrestigeFloor(Promotion promo) => 800_000m + promo.Prestige.Value * 60_000m;
