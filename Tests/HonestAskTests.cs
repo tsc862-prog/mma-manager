@@ -267,6 +267,15 @@ public class HonestAskTests
                     "the quote never rounds below what he wants");
                 var terms = room.TheirTermsAsOffer(excl, false);
                 Assert.Equal(quote.Purse, terms.PursePerFight);
+                // Win bonus and signing bonus round UP the same way: never under his number.
+                decimal factor = (excl ? 1m : Negotiator.NonExclusiveMoneyFactor) * Negotiator.TableDiscount(world, f, promo.Id);
+                Assert.True(terms.WinBonus.Amount >= exp.AskingWinBonus.Amount * factor);
+                Assert.Equal(0m, terms.WinBonus.Amount % 500m);
+                if (exp.WantsSigningBonus)
+                {
+                    Assert.Equal(Math.Ceiling(terms.PursePerFight.Amount * 0.5m / 500m) * 500m, terms.SigningBonus.Amount);
+                    Assert.True(terms.SigningBonus.Amount >= exp.AskingPurse.Amount * 0.5m * factor);
+                }
                 Assert.Equal(TalkVerdict.Accept, room.Table(terms).Verdict);
             }
         }
@@ -289,7 +298,9 @@ public class HonestAskTests
                     Assert.True(offer.PursePerFight.Amount <= cap * stretch, $"{promo.Abbreviation} offered {offer.PursePerFight} over its cap {cap * stretch}");
                     decimal ask = exp.AskingPurse.Amount * (Negotiator.WantsExclusivity(promo) ? 1m : Negotiator.NonExclusiveMoneyFactor)
                                 * Negotiator.TableDiscount(world, f, promo.Id);
-                    if (ask <= cap * stretch - 500m) Assert.True(offer.PursePerFight.Amount >= ask);
+                    // At or under the cap he is offered at least his ask — including the
+                    // band where rounding up would cross the cap (then: his ask, to the dollar).
+                    if (ask <= cap * stretch) Assert.True(offer.PursePerFight.Amount >= ask, $"{promo.Abbreviation} offered {offer.PursePerFight} under an ask of {ask} within its cap {cap * stretch}");
                 }
             }
         }
@@ -327,5 +338,30 @@ public class HonestAskTests
         foreach (var id in new[] { real.RedCorner, real.BlueCorner })
             Assert.Contains(PublicStanding.RecentPublicBouts(world, world.Get(id)!, PublicStanding.RecentBouts), b => b.Date == ev.Date);
         Assert.DoesNotContain(PublicStanding.RecentPublicBouts(world, spare, PublicStanding.RecentBouts), b => b.Date == ev.Date);
+    }
+
+    [Fact]
+    public void JustUnderTheCap_TheAiOffersTheAskToTheDollar()
+    {
+        // The band where rounding the ask up to the $500 step would cross the
+        // cap: the offer must be his ask exactly, never a step below it (the AI
+        // never makes a second offer).
+        var world = SeasonedWorld();
+        var negotiator = new Negotiator();
+        var promo = world.Promotions.Values.Where(p => !p.Defunct && Negotiator.WantsExclusivity(p)).OrderBy(p => p.Id.Value).First();
+        var f = world.FreeAgents().Where(x => x.DiscoveredBy != promo.Id).OrderBy(x => x.Id.Value)
+            .First(x => Valuation.Evaluate(world, x).AskingPurse.Amount >= 3_000m);
+        var exp = Valuation.Evaluate(world, f) with { AskingPurse = new Money(9_700m), AskingWinBonus = new Money(7_000m) };
+        decimal ask = 9_700m * Negotiator.TableDiscount(world, f, promo.Id);
+        decimal cap = Negotiator.PurseCap(world, promo);
+        var offer = negotiator.AiOpeningOffer(world, promo, f, exp, (ask + 100m) / cap);   // cap = ask + $100
+        Assert.Equal(ask, offer.PursePerFight.Amount);
+        Assert.Equal(NegotiationVerdict.Accept, negotiator.Evaluate(world, f, offer, exp).Verdict);
+        // Comfortably under: rounded up to the step.
+        offer = negotiator.AiOpeningOffer(world, promo, f, exp, (ask + 2_000m) / cap);
+        Assert.Equal(Math.Ceiling(ask / 500m) * 500m, offer.PursePerFight.Amount);
+        // Over the cap: the budget line, rounded down.
+        offer = negotiator.AiOpeningOffer(world, promo, f, exp, (ask - 700m) / cap);
+        Assert.True(offer.PursePerFight.Amount <= ask - 700m);
     }
 }

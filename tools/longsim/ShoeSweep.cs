@@ -10,7 +10,7 @@ using MmaManager.Core.Sim.Scouting;
 namespace LongSim;
 
 /// <summary>
-/// shoesweep &lt;fromSeed&gt; &lt;toSeed&gt; &lt;years&gt; [--script-only]: the shoestring
+/// shoesweep &lt;fromSeed&gt; &lt;toSeed&gt; &lt;years&gt; [--script-only] [--par N]: the shoestring
 /// playthrough (same founding, same scripted owner as <c>shoestring</c>) over many
 /// seeds in parallel, reported as a distribution: final prestige (mean, median),
 /// share reaching each tier, median year of each tier crossing, and the yearly
@@ -44,7 +44,7 @@ public static class ShoeSweep
         bool scriptOnly = args.Contains("--script-only");
         var runs = new ConcurrentBag<Run>();
         Parallel.ForEach(Enumerable.Range((int)from, (int)(to - from + 1)).Select(i => (ulong)i),
-            new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount) },
+            new ParallelOptions { MaxDegreeOfParallelism = Parallelism(args) },
             seed => runs.Add(One(seed, years, scriptOnly)));
 
         var all = runs.OrderBy(r => r.Seed).ToList();
@@ -66,6 +66,14 @@ public static class ShoeSweep
                 + $"{ys.Average(v => v.Cards),4:0.0} {ys.Average(v => v.Payroll),9:N0} {ys.Average(v => v.Gate),9:N0} {ys.Average(v => v.Bouts),4:0.0} {ys.Average(v => v.Locals),4:0.0} | "
                 + $"{ys.Average(v => v.FaPool),5:0} ({ys.Average(v => v.FaHome),4:0}) {ys.Average(v => v.Affordable),5:0.0} {ys.Average(v => v.BestRead),5:0.0} {ys.Average(v => v.AffordableTop5True),5:0.0}");
         }
+    }
+
+    // Half the cores (at least 2) unless --par N says otherwise: a local run must not take the whole machine.
+    private static int Parallelism(string[] args)
+    {
+        int i = Array.IndexOf(args, "--par");
+        if (i >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], out int n) && n > 0) return n;
+        return Math.Max(2, Environment.ProcessorCount / 2);
     }
 
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;

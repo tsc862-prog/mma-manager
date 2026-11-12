@@ -179,10 +179,13 @@ public sealed class Negotiator
                                              * TableDiscount(world, f, promo.Id);
         // Pitched AT his ask means at least his ask: rounded UP to the $500
         // step (rounding a $1,200 discounted ask down to $1,000 is a lowball he
-        // counters, and the AI never makes a second offer) — but never past
-        // the cap: a budget line rounds DOWN to the step it can pay.
-        decimal up = Math.Ceiling(Math.Min(ask, cap) / 500m) * 500m;
-        var purse = new Money(up <= cap ? up : Math.Floor(cap / 500m) * 500m);
+        // counters, and the AI never makes a second offer). Never past the cap:
+        // when the rounded figure would cross it, the org offers his ask to the
+        // dollar (still within budget); when the ask itself is over the cap, the
+        // budget line rounds DOWN to the step it can pay.
+        decimal purseAmount = ask > cap ? Math.Floor(cap / 500m) * 500m
+            : Math.Ceiling(ask / 500m) * 500m is var up && up <= cap ? up : ask;
+        var purse = new Money(purseAmount);
         var winBonus = new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, 500m)));
 
         var signing = exp.WantsSigningBonus && promo.Balance.Amount > 250_000m

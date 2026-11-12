@@ -107,7 +107,7 @@ public sealed class NegotiationSession
 
     public Money DemandSigning(bool exclusive, bool clause) =>
         _exp.WantsSigningBonus
-            ? new(RoundTo(DemandPurse(exclusive, clause).Amount * 0.5m, 500m))
+            ? new(UpTo500(DemandPurse(exclusive, clause).Amount * 0.5m))
             : Money.Zero;
 
     /// <summary>Their current position drawn up as a signable offer ("meet their terms").</summary>
@@ -310,8 +310,6 @@ public sealed class NegotiationSession
         h ^= h >> 15;
         return string.Format(pool[h % (uint)pool.Length], _fighter.FirstName, _fighter.LastName);
     }
-
-    private static decimal RoundTo(decimal v, decimal step) => Math.Round(v / step) * step;
 
     /// <summary>
     /// His number on the $500 step, rounded UP: the room never quotes less than
