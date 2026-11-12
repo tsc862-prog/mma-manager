@@ -100,11 +100,16 @@ public class SigningAdvisorTests
             .DemandPurse(Negotiator.WantsExclusivity(promo), clause: false);
         Assert.Equal(room, pick.Ask);
         Assert.Contains($"asking ~{room}/fight", pick.Reason);
-        // A small hall deals non-exclusive, so its quote undercuts the exclusive
-        // rate — and the advisor names both, with the real reason.
+        // A small hall deals non-exclusive, so its quote never tops the exclusive
+        // rate (quotes round UP to the $500 step, so at the $1,500 floor the two
+        // can meet) — and where it undercuts, the advisor names both, with the
+        // real reason.
         Assert.False(Negotiator.WantsExclusivity(promo));
-        Assert.True(pick.Ask.Amount < pick.Expectations.AskingPurse.Amount);
-        Assert.Contains("non-exclusive deal", pick.Reason);
-        Assert.Contains($"market rate {pick.Expectations.AskingPurse}", pick.Reason);
+        Assert.True(pick.Ask.Amount <= pick.Expectations.AskingPurse.Amount);
+        if (pick.Ask.Amount < pick.Expectations.AskingPurse.Amount)
+        {
+            Assert.Contains("non-exclusive deal", pick.Reason);
+            Assert.Contains($"market rate {pick.Expectations.AskingPurse}", pick.Reason);
+        }
     }
 }
