@@ -279,6 +279,19 @@ public sealed class Contract
 
     /// <summary>The <see cref="BondNoticeOn"/> mark for "his refusal of a rival was told on this deal".</summary>
     public static readonly DateOnly RefusalTold = DateOnly.MinValue;
+
+    /// <summary>
+    /// The player's deal has been fought out (no fights left) and he is in his
+    /// exclusive re-sign window (Core.Sim Contracts.DealWindow): only his own
+    /// promotion may talk to him, nobody may book him, and on this day — if he
+    /// has not been re-signed — he becomes a free agent. Null = no window open
+    /// (a live deal, or an AI promotion's deal, which the monthly expiry pass
+    /// resolves instead). A re-signing replaces the contract and so clears it.
+    /// </summary>
+    public DateOnly? WindowEndsOn { get; set; }
+
+    /// <summary>The owner has had the "last week to re-sign him" warning for this window (sent once).</summary>
+    public bool WindowWarned { get; set; }
 }
 
 public sealed class Injury

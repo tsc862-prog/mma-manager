@@ -177,8 +177,10 @@ public static class ContractLifecycle
     /// <summary>
     /// Monthly: any non-player deal that has run out either re-signs with its
     /// promotion (champions always do; others if a fair renewal is accepted) or
-    /// the fighter drops to free agency to be picked up on the open market.
-    /// Returns how many expiring deals were resolved.
+    /// the fighter drops to free agency to be picked up on the open market. The
+    /// player's own run-out deals are only offered the career-end (sunset) roll
+    /// here; the rest of their ending is <see cref="DealWindow"/>'s. Returns how
+    /// many expiring deals were resolved.
     /// </summary>
     public static int ProcessExpiries(World world, DateOnly date)
     {
@@ -211,13 +213,12 @@ public static class ContractLifecycle
                 }
             }
 
-            // The player re-signs their own — but a bigger org can steal an
-            // expiring star they didn't lock down in time (the treadmill).
-            if (promo.Id == world.PlayerPromotion)
-            {
-                if (PoachingService.TryPoachFromPlayer(world, f, date)) resolved++;
-                continue;
-            }
+            // The player's deals end into an exclusive re-sign window (DealWindow):
+            // for its 30 days nobody else may sign him — no poach at expiry — and
+            // when it closes unsigned he is a free agent the whole market can
+            // bid for. (The treadmill reaches the player there, and through
+            // WarnExpiring's suitor on his last fight.)
+            if (DealWindow.PlayerRules(world, promo.Id)) continue;
 
             // AI-to-AI treadmill: a promotion on a bigger stage skims the best
             // expiring talent off a smaller one before it can re-sign — even a

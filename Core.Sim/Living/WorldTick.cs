@@ -128,6 +128,10 @@ public sealed class WorldTick
 
         RunDueEvents(world, after, rng, report, runPlayerEvents);
 
+        // The player's deals that have been fought out: windows opened, the last
+        // week warned, the run-out ones closed onto the open market (no RNG).
+        DealWindow.RunWeekly(world, after);
+
         // The week's paper: one digest mail with the stories, the calendar,
         // and a prospect worth circling.
         Digest.Weekly(world, after);

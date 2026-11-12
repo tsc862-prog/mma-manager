@@ -40,7 +40,9 @@ if (args.Length > 0 && args[0] == "shoestring")
 {
     RunShoestring(args.Length > 1 ? ulong.Parse(args[1]) : 42UL,
                   args.Length > 2 && int.TryParse(args[2], out var sy) ? sy : 20,
-                  scriptOnly: args.Contains("--script-only"));
+                  scriptOnly: args.Contains("--script-only"),
+                  dealRules: LongSim.ShoeSweep.PlayerDealRules(args),
+                  resign: !args.Contains("--no-resign"));
     return;
 }
 
@@ -53,8 +55,12 @@ if (args.Length > 0 && args[0] == "shoestring")
 // follow the signing advisor and pay the asking price while the bank allows.
 // --script-only: the AI free-agency pass never signs for the shoestring
 // promotion (FreeAgencyService.HarnessHandsOff), so the script alone builds the
-// roster — closer to a real player. Renewals at expiry stay with the world.
-static void RunShoestring(ulong seed, int years, bool scriptOnly = false)
+// roster — closer to a real player. Deals end under the PLAYER's rules
+// (Contracts.DealWindow: a 30-day exclusive re-sign window, then free agency) and
+// the script re-signs inside the window (ShoeSweep.ReSignInWindow);
+// --ai-renewals hands renewals back to the world AI (the old harness),
+// --no-resign lets every deal end.
+static void RunShoestring(ulong seed, int years, bool scriptOnly = false, bool dealRules = true, bool resign = true)
 {
     var world = new WorldBuilder().Build(new WorldBuilder.Options
     {
@@ -63,6 +69,7 @@ static void RunShoestring(ulong seed, int years, bool scriptOnly = false)
     });
     var nwf = world.Get(world.PlayerPromotion)!;
     world.PlayerPromotion = default;                  // the world AI books/markets/promotes it
+    if (dealRules) MmaManager.Core.Sim.Contracts.DealWindow.HarnessPlayerRules(world, nwf.Id);
     if (scriptOnly) MmaManager.Core.Sim.Contracts.FreeAgencyService.HarnessHandsOff = nwf.Id;
     var tick = new WorldTick();
 
@@ -103,7 +110,7 @@ static void RunShoestring(ulong seed, int years, bool scriptOnly = false)
         }
     }
 
-    Console.WriteLine($"=== SHOESTRING PLAYTHROUGH — {nwf.Name} ({nwf.Abbreviation}), seed {seed}, {years} years{(scriptOnly ? " · SCRIPT ONLY (no AI free-agency signings)" : "")} ===");
+    Console.WriteLine($"=== SHOESTRING PLAYTHROUGH — {nwf.Name} ({nwf.Abbreviation}), seed {seed}, {years} years{(scriptOnly ? " · SCRIPT ONLY (no AI free-agency signings)" : "")}{(dealRules ? (resign ? " · player deal rules (re-signs in window)" : " · player deal rules, NO re-signing") : " · AI renewals")} ===");
     Console.WriteLine($"Day one: prestige {nwf.Prestige.Value} ({OrgSizing.Label(OrgSizing.SizeOf(nwf))}) · {nwf.Balance} · roster {world.RosterOf(nwf.Id).Count()} · divisions {nwf.Divisions.Count} · HQ {world.Get(nwf.HomeCity!.Value)?.Name}");
     Console.WriteLine();
 
@@ -114,6 +121,7 @@ static void RunShoestring(ulong seed, int years, bool scriptOnly = false)
         // Month-by-month so the player agent can work the market like a human would.
         for (int m = 0; m < 13 && !nwf.Defunct; m++)
         {
+            if (dealRules && resign) LongSim.ShoeSweep.ReSignInWindow(world, nwf, 3_000m + nwf.Prestige.Value * 300m, valuation);
             PlayerAgent();
             tick.AdvanceWeeks(world, 4);
         }

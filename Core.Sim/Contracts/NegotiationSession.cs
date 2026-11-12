@@ -80,7 +80,74 @@ public sealed class NegotiationSession
     /// <summary>Who you're dealing with, for the room's flavor text.</summary>
     public string AgentStance { get; }
     /// <summary>What the agent says as you sit down.</summary>
-    public string OpeningLine { get; }
+    public string OpeningLine { get; private set; }
+
+    /// <summary>These talks picked up where an earlier sit-down left off (<see cref="Resume"/>).</summary>
+    public bool Resumed { get; private set; }
+
+    // --- Talks remembered (World.Talks) ---------------------------------------
+
+    /// <summary>How long a walk-out closes the door before he will sit down again.</summary>
+    public const int CoolOffDays = 21;
+
+    /// <summary>
+    /// Sit down with him: a fresh session, unless he remembers talks with this
+    /// promotion from the last <see cref="DealWindow.TalksMemoryDays"/> days — then
+    /// his number, mood, patience and round are where they were left, so leaving
+    /// the table and coming back is not a free reset. After a walk-out has cooled
+    /// off (<see cref="SouredUntil"/>), talks start over. No RNG.
+    /// </summary>
+    public static NegotiationSession Resume(World world, Fighter fighter, Promotion promo, ContractExpectations exp)
+    {
+        var session = new NegotiationSession(world, fighter, promo, exp);
+        if (Memory(world, fighter.Id, promo.Id) is not { } m || m.SouredUntil is not null
+            || world.CurrentDate.DayNumber - m.LastTalked.DayNumber > DealWindow.TalksMemoryDays)
+            return session;
+        session._demandFrac = Math.Max(session._floorFrac, Math.Min(1.0, m.DemandFrac));
+        session.Mood = m.Mood;
+        session.Patience = m.Patience;
+        session.Round = m.Round;
+        session.Resumed = true;
+        session.OpeningLine = Lifers.Gendered(fighter,
+            $"\"We were here {Ago(world.CurrentDate.DayNumber - m.LastTalked.DayNumber)}. The number hasn't moved — let's finish it.\"");
+        return session;
+    }
+
+    /// <summary>The day a walk-out stops closing the door on this promotion, while it still does; else null.</summary>
+    public static DateOnly? SouredUntil(World world, FighterId fighter, PromotionId promo) =>
+        Memory(world, fighter, promo) is { SouredUntil: { } until } && world.CurrentDate < until ? until : null;
+
+    /// <summary>
+    /// The room has closed: write what he remembers. A signature forgets the talks;
+    /// his walk-out closes the door for <see cref="CoolOffDays"/> days (after which
+    /// talks start over); otherwise his number, mood and patience are kept for the
+    /// next sit-down. Talks where nothing was tabled leave nothing to remember.
+    /// </summary>
+    public void Remember(DateOnly on)
+    {
+        var existing = Memory(_world, _fighter.Id, _promo.Id);
+        if (Outcome == TalkOutcome.Signed)
+        {
+            if (existing is not null) _world.Talks.Remove(existing);
+            return;
+        }
+        if (Outcome != TalkOutcome.TheyWalked && Round == 0) return;   // sat down and left: nothing changed
+
+        var m = existing ?? new TalksMemory { Fighter = _fighter.Id, Promotion = _promo.Id };
+        if (existing is null) _world.Talks.Add(m);
+        m.DemandFrac = _demandFrac;
+        m.Mood = Mood;
+        m.Patience = Patience;
+        m.Round = Round;
+        m.LastTalked = on;
+        m.SouredUntil = Outcome == TalkOutcome.TheyWalked ? on.AddDays(CoolOffDays) : null;
+    }
+
+    private static TalksMemory? Memory(World world, FighterId fighter, PromotionId promo) =>
+        world.Talks.FirstOrDefault(t => t.Fighter == fighter && t.Promotion == promo);
+
+    private static string Ago(int days) =>
+        days <= 1 ? "yesterday" : days < 14 ? $"{days} days ago" : $"{days / 7} weeks ago";
 
     public string MoodLabel =>
         Mood >= 70 ? "Warm" : Mood >= 50 ? "Businesslike" : Mood >= 30 ? "Testy" : "Insulted";

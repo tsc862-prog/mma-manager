@@ -27,6 +27,7 @@ internal sealed class WorldWriter
         WriteGlobalRankings(world);
         WriteDecisions(world);
         WriteBiddingWars(world);
+        WriteTalks(world);
         WriteRelationships(world);
         WriteEvents(world);
     }
@@ -109,6 +110,27 @@ internal sealed class WorldWriter
             war.Bind("$n", Db.Date(bw.NextRoundOn));
             war.Bind("$s", string.Join("|", bw.Suitors.Select(s => s.Value)));
             war.ExecuteNonQuery();
+        }
+    }
+
+    private void WriteTalks(World w)
+    {
+        using var cmd = _c.Cmd(_tx,
+            "INSERT INTO talks (ordinal, fighter_id, promotion_id, demand_frac, mood, patience, round, soured_until, last_talked) VALUES ($o,$f,$p,$d,$m,$pa,$r,$s,$l)");
+        for (int i = 0; i < w.Talks.Count; i++)
+        {
+            var t = w.Talks[i];
+            cmd.Parameters.Clear();
+            cmd.Bind("$o", i);
+            cmd.Bind("$f", t.Fighter.Value);
+            cmd.Bind("$p", t.Promotion.Value);
+            cmd.Bind("$d", t.DemandFrac);
+            cmd.Bind("$m", t.Mood);
+            cmd.Bind("$pa", t.Patience);
+            cmd.Bind("$r", t.Round);
+            cmd.Bind("$s", Db.DateN(t.SouredUntil));
+            cmd.Bind("$l", Db.Date(t.LastTalked));
+            cmd.ExecuteNonQuery();
         }
     }
 
@@ -346,6 +368,7 @@ internal sealed class WorldWriter
             "contract_promotion", "contract_signed_on", "contract_type", "purse", "win_bonus",
             "fights_remaining", "is_exclusive", "has_champions_clause",
             "signing_bonus", "ppv_points", "performance_bonus", "guaranteed", "poach_warned", "bond_notice_on",
+            "window_ends_on", "window_warned",
             "injury_severity", "injury_desc", "injury_occurred", "injury_return",
             "ready_to_fight_on", "loyalty", "marketing_push", "camp_id", "camp_stipend", "star_power",
             "discovered_by", "disposition", "origin_country",
@@ -412,10 +435,12 @@ internal sealed class WorldWriter
                 cmd.Bind("$guaranteed", k.Guaranteed ? 1 : 0);
                 cmd.Bind("$poach_warned", k.PoachWarned ? 1 : 0);
                 cmd.Bind("$bond_notice_on", Db.DateN(k.BondNoticeOn));
+                cmd.Bind("$window_ends_on", Db.DateN(k.WindowEndsOn));
+                cmd.Bind("$window_warned", k.WindowWarned ? 1 : 0);
             }
             else
             {
-                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed", "$poach_warned", "$bond_notice_on" })
+                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed", "$poach_warned", "$bond_notice_on", "$window_ends_on", "$window_warned" })
                     cmd.Bind(p, DBNull.Value);
             }
 

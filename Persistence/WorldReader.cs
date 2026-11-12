@@ -31,6 +31,7 @@ internal sealed class WorldReader
         ReadGlobalRankings(world);
         ReadDecisions(world);
         ReadBiddingWars(world);
+        ReadTalks(world);
         ReadRelationships(world);
         ReadEvents(world);
 
@@ -136,6 +137,8 @@ internal sealed class WorldReader
                     Guaranteed = r.Bool("guaranteed"),
                     PoachWarned = r.Bool("poach_warned"),
                     BondNoticeOn = r.DateN("bond_notice_on"),
+                    WindowEndsOn = r.DateN("window_ends_on"),
+                    WindowWarned = r.Bool("window_warned"),
                 };
             }
 
@@ -469,6 +472,24 @@ internal sealed class WorldReader
                 war.Suitors.Add(new PromotionId(int.Parse(s)));
             world.BiddingWars.Add(war);
         }
+    }
+
+    private void ReadTalks(World world)
+    {
+        using var cmd = _c.Cmd(null, "SELECT * FROM talks ORDER BY ordinal");
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            world.Talks.Add(new TalksMemory
+            {
+                Fighter = new FighterId(r.Int("fighter_id")),
+                Promotion = new PromotionId(r.Int("promotion_id")),
+                DemandFrac = r.Dbl("demand_frac"),
+                Mood = r.Int("mood"),
+                Patience = r.Int("patience"),
+                Round = r.Int("round"),
+                SouredUntil = r.DateN("soured_until"),
+                LastTalked = r.Date("last_talked"),
+            });
     }
 
     private void ReadRelationships(World world)

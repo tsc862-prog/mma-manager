@@ -665,6 +665,9 @@ public static class ForwardCalendar
         if (f.Contract?.Promotion != ev.Promotion)
             return f.Contract is { } c && world.Get(c.Promotion) is { } other
                 ? $"has left for {other.Abbreviation}" : "is no longer under contract";
+        // A player-rules deal fought out: he is in his re-sign window, bookable by
+        // nobody until he signs again (AI deals resolve in the monthly expiry pass).
+        if (Contracts.DealWindow.OutOfDeal(world, f)) return "is out of contract — his deal is up";
         if (f.Status == FighterStatus.Injured && f.CurrentInjury is { } inj && inj.ExpectedReturn > ev.Date)
             return "is injured";
         if (f.ReadyToFightOn is { } ready && ready > ev.Date) return "won't be cleared to fight in time";

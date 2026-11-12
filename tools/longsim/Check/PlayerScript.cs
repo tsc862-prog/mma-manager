@@ -277,9 +277,14 @@ public sealed class PlayerScript
 
     private void Renewals(World w, Promotion promo, SimRandom r)
     {
-        foreach (var f in w.RosterOf(promo.Id).Where(f => f.Status != FighterStatus.Retired && f.Contract is { FightsRemaining: <= 1 }).Take(3).ToList())
+        // A deal that is already up has a 30-day re-sign window (DealWindow) and the
+        // plan runs monthly, so those go first and are never ignored — otherwise
+        // the window closes and he walks. (The roll is drawn either way.)
+        foreach (var f in w.RosterOf(promo.Id).Where(f => f.Status != FighterStatus.Retired && f.Contract is { FightsRemaining: <= 1 })
+                     .OrderBy(f => f.Contract!.FightsRemaining).ThenBy(f => f.Id.Value).Take(3).ToList())
         {
-            if (!r.Chance(0.6)) { Note(w, $"renewal-ignored {f.FullName}"); continue; }
+            bool go = r.Chance(0.6) || DealWindow.InWindow(w, f);
+            if (!go) { Note(w, $"renewal-ignored {f.FullName}"); continue; }
             if (!_reckless && _valuation.Evaluate(w, f).AskingPurse.Amount > Negotiator.PurseCap(w, promo)) { Note(w, $"renewal-too-dear {f.FullName}"); continue; }
             Act(w, $"renew {f.FullName} #{f.Id.Value}", () => Negotiate(w, promo, f, r, allowLowball: false));
         }

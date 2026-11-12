@@ -10,7 +10,7 @@ using MmaManager.Core.Sim.Scouting;
 namespace LongSim;
 
 /// <summary>
-/// shoesweep &lt;fromSeed&gt; &lt;toSeed&gt; &lt;years&gt; [--script-only] [--par N]: the shoestring
+/// shoesweep &lt;fromSeed&gt; &lt;toSeed&gt; &lt;years&gt; [--script-only] [--ai-renewals] [--no-resign] [--par N]: the shoestring
 /// playthrough (same founding, same scripted owner as <c>shoestring</c>) over many
 /// seeds in parallel, reported as a distribution: final prestige (mean, median),
 /// share reaching each tier, median year of each tier crossing, and the yearly
@@ -34,6 +34,7 @@ public static class ShoeSweep
         public int FinalPrestige;
         public OrgSize FinalTier;
         public Dictionary<OrgSize, int> Crossed = new();
+        public int ReSigned, Lapsed;
         public List<Year> Years = new();
     }
 
@@ -42,13 +43,16 @@ public static class ShoeSweep
         ulong from = ulong.Parse(args[1]), to = ulong.Parse(args[2]);
         int years = int.Parse(args[3]);
         bool scriptOnly = args.Contains("--script-only");
+        bool dealRules = PlayerDealRules(args), resign = !args.Contains("--no-resign");
         var runs = new ConcurrentBag<Run>();
         Parallel.ForEach(Enumerable.Range((int)from, (int)(to - from + 1)).Select(i => (ulong)i),
             new ParallelOptions { MaxDegreeOfParallelism = Parallelism(args) },
-            seed => runs.Add(One(seed, years, scriptOnly)));
+            seed => runs.Add(One(seed, years, scriptOnly, dealRules, resign)));
 
         var all = runs.OrderBy(r => r.Seed).ToList();
-        Console.WriteLine($"=== SHOESWEEP seeds {from}-{to} · {years} years · {(scriptOnly ? "SCRIPT ONLY" : "default harness (world AI also signs)")} ===");
+        Console.WriteLine($"=== SHOESWEEP seeds {from}-{to} · {years} years · {(scriptOnly ? "SCRIPT ONLY" : "default harness (world AI also signs)")}"
+            + $" · {(dealRules ? (resign ? "player deal rules, script re-signs in the window" : "player deal rules, NO re-signing") : "AI renewals")} ===");
+        Console.WriteLine($"  re-signed in the window (all seeds): {all.Sum(r => r.ReSigned)} · windows lapsed to free agency: {all.Sum(r => r.Lapsed)}");
         Console.WriteLine("  per seed: " + string.Join(" ", all.Select(r => $"{r.Seed}:{r.FinalPrestige}{(r.Folded ? "F" : "")}")));
         var finals = all.Select(r => (double)r.FinalPrestige).OrderBy(x => x).ToList();
         Console.WriteLine($"  final prestige: mean {finals.Average():0.0} · median {Median(finals):0.0} · min {finals.Min()} · max {finals.Max()} · folded {all.Count(r => r.Folded)}/{all.Count}");
@@ -76,13 +80,49 @@ public static class ShoeSweep
         return Math.Max(2, Environment.ProcessorCount / 2);
     }
 
+    /// <summary>
+    /// The founded promotion lives under the PLAYER's deal rules (Contracts.DealWindow):
+    /// its deals end into a 30-day exclusive re-sign window and then free agency,
+    /// instead of the AI's monthly renew-or-walk. Default on for shoestring and
+    /// shoesweep since the founded org stands in for the player; --ai-renewals
+    /// restores the old harness (the world's AI renews for it, poaching at expiry).
+    /// </summary>
+    public static bool PlayerDealRules(string[] args) => !args.Contains("--ai-renewals");
+
+    /// <summary>
+    /// The scripted owner's renewals, inside the window: re-sign at the table at his
+    /// terms (the honest player path, NegotiationSession) when the bank has a runway,
+    /// he isn't in free fall, and his number fits the shoestring purse budget or is
+    /// within 1.5x what he is paid now. --no-resign skips this (the owner who lets
+    /// every deal end). Called before each 4-week advance, so every 30-day window
+    /// sees at least one pass. Returns how many were re-signed.
+    /// </summary>
+    public static int ReSignInWindow(World world, Promotion org, decimal maxAsk, FighterValuation valuation)
+    {
+        int n = 0;
+        foreach (var f in world.RosterOf(org.Id).Where(f => DealWindow.InWindow(world, f)).OrderBy(f => f.Id.Value).ToList())
+        {
+            if (org.Balance.Amount < 100_000m) break;
+            if (f.Record.CurrentStreak <= -3) continue;
+            var exp = valuation.Evaluate(world, f);
+            var session = NegotiationSession.Resume(world, f, org, exp);
+            var offer = session.TheirTermsAsOffer(Negotiator.WantsExclusivity(org), clause: false);
+            if (offer.PursePerFight.Amount > Math.Max(maxAsk, f.Contract!.PursePerFight.Amount * 1.5m)) continue;
+            if (session.Table(offer).Verdict != TalkVerdict.Accept) continue;
+            ContractLifecycle.Sign(world, f, offer, world.CurrentDate);
+            n++;
+        }
+        return n;
+    }
+
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;
 
-    private static Run One(ulong seed, int years, bool scriptOnly)
+    private static Run One(ulong seed, int years, bool scriptOnly, bool dealRules, bool resign)
     {
         var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed, Founding = new WorldBuilder.FoundingSpec() });
         var nwf = world.Get(world.PlayerPromotion)!;
         world.PlayerPromotion = default;
+        if (dealRules) DealWindow.HarnessPlayerRules(world, nwf.Id);
         FreeAgencyService.HarnessHandsOff = scriptOnly ? nwf.Id : null;
         var tick = new WorldTick();
         var valuation = new FighterValuation();
@@ -125,7 +165,15 @@ public static class ShoeSweep
         {
             for (int year = 1; year <= years; year++)
             {
-                for (int m = 0; m < 13 && !nwf.Defunct; m++) { PlayerAgent(); tick.AdvanceWeeks(world, 4); }
+                for (int m = 0; m < 13 && !nwf.Defunct; m++)
+                {
+                    if (dealRules && resign && !nwf.Defunct) run.ReSigned += ReSignInWindow(world, nwf, MaxAsk(), valuation);
+                    PlayerAgent();
+                    var inWindow = dealRules ? world.RosterOf(nwf.Id).Where(f => DealWindow.InWindow(world, f)).Select(f => f.Id).ToList() : new();
+                    tick.AdvanceWeeks(world, 4);
+                    // a window that closed in these four weeks: he walked to free agency
+                    run.Lapsed += inWindow.Count(id => world.Get(id) is { } f && f.Contract?.Promotion != nwf.Id && f.Status != FighterStatus.Retired);
+                }
                 if (nwf.Defunct) { run.Folded = true; break; }
                 var tier = OrgSizing.SizeOf(nwf);
                 for (var t = lastTier + 1; t <= tier; t++) run.Crossed.TryAdd(t, year);

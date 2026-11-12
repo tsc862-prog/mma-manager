@@ -48,7 +48,9 @@ public static class Mail
                      .Where(f => f.Status == FighterStatus.Active && f.Contract is { FightsRemaining: <= 1 }))
         {
             int left = f.Contract!.FightsRemaining;
-            string state = left == 0 ? "has expired" : "is down to its final fight";
+            string state = left > 0 ? "is down to its final fight"
+                : f.Contract.WindowEndsOn is { } end ? $"is up — they're ours alone to re-sign until {end:MMM d}, then a free agent"
+                : "has expired";
             // Rivals sniff around your good fighters when their deals run low —
             // said only when a real suitor exists (the poaching market's own
             // check, on the rival's read), never off his true ability.
@@ -60,7 +62,7 @@ public static class Mail
                 : "";
             Post(world, date, MailCategory.ContractAlert, "Matchmaking",
                 $"Contract: {f.FullName}",
-                $"{f.FullName}'s deal {state}. Re-sign them on the Contracts screen or risk losing them to free agency.{poaching}",
+                $"{f.FullName}'s deal {state}. Re-sign them on the Contracts screen or lose them to free agency.{poaching}",
                 aboutFighter: f.Id);
         }
 
