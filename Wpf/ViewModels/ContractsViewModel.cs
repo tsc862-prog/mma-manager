@@ -66,7 +66,9 @@ public sealed class MyContractRow
         PurseSort = f.Contract?.PursePerFight.Amount ?? 0m;
         FightsLeft = f.Contract?.FightsRemaining ?? 0;
         Status = FightsLeft == 0
-                ? (f.Contract?.WindowEndsOn is { } end ? $"Deal up · re-sign by {end:MMM d}" : "Expired")
+                ? (f.Contract?.WindowEndsOn is { } end
+                    ? (DealWindow.TalksClosed(w, f) ? $"Walked out · tests the market {end:MMM d}" : $"Deal up · re-sign by {end:MMM d}")
+                    : "Expired")
             : FightsLeft <= 1 ? "Expiring" : "Signed";
         Terms = f.Contract is { } c
             ? (c.IsExclusive ? "exclusive" : "non-excl") + (c.HasChampionsClause ? " · clause" : "")
@@ -372,7 +374,9 @@ public sealed class ContractsViewModel : ObservableObject
         if (NegotiationSession.SouredUntil(_world, f.Id, promo.Id) is { } until)
         {
             ResponseTone = "Bad";
-            Response = $"Their camp hasn't cooled off — no talks until {until:MMM d}.";
+            Response = DealWindow.TalksClosed(_world, f)
+                ? $"Talks are closed — {f.FullName} walked out and will test the market on {f.Contract!.WindowEndsOn:MMM d}."
+                : $"Their camp hasn't cooled off — no talks until {until:MMM d}.";
             return;
         }
 
@@ -393,7 +397,9 @@ public sealed class ContractsViewModel : ObservableObject
         {
             var cooloff = NegotiationSession.SouredUntil(_world, f.Id, promo.Id) ?? _world.CurrentDate.AddDays(NegotiationSession.CoolOffDays);
             ResponseTone = "Bad";
-            Response = $"{f.FullName}'s camp walked out — talks are dead until {cooloff:MMM d}.";
+            Response = DealWindow.TalksClosed(_world, f)
+                ? $"{f.FullName} walked out — talks are closed, and on {f.Contract!.WindowEndsOn:MMM d} he tests the market."
+                : $"{f.FullName}'s camp walked out — talks are dead until {cooloff:MMM d}.";
         }
         else
         {

@@ -140,8 +140,42 @@ public sealed class NegotiationSession
         m.Patience = Patience;
         m.Round = Round;
         m.LastTalked = on;
-        m.SouredUntil = Outcome == TalkOutcome.TheyWalked ? on.AddDays(CoolOffDays) : null;
+        m.SouredUntil = Outcome == TalkOutcome.TheyWalked ? CoolOffEnd(on) : null;
+
+        // In his own re-sign window a walk-out this late shuts the door for good:
+        // he will test the market. Say so now, not in a week.
+        if (Outcome == TalkOutcome.TheyWalked && _promo.Id == _world.PlayerPromotion && DealWindow.TalksClosed(_world, _fighter))
+            Living.Mail.Post(_world, on, MailCategory.ContractAlert, "Matchmaking",
+                $"{_fighter.FullName} will test the market",
+                Lifers.Gendered(_fighter, $"{_fighter.FullName} walked out of our talks with too little of his window left to cool off. "
+                    + $"Talks are closed: on {_fighter.Contract!.WindowEndsOn:d MMMM} he's a free agent and anyone can have him — us included."),
+                aboutFighter: _fighter.Id);
     }
+
+    /// <summary>
+    /// When a walk-out on <paramref name="on"/> stops closing the door:
+    /// <see cref="CoolOffDays"/> later — except in the fighter's own re-sign window
+    /// with this promotion (<see cref="DealWindow"/>), where the door reopens at
+    /// least <see cref="WindowReopenDays"/> days before the window ends, so a
+    /// mid-window walk-out still leaves time to re-sign. A walk-out inside those
+    /// last days keeps the full cool-off: talks are closed and he tests the market
+    /// (<see cref="DealWindow.TalksClosed"/>).
+    /// </summary>
+    private DateOnly CoolOffEnd(DateOnly on)
+    {
+        var until = on.AddDays(CoolOffDays);
+        if (DealWindow.InWindow(_world, _fighter) && _fighter.Contract!.Promotion == _promo.Id
+            && _fighter.Contract.WindowEndsOn is { } end && on < end.AddDays(-WindowReopenDays))
+        {
+            var reopen = end.AddDays(-WindowReopenDays);
+            if (reopen < until) until = reopen;
+            if (until <= on) until = on.AddDays(1);   // never before tomorrow
+        }
+        return until;
+    }
+
+    /// <summary>Inside a re-sign window, a walk-out's door reopens at least this many days before the window ends.</summary>
+    public const int WindowReopenDays = 3;
 
     private static TalksMemory? Memory(World world, FighterId fighter, PromotionId promo) =>
         world.Talks.FirstOrDefault(t => t.Fighter == fighter && t.Promotion == promo);

@@ -442,7 +442,7 @@ public class LiferTests
     }
 
     [Fact]
-    public void ARefusedLifer_WhoBecomesPoachable_GetsTheCirclingWarningAMonthFirst()
+    public void ARefusedLifer_WhoSours_IsToldPlainlyWhenHisDealEnds_AndNobodyTakesHimInTheWindow()
     {
         var world = FoundedWorld(48);
         var lifer = Star(world, Disposition.CompanyMan, loyalty: 90);
@@ -450,27 +450,33 @@ public class LiferTests
         HireOne(world);
         BookOnNextCard(world, lifer);
         lifer.Contract!.PursePerFight = new FighterValuation().Evaluate(world, lifer).AskingPurse;
+        lifer.Contract.FightsRemaining = 1;   // his last fight is booked
         var day = world.CurrentDate;
 
-        // Month 0: the rival calls, he says no.
+        // Month 0, on his last fight: the rival calls, he says no.
         PoachingService.WarnExpiring(world, day);
-        Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, day));
         Assert.Equal(Contract.RefusalTold, lifer.Contract!.BondNoticeOn);
         Assert.False(lifer.Contract.PoachWarned, "a refusal is not the circling warning");
 
-        // He sours completely — now any rival's money moves him.
+        // He sours completely — now any rival's money would move him...
         lifer.Loyalty = 0;
         Assert.False(Lifers.IsLifer(world, lifer));
+        Assert.True(PoachingService.HasSuitor(world, lifer));
 
-        // Month 1: the owner is warned, and nobody takes him this month.
+        // ...and his deal is fought out: the window mail says plainly where he stands.
+        foreach (var e in world.Events.Values.Where(e => e.Status == EventStatus.Scheduled && e.Promotion == world.PlayerPromotion).ToList())
+            world.Events.Remove(e.Id);
+        lifer.Contract.FightsRemaining = 0;
+        DealWindow.Open(world, lifer, day.AddMonths(1));
+        var mail = world.Mail.Single(m => m.Subject.StartsWith($"{lifer.FullName}'s deal is up"));
+        Assert.Contains("no longer holding", mail.Body);
+        Assert.Contains("Rivals are circling", mail.Body);
+
+        // The window holds: nobody takes him at expiry, and no rival calls him.
+        ContractLifecycle.ProcessExpiries(world, day.AddMonths(1));
         PoachingService.WarnExpiring(world, day.AddMonths(1));
-        Assert.False(PoachingService.TryPoachFromPlayer(world, lifer, day.AddMonths(1)));
-        Assert.Contains(world.Mail, m => m.Subject.EndsWith($"is circling {lifer.FullName}"));
         Assert.Equal(world.PlayerPromotion, lifer.Contract!.Promotion);
-
-        // Month 2: unsigned and warned — the treadmill takes him.
-        PoachingService.WarnExpiring(world, day.AddMonths(2));
-        Assert.True(PoachingService.TryPoachFromPlayer(world, lifer, day.AddMonths(2)));
+        Assert.DoesNotContain(world.Mail, m => m.Subject.EndsWith($"is circling {lifer.FullName}"));
     }
 
     [Fact]

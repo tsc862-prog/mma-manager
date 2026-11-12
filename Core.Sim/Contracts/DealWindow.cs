@@ -56,6 +56,14 @@ public static class DealWindow
     public static bool InWindow(World world, Fighter f) =>
         f.Status != FighterStatus.Retired && OutOfDeal(world, f);
 
+    /// <summary>
+    /// In his window, he walked out of talks and the door stays shut past the
+    /// window's end: there will be no re-signing — he tests the market.
+    /// </summary>
+    public static bool TalksClosed(World world, Fighter f) =>
+        InWindow(world, f) && f.Contract!.WindowEndsOn is { } end
+        && NegotiationSession.SouredUntil(world, f.Id, f.Contract.Promotion) is { } until && until >= end;
+
     /// <summary>Days left to re-sign him (0 on the day it closes); null when no window is open.</summary>
     public static int? DaysLeft(World world, Fighter f) =>
         InWindow(world, f) && f.Contract!.WindowEndsOn is { } end
@@ -95,9 +103,12 @@ public static class DealWindow
                 c.WindowWarned = true;
                 if (c.Promotion == world.PlayerPromotion)
                     Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
-                        $"Last week to re-sign {f.FullName}",
-                        Lifers.Gendered(f, $"{f.FullName}'s window closes on {end:d MMMM}. Re-sign him before then, "
-                            + "or he's a free agent and anyone can have him."),
+                        TalksClosed(world, f) ? $"{f.FullName} will test the market" : $"Last week to re-sign {f.FullName}",
+                        Lifers.Gendered(f, TalksClosed(world, f)
+                            ? $"{f.FullName} walked out of our talks and won't sit down again before his window closes on {end:d MMMM}. "
+                              + "Then he's a free agent and anyone can have him — us included."
+                            : $"{f.FullName}'s window closes on {end:d MMMM}. Re-sign him before then, "
+                              + "or he's a free agent and anyone can have him."),
                         aboutFighter: f.Id);
             }
         }
@@ -135,9 +146,18 @@ public static class DealWindow
                     + "a free agent and anyone can have him.";
         if (world.Titles.Values.Any(t => t.Promotion == c.Promotion && t.CurrentChampion == f.Id))
             body += " He keeps the belt until then; if he walks, it's vacant.";
-        if (Lifers.IsHolding(world, f))
+        var bond = Lifers.BondOf(world, f);
+        bool suitor = PoachingService.HasSuitor(world, f);
+        // A lifer who has soured (a standing grievance, or a bond already told as
+        // broken / a rival already turned down on this deal) is said to be one plainly.
+        bool soured = !bond.IsHolding && (bond.IsLifer || c.BondNoticeOn is not null);
+        if (bond.IsHolding)
             body += " He wants to stay, and he'll do it at his hometown rate.";
-        else if (PoachingService.HasSuitor(world, f))
+        else if (soured)
+            body += " He is no longer holding for us"
+                  + (bond.Grievance is { } g ? $" — {g.Reason}" : "") + ": he'll listen to anyone."
+                  + (suitor ? " Rivals are circling — they'll come for him the day he's free." : "");
+        else if (suitor)
             body += " Bigger promotions are watching — they'll come for him the day he's free.";
         Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
             $"{f.FullName}'s deal is up — re-sign him by {end:MMM d}",

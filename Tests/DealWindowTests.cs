@@ -204,6 +204,81 @@ public class DealWindowTests
         Assert.Contains(world.Mail, m => m.Subject == $"{lifer.FullName} has left us");
     }
 
+    [Fact]
+    public void TheRealMonthlyPass_SendsNoRivalStoryOrCirclingMail_ForFightersInTheirWindow()
+    {
+        var world = FoundedWorld(48);
+        var tick = new WorldTick();
+        // Stop on the last week of a month, so the next tick runs the monthly block.
+        while (world.CurrentDate.AddDays(7).Month == world.CurrentDate.Month) tick.AdvanceWeek(world);
+        var lifer = Star(world, Disposition.CompanyMan, loyalty: 90);
+        var hired = Star(world, Disposition.Warhorse, loyalty: 30);
+        Assert.True(Lifers.IsHolding(world, lifer), "precondition: a holding lifer");
+        Assert.True(PoachingService.HasSuitor(world, hired), "precondition: a rival wants the other one");
+        DealWindow.Open(world, lifer, world.CurrentDate);
+        DealWindow.Open(world, hired, world.CurrentDate);
+
+        var month = world.CurrentDate.Month;
+        tick.AdvanceWeek(world);   // Lifers.RunMonthly, WarnExpiring, ProcessExpiries, free agency, MonthlyReview...
+        Assert.NotEqual(month, world.CurrentDate.Month);
+
+        foreach (var f in new[] { lifer, hired })
+        {
+            Assert.Equal(world.PlayerPromotion, f.Contract?.Promotion);
+            Assert.DoesNotContain(world.News, n => n.Headline.StartsWith($"{f.FullName} turns down"));
+            Assert.DoesNotContain(world.Mail, m => m.Subject.StartsWith($"{f.FullName} turned down"));
+            Assert.DoesNotContain(world.Mail, m => m.Subject.EndsWith($"is circling {f.FullName}"));
+            Assert.False(f.Contract!.PoachWarned);
+        }
+    }
+
+    // --- A walk-out inside the window -----------------------------------------------
+
+    [Theory]
+    [InlineData(2, 23)]    // a full cool-off still ends well inside the window
+    [InlineData(9, 27)]    // capped: the door reopens 3 days before the window ends
+    [InlineData(26, 27)]   // capped, and still after today
+    public void AWalkOutInTheWindow_ReopensTheDoorBeforeTheWindowEnds(int day, int reopensOn)
+    {
+        var (world, f, day0, end) = WalkOutOnDay(day);
+        Assert.Equal(day0.AddDays(reopensOn), NegotiationSession.SouredUntil(world, f.Id, world.PlayerPromotion));
+        Assert.True(day0.AddDays(reopensOn) < end);
+        Assert.False(DealWindow.TalksClosed(world, f));
+        Assert.DoesNotContain(world.Mail, m => m.Subject == $"{f.FullName} will test the market");
+    }
+
+    [Fact]
+    public void AWalkOutInTheLastThreeDays_ClosesTalks_AndHeTestsTheMarket()
+    {
+        var (world, f, _, end) = WalkOutOnDay(28);
+        Assert.True(DealWindow.TalksClosed(world, f));
+        Assert.True(NegotiationSession.SouredUntil(world, f.Id, world.PlayerPromotion) >= end);
+        Assert.Contains(world.Mail, m => m.Subject == $"{f.FullName} will test the market" && m.Body.Contains("Talks are closed"));
+        DealWindow.RunWeekly(world, end);
+        Assert.Null(f.Contract);   // a free agent
+    }
+
+    // A star in his window from day0, who walks out of talks on day0 + day.
+    private static (World W, Fighter F, DateOnly Day0, DateOnly End) WalkOutOnDay(int day)
+    {
+        var world = FoundedWorld(48);
+        var f = Star(world, Disposition.Warhorse, loyalty: 40);
+        var day0 = world.CurrentDate;
+        DealWindow.Open(world, f, day0);
+        world.CurrentDate = day0.AddDays(day);
+        var promo = world.Get(world.PlayerPromotion)!;
+        var talks = NegotiationSession.Resume(world, f, promo, new FighterValuation().Evaluate(world, f));
+        for (int i = 0; i < 8 && talks.Outcome == TalkOutcome.Open; i++)
+        {
+            var low = talks.TheirTermsAsOffer(true, false);
+            low.PursePerFight = new Money(Math.Round(low.PursePerFight.Amount * 0.3m));
+            talks.Table(low);
+        }
+        Assert.Equal(TalkOutcome.TheyWalked, talks.Outcome);
+        talks.Remember(world.CurrentDate);
+        return (world, f, day0, f.Contract!.WindowEndsOn!.Value);
+    }
+
     // --- The AI world is untouched ---------------------------------------------------
 
     [Fact]

@@ -602,6 +602,10 @@ public static class Storylines
 
                 var when = date.AddDays(28);
                 if (!challenger.IsMatchReady(when) || !champ.IsMatchReady(when)) continue;
+                // A champion whose deal is fought out under the player's rules (a
+                // harness stand-in org) is in his re-sign window: bookable by nobody.
+                // (Always false for an AI org's deal, so all-AI worlds are unchanged.)
+                if (Contracts.DealWindow.OutOfDeal(world, challenger) || Contracts.DealWindow.OutOfDeal(world, champ)) continue;
                 // A champion already announced for a card is spoken for.
                 if (ForwardCalendar.IsCommitted(world, challengerId) || ForwardCalendar.IsCommitted(world, champId)) continue;
 
