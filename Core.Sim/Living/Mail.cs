@@ -48,19 +48,24 @@ public static class Mail
                      .Where(f => f.Status == FighterStatus.Active && f.Contract is { FightsRemaining: <= 1 }))
         {
             int left = f.Contract!.FightsRemaining;
-            string state = left == 0 ? "has expired" : "is down to its final fight";
+            string state = left > 0 ? "is down to its final fight"
+                : f.Contract.WindowEndsOn is { } shut && Contracts.DealWindow.TalksClosed(world, f)
+                    ? $"is up and they walked out of talks — on {shut:MMM d} they test the market"
+                : f.Contract.WindowEndsOn is { } end ? $"is up — they're ours alone to re-sign until {end:MMM d}, then a free agent"
+                : "has expired";
             // Rivals sniff around your good fighters when their deals run low —
             // said only when a real suitor exists (the poaching market's own
             // check, on the rival's read), never off his true ability.
-            // (A lifer who turned a rival down on this deal hears nothing here,
-            // as WarnExpiring stays silent: his notice comes at expiry.)
+            // (A holding lifer counts no suitor: he says no to the call, so one who
+            // turned a rival down and still holds hears nothing here. One who has
+            // since soured is circled like anyone — there is no poach at expiry
+            // any more to give him a separate warning.)
             string poaching = Contracts.PoachingService.HasSuitor(world, f)
-                              && f.Contract.BondNoticeOn != Contract.RefusalTold
                 ? " Rival promotions are already circling — lock them up before they walk."
                 : "";
             Post(world, date, MailCategory.ContractAlert, "Matchmaking",
                 $"Contract: {f.FullName}",
-                $"{f.FullName}'s deal {state}. Re-sign them on the Contracts screen or risk losing them to free agency.{poaching}",
+                $"{f.FullName}'s deal {state}. Re-sign them on the Contracts screen or lose them to free agency.{poaching}",
                 aboutFighter: f.Id);
         }
 

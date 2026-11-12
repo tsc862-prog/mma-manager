@@ -277,6 +277,7 @@ public sealed partial class PlayerBooking
         var stay = world.Get(stayId);
         if (inF is null || stay is null) { error = "Fighter not found."; return false; }
         if (inF.Contract?.Promotion != world.PlayerPromotion) { error = "The replacement must be on your roster."; return false; }
+        if (Contracts.DealWindow.OutOfDeal(world, inF)) { error = "The replacement's deal is up — re-sign them first."; return false; }
         if (inF.WeightClass != bout.WeightClass) { error = "The replacement must be in the bout's weight class."; return false; }
         if (inF.Sex != stay.Sex) { error = "A bout can't cross men's and women's divisions."; return false; }
         if (!inF.IsMatchReady(ev.Date)) { error = "The replacement is injured or still recovering."; return false; }
@@ -683,9 +684,12 @@ public sealed partial class PlayerBooking
                 if (f.Contract?.Promotion != ev.Promotion)
                     risks.Add(new(BookingRiskKind.NotUnderContract,
                         $"{f.FullName} is no longer under contract with you.", id));
+                else if (f.Contract.FightsRemaining <= 0)
+                    risks.Add(new(BookingRiskKind.NotUnderContract,
+                        $"{f.FullName}'s deal is up: re-sign them or they can't fight on this card.", id));
                 else if (f.Contract.FightsRemaining <= 1)
                     risks.Add(new(BookingRiskKind.LastFightOnDeal,
-                        $"{f.FullName} is on the last fight of the deal: after this bout the contract is up, and rivals can bid.", id));
+                        $"{f.FullName} is on the last fight of the deal: after this bout the deal ends, and you have {Contracts.DealWindow.WindowDays} days to re-sign them before anyone else can.", id));
                 if (!f.IsMatchReady(ev.Date))
                     risks.Add(new(BookingRiskKind.NotMatchReady, $"{f.FullName} {NotReadyWhy(f, ev.Date)}", id));
             }
@@ -785,7 +789,8 @@ public sealed partial class PlayerBooking
         {
             var pool = world.RosterOf(promo.Id)
                 .Where(f => div.Matches(f) && f.IsMatchReady(ev.Date)
-                            && !BookedOnCard(ev, f.Id) && !BookedElsewhere(world, ev, f.Id))
+                            && !BookedOnCard(ev, f.Id) && !BookedElsewhere(world, ev, f.Id)
+                            && !Contracts.DealWindow.OutOfDeal(world, f))
                 .OrderBy(f => f.Id.Value)
                 .ToList();
             if (pool.Count < 2) continue;

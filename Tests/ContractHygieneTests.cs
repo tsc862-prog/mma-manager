@@ -347,7 +347,7 @@ public class ContractHygieneTests
     }
 
     [Fact]
-    public void CirclingLine_StaysSilent_ForALiferWhoAlreadyTurnedTheRivalDown()
+    public void CirclingLine_StaysSilent_ForAHoldingLiferWhoTurnedTheRivalDown_AndReturnsOnceHeSours()
     {
         var world = Build();
         world.PlayerPromotion = world.Promotions.Values
@@ -357,15 +357,26 @@ public class ContractHygieneTests
             .Where(x => x.Status == FighterStatus.Active && x.Contract is not null && x.Record.CurrentStreak >= 0)
             .OrderBy(x => x.Id.Value).First();
         f.Contract!.FightsRemaining = 1;
-        f.Loyalty = 20;
         f.Intangibles.Popularity = 100;
-        f.Contract.BondNoticeOn = Contract.RefusalTold;   // he said no on this deal; WarnExpiring stays silent too
-        Assert.True(PoachingService.HasSuitor(world, f));
+        f.Contract.BondNoticeOn = Contract.RefusalTold;   // he said no on this deal
 
+        // Still holding: he says no to the call, so nobody counts as circling him.
+        f.Disposition = Disposition.CompanyMan;
+        f.Loyalty = 100;
+        Assert.True(Lifers.IsHolding(world, f), Lifers.BondOf(world, f).Grievance?.Reason);
+        Assert.False(PoachingService.HasSuitor(world, f));
         Mail.MonthlyReview(world, world.CurrentDate);
+        var held = world.Mail.Single(m => m.Category == MailCategory.ContractAlert && m.AboutFighter == f.Id);
+        Assert.DoesNotContain(Circling, held.Body);
+        held.Read = true;
 
-        var mail = world.Mail.Single(m => m.Category == MailCategory.ContractAlert && m.AboutFighter == f.Id);
-        Assert.DoesNotContain(Circling, mail.Body);
+        // Soured (loyalty 20, no longer a lifer): since v45 nothing takes him at
+        // expiry, so the monthly line is his notice that rivals are circling.
+        f.Loyalty = 20;
+        Assert.True(PoachingService.HasSuitor(world, f));
+        Mail.MonthlyReview(world, world.CurrentDate);
+        var mail = world.Mail.Last(m => m.Category == MailCategory.ContractAlert && m.AboutFighter == f.Id);
+        Assert.Contains(Circling, mail.Body);
     }
 
     // --- (5) a finished deal lapses without a reputation hit ---------------------

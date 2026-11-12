@@ -41,6 +41,13 @@ public class PersistenceTests
                     Requirements = { new DealRequirement(DealRequirementKind.MinAttendance, 2_000) },
                     OfferedOn = world.CurrentDate, ExpiresOn = world.CurrentDate.AddDays(30),
                 });
+            // Talks the player left mid-way (one per fighter and promotion).
+            world.Talks.Add(new TalksMemory
+            {
+                Fighter = world.Fighters.Keys.Skip(3).First(), Promotion = world.Promotions.Keys.First(),
+                DemandFrac = 0.913, Mood = 51, Patience = 2, Round = 3,
+                SouredUntil = world.CurrentDate.AddDays(9), LastTalked = world.CurrentDate.AddDays(-12),
+            });
             PersistenceGraph.FillUnpopulated(world);
         }
         return world;
@@ -325,6 +332,52 @@ public class PersistenceTests
         var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "A saved-and-loaded world diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    /// <summary>
+    /// The player's deals end (Contracts.DealWindow): a world saved two weeks into a
+    /// fighter's re-sign window, with contract talks left mid-way, loads into the same
+    /// window and the same remembered talks, and runs on through the window's close
+    /// exactly like the world that was never saved.
+    /// </summary>
+    [Fact]
+    public void ASaveMidWindow_LoadsIntoTheSameWindow_AndRunsOnLikeANeverSavedWorld()
+    {
+        (World W, FighterId Out) Setup()
+        {
+            var w = PlayerWorld(21);
+            var promo = w.Get(w.PlayerPromotion)!;
+            var f = w.RosterOf(promo.Id).OrderBy(x => x.Id.Value).First();
+            f.Contract!.FightsRemaining = 0;
+            MmaManager.Core.Sim.Contracts.DealWindow.Open(w, f, w.CurrentDate);
+
+            var fa = w.FreeAgents().Where(x => x.Status == FighterStatus.Active).OrderBy(x => x.Id.Value).First();
+            var exp = new MmaManager.Core.Sim.Contracts.FighterValuation().Evaluate(w, fa);
+            var talks = MmaManager.Core.Sim.Contracts.NegotiationSession.Resume(w, fa, promo, exp);
+            var offer = talks.TheirTermsAsOffer(true, false);
+            offer.PursePerFight = new Money(Math.Round(offer.PursePerFight.Amount * 0.85m));
+            talks.Table(offer);
+            talks.WalkAway();
+            talks.Remember(w.CurrentDate);
+
+            new WorldTick().AdvanceWeeks(w, 2);
+            Assert.True(MmaManager.Core.Sim.Contracts.DealWindow.InWindow(w, f), "precondition: saved mid-window");
+            return (w, f.Id);
+        }
+
+        var (straight, outId) = Setup();
+        var (split, _) = Setup();
+        var resumed = RoundTrip(split);
+        AssertSame(split, resumed);
+        Assert.NotNull(resumed.Get(outId)!.Contract!.WindowEndsOn);
+        Assert.NotEmpty(resumed.Talks);
+
+        new WorldTick().AdvanceWeeks(straight, 4);
+        new WorldTick().AdvanceWeeks(resumed, 4);
+        Assert.NotEqual(straight.PlayerPromotion, straight.Get(outId)!.Contract?.Promotion);   // the window closed on him
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
+        Assert.True(diffs.Count == 0,
+            "A world saved mid-window diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
     }
 
     private static World RoundTrip(World w)

@@ -29,13 +29,16 @@ public static class PoachingService
         {
             if (f.Status != FighterStatus.Active || f.Contract is not { } c) continue;
             if (c.PoachWarned || c.FightsRemaining > 1) continue;   // the fight before free agency
+            // A deal already fought out is in its re-sign window (DealWindow): no
+            // rival may call him, and the window's own mails tell the owner where
+            // he stands (a soured lifer's says he is listening, and who is circling).
+            if (DealWindow.InWindow(world, f)) continue;
             if (BestSuitor(world, player, f) is not { } suitor) continue;
 
             // A lifer doesn't need a warning — the call came, and he said no.
             if (Lifers.IsHolding(world, f)) { Lifers.TurnDown(world, f, player, suitor, date); continue; }
-            // He said no on this deal and has since soured: his warning comes at
-            // expiry with a month's grace (TryPoach), never in the same tick as a poach.
-            if (c.BondNoticeOn == Contract.RefusalTold) continue;
+            // (One who said no on this deal and has since soured gets the ordinary
+            // warning: since v45 nobody can take him at expiry, so this is his notice.)
 
             c.PoachWarned = true;
             Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
@@ -47,8 +50,12 @@ public static class PoachingService
     }
 
     /// <summary>
-    /// At free agency (deal expired), a bigger org may sign the player's star away.
-    /// Thin wrapper over <see cref="TryPoach"/> for the player-facing path.
+    /// Whether a bigger org would sign the player's run-out star away right now.
+    /// Not called by the tick since v45 — the player's deals end into an exclusive
+    /// re-sign window (<see cref="DealWindow"/>) and then free agency, with no poach
+    /// at expiry. Kept because LiferTests and ProgressionTests use it to probe the
+    /// poach rules (who takes him, a lifer's refusal); stage 6 rival offers reuse
+    /// the same gates.
     /// </summary>
     public static bool TryPoachFromPlayer(World world, Fighter f, DateOnly date) =>
         f.Contract?.Promotion == world.PlayerPromotion && TryPoach(world, f, date);
@@ -67,20 +74,6 @@ public static class PoachingService
 
         // A holding lifer says no whatever the money — and the approach is public.
         if (Lifers.IsHolding(world, f)) { Lifers.TurnDown(world, f, from, suitor, date); return false; }
-
-        // The player's lifer turned this rival down on this deal and has since
-        // become poachable: the owner hears it first and gets a month to act.
-        if (from.Id == world.PlayerPromotion && cur.BondNoticeOn == Contract.RefusalTold && !cur.PoachWarned)
-        {
-            cur.PoachWarned = true;
-            var why = Lifers.GrievanceOf(world, f, date);
-            Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
-                $"{suitor.Abbreviation} is circling {f.FullName}",
-                Lifers.Gendered(f, $"{f.FullName} turned {suitor.Name} down once on this deal, but his deal has run out and he's listening now"
-                    + (why is not null ? $" — {why.Reason}" : "") + ". Re-sign him this month or we lose him to them."),
-                aboutFighter: f.Id);
-            return false;
-        }
 
         // The suitor stretches its budget to land them — but a fighter loyal to
         // their current org costs far more to pry loose (up to ~5-10x after years

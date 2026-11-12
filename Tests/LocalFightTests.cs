@@ -101,6 +101,9 @@ public class LocalFightTests
         // local the advisor's top pick on this seed became a 19-year-old 0-0
         // strawweight, whose record against female locals is its own question.
         var mine = Hire(world, Sex.Male);
+        // Six bouts in a row: a deal long enough for all of them (a deal fought
+        // out ends, and he can't be booked until he re-signs — DealWindow).
+        mine.Contract!.FightsRemaining = 10;
         var booking = new PlayerBooking();
         var events = new EventService();
 

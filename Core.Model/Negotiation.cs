@@ -89,5 +89,33 @@ public sealed class ContractOffer
 
 public enum NegotiationVerdict { Accept, Counter, Reject }
 
+/// <summary>
+/// What a fighter remembers of his last sit-down with a promotion (one per
+/// fighter and promotion, in <see cref="World.Talks"/>): where his number had
+/// come down to, how the room felt, how much patience he had left, and — if he
+/// walked out — when he will sit down again. Reopening the talks within a couple
+/// of months picks up exactly here (Core.Sim Contracts.NegotiationSession.Resume),
+/// so leaving the table is not a free reset. Written when the room closes; a
+/// signature forgets it.
+/// </summary>
+public sealed class TalksMemory
+{
+    public required FighterId Fighter { get; init; }
+    public required PromotionId Promotion { get; init; }
+
+    /// <summary>His number as a fraction of his ask, where the talks left it.</summary>
+    public double DemandFrac { get; set; } = 1.0;
+    public int Mood { get; set; }
+    public int Patience { get; set; }
+    /// <summary>Offers tabled so far.</summary>
+    public int Round { get; set; }
+
+    /// <summary>He walked out: no talks before this day, and after it they start over. Null = no walk-out.</summary>
+    public DateOnly? SouredUntil { get; set; }
+
+    /// <summary>When the room last closed.</summary>
+    public DateOnly LastTalked { get; set; }
+}
+
 /// <summary>The fighter's answer to an offer; <see cref="Counter"/> is set only when countering.</summary>
 public sealed record NegotiationResponse(NegotiationVerdict Verdict, ContractOffer? Counter, string Summary);
