@@ -216,12 +216,23 @@ public static class WorldEvents
         // survive — with the occasional wide-slate gambler.
         var niche = StartupNiches[rng.WeightedIndex(stackalloc double[] { 3, 3, 2, 2 })];
 
+        // Its open tryouts bring in a founding class of local kids (their own
+        // keyed stream, never this one): green, cheap, and grateful for the shot.
+        var tryouts = FoundingClass.Generate(world, promo, spec.Region, niche.Classes, date);
+
         // Stock it from the free agents, region-first (local heroes headline the
         // new scene), and stand up its divisions + vacant belts.
         var signed = StockStartup(world, promo, spec.Region, niche.Classes, date, rng);
         // Not enough fighters would sign for this money to run a card: the
-        // launch falls through (nobody was signed, nothing more is drawn).
-        if (signed.Count == 0) { world.Promotions.Remove(promo.Id); return; }
+        // launch falls through (nobody was signed, nothing more is drawn, and
+        // there were no tryouts).
+        if (signed.Count == 0)
+        {
+            FoundingClass.Withdraw(world, tryouts);
+            world.Promotions.Remove(promo.Id);
+            return;
+        }
+        int locals = signed.Count(f => f.DiscoveredBy == promo.Id);
         // It opens the divisions it could actually staff.
         var opened = niche.Classes.Where(wc => signed.Any(f => f.WeightClass == wc)).ToArray();
         PromotionSetup.ConfigureDivisions(world, promo, signed, opened, date, 15, null, Sex.Male);
@@ -235,8 +246,8 @@ public static class WorldEvents
                 ? $"MMA arrives: {spec.Name} launches in {Pretty(spec.Region)}"
                 : $"A new promotion is born: {spec.Name} launches",
             firstInRegion
-                ? $"For the first time, {Pretty(spec.Region)} has a professional MMA promotion of its own — {spec.Abbrev} opens its doors with {signed.Count} fighters, {niche.Flavor}."
-                : $"{spec.Abbrev} enters the scene with {signed.Count} fighters — {niche.Flavor}.",
+                ? $"For the first time, {Pretty(spec.Region)} has a professional MMA promotion of its own — {spec.Abbrev} opens its doors with {signed.Count} fighters, {niche.Flavor}.{Tryouts(locals)}"
+                : $"{spec.Abbrev} enters the scene with {signed.Count} fighters — {niche.Flavor}.{Tryouts(locals)}",
             promo.Id);
         if (firstInRegion)
             Mail.Post(world, date, MailCategory.General, Mail.Owner(world),
@@ -260,6 +271,12 @@ public static class WorldEvents
 
     /// <summary>A division a startup opens needs at least this many signings (two bouts' worth).</summary>
     public const int StartupMinPerDivision = 4;
+
+    /// <summary>
+    /// Of a division's founding signings, at least this many must be pros off the
+    /// open market (not the house's own tryout class, <see cref="FoundingClass"/>).
+    /// </summary>
+    public const int StartupMinProsPerDivision = 2;
 
     /// <summary>A startup launches only with at least this many signings across the divisions it opens.</summary>
     public const int StartupMinRoster = 8;
@@ -324,9 +341,13 @@ public static class WorldEvents
                 var ask = Contracts.Negotiator.EffectiveAskingPurse(world, promo, fa, exp);
                 if (ask.Amount > foundingCap * StartupAskCeiling) continue;
 
-                // His asking purse (rounded UP to the $500 step), within what is
-                // left of the division's budget.
-                decimal purse = Up500(ask.Amount);
+                // His asking purse (rounded UP to the $500 step from the
+                // unrounded figure: the quoted ask is rounded to the nearest
+                // step, and a $1,200 ask quoted as $1,000 is a lowball he
+                // counters), within what is left of the division's budget.
+                decimal purse = Up500(exp.AskingPurse.Amount
+                    * (Contracts.Negotiator.WantsExclusivity(promo) ? 1m : Contracts.Negotiator.NonExclusiveMoneyFactor)
+                    * Contracts.Negotiator.TableDiscount(world, fa, promo.Id));
                 if (purse > budget) continue;
                 decimal signing = exp.WantsSigningBonus ? Up500(ask.Amount * 0.5m * Contracts.Negotiator.SigningBonusMinFraction) : 0m;
                 if (signing > bonusPot) continue;
@@ -344,7 +365,11 @@ public static class WorldEvents
                 budget -= purse;
                 division.Add((fa, offer));
             }
-            if (division.Count >= StartupMinPerDivision) { plan.AddRange(division); opened++; }
+            // A division opens with a real core: enough bodies for two bouts, of
+            // whom at least StartupMinProsPerDivision are pros off the market —
+            // the founding class fills a division out, it can't be one.
+            int pros = division.Count(d => d.Item1.DiscoveredBy != promo.Id);
+            if (division.Count >= StartupMinPerDivision && pros >= StartupMinProsPerDivision) { plan.AddRange(division); opened++; }
             else bonusPot += division.Sum(d => d.Item2.SigningBonus.Amount);   // the dropped division's bonuses go back in the pot
         }
 
@@ -374,6 +399,13 @@ public static class WorldEvents
             .ToList();
 
     // --- helpers -------------------------------------------------------------
+
+    private static string Tryouts(int locals) => locals switch
+    {
+        0 => "",
+        1 => " One of them came in off its open tryouts.",
+        _ => $" {locals} of them came in off its open tryouts.",
+    };
 
     private static decimal Up500(decimal amount) => Math.Ceiling(amount / 500m) * 500m;
 

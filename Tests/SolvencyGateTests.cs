@@ -40,6 +40,10 @@ public class SolvencyGateTests
         promo.Balance = new Money(-1_000_000m);
 
         var before = world.RosterOf(promo.Id).Where(f => div.Matches(f)).Select(f => f.Id).ToHashSet();
+        // What each free agent asked on the market (signing to a bigger stage
+        // raises the ask after the fact: the stage is part of his public sheet).
+        var valuation = new FighterValuation();
+        var asked = world.FreeAgents().ToDictionary(f => f.Id, f => valuation.Evaluate(world, f).AskingPurse.Amount);
         FreeAgencyService.RunMonthly(world, world.CurrentDate);
         var after = world.RosterOf(promo.Id).Where(f => div.Matches(f)).ToList();
 
@@ -47,9 +51,8 @@ public class SolvencyGateTests
         // and every new signing fits the distressed bargain budget.
         Assert.True(after.Count <= 4, $"a distressed org should stop at {4}, had {after.Count}");
         decimal ceiling = Negotiator.PurseCap(world, promo) * Solvency.DistressedPurseFactor(1);
-        var valuation = new FighterValuation();
         foreach (var signed in after.Where(f => !before.Contains(f.Id)))
-            Assert.True(valuation.Evaluate(world, signed).AskingPurse.Amount <= ceiling,
+            Assert.True(asked[signed.Id] <= ceiling,
                 $"{signed.FullName} asks more than a bleeding org should pay");
     }
 
@@ -142,6 +145,9 @@ public class SolvencyGateTests
         var star = world.RosterOf(afc.Id).First(f =>
             f.Sex == Sex.Male
             && !world.Titles.Values.Any(t => t.CurrentChampion == f.Id)
+            && f.AgeOn(world.CurrentDate) < 35           // no sunset retirement at expiry
+            && world.RosterOf(afc.Id).Count(x => x.WeightClass == f.WeightClass && x.Sex == f.Sex && x.Status != FighterStatus.Retired)
+               <= OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(afc))   // not trimmed as hoarded depth
             && RosterPolicy.Wants(world, afc, f)
             && valuation.Evaluate(world, f).AskingPurse.Amount > distressCeiling
             && negotiator.Evaluate(world, f,

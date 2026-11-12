@@ -48,8 +48,15 @@ public class LiferTests
                 big.PopularityByCity[big.HomeCity!.Value] = 100;
             // A cheap-to-price celebrity draw (modest in the cage, a big name, a
             // short record): the giants can afford even a loyal fighter's price.
-            var f = HireOne(w);
+            // The ask is built from the public sheet, so the sheet is short too,
+            // and the agent is the calmest on the market (the price must sit
+            // inside the giants' loyalty reach whoever the advisor would pick).
+            var f = HireCalmest(w);
             foreach (var a in RaiseAbility(f)) a(42);
+            f.BoutHistory.Clear();
+            f.Record.Wins = 2; f.Record.Losses = 1; f.Record.Draws = 0; f.Record.NoContests = 0;
+            f.Record.WinsByKo = 1; f.Record.WinsBySubmission = 0; f.Record.WinsByDecision = 1;
+            f.Momentum = 0;                       // a name, not a hot streak
             f.Intangibles.Popularity = 76;   // just past the giants' draw floor
             f.Record.CurrentStreak = 1;
             f.Disposition = d;
@@ -679,6 +686,22 @@ public class LiferTests
             Fighter = f.Id, Promotion = world.PlayerPromotion,
             PursePerFight = exp.AskingPurse, WinBonus = exp.AskingWinBonus, Fights = exp.DesiredFights,
         }, world.CurrentDate);
+    }
+
+    // The free agent in the player's divisions with the easiest-going agent (ties on id), signed at his ask.
+    private static Fighter HireCalmest(World world)
+    {
+        var promo = world.Get(world.PlayerPromotion)!;
+        var f = world.FreeAgents()
+            .Where(x => x.Status == FighterStatus.Active && promo.Divisions.Any(d => d.Matches(x)))
+            .OrderBy(FighterValuation.AgentToughness).ThenBy(x => x.Id.Value).First();
+        var exp = new FighterValuation().Evaluate(world, f);
+        ContractLifecycle.Sign(world, f, new ContractOffer
+        {
+            Fighter = f.Id, Promotion = promo.Id,
+            PursePerFight = exp.AskingPurse, WinBonus = exp.AskingWinBonus, Fights = exp.DesiredFights,
+        }, world.CurrentDate);
+        return f;
     }
 
     private static Fighter HireOne(World world)

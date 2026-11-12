@@ -91,9 +91,14 @@ public class SigningAdvisorTests
     [Fact]
     public void Ask_IsTheFigureThisPromotionIsActuallyQuoted()
     {
-        var world = Founded(11);
-        var promo = world.Get(world.PlayerPromotion)!;
-        var pick = SigningAdvisor.Suggest(world, promo)!;
+        // A founding whose advisor pick asks above the $1,500 floor, so the
+        // non-exclusive discount shows in the quote (quotes round UP to the
+        // $500 step; at the floor the two can meet).
+        (World world, Promotion promo, SigningAdvisor.Suggestion pick) = Enumerable.Range(11, 30)
+            .Select(s => Founded((ulong)s))
+            .Select(w => (w, w.Get(w.PlayerPromotion)!))
+            .Select(x => (x.w, x.Item2, SigningAdvisor.Suggest(x.w, x.Item2)!))
+            .First(x => x.Item3.Expectations.AskingPurse.Amount >= 2_500m);
 
         // The figure the negotiating room opens at, on the room's opening terms.
         var room = new NegotiationSession(world, pick.Fighter, promo, pick.Expectations)

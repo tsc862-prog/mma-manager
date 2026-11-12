@@ -17,6 +17,13 @@ public static class FreeAgencyService
     private static readonly Negotiator Negotiator = new();
     private static readonly FighterValuation Valuation = new();
 
+    /// <summary>
+    /// HARNESS ONLY (tools/longsim's shoestring, "script alone" variant): a
+    /// promotion whose roster an outside hand runs, so the monthly pass leaves it
+    /// alone the way it leaves the player's. Per thread; null in the game.
+    /// </summary>
+    [ThreadStatic] public static PromotionId? HarnessHandsOff;
+
     // How much an org wants to sign a fighter: their ability plus the draw they
     // bring — a popular name is sought after even a notch below the best pure pro.
     // How much an org wants a fighter: its READ of their ability (Fog of War — the
@@ -56,7 +63,7 @@ public static class FreeAgencyService
     {
         int signings = 0;
         foreach (var promo in world.Promotions.Values
-                     .Where(p => p.Id != world.PlayerPromotion && !p.Defunct)
+                     .Where(p => p.Id != world.PlayerPromotion && p.Id != HarnessHandsOff && !p.Defunct)
                      .OrderByDescending(p => p.Prestige.Value)
                      .ThenBy(p => p.Id.Value))
         {

@@ -191,13 +191,16 @@ public static class Acquisitions
                 new Money(target.Balance.Amount), $"{target.Abbreviation} cash reserves acquired");
 
         // The roster: champions and the best of each division come over on
-        // their existing terms; the rest are casualties of the merger.
+        // their existing terms; the rest are casualties of the merger. "Best"
+        // is the BUYER's read of them (fog of war: it decides on what its
+        // scouts see, not on true ability), ties on id.
         var champions = new HashSet<FighterId>(
             target.Titles.Select(t => world.Get(t)?.CurrentChampion).Where(c => c is not null).Select(c => c!.Value));
         int carried = 0, released = 0;
         var cutLoose = new List<(Fighter Fighter, decimal Owed)>();
         foreach (var f in world.RosterOf(target.Id).OrderByDescending(f => champions.Contains(f.Id) ? 1 : 0)
-                     .ThenByDescending(f => Ability.FighterAbility.CurrentAbility(f)).ToList())
+                     .ThenByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, buyer, f))
+                     .ThenBy(f => f.Id.Value).ToList())
         {
             var div = buyer.Divisions.FirstOrDefault(d => d.Matches(f));
             int have = div is null ? int.MaxValue

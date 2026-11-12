@@ -38,7 +38,7 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
         decimal factor = (excl ? 1m : Negotiator.NonExclusiveMoneyFactor)
                        * (clause ? Negotiator.ChampionsClausePremium : 1m)
                        * personal;
-        decimal discounted = Math.Round(exp.AskingPurse.Amount * factor / 500m) * 500m;
+        decimal discounted = NegotiationSession.UpTo500(exp.AskingPurse.Amount * factor);
         var floor = Negotiator.LivePurseFloor(f, promo.Id);
         decimal purse = Math.Max(floor?.Amount ?? 0m, discounted);
 

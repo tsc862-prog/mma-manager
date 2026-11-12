@@ -1,14 +1,13 @@
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 
 namespace MmaManager.Core.Sim.Booking;
 
 /// <summary>
-/// Ranks a division's contenders by a résumé score built mostly from their fight
-/// results: who they beat and how good those opponents are (beating a champion or
-/// a top-ranked, high-overall fighter is worth far more than beating a nobody),
-/// how recent the wins are, and whether they finished. Overall ability is only a
-/// small tiebreaking baseline. Rankings are recomputed after each card rather
+/// Ranks a division's contenders by a résumé score built from their fight
+/// results: who they beat and how good those opponents are ON THE RECORD
+/// (beating a champion, a top-ranked contender or a fighter with a long winning
+/// record is worth far more than beating a nobody), how recent the wins are, and
+/// whether they finished. No ratings: a ranking is public and feeds prices. Rankings are recomputed after each card rather
 /// than nudged, so the order always reflects the current body of work. Champions
 /// sit on the belt, not in this list.
 /// </summary>
@@ -22,9 +21,15 @@ public static class RankingService
         promo.Divisions.FirstOrDefault(d => d.Matches(f));
 
     /// <summary>Rebuild every division's contender ranking for a promotion from résumé scores.</summary>
-    public static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth = 15)
+    public static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth = 15) =>
+        RecomputePromotion(world, promo, asOf, depth, Context.Build(world, asOf));
+
+    // A division's contenders are scored on EVERY result in the form window,
+    // wherever it happened (the opponent's level carries the stage it was on):
+    // a new signing or a returning star ranks on what he did elsewhere, not on
+    // a bare career tally.
+    private static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth, Context ctx)
     {
-        var results = GatherResults(world, promo, asOf);
         var (champions, elite) = EliteSnapshot(world, promo);
 
         foreach (var div in promo.Divisions)
@@ -33,8 +38,8 @@ public static class RankingService
 
             var ranked = world.RosterOf(promo.Id)
                 .Where(f => div.Matches(f) && f.Status != FighterStatus.Retired && f.Id != champ)
-                .Select(f => (id: f.Id, score: ResumeScore(world, f, results, champions, elite, asOf)))
-                .OrderByDescending(x => x.score)
+                .Select(f => (id: f.Id, score: ResumeScore(world, f, ctx, champions, elite, asOf)))
+                .OrderByDescending(x => x.score).ThenBy(x => x.id.Value)
                 .Take(depth)
                 .Select(x => x.id)
                 .ToList();
@@ -47,8 +52,9 @@ public static class RankingService
     /// <summary>Recompute rankings for every promotion in the world.</summary>
     public static void RecomputeAll(World world, DateOnly asOf, int depth = 15)
     {
+        var ctx = Context.Build(world, asOf);
         foreach (var promo in world.Promotions.Values)
-            RecomputePromotion(world, promo, asOf, depth);
+            RecomputePromotion(world, promo, asOf, depth, ctx);
     }
 
     /// <summary>
@@ -61,7 +67,7 @@ public static class RankingService
     public static void RecomputeGlobal(World world, int depth = 25)
     {
         var asOf = world.CurrentDate;
-        var results = GatherAllResults(world, asOf);
+        var ctx = Context.Build(world, asOf);
         var (champions, elite) = GlobalElite(world);
 
         var champBonus = new Dictionary<FighterId, double>();
@@ -74,7 +80,7 @@ public static class RankingService
 
         double Score(Fighter f)
         {
-            double s = ResumeScore(world, f, results, champions, elite, asOf);
+            double s = ResumeScore(world, f, ctx, champions, elite, asOf);
             if (champBonus.TryGetValue(f.Id, out double b)) s += b;
             return s;
         }
@@ -99,20 +105,22 @@ public static class RankingService
 
     // --- Résumé scoring -----------------------------------------------------
 
-    private static double ResumeScore(World world, Fighter f,
-        IReadOnlyDictionary<FighterId, List<Result>> results,
+    private static double ResumeScore(World world, Fighter f, Context ctx,
         IReadOnlySet<FighterId> champions, IReadOnlySet<FighterId> elite, DateOnly asOf)
     {
-        // Small baseline: a light ability tiebreak plus the career win/loss aggregate.
-        double score = FighterAbility.CurrentAbility(f) * 0.10
-                     + f.Record.Wins * 0.8 - f.Record.Losses * 0.5;
+        // Small baseline: the career win/loss aggregate. (No ability term: a
+        // ranking is published, and it feeds the asking price — it is earned in
+        // the cage and read off the record, never off ratings the fog hides.)
+        double score = f.Record.Wins * 0.8 - f.Record.Losses * 0.5;
 
-        if (!results.TryGetValue(f.Id, out var history)) return score;
+        if (!ctx.Results.TryGetValue(f.Id, out var history)) return score;
 
         foreach (var r in history)
         {
             double recency = Recency(asOf, r.Date);
-            double opp = world.Get(r.Opponent) is { } o ? FighterAbility.CurrentAbility(o) : 45;
+            // The opponent's level as the sport saw it THAT NIGHT: the stage,
+            // his record going in, and any belt he held or had held.
+            double opp = ctx.OpponentLevel(world, r.Opponent, r.Date, r.Stage);
 
             if (r.Won)
             {
@@ -132,6 +140,69 @@ public static class RankingService
         return score;
     }
 
+    /// <summary>
+    /// Everything a ranking pass reads, built once per pass: every decisive
+    /// result in the form window (all promotions, by fighter, in date order) and
+    /// every title reign. Public facts only.
+    /// </summary>
+    private sealed class Context
+    {
+        public required Dictionary<FighterId, List<Result>> Results { get; init; }
+        public required Dictionary<FighterId, List<(DateOnly Won, DateOnly? Lost)>> Reigns { get; init; }
+
+        public static Context Build(World world, DateOnly asOf)
+        {
+            var results = GatherAllResults(world, asOf);
+            foreach (var list in results.Values) list.Sort((a, b) => a.Date.CompareTo(b.Date));
+            var reigns = new Dictionary<FighterId, List<(DateOnly Won, DateOnly? Lost)>>();
+            foreach (var t in world.Titles.Values)
+                foreach (var r in t.Lineage)
+                {
+                    if (!reigns.TryGetValue(r.Champion, out var l)) reigns[r.Champion] = l = new();
+                    l.Add((r.WonOn, r.LostOn));
+                }
+            return new Context { Results = results, Reigns = reigns };
+        }
+
+        /// <summary>
+        /// An opponent's level for ranking purposes, as the sport saw him on the
+        /// night: the stage the bout was on (<see cref="Contracts.PublicStanding.StageLevel"/>
+        /// of the promotion that staged it), his record GOING IN (his career
+        /// tally less the results he has had since, read off the same window),
+        /// as win share and depth with a debutant at the bottom, and whether he
+        /// held a belt that night (or had held one). About 20 points from a
+        /// debutant to an established contender on the same stage, the spread
+        /// true ability used to give the weights below; a reigning champion
+        /// reads a dozen more. Never ratings, and never the ask's own
+        /// rank-derived read (no circularity).
+        /// </summary>
+        public double OpponentLevel(World world, FighterId id, DateOnly date, int stagePrestige)
+        {
+            double level = Contracts.PublicStanding.StageLevel(stagePrestige);
+            if (world.Get(id) is not { } o) return level;
+
+            int wins = o.Record.Wins, losses = o.Record.Losses;
+            if (Results.TryGetValue(id, out var his))
+                foreach (var r in his)
+                {
+                    if (r.Date < date) continue;
+                    if (r.Won) wins--; else losses--;       // on or after the night: not yet his record
+                }
+            wins = Math.Max(0, wins); losses = Math.Max(0, losses);
+            int dec = wins + losses;
+            double share = dec == 0 ? 0.5 : wins / (double)dec;
+            level += 10 * Math.Clamp((share - 0.5) * 2 * Math.Min(1.0, dec / 12.0), -1, 1);
+            level += Math.Min(dec, 12) * 0.6 - (dec == 0 ? 4 : 0);
+
+            if (Reigns.TryGetValue(id, out var reigns))
+            {
+                if (reigns.Any(r => r.Won <= date && (r.Lost is not { } lost || lost > date))) level += 12;   // the champion that night
+                else if (reigns.Any(r => r.Won <= date)) level += 5;                                          // a former champion
+            }
+            return level;
+        }
+    }
+
     // Recent bouts count for full; form fades over roughly four years.
     private static double Recency(DateOnly asOf, DateOnly when)
     {
@@ -139,33 +210,7 @@ public static class RankingService
         return Math.Clamp(1.2 - 0.25 * years, 0.2, 1.2);
     }
 
-    private readonly record struct Result(FighterId Opponent, bool Won, bool Finish, DateOnly Date);
-
-    // Decisive results within the form window, indexed by fighter.
-    private static Dictionary<FighterId, List<Result>> GatherResults(World world, Promotion promo, DateOnly asOf)
-    {
-        var since = asOf.AddYears(-4);
-        var map = new Dictionary<FighterId, List<Result>>();
-
-        foreach (var ev in world.Events.Values)
-        {
-            if (ev.Promotion != promo.Id || ev.Date < since) continue;
-            foreach (var fight in ev.Card)
-            {
-                if (fight.Outcome is not { Winner: { } winner, Loser: { } loser } o) continue;
-                bool finish = IsFinish(o.Method);
-                Add(map, winner, new Result(loser, true, finish, ev.Date));
-                Add(map, loser, new Result(winner, false, finish, ev.Date));
-            }
-        }
-        return map;
-
-        static void Add(Dictionary<FighterId, List<Result>> m, FighterId id, Result r)
-        {
-            if (!m.TryGetValue(id, out var list)) m[id] = list = new List<Result>();
-            list.Add(r);
-        }
-    }
+    private readonly record struct Result(FighterId Opponent, bool Won, bool Finish, DateOnly Date, int Stage);
 
     // Every fighter's decisive results within the form window, across all promotions.
     private static Dictionary<FighterId, List<Result>> GatherAllResults(World world, DateOnly asOf)
@@ -180,8 +225,9 @@ public static class RankingService
             {
                 if (fight.Outcome is not { Winner: { } winner, Loser: { } loser } o) continue;
                 bool finish = IsFinish(o.Method);
-                Add(map, winner, new Result(loser, true, finish, ev.Date));
-                Add(map, loser, new Result(winner, false, finish, ev.Date));
+                int stage = world.Get(ev.Promotion)?.Prestige.Value ?? 0;
+                Add(map, winner, new Result(loser, true, finish, ev.Date, stage));
+                Add(map, loser, new Result(winner, false, finish, ev.Date, stage));
             }
         }
         return map;

@@ -29,7 +29,7 @@ public class SpendingTests
         var (w, p, f) = Setup();
         f.Loyalty = 30;
         decimal bank = p.Balance.Amount;
-        var quote = RetentionService.Quote(f);
+        var quote = RetentionService.Quote(w, f);
         int expectedGain = RetentionService.LoyaltyGain(f);
 
         Assert.True(RetentionService.TryPayBonus(w, p, f, out _));

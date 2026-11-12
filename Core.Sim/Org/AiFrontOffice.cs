@@ -164,7 +164,7 @@ public static class AiFrontOffice
             .Where(f => f.Loyalty < 50)
             .OrderByDescending(f => FighterAbility.CurrentAbility(f) + f.Intangibles.Popularity.Value)
             .FirstOrDefault(f => RetentionService.CanPay(world, promo, f, out _)
-                                 && RetentionService.Quote(f).Amount <= surplus * 0.35m);
+                                 && RetentionService.Quote(world, f).Amount <= surplus * 0.35m);
         if (target is not null) RetentionService.TryPayBonus(world, promo, target, out _);
     }
 

@@ -17,6 +17,9 @@ if (args.Length > 0 && args[0] == "digest")
 { Environment.ExitCode = LongSim.Check.CheckModes.Digest(args); return; }
 
 if (args.Length > 0 && args[0] == "fightlab") { FightLabMode.Run(args); return; }   // engine benchmark: FightLabMode.cs
+if (args.Length > 0 && args[0] == "asks") { LongSim.Asks.Run(args); return; }       // price levels by stage/ability: Asks.cs
+if (args.Length > 0 && args[0] == "ladders") { LongSim.Ladders.Run(args); return; }      // contender ladders of one world: Ladders.cs
+if (args.Length > 0 && args[0] == "shoesweep") { LongSim.ShoeSweep.Main(args); return; }   // shoestring over many seeds: ShoeSweep.cs
 if (args.Length > 0 && args[0] == "compare")
 {
     int n = args.Length > 1 ? int.Parse(args[1]) : 10;
@@ -36,7 +39,8 @@ if (args.Length > 0 && args[0] == "diagnose")
 if (args.Length > 0 && args[0] == "shoestring")
 {
     RunShoestring(args.Length > 1 ? ulong.Parse(args[1]) : 42UL,
-                  args.Length > 2 ? int.Parse(args[2]) : 20);
+                  args.Length > 2 && int.TryParse(args[2], out var sy) ? sy : 20,
+                  scriptOnly: args.Contains("--script-only"));
     return;
 }
 
@@ -47,7 +51,10 @@ if (args.Length > 0 && args[0] == "shoestring")
 // AGENT: at prestige 5 the purse cap is ~zero, so AI negotiation can never land
 // anyone (the known founded-org artifact). The agent does what a human does —
 // follow the signing advisor and pay the asking price while the bank allows.
-static void RunShoestring(ulong seed, int years)
+// --script-only: the AI free-agency pass never signs for the shoestring
+// promotion (FreeAgencyService.HarnessHandsOff), so the script alone builds the
+// roster — closer to a real player. Renewals at expiry stay with the world.
+static void RunShoestring(ulong seed, int years, bool scriptOnly = false)
 {
     var world = new WorldBuilder().Build(new WorldBuilder.Options
     {
@@ -56,9 +63,11 @@ static void RunShoestring(ulong seed, int years)
     });
     var nwf = world.Get(world.PlayerPromotion)!;
     world.PlayerPromotion = default;                  // the world AI books/markets/promotes it
+    if (scriptOnly) MmaManager.Core.Sim.Contracts.FreeAgencyService.HarnessHandsOff = nwf.Id;
     var tick = new WorldTick();
 
     var valuation = new MmaManager.Core.Sim.Contracts.FighterValuation();
+    int agentHires = 0;
     void PlayerAgent()
     {
         if (nwf.Defunct) return;
@@ -83,6 +92,7 @@ static void RunShoestring(ulong seed, int years)
                     + Math.Max(0, x.Fighter.PotentialAbility.Value - FighterAbility.CurrentAbility(x.Fighter)) * 0.5)
                 .FirstOrDefault();
             if (pick.Fighter is null) return;
+            agentHires++;
             MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(world, pick.Fighter, new ContractOffer
             {
                 Fighter = pick.Fighter.Id, Promotion = nwf.Id,
@@ -93,7 +103,7 @@ static void RunShoestring(ulong seed, int years)
         }
     }
 
-    Console.WriteLine($"=== SHOESTRING PLAYTHROUGH — {nwf.Name} ({nwf.Abbreviation}), seed {seed}, {years} years ===");
+    Console.WriteLine($"=== SHOESTRING PLAYTHROUGH — {nwf.Name} ({nwf.Abbreviation}), seed {seed}, {years} years{(scriptOnly ? " · SCRIPT ONLY (no AI free-agency signings)" : "")} ===");
     Console.WriteLine($"Day one: prestige {nwf.Prestige.Value} ({OrgSizing.Label(OrgSizing.SizeOf(nwf))}) · {nwf.Balance} · roster {world.RosterOf(nwf.Id).Count()} · divisions {nwf.Divisions.Count} · HQ {world.Get(nwf.HomeCity!.Value)?.Name}");
     Console.WriteLine();
 
@@ -138,6 +148,14 @@ static void RunShoestring(ulong seed, int years)
         Console.WriteLine($"--- YEAR {year} ({world.CurrentDate:yyyy}) ---");
         Console.WriteLine($"  org       prestige {nwf.Prestige.Value} · {OrgSizing.Label(tier)} ({standing.Percent}% to {(standing.Next is { } nx ? OrgSizing.Label(nx) : "the top")}) · rep {nwf.Reputation.Value} · bank {nwf.Balance}");
         Console.WriteLine($"  year      {myEvents.Count} events · avg house {avgHouse:0} · in {income:C0} / out {expense:C0} (net {income + expense:C0}) · roster {roster.Count}");
+        {
+            double cards = Math.Max(1, myEvents.Count);
+            int bouts = myEvents.Sum(e => e.Card.Count);
+            int locals = myEvents.Sum(e => e.Card.Count(fi => IsLocal(world, fi)));
+            var paid = roster.Where(f => f.Contract is not null).Select(f => f.Contract!.PursePerFight.Amount).ToList();
+            Console.WriteLine($"  money     payroll/card {myEvents.Sum(e => e.Financials!.FighterPayroll.Amount) / (decimal)cards:N0} · gate/card {myEvents.Sum(e => e.Financials!.GateRevenue.Amount) / (decimal)cards:N0} · bouts/card {bouts / cards:0.0} · local bouts/card {locals / cards:0.0} · "
+                + $"roster purse mean {(paid.Count == 0 ? 0 : paid.Average()):N0} · roster CA mean {(roster.Count == 0 ? 0 : roster.Average(f => (double)FighterAbility.CurrentAbility(f))):0.0} · agent hires {agentHires}");
+        }
         if (tier != lastTier)
         {
             Console.WriteLine($"  ▲▲▲       TIER CROSSING: {OrgSizing.Label(lastTier)} → {OrgSizing.Label(tier)}");
@@ -252,6 +270,8 @@ static void RunCompare(int seeds, int years)
         world.PlayerPromotion = default;
         var tick = new WorldTick();
         var res = new SeedResult { Seed = seed };
+        var titleShots = new LongSim.TitleShots();
+        res.TitleShots = titleShots;
         var deadAtYear = new Dictionary<string, int>();
 
         var startDate = world.CurrentDate;   // day-one back-dated history is excluded from the rates below
@@ -269,7 +289,9 @@ static void RunCompare(int seeds, int years)
             // every week, well inside its 1000-item cap.
             for (int w = 0; w < 52; w++)
             {
+                titleShots.BeforeWeek(world);
                 tick.AdvanceWeeks(world, 1);
+                titleShots.AfterWeek(world, w % 4 == 3);
                 int from = 0;
                 if (lastSeen is not null)
                 {
@@ -468,6 +490,16 @@ static void RunCompare(int seeds, int years)
     PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
     LongSim.MoneyFlows.Print(all.Select(r => r.Flows).Where(f => f is not null).Select(f => f!).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
+    LongSim.TitleShots.Print(results.Values.Select(r => (r.TitleShots!, r.Years)).ToList());
+    // Every org's completed cards over the run, pooled by its tier at the end (or when it died): what each tier pays a card.
+    Console.WriteLine();
+    Console.WriteLine("  --- ALL ORGS by end tier (DURABLE: completed cards over the run; day-one orgs and startups) ---");
+    foreach (var g in results.Values.SelectMany(r => r.Orgs).GroupBy(o => o.Tier).OrderBy(g => g.Key))
+    {
+        double c = Math.Max(1, g.Sum(o => o.Cards));
+        Console.WriteLine($"  {OrgSizing.Label(g.Key),-14} orgs {g.Count(),4} · cards {g.Sum(o => o.Cards),6} · bouts/card {g.Sum(o => o.Bouts) / c:0.00} · local bouts/card {g.Sum(o => o.LocalBouts) / c:0.00} · "
+            + $"house {g.Sum(o => o.Attendance) / c:0} · gate/card {g.Sum(o => o.Gate) / (decimal)c:N0} · purses/card {g.Sum(o => o.Purses) / (decimal)c:N0} · purses/gate {(g.Sum(o => o.Gate) == 0 ? 0 : g.Sum(o => o.Purses) / g.Sum(o => o.Gate)):0.00}");
+    }
     if (all.Sum(r => r.NewsOverflow) > 0)
         Console.WriteLine($"  WARNING: news sampler lost its place {all.Sum(r => r.NewsOverflow)} time(s); headline-sampled rates are undercounts");
 }
@@ -619,6 +651,7 @@ static void RunSingle(ulong seed, int years)
 sealed class SeedResult
 {
     public ulong Seed;
+    public LongSim.TitleShots? TitleShots;
     public List<OrgAutopsy> Orgs = new();
     public List<string> Folds = new();
     /// <summary>Defunct orgs that were NOT bought — the ones that actually went broke.</summary>
