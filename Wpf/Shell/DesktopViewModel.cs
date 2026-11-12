@@ -37,6 +37,9 @@ public sealed class AppSpec
 
     /// <summary>The app's own accent colour (title-bar identity, taskbar underline).</summary>
     public string Accent { get; init; } = "#E8B23A";
+
+    /// <summary>Opens floating in the middle of the desk (the briefing), even in harness renders.</summary>
+    public bool Centered { get; init; }
 }
 
 /// <summary>A running app window on the desktop: position, size, stacking, state.</summary>
@@ -110,6 +113,7 @@ public sealed class DesktopViewModel : ObservableObject
         var apps = new AppSpec[]
         {
             new() { Id = "home", Title = "Dashboard", Glyph = "🏠", Accent = "#E8B23A", Create = () => new Views.HomeView() },
+            new() { Id = "briefing", Title = "Briefing", Glyph = "📋", Accent = "#F2C46D", Create = () => new Views.BriefingView(), W = 1160, H = 780, Centered = true },
             new() { Id = "roster", Title = "Roster", Glyph = "🥊", Accent = "#D97B4F", Create = () => new Views.RosterView() },
             new() { Id = "book", Title = "Book Event", Glyph = "🎟", Accent = "#D64550", Create = () => new Views.BookingView(), W = 1420 },
             new() { Id = "planner", Title = "Planner", Glyph = "📅", Accent = "#5FB3C9", Create = () => new Views.PlannerView(), W = 1320, H = 820 },
@@ -159,6 +163,7 @@ public sealed class DesktopViewModel : ObservableObject
     /// <summary>Launch (or restore) an app by id.</summary>
     public void Open(string id)
     {
+        BeforeOpen?.Invoke(id);
         if (Windows.FirstOrDefault(w => w.Spec.Id == id) is { } existing)
         {
             Focus(existing);
@@ -174,9 +179,17 @@ public sealed class DesktopViewModel : ObservableObject
         {
             X = 46 + Windows.Count % 8 * 26,
             Y = 26 + Windows.Count % 8 * 24,
-            // Harness renders keep apps full-bleed so screenshots review cleanly.
-            IsMaximized = MainViewModel.HeadlessAutoBoot,
+            // Harness renders keep apps full-bleed so screenshots review cleanly
+            // (a centred app is a panel on the desk, not a full-bleed screen).
+            IsMaximized = MainViewModel.HeadlessAutoBoot && !spec.Centered,
         };
+        if (spec.Centered && !Area.IsEmpty && Area.Width > 0)
+        {
+            win.W = Math.Min(spec.W, Area.Width - 16);
+            win.H = Math.Min(spec.H, Area.Height - 16);
+            win.X = Math.Max(8, (Area.Width - win.W) / 2);
+            win.Y = Math.Max(8, (Area.Height - win.H) / 2);
+        }
         // Reopen where it lived last time (never in harness renders — the
         // machine's remembered layout must not leak into screenshots).
         if (!MainViewModel.HeadlessAutoBoot && _layout.TryGetValue(id, out var last))
@@ -196,8 +209,29 @@ public sealed class DesktopViewModel : ObservableObject
         Focus(win);
     }
 
+    /// <summary>Called with an app's id each time it is opened or brought back (lets a screen refresh first).</summary>
+    public Action<string>? BeforeOpen { get; set; }
+
     /// <summary>The desk's current size (set by the main window); empty until it has laid out.</summary>
-    public System.Windows.Size Area { get; set; } = System.Windows.Size.Empty;
+    public System.Windows.Size Area
+    {
+        get => _area;
+        set
+        {
+            _area = value;
+            // A centred panel (the briefing) stays whole when the desk shrinks under it
+            // (the fight-night bar arriving, a smaller window).
+            foreach (var w in Windows.Where(w => w.Spec.Centered && !w.IsMaximized))
+                if (w.Y + w.H > value.Height - 8 || w.X + w.W > value.Width - 8)
+                {
+                    w.H = Math.Min(w.H, value.Height - 16);
+                    w.W = Math.Min(w.W, value.Width - 16);
+                    w.Y = Math.Max(8, Math.Min(w.Y, value.Height - w.H - 8));
+                    w.X = Math.Max(8, Math.Min(w.X, value.Width - w.W - 8));
+                }
+        }
+    }
+    private System.Windows.Size _area = System.Windows.Size.Empty;
 
     /// <summary>
     /// Keep a floating window on the desk: a 1420-wide app opened on a 1366
@@ -239,6 +273,7 @@ public sealed class DesktopViewModel : ObservableObject
             Tab.WorldMap => "map",
             Tab.Camps => "camps",
             Tab.Planner => "planner",
+            Tab.Briefing => "briefing",
             _ => null,
         };
         if (id is not null) Open(id);

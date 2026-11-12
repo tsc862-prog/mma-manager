@@ -30,6 +30,7 @@ public static class Tab
     public const int Media = 17;   // the Media desk: rights deals + the in-house platform
     public const int Orgs = 18;    // the Organizations pages (every promotion in the sport)
     public const int Planner = 19; // the calendar: your cards, your deadlines, the world's announced cards
+    public const int Briefing = 20; // the Monday briefing: why the clock stopped, the fix, what happened, what's next
 }
 
 /// <summary>
@@ -77,6 +78,7 @@ public sealed class MainViewModel : ObservableObject
         ViewProfileCommand = new RelayCommand(() => NavigateTo(Tab.Fighter), () => SelectedFighter is not null);
         OpenFighterCommand = new RelayCommand<int>(OpenFighter);
         OpenInboxCommand = new RelayCommand(() => NavigateTo(Tab.Inbox));
+        OpenBriefingCommand = new RelayCommand(() => NavigateTo(Tab.Briefing));
         OpenEventCommand = new RelayCommand<int>(id => { EventsPage.Select(id); NavigateTo(Tab.Events); });
         ToggleShortlistCommand = new RelayCommand<int>(ToggleShortlist);
         OpenOrgCommand = new RelayCommand<int>(id =>
@@ -132,6 +134,7 @@ public sealed class MainViewModel : ObservableObject
         Moments.OpenFighter = OpenFighter;
         Moments.OpenEvent = id => OpenEventCommand.Execute(id);
         WireMail();
+        WireBriefing();
 
         RankingDivisions = new ObservableCollection<DivisionPick>(
             Enum.GetValues<WeightClass>().Select(w => new DivisionPick(w, Sex.Male))
@@ -166,6 +169,58 @@ public sealed class MainViewModel : ObservableObject
         if (!HeadlessAutoBoot)
             Mail.Confirm = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
+    }
+
+    /// <summary>
+    /// The briefing's doors are the app's own: the card desk, a profile, an event
+    /// page, contract talks, the desk's decisions and fight night's two buttons.
+    /// </summary>
+    private void WireBriefing()
+    {
+        Briefing.Navigate = NavigateTo;
+        Briefing.OpenCard = id => { Booking.SelectEvent(new EventId(id)); NavigateTo(Tab.BookEvent); };
+        Briefing.OpenFighter = OpenFighter;
+        Briefing.OpenEvent = id => OpenEventCommand.Execute(id);
+        Briefing.Close = () =>
+        {
+            if (Desktop.Windows.FirstOrDefault(w => w.Spec.Id == "briefing") is { } win) Desktop.Close(win);
+        };
+        Briefing.NegotiateCommand = NegotiateFighterCommand;
+        Briefing.WatchTonightCommand = WatchTonightCommand;
+        Briefing.SimTonightCommand = SimTonightCommand;
+        Briefing.AcceptDecisionCommand = Dashboard.AcceptDecisionCommand;   // OnDecisionMade refreshes everything
+        Briefing.DeclineDecisionCommand = Dashboard.DeclineDecisionCommand;
+        Briefing.AdvanceWeekCommand = AdvanceWeekCommand;
+        if (!HeadlessAutoBoot)
+            Briefing.Confirm = (heading, body, detail, confirm) =>
+                MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
+        Desktop.BeforeOpen = id => { if (id == "briefing" && _world is not null) Briefing.Attach(_world); };
+    }
+
+    /// <summary>
+    /// Whether the clock stopping opens the briefing on its own. On in play; off in
+    /// harness runs (their screenshots are of other apps) unless a harness asks for it.
+    /// </summary>
+    public bool BriefingOnStop { get; set; } = !HeadlessAutoBoot;
+
+    /// <summary>
+    /// Put the briefing on the desk (behind the Moment, if one is up: the Moment
+    /// shows first, the briefing follows). A quiet stretch only opens it when the
+    /// player wants that; otherwise it is a toast that opens it.
+    /// </summary>
+    private void ShowBriefing()
+    {
+        if (!BriefingOnStop || _world is null) return;
+        Moments.Then(() =>
+        {
+            if (Briefing.IsQuiet && !Display.BriefingOnQuietWeeks)
+            {
+                if (Desktop.Windows.Any(w => w.Spec.Id == "briefing")) { NavigateTo(Tab.Briefing); return; }
+                Desktop.Notify("📋", Briefing.Headline, "Nothing needs you. Click for the week's digest.", () => NavigateTo(Tab.Briefing));
+                return;
+            }
+            NavigateTo(Tab.Briefing);
+        });
     }
 
     /// <summary>Start-screen shortcut: a fresh random world with you at the helm of the AFC.</summary>
@@ -207,6 +262,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The tray envelope: open the mail app.</summary>
     public ICommand OpenInboxCommand { get; }
+
+    /// <summary>The tray's briefing button: why the clock last stopped, and the desk as it stands.</summary>
+    public ICommand OpenBriefingCommand { get; }
 
     /// <summary>Jump to an event's page from anywhere (parameter = event id).</summary>
     public ICommand OpenEventCommand { get; }
@@ -337,6 +395,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The Moment: the full-desktop card after a big night on your own card.</summary>
     public MomentsViewModel Moments { get; } = new();
+
+    /// <summary>The Monday briefing: why the clock stopped, the fix, what happened, what's next.</summary>
+    public BriefingViewModel Briefing { get; } = new();
 
     
 
@@ -596,7 +657,8 @@ public sealed class MainViewModel : ObservableObject
     {
         // Generate fighters to match real portraits from the pack.
         _world = new WorldBuilder().Build(options with { IdentityCatalog = ArtCatalog });
-        Moments.Dismiss();
+        Moments.Reset();
+        Briefing.Reset();
         LastAdvance = summary;
         StatusText = "";   // the last career's results don't carry over
         IsGameStarted = true;
@@ -607,7 +669,7 @@ public sealed class MainViewModel : ObservableObject
     private void Advance(int weeks)
     {
         if (_world is null) return;
-        Moments.Dismiss();   // a moment never holds the clock: moving on takes it down
+        Moments.Reset();   // a moment never holds the clock: moving on takes it down (and what waited behind it)
         int unreadBefore = _world.Mail.Count(m => !m.Read);
 
         // Fight night is a hard stop: a due card must be watched or simmed
@@ -615,8 +677,10 @@ public sealed class MainViewModel : ObservableObject
         if (DuePlayerEvent() is { } due)
         {
             Booking.SelectEvent(due.Id);
-            NavigateTo(Tab.BookEvent);
             StatusText = $"▶ Time can't move on: {due.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar first.";
+            Briefing.Blocked(_world, due);
+            if (BriefingOnStop) NavigateTo(Tab.Briefing);
+            else NavigateTo(Tab.BookEvent);
             return;
         }
 
@@ -624,6 +688,7 @@ public sealed class MainViewModel : ObservableObject
         // advance itself is summarised in the tray).
         StatusText = "";
 
+        var before = BriefingBaseline.Take(_world);   // ids only: what the briefing compares against
         var r = _tick.AdvanceWeeksStoppingForPlayer(_world, weeks);
         LastAdvance =
             $"Advanced to {r.Date:d MMM yyyy}: {r.EventsRun} events, {r.Fights} fights " +
@@ -660,17 +725,28 @@ public sealed class MainViewModel : ObservableObject
         if (r.MainEventLost is { } hit)
         {
             Booking.SelectEvent(hit.Id);
-            NavigateTo(Tab.BookEvent);
-            StatusText = $"▶ Time stopped: {hit.Name} lost its main event. Your inbox has the details; book a new headliner.";
+            if (!BriefingOnStop) NavigateTo(Tab.BookEvent);
+            StatusText = $"▶ Time stopped: {hit.Name} lost its main event. The briefing says who and why; book a new headliner.";
         }
 
         // Reached one of your cards — the advance force-pauses on fight night.
         if (r.PendingPlayerEvent is { } pending)
         {
             Booking.SelectEvent(pending.Id);
-            NavigateTo(Tab.BookEvent);
+            if (!BriefingOnStop) NavigateTo(Tab.BookEvent);
             StatusText = $"▶ Time stopped: {pending.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar.";
         }
+
+        // Every stop gets the briefing: why it stopped, the fix, what happened, what's next.
+        Briefing.AfterAdvance(_world, before, r, weeks);
+        if (r.MainEventLost is null && r.PendingPlayerEvent is null)
+        {
+            string span = weeks > 1 ? "The month is up" : "The week is up";
+            StatusText = Briefing.Kind == BriefingKind.Quiet
+                ? $"{span} — nothing new needs you."
+                : $"▶ {span}. First on your desk: {Briefing.Headline}";
+        }
+        ShowBriefing();
     }
 
     /// <summary>The player card whose night has arrived (time can't move past it).</summary>
@@ -690,30 +766,36 @@ public sealed class MainViewModel : ObservableObject
     private void SimPendingEvent()
     {
         if (DuePlayerEvent() is not { } ev) return;
+        var before = BriefingBaseline.Take(_world);
         _tick.RunEventLive(_world, ev, playByPlay: false);
         RefreshAll();
         Autosave();
         EventsPage.Select(ev.Id.Value);
-        NavigateTo(Tab.Events);
+        if (!BriefingOnStop) NavigateTo(Tab.Events);
         var fin = ev.Financials;
         StatusText = fin is null
             ? $"{ev.Name} is in the books — results are on the event page."
             : $"{ev.Name} is in the books — house {fin.Attendance:N0}, gate {fin.GateRevenue}.";
-        // The result is on the strip and the event page; a big night then takes the desk.
+        // The result is on the strip; a big night then takes the desk, and the
+        // briefing (the night's results, what's next) follows it.
+        Briefing.AfterCard(_world, before, ev);
         Moments.Offer(_world, ev);
+        ShowBriefing();
     }
 
     // Run one of the player's booked cards now, with commentary, and open the
     // fight-night broadcast window over the shell.
     private void RunLive(Core.Model.Event ev)
     {
+        var before = BriefingBaseline.Take(_world);
         _tick.RunEventLive(_world, ev);
         Watch.Load(_world, ev);
         RefreshAll();
         Autosave();
+        Briefing.AfterCard(_world, before, ev);
 
         // Headless harness runs drive Watch state directly (no window to show).
-        if (HeadlessAutoBoot) { Moments.Offer(_world, ev); return; }
+        if (HeadlessAutoBoot) { Moments.Offer(_world, ev); ShowBriefing(); return; }
 
         var win = new WatchWindow { DataContext = this };
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
@@ -725,6 +807,7 @@ public sealed class MainViewModel : ObservableObject
         // Back on the desk after the broadcast: a big night takes the screen
         // (never over the arena, which may still be mid-card when the player leaves).
         Moments.Offer(_world, ev);
+        ShowBriefing();
     }
 
     private void Save()
@@ -795,7 +878,8 @@ public sealed class MainViewModel : ObservableObject
         {
             _world = SaveGame.Load(path);
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
-            Moments.Dismiss();
+            Moments.Reset();
+            Briefing.Reset();
             LastAdvance = $"Loaded {Path.GetFileName(path)}.";
             StatusText = "";   // the last career's results don't carry over
             IsGameStarted = true;
@@ -964,6 +1048,7 @@ public sealed class MainViewModel : ObservableObject
         Notes.Attach(_world);
         OrgsPage.Attach(_world);
         Planner.Attach(_world);
+        if (Desktop.Windows.Any(w => w.Spec.Id == "briefing")) Briefing.Attach(_world);   // (opening it attaches it)
         RefreshDeskNotes(player);
     }
 

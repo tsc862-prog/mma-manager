@@ -26,6 +26,13 @@ public sealed class DisplayPreferences : ObservableObject
         get => _density;
         set { if (Densities.Contains(value) && Set(ref _density, value)) { Apply(); Save(); } }
     }
+    private bool _quietBriefing = true;
+    /// <summary>Open the briefing even when the clock stopped with nothing needing you (else a toast offers it).</summary>
+    public bool BriefingOnQuietWeeks
+    {
+        get => _quietBriefing;
+        set { if (Set(ref _quietBriefing, value)) Save(); }
+    }
     public void Initialize()
     {
         if (!MainViewModel.HeadlessAutoBoot)
@@ -35,6 +42,7 @@ public sealed class DisplayPreferences : ObservableObject
                 {
                     if (TextSizes.Contains(s.TextSize)) _textSize = s.TextSize;
                     if (Densities.Contains(s.Density)) _density = s.Density;
+                    _quietBriefing = s.QuietBriefing ?? true;
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
@@ -54,14 +62,14 @@ public sealed class DisplayPreferences : ObservableObject
         app.Resources["FightRowHeight"] = (Density == "Compact" ? 54.0 : 68.0) * scale;
         app.Resources["ItemPadding"] = new Thickness(6, Density == "Compact" ? 3 : 7, 6, Density == "Compact" ? 3 : 7);
     }
-    private sealed record Settings(int TextSize, string Density);
+    private sealed record Settings(int TextSize, string Density, bool? QuietBriefing = null);
     private void Save()
     {
         if (MainViewModel.HeadlessAutoBoot) return;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(new Settings(TextSize, Density)));
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(new Settings(TextSize, Density, BriefingOnQuietWeeks)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }

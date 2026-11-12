@@ -189,6 +189,13 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding LastAdvance}" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center"
                                MaxWidth="330" TextTrimming="CharacterEllipsis" ToolTip="{Binding LastAdvance}" Margin="0,0,14,0" />
+                    <Button Command="{Binding OpenBriefingCommand}" Margin="0,0,8,0"
+                            ToolTip="The briefing — why the clock stopped, what to do, what happened, what's next">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📋" Margin="0,0,5,0" />
+                            <TextBlock Text="Briefing" />
+                        </StackPanel>
+                    </Button>
                     <Button Command="{Binding OpenInboxCommand}" ToolTip="Unread mail — open the inbox" Margin="0,0,10,0">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
