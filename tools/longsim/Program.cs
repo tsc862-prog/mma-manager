@@ -60,6 +60,7 @@ static void RunShoestring(ulong seed, int years)
     var tick = new WorldTick();
 
     var valuation = new MmaManager.Core.Sim.Contracts.FighterValuation();
+    int agentHires = 0;
     void PlayerAgent()
     {
         if (nwf.Defunct) return;
@@ -84,6 +85,7 @@ static void RunShoestring(ulong seed, int years)
                     + Math.Max(0, x.Fighter.PotentialAbility.Value - FighterAbility.CurrentAbility(x.Fighter)) * 0.5)
                 .FirstOrDefault();
             if (pick.Fighter is null) return;
+            agentHires++;
             MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(world, pick.Fighter, new ContractOffer
             {
                 Fighter = pick.Fighter.Id, Promotion = nwf.Id,
@@ -139,6 +141,14 @@ static void RunShoestring(ulong seed, int years)
         Console.WriteLine($"--- YEAR {year} ({world.CurrentDate:yyyy}) ---");
         Console.WriteLine($"  org       prestige {nwf.Prestige.Value} · {OrgSizing.Label(tier)} ({standing.Percent}% to {(standing.Next is { } nx ? OrgSizing.Label(nx) : "the top")}) · rep {nwf.Reputation.Value} · bank {nwf.Balance}");
         Console.WriteLine($"  year      {myEvents.Count} events · avg house {avgHouse:0} · in {income:C0} / out {expense:C0} (net {income + expense:C0}) · roster {roster.Count}");
+        {
+            double cards = Math.Max(1, myEvents.Count);
+            int bouts = myEvents.Sum(e => e.Card.Count);
+            int locals = myEvents.Sum(e => e.Card.Count(fi => IsLocal(world, fi)));
+            var paid = roster.Where(f => f.Contract is not null).Select(f => f.Contract!.PursePerFight.Amount).ToList();
+            Console.WriteLine($"  money     payroll/card {myEvents.Sum(e => e.Financials!.FighterPayroll.Amount) / (decimal)cards:N0} · gate/card {myEvents.Sum(e => e.Financials!.GateRevenue.Amount) / (decimal)cards:N0} · bouts/card {bouts / cards:0.0} · local bouts/card {locals / cards:0.0} · "
+                + $"roster purse mean {(paid.Count == 0 ? 0 : paid.Average()):N0} · roster CA mean {(roster.Count == 0 ? 0 : roster.Average(f => (double)FighterAbility.CurrentAbility(f))):0.0} · agent hires {agentHires}");
+        }
         if (tier != lastTier)
         {
             Console.WriteLine($"  ▲▲▲       TIER CROSSING: {OrgSizing.Label(lastTier)} → {OrgSizing.Label(tier)}");
@@ -463,6 +473,15 @@ static void RunCompare(int seeds, int years)
     PrintFightMix(all.SelectMany(r => r.Bouts).ToList());
     PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
+    // Every org's completed cards over the run, pooled by its tier at the end (or when it died): what each tier pays a card.
+    Console.WriteLine();
+    Console.WriteLine("  --- ALL ORGS by end tier (DURABLE: completed cards over the run; day-one orgs and startups) ---");
+    foreach (var g in results.Values.SelectMany(r => r.Orgs).GroupBy(o => o.Tier).OrderBy(g => g.Key))
+    {
+        double c = Math.Max(1, g.Sum(o => o.Cards));
+        Console.WriteLine($"  {OrgSizing.Label(g.Key),-14} orgs {g.Count(),4} · cards {g.Sum(o => o.Cards),6} · bouts/card {g.Sum(o => o.Bouts) / c:0.00} · local bouts/card {g.Sum(o => o.LocalBouts) / c:0.00} · "
+            + $"house {g.Sum(o => o.Attendance) / c:0} · gate/card {g.Sum(o => o.Gate) / (decimal)c:N0} · purses/card {g.Sum(o => o.Purses) / (decimal)c:N0} · purses/gate {(g.Sum(o => o.Gate) == 0 ? 0 : g.Sum(o => o.Purses) / g.Sum(o => o.Gate)):0.00}");
+    }
     if (all.Sum(r => r.NewsOverflow) > 0)
         Console.WriteLine($"  WARNING: news sampler lost its place {all.Sum(r => r.NewsOverflow)} time(s); headline-sampled rates are undercounts");
 }
