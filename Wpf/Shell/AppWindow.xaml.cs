@@ -45,5 +45,6 @@ public partial class AppWindow : UserControl
         if (Win is not { IsMaximized: false } w) return;
         w.W += e.HorizontalChange;
         w.H += e.VerticalChange;
+        w.Unsqueeze();   // the player's own size now; nothing to grow back to
     }
 }

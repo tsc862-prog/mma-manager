@@ -192,7 +192,9 @@ public sealed class MainViewModel : ObservableObject
         Briefing.DeclineDecisionCommand = Dashboard.DeclineDecisionCommand;
         Briefing.AdvanceWeekCommand = AdvanceWeekCommand;
         if (!HeadlessAutoBoot)
-            Briefing.Confirm = (heading, body, detail, confirm) =>
+            // One confirm for costly desk answers, on every surface (Home, Inbox, Briefing
+            // all run Dashboard.AcceptDecisionCommand).
+            Dashboard.Confirm = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
         Desktop.BeforeOpen = id => { if (id == "briefing" && _world is not null) Briefing.Attach(_world); };
     }
@@ -702,6 +704,9 @@ public sealed class MainViewModel : ObservableObject
         // last world that was still alive).
         if (_world.Get(_world.PlayerPromotion) is { Defunct: true } dead)
         {
+            // The last stop's briefing must not sit over a dead promotion.
+            Briefing.Close?.Invoke();
+            Briefing.Reset();
             Alert("GAME OVER",
                 $"GAME OVER — {dead.Name} is bankrupt. Start menu → New Game for a new career, or Load an earlier save.",
                 $"{dead.Name} has gone bankrupt and closed its doors. Your career with it is over.",
@@ -792,10 +797,9 @@ public sealed class MainViewModel : ObservableObject
         Watch.Load(_world, ev);
         RefreshAll();
         Autosave();
-        Briefing.AfterCard(_world, before, ev);
 
         // Headless harness runs drive Watch state directly (no window to show).
-        if (HeadlessAutoBoot) { Moments.Offer(_world, ev); ShowBriefing(); return; }
+        if (HeadlessAutoBoot) { Briefing.AfterCard(_world, before, ev); Moments.Offer(_world, ev); ShowBriefing(); return; }
 
         var win = new WatchWindow { DataContext = this };
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
@@ -803,6 +807,10 @@ public sealed class MainViewModel : ObservableObject
         Watch.Start();
         win.ShowDialog();
         Watch.Pause();   // leaving the arena stops the broadcast clock
+
+        // Only now does the briefing learn the results: built before the broadcast,
+        // it would spoil the night from behind the arena window.
+        Briefing.AfterCard(_world, before, ev);
 
         // Back on the desk after the broadcast: a big night takes the screen
         // (never over the arena, which may still be mid-card when the player leaves).

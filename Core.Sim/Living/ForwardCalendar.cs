@@ -653,6 +653,12 @@ public static class ForwardCalendar
             promo.Id, aboutEvent: ev.Id);
     }
 
+    /// <summary>
+    /// Read-only, for display: whether (and in the audit's words, why) this fighter can't
+    /// be on this card, other bookings aside. Null = he can. Changes nothing, draws no RNG.
+    /// </summary>
+    public static string? WhyUnavailable(World world, Event ev, FighterId id) => WhyOff(world, ev, id, _ => false);
+
     // Why this corner can't be on this card any more (null = he can).
     private static string? WhyOff(World world, Event ev, FighterId id, Func<FighterId, bool> bookedElsewhere)
     {

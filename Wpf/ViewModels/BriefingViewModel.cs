@@ -160,8 +160,6 @@ public sealed class BriefingViewModel : ObservableObject
     public ICommand? AcceptDecisionCommand { get; set; }
     public ICommand? DeclineDecisionCommand { get; set; }
     public ICommand? AdvanceWeekCommand { get; set; }
-    /// <summary>Ask before something costly (heading, body, detail, confirm label); null = go ahead (harness).</summary>
-    public Func<string, string, string, string, bool>? Confirm { get; set; }
 
     public BriefingViewModel()
     {
@@ -391,7 +389,8 @@ public sealed class BriefingViewModel : ObservableObject
         // Deals on their last fight: the softer, grouped heads-up.
         foreach (var f in roster.Where(f => f.Contract is { FightsRemaining: 1 } && !DealWindow.InWindow(w, f))
                      .OrderByDescending(f => FighterRow.Scouted(w, f)).ThenBy(f => f.Id.Value))
-            list.Add(new Need(BriefingKind.ExpiringDeal, $"deal:{f.Id.Value}:1", 300, f.Id.Value));
+            // Keyed to this deal (its signing date): a re-signed fighter reaching his last fight again is news again.
+            list.Add(new Need(BriefingKind.ExpiringDeal, $"deal:{f.Id.Value}:{f.Contract!.SignedOn.DayNumber}", 300, f.Id.Value));
 
         foreach (var o in player.Offers.Where(o => o.ExpiresOn >= today).OrderBy(o => o.ExpiresOn))
             list.Add(new Need(BriefingKind.Offer, $"offer:{o.Partner}:{o.ExpiresOn.DayNumber}", 400, Offer: o, Due: o.ExpiresOn));
@@ -609,17 +608,10 @@ public sealed class BriefingViewModel : ObservableObject
                 int days = d.Deadline.DayNumber - today.DayNumber;
                 var who = d.Fighter is { } fid ? w.Get(fid) : null;
                 var target = d.Promotion is { } pid ? w.Get(pid) : null;
-                Icon = d.Kind switch { DecisionKind.TitleShotRequest => "Crown", DecisionKind.SponsorShowcase => "Money", DecisionKind.AcquisitionOffer => "Building", _ => "Warning" };
+                Icon = DeskCalls.Icon(d);
                 Tone = days <= 7 ? CardTone.Bad : CardTone.Warn;
                 Kicker = $"{kicker}  ·  {(lastCall ? "LAST CALL" : "A CALL ONLY YOU CAN MAKE")}  ·  ANSWER {(days <= 0 ? "TODAY" : days == 1 ? "BY TOMORROW" : $"BY {d.Deadline:d MMM}".ToUpperInvariant())}";
-                Headline = d.Kind switch
-                {
-                    DecisionKind.TitleShotRequest => who is null ? "A contender wants a title shot." : $"{who.FirstName} {who.LastName} wants a title shot.",
-                    DecisionKind.SponsorShowcase => $"{(d.Sponsor.Length > 0 ? d.Sponsor : "A sponsor")} wants a hometown showcase.",
-                    DecisionKind.VeteranCut => who is null ? "The board wants a release." : $"The board wants {who.FirstName} {who.LastName} released.",
-                    DecisionKind.AcquisitionOffer => target is null ? "A promotion is for sale." : $"{target.Name} is for sale.",
-                    _ => "A decision for you.",
-                };
+                Headline = DeskCalls.Title(w, d) + ".";
                 Lede = d.Detail + $" Ignoring it past {d.Deadline:d MMM} counts as an answer.";
                 if (who is not null) { Art = Portraits.Body(who, w); People.Add(Person(w, who, FighterRow.DivisionLabel(who.WeightClass, who.Sex))); }
                 else if (target is not null) { Art = LogoFactory.ForPromotion(target); ArtIsFramed = true; }
@@ -636,19 +628,8 @@ public sealed class BriefingViewModel : ObservableObject
                         _ => ("Do it", "Pass"),
                     };
                     if (who is not null && who.Sex == Sex.Female) { yes = yes.Replace("him", "her"); no = no.Replace("him", "her"); }
-                    var accept = AcceptDecisionCommand;
-                    ICommand yesCmd = d.Kind switch
-                    {
-                        // Expensive or destructive: ask first, and say what it costs.
-                        DecisionKind.AcquisitionOffer => Ask(accept, d, $"Buy {target?.Name ?? "the promotion"}?",
-                            $"{player?.Name ?? "You"} pays {d.Price} and takes over {target?.Name ?? "the promotion"} — roster, brand and all.",
-                            $"That money comes straight out of the bank ({player?.Balance} today). There's no selling it back.", "Buy it"),
-                        DecisionKind.VeteranCut when who is not null => Ask(accept, d, $"Release {who.FullName}?",
-                            $"{who.FullName} comes off your roster and onto the free-agent market, where any promotion can sign {Pronoun(who)}.",
-                            "The board gets its way, and the locker room notices how a name they respect was let go.", "Release"),
-                        _ => Then(accept, d),
-                    };
-                    Actions.Add(new BriefingAction(yes, yesCmd, IsPrimary: true));
+                    // The shared desk command asks first for a costly yes (DeskCalls.YesCosts).
+                    Actions.Add(new BriefingAction(yes, Then(AcceptDecisionCommand, d), IsPrimary: true));
                     Actions.Add(new BriefingAction(no, Then(DeclineDecisionCommand, d)));
                 }
                 if (who is not null) Actions.Add(new BriefingAction($"{who.LastName}'s profile", Do(() => OpenFighter?.Invoke(who.Id.Value))));
@@ -951,15 +932,8 @@ public sealed class BriefingViewModel : ObservableObject
                     int days = d.Deadline.DayNumber - today.DayNumber;
                     Waiting.Add(new BriefingItem
                     {
-                        Icon = "Warning", Picture = who is null ? null : Portraits.Thumb(who, w),
-                        Text = d.Kind switch
-                        {
-                            DecisionKind.TitleShotRequest => who is null ? "A title shot is being demanded" : $"{who.FirstName} {who.LastName} wants a title shot",
-                            DecisionKind.SponsorShowcase => $"{d.Sponsor} wants a showcase",
-                            DecisionKind.VeteranCut => "The board wants a release",
-                            DecisionKind.AcquisitionOffer => "A promotion is for sale",
-                            _ => "A decision for you",
-                        },
+                        Icon = DeskCalls.Icon(d), Picture = who is null ? null : Portraits.Thumb(who, w),
+                        Text = DeskCalls.Title(w, d),
                         Detail = days <= 0 ? "Answer due today" : $"Answer by {d.Deadline:d MMM}",
                         Tone = days <= 7 ? CardTone.Bad : CardTone.Warn,
                         ActionText = "The letter ▸", Command = Do(() => Navigate?.Invoke(Tab.Inbox)),
@@ -1102,41 +1076,44 @@ public sealed class BriefingViewModel : ObservableObject
             {
                 var (fight, red, blue) = bouts[i];
                 if (now.Contains(fight)) continue;
-                // The matchmaking letter names who is out and why.
-                var letter = newMail.LastOrDefault(m => m.From == "Matchmaking" && m.Subject.EndsWith($" is off {ev.Name}", StringComparison.Ordinal)
-                                                        && m.AboutFighter is { } a && (a.Value == red || a.Value == blue));
-                int outId = letter?.AboutFighter?.Value ?? Unavailable(w, ev, red, blue);
-                int stayId = outId == red ? blue : outId == blue ? red : 0;
-                string reason = letter is null ? "" : FirstSentence(letter.Body);
-                list.Add(new Hole(evId, outId, stayId, reason, i == bouts.Count - 1, bouts.Count));
+                // Who is out is read off the fighters themselves (the sim's own availability
+                // rule); a matchmaking letter about one corner only breaks a tie.
+                bool redOff = ForwardCalendar.WhyUnavailable(w, ev, new FighterId(red)) is not null;
+                bool blueOff = ForwardCalendar.WhyUnavailable(w, ev, new FighterId(blue)) is not null;
+                var letter = newMail.LastOrDefault(m => m.From == "Matchmaking" && m.AboutFighter is { } a && (a.Value == red || a.Value == blue));
+                int outId = redOff && !blueOff ? red
+                    : blueOff && !redOff ? blue
+                    : letter?.AboutFighter?.Value ?? red;
+                int stayId = outId == red ? blue : red;
+                list.Add(new Hole(evId, outId, stayId, WhyOut(w, ev, outId), i == bouts.Count - 1, bouts.Count));
             }
         }
         // Main events first, then by date (already in date order).
         return list.OrderByDescending(h => h.WasMain).ToList();
     }
 
-    // No letter: the corner who can't be there (retired, gone, hurt past the date), else red.
-    private static int Unavailable(World w, Event ev, int red, int blue)
+    /// <summary>Why this fighter can't make the card, in a sentence, from his own state (public facts).</summary>
+    private static string WhyOut(World w, Event ev, int id)
     {
-        bool Off(int id) => w.Get(new FighterId(id)) is not { } f || f.Status == FighterStatus.Retired
-                            || f.Contract?.Promotion != ev.Promotion && !f.LocalTalent
-                            || f.Status == FighterStatus.Injured;
-        return Off(red) ? red : Off(blue) ? blue : red;
+        if (w.Get(new FighterId(id)) is not { } f) return "They are no longer in the sport.";
+        string He = f.Sex == Sex.Female ? "She" : "He", his = Possessive(f), him = Pronoun(f);
+        if (f.Status == FighterStatus.Retired) return $"{He} retired.";
+        if (f.Status == FighterStatus.Suspended)
+            return f.SuspendedUntil is { } until ? $"{He} is suspended until {until:d MMM}." : $"{He} is suspended.";
+        if (f.Contract is null) return $"{He} is no longer under contract — a free agent now.";
+        if (f.Contract.Promotion != ev.Promotion)
+            return $"{He} signed with {w.Get(f.Contract.Promotion)?.Name ?? "another promotion"}.";
+        if (DealWindow.InWindow(w, f))
+            return $"{His(his)} deal is up — re-sign {him} to book {him} again" +
+                   (f.Contract.WindowEndsOn is { } end ? $" (by {end:d MMM})." : ".");
+        if (f.Status == FighterStatus.Injured && f.CurrentInjury is { } inj)
+            return $"{He} is hurt ({inj.Description}) and out until {inj.ExpectedReturn:d MMM}.";
+        if (f.ReadyToFightOn is { } ready && ready > ev.Date)
+            return $"{He} won't be cleared to fight until {ready:d MMM}.";
+        return "";
     }
 
-    private static string FirstSentence(string body)
-    {
-        // "X is off AFC 1: he retired. His bout with Y needs..." -> "X is off AFC 1: he retired."
-        int dot = body.IndexOf(". ", StringComparison.Ordinal);
-        string s = dot > 0 ? body[..(dot + 1)] : body;
-        int colon = s.IndexOf(": ", StringComparison.Ordinal);
-        if (colon > 0 && colon + 2 < s.Length)
-        {
-            string why = s[(colon + 2)..];
-            return char.ToUpperInvariant(why[0]) + why[1..];
-        }
-        return s;
-    }
+    private static string His(string his) => char.ToUpperInvariant(his[0]) + his[1..];
 
     private List<BriefingItem> Digest(World w, BriefingBaseline before, List<Hole> holes, (int Event, int Out)? skipHole)
     {
@@ -1400,7 +1377,13 @@ public sealed class BriefingViewModel : ObservableObject
     private static ImageSource? Poster(World w, Event ev)
     {
         try { return PosterFactory.For(w, ev); }
-        catch { return w.Get(ev.Promotion) is { } p ? LogoFactory.ForPromotion(p) : null; }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or NotSupportedException
+                                       or InvalidOperationException or ArgumentException)
+        {
+            // A missing or unreadable art file: the briefing falls back to the org logo, and says so in the trace.
+            System.Diagnostics.Trace.WriteLine($"Briefing: poster for {ev.Name} failed, using the logo — {ex.GetType().Name}: {ex.Message}");
+            return w.Get(ev.Promotion) is { } p ? LogoFactory.ForPromotion(p) : null;
+        }
     }
 
     private void AddMainEventFaces(World w, Event ev)
@@ -1444,13 +1427,6 @@ public sealed class BriefingViewModel : ObservableObject
     // Run an existing command (with its parameter), then let the app refresh redraw the briefing.
     private static ICommand Then(ICommand inner, object? parameter = null) => new RelayCommand(() =>
     {
-        if (inner.CanExecute(parameter)) inner.Execute(parameter);
-    });
-
-    // A costly answer: say what it costs first (interactive only), then run it.
-    private ICommand Ask(ICommand inner, object parameter, string heading, string body, string detail, string confirm) => new RelayCommand(() =>
-    {
-        if (Confirm is { } ask && !ask(heading, body, detail, confirm)) return;
         if (inner.CanExecute(parameter)) inner.Execute(parameter);
     });
 }

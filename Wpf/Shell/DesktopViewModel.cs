@@ -77,6 +77,16 @@ public sealed class OpenWindow : ObservableObject
     public double W { get => _w; set => Set(ref _w, Math.Max(360, value)); }
     public double H { get => _h; set => Set(ref _h, Math.Max(220, value)); }
 
+    /// <summary>
+    /// The size a centred panel had before a small desk squeezed it (null = not squeezed):
+    /// it grows back to this, and this, not the squeezed size, is what gets remembered.
+    /// </summary>
+    public double? FullW { get; internal set; }
+    public double? FullH { get; internal set; }
+    public void Unsqueeze() { FullW = null; FullH = null; }
+    internal double KeepW => FullW ?? W;
+    internal double KeepH => FullH ?? H;
+
     private int _z;
     public int Z { get => _z; set => Set(ref _z, value); }
 
@@ -219,16 +229,24 @@ public sealed class DesktopViewModel : ObservableObject
         set
         {
             _area = value;
-            // A centred panel (the briefing) stays whole when the desk shrinks under it
-            // (the fight-night bar arriving, a smaller window).
+            // Same floor as FitToArea: a desk this small (minimised, mid-layout) moves nothing.
+            if (value.IsEmpty || value.Width < 640 || value.Height < 420) return;
+            // A centred panel (the briefing) stays whole when the desk shrinks under it (the
+            // fight-night bar arriving, a smaller window) and grows back to the size it had
+            // when the desk grows again. The squeezed size is never what gets remembered.
             foreach (var w in Windows.Where(w => w.Spec.Centered && !w.IsMaximized))
-                if (w.Y + w.H > value.Height - 8 || w.X + w.W > value.Width - 8)
-                {
-                    w.H = Math.Min(w.H, value.Height - 16);
-                    w.W = Math.Min(w.W, value.Width - 16);
-                    w.Y = Math.Max(8, Math.Min(w.Y, value.Height - w.H - 8));
-                    w.X = Math.Max(8, Math.Min(w.X, value.Width - w.W - 8));
-                }
+            {
+                double wantW = w.KeepW, wantH = w.KeepH;
+                double fitW = Math.Min(wantW, value.Width - 16), fitH = Math.Min(wantH, value.Height - 16);
+                if (fitW == w.W && fitH == w.H && w.X + w.W <= value.Width - 8 && w.Y + w.H <= value.Height - 8) continue;
+                bool squeezed = fitW < wantW || fitH < wantH;
+                w.W = fitW;
+                w.H = fitH;
+                w.FullW = squeezed ? wantW : null;
+                w.FullH = squeezed ? wantH : null;
+                w.Y = Math.Max(8, Math.Min(w.Y, value.Height - w.H - 8));
+                w.X = Math.Max(8, Math.Min(w.X, value.Width - w.W - 8));
+            }
         }
     }
     private System.Windows.Size _area = System.Windows.Size.Empty;
@@ -281,7 +299,7 @@ public sealed class DesktopViewModel : ObservableObject
 
     public void Close(OpenWindow w)
     {
-        _layout[w.Spec.Id] = new WindowRect(w.X, w.Y, w.W, w.H, w.IsMaximized);
+        _layout[w.Spec.Id] = new WindowRect(w.X, w.Y, w.KeepW, w.KeepH, w.IsMaximized);
         Windows.Remove(w);
         if (w.IsActive && Windows.Count > 0)
             Focus(Windows.OrderByDescending(x => x.Z).First());
@@ -313,7 +331,7 @@ public sealed class DesktopViewModel : ObservableObject
         try
         {
             foreach (var w in Windows)
-                _layout[w.Spec.Id] = new WindowRect(w.X, w.Y, w.W, w.H, w.IsMaximized);
+                _layout[w.Spec.Id] = new WindowRect(w.X, w.Y, w.KeepW, w.KeepH, w.IsMaximized);
             Directory.CreateDirectory(Path.GetDirectoryName(LayoutPath)!);
             File.WriteAllText(LayoutPath, JsonSerializer.Serialize(_layout));
         }

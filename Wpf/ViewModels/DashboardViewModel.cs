@@ -54,6 +54,9 @@ public sealed class DashboardViewModel : ObservableObject
     public Func<World?>? GetWorld { get; set; }
     public Action? OnDecisionMade { get; set; }
 
+    /// <summary>Set by the shell (interactive only): ask before a costly yes (heading, body, detail, confirm label).</summary>
+    public Func<string, string, string, string, bool>? Confirm { get; set; }
+
     /// <summary>Set by the shell: fight night's two doors, contract talks, and whether a card is due tonight.</summary>
     public ICommand? WatchTonightCommand { get; set; }
     public ICommand? SimTonightCommand { get; set; }
@@ -88,6 +91,9 @@ public sealed class DashboardViewModel : ObservableObject
         AcceptDecisionCommand = new RelayCommand<Decision>(d =>
         {
             if (GetWorld?.Invoke() is not { } w) return;
+            // Expensive or destructive yeses ask first (every surface runs this command:
+            // Home, the Inbox letter and the Briefing).
+            if (Confirm is { } ask && DeskCalls.YesCosts(w, d) is { } c && !ask(c.Heading, c.Body, c.Detail, c.Confirm)) return;
             MmaManager.Core.Sim.Living.Decisions.Accept(w, d, w.CurrentDate);
             OnDecisionMade?.Invoke();
         });
@@ -498,22 +504,8 @@ public sealed class DashboardViewModel : ObservableObject
             var who = d.Fighter is { } fid ? world.Get(fid) : null;
             NeedsYou.Add(new ActionItemModel
             {
-                Icon = d.Kind switch
-                {
-                    DecisionKind.TitleShotRequest => "Crown",
-                    DecisionKind.SponsorShowcase => "Money",
-                    DecisionKind.VeteranCut => "Warning",
-                    DecisionKind.AcquisitionOffer => "Building",
-                    _ => "Warning",
-                },
-                Title = d.Kind switch
-                {
-                    DecisionKind.TitleShotRequest => who is null ? "A title shot is being demanded" : $"{who.FullName} wants a title shot",
-                    DecisionKind.SponsorShowcase => $"{d.Sponsor} wants a showcase",
-                    DecisionKind.VeteranCut => "The board wants a release",
-                    DecisionKind.AcquisitionOffer => "A promotion is for sale",
-                    _ => "A decision for you",
-                },
+                Icon = DeskCalls.Icon(d),
+                Title = DeskCalls.Title(world, d),
                 Detail = d.Detail,
                 Due = days <= 0 ? "today" : days == 1 ? "by tomorrow" : $"{days} days left",
                 Tone = days <= 3 ? CardTone.Bad : CardTone.Warn,
