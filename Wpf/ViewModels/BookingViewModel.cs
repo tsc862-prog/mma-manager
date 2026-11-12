@@ -281,7 +281,7 @@ public sealed partial class BookingViewModel : ObservableObject
     public FighterPick? SelectedBlue { get => _blue; set { if (Set(ref _blue, value) && !_quiet) UpdateAppraisal(); } }
 
     private int _rounds;
-    public int SelectedRounds { get => _rounds; set => Set(ref _rounds, value); }
+    public int SelectedRounds { get => _rounds; set { if (Set(ref _rounds, value) && !_quiet && HasPairing) SyncPickSheet(); } }
 
     private bool _isTitle;
     public bool IsTitleBout
@@ -293,6 +293,7 @@ public sealed partial class BookingViewModel : ObservableObject
             // A belt on the line books at the house's title length.
             if (value && _world?.Get(_world.PlayerPromotion) is { } promo)
                 SelectedRounds = promo.Rules.TitleRounds;
+            if (!_quiet && HasPairing) SyncPickSheet();
         }
     }
 
@@ -361,6 +362,8 @@ public sealed partial class BookingViewModel : ObservableObject
         var dropped = new List<string>();
         if (!sameWorld)
         {
+            _ask = null;
+            Sheet = null;
             NewEventDate = today.AddDays(21);
             Rail = DeskRail.Night;
             View = DeskView.Card;
@@ -457,6 +460,7 @@ public sealed partial class BookingViewModel : ObservableObject
         if (UpcomingEvents.Count == 0 && _world is not null) Rail = DeskRail.Plan;
         else if (_rail == DeskRail.Plan && SelectedEvent is not null && _planFromEmpty) Rail = DeskRail.Night;
         RefreshRail();
+        RefreshSheet();   // the sheet re-reads the world (or drops a pairing that's gone)
         RaiseHints();
     }
 
@@ -479,6 +483,7 @@ public sealed partial class BookingViewModel : ObservableObject
         Divisions.Clear();
         foreach (var d in mine) Divisions.Add(d);
         SelectedDivision = keep is { } k && Divisions.Contains(k) ? k : Divisions.FirstOrDefault();
+        RefreshScopes();
         RaiseHints();
     }
 
@@ -698,6 +703,7 @@ public sealed partial class BookingViewModel : ObservableObject
             CanBeTitle = false;
             OnPropertyChanged(nameof(HasHeadToHead));
             Tape.Clear();
+            if (_ask?.Source == SheetSource.Pick) { _ask = null; Sheet = null; }
             return;
         }
         var a = _advisor.Appraise(_world, red.Id, blue.Id);
@@ -710,6 +716,7 @@ public sealed partial class BookingViewModel : ObservableObject
         HeadToHead = HeadToHeadLine(red, blue);
         OnPropertyChanged(nameof(HasHeadToHead));
         BuildTape(red, blue);
+        SyncPickSheet();
     }
 
     // A vacant belt in this division: any two may fight for it (AddBout's rule).

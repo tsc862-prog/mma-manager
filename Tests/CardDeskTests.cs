@@ -882,4 +882,96 @@ public class CardDeskTests
         }
         Assert.Fail("no seed had two same-read, different-truth unranked fighters to compare");
     }
+
+    // --- ProjectWith: the night with one more bout, before it is booked -------
+
+    private static void AssertSameNight(CardProjection want, CardProjection got)
+    {
+        Assert.Equal(want.Attendance, got.Attendance);
+        Assert.Equal(want.Demand, got.Demand);
+        Assert.Equal(want.PpvBuys, got.PpvBuys);
+        Assert.Equal(want.Income, got.Income);
+        Assert.Equal(want.Purses, got.Purses);
+        Assert.Equal(want.WinBonusMin, got.WinBonusMin);
+        Assert.Equal(want.WinBonusMax, got.WinBonusMax);
+        Assert.Equal(want.PpvPoints, got.PpvPoints);
+        Assert.Equal(want.Filler, got.Filler);
+        Assert.Equal(want.Net, got.Net);
+        Assert.Equal(want.NetLow, got.NetLow);
+        Assert.Equal(want.NetHigh, got.NetHigh);
+        Assert.Equal(want.BoutsBooked, got.BoutsBooked);
+        Assert.Equal(want.MainCardOnTheNight, got.MainCardOnTheNight);
+        Assert.Equal(want.Partners.SelectMany(p => p.Terms.Select(t => (p.Partner, t.Text, t.Status))),
+                     got.Partners.SelectMany(p => p.Terms.Select(t => (p.Partner, t.Text, t.Status))));
+        Assert.Equal(want.Risks.Select(r => (r.Kind, r.Text)), got.Risks.Select(r => (r.Kind, r.Text)));
+    }
+
+    [Theory]
+    [InlineData(0, BoutSlot.MainEvent)]
+    [InlineData(2, BoutSlot.MainEvent)]
+    [InlineData(2, BoutSlot.CoMain)]
+    [InlineData(3, BoutSlot.MainCard)]
+    [InlineData(6, BoutSlot.Prelim)]
+    public void ProjectWith_IsTheNightAfterBooking_AndTouchesNothing(int booked, BoutSlot slot)
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        var pool = BookCard(world, booking, ev, booked);
+        var red = pool[2 * booked];
+        var blue = pool[2 * booked + 1];
+
+        var card = ev.Card.Select(f => f.Id).ToList();
+        var counters = world.IdCounters;
+        int fighters = world.Fighters.Count, events = world.Events.Count;
+        var before = booking.Project(world, ev);
+        var preview = booking.ProjectWith(world, ev, red.Id, blue.Id, 5, false, slot);
+
+        // Nothing moved: the card, the ids, the world, the projection of the card as it is.
+        Assert.Equal(card, ev.Card.Select(f => f.Id));
+        Assert.Equal(counters, world.IdCounters);
+        Assert.Equal(fighters, world.Fighters.Count);
+        Assert.Equal(events, world.Events.Count);
+        AssertSameNight(before, booking.Project(world, ev));
+
+        // Book it the way the desk does (bottom of the bill, then moved to the slot).
+        Assert.True(booking.AddBout(world, ev, red.Id, blue.Id, 5, false, out var err), err);
+        int n = ev.Card.Count;
+        int to = slot switch
+        {
+            BoutSlot.MainEvent => n - 1,
+            BoutSlot.CoMain => Math.Max(0, n - 2),
+            BoutSlot.MainCard => Math.Max(0, n - Math.Min(n, booking.MainCardOnTheNight(world, ev))),
+            _ => 0,
+        };
+        if (to > 0) Assert.True(booking.MoveBout(world, ev, ev.Card[0].Id, to, out err), err);
+        AssertSameNight(booking.Project(world, ev), preview);
+    }
+
+    [Fact]
+    public void ProjectWith_Replacing_IsTheNightAfterTheSwap()
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(world, world.CurrentDate.AddDays(60));
+        var pool = BookCard(world, booking, ev, 3);
+        var bout = ev.Card[1];
+        var incoming = pool[6];
+        var preview = booking.ProjectWith(world, ev, bout.RedCorner, incoming.Id, 3, false, BoutSlot.MainCard, replacing: bout.Id);
+        Assert.Equal(3, ev.Card.Count);
+        Assert.Equal(bout, ev.Card[1]);
+
+        Assert.True(booking.ReplaceFighter(world, ev, bout.Id, bout.BlueCorner, incoming.Id, out var err), err);
+        AssertSameNight(booking.Project(world, ev), preview);
+    }
+
+    [Fact]
+    public void ProjectWith_AnotherPromotionsCard_IsEmpty()
+    {
+        var world = Build(11);
+        var theirs = world.Events.Values.First(e => e.Promotion != world.PlayerPromotion && e.Card.Count >= 2);
+        var p = new PlayerBooking().ProjectWith(world, theirs, theirs.Card[0].RedCorner, theirs.Card[0].BlueCorner, 3, false, BoutSlot.MainCard);
+        Assert.Equal(0, p.Attendance);
+        Assert.Empty(p.Partners);
+    }
 }
