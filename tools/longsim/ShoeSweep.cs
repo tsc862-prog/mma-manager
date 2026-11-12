@@ -58,6 +58,10 @@ public static class ShoeSweep
         public long IdleChecks, RosterChecks;
         public int DaysToResignSum, DaysToResignN;
         public int ChampAiRenewals, ChampAiRenewBelowAsk, ChampLeft, AiRenewBelowAsk, BeltChecks, BeltHeldChecks, TitleFights, Cards;
+        // Rival offers (Contracts.OfferMarket): how the script answered, and how each ended.
+        public int OffersLodged, OffersMatchedByScript, OffersLetGoByScript, OfferEndMatched, OfferEndBeaten, OfferEndSigned, OfferEndWithdrawn, OffersOpen, LiferRefusals;
+        public int OfferChampions, OfferTop2, OfferStarsLost;
+        public decimal MatchPurseSum;
         public void Add(Diag o)
         {
             foreach (var fl in typeof(Diag).GetFields())
@@ -97,6 +101,11 @@ public static class ShoeSweep
             + $" · days from deal end to re-sign {R(d.DaysToResignSum, d.DaysToResignN)}");
         Console.WriteLine($"  DIAG who: renewed mean CA {R(d.RenewedCaSum, d.RenewedN)} pop {R(d.RenewedPopSum, d.RenewedN)} · left mean CA {R(d.LeftCaSum, d.LeftN)} pop {R(d.LeftPopSum, d.LeftN)}"
             + $" · roster share sitting at 0 fights (monthly checks) {(d.RosterChecks == 0 ? 0 : 100.0 * d.IdleChecks / d.RosterChecks):0.0}%");
+        int seedYears = Math.Max(1, all.Sum(r => r.Years.Count));
+        Console.WriteLine($"  DIAG rival offers: lodged {d.OffersLodged} ({(double)d.OffersLodged / seedYears:0.00} per seed-year; champions {d.OfferChampions}, top-2 in division {d.OfferTop2})"
+            + $" · script matched {d.OffersMatchedByScript} (mean match purse {(d.OffersMatchedByScript == 0 ? 0 : d.MatchPurseSum / d.OffersMatchedByScript):N0}) · let go {d.OffersLetGoByScript}"
+            + $" · ended: matched {d.OfferEndMatched} · beaten at the table {d.OfferEndBeaten} · LOST to the rival {d.OfferEndSigned} (champion/top-2 {d.OfferStarsLost})"
+            + $" · withdrawn {d.OfferEndWithdrawn} · still open {d.OffersOpen} · lifer refusals {d.LiferRefusals}");
         Console.WriteLine($"  DIAG belts: champions renewed by the AI {d.ChampAiRenewals} (below his ask {d.ChampAiRenewBelowAsk}) · all AI renewals below his ask {d.AiRenewBelowAsk}/{d.AiRenewals}"
             + $" · champions who left {d.ChampLeft} · belts filled {(d.BeltChecks == 0 ? 0 : 100.0 * d.BeltHeldChecks / d.BeltChecks):0.0}% of monthly checks · title fights {d.TitleFights} on {d.Cards} cards");
         foreach (var r in all.Where(r => r.Seed is 3 or 5))
@@ -220,6 +229,85 @@ public static class ShoeSweep
         return n;
     }
 
+    /// <summary>
+    /// The scripted owner's answer to each rival offer on the desk (Contracts.OfferMarket):
+    /// MATCH when the fighter matters (a champion, one of the two best in his division on
+    /// the roster, or a draw at popularity 40+) and the match is affordable (the bank keeps
+    /// a $150k runway after the signing bonus, and the purse is within 1.25x of the larger
+    /// of the shoestring budget and the org's own purse cap); otherwise LET HIM GO (he can
+    /// still be re-signed at the table in his window, at the offer's floor). Reads true
+    /// ability, as the rest of the script does.
+    /// </summary>
+    public static void AnswerOffers(World world, Promotion org, decimal maxAsk, Diag? diag = null)
+    {
+        foreach (var o in world.RivalOffers.Where(o => o.Holder == org.Id && o.State == RivalOfferState.Pending).OrderBy(o => o.Id).ToList())
+        {
+            if (world.Get(o.Fighter) is not { } f) continue;
+            var (champ, top2) = Matters(world, org, f);
+            var terms = OfferMarket.MatchTerms(world, o);
+            bool matters = champ || top2 || f.Intangibles.Popularity.Value >= 40;
+            bool affordable = org.Balance.Amount >= 150_000m + terms.SigningBonus.Amount
+                              && terms.PursePerFight.Amount <= Math.Max(maxAsk, Negotiator.PurseCap(world, org)) * 1.25m;
+            if (matters && affordable && OfferMarket.Match(world, o, world.CurrentDate))
+            {
+                if (diag is not null) { diag.OffersMatchedByScript++; diag.MatchPurseSum += terms.PursePerFight.Amount; }
+                continue;
+            }
+            OfferMarket.LetGo(world, o, world.CurrentDate);
+            if (diag is not null) diag.OffersLetGoByScript++;
+        }
+    }
+
+    private static (bool Champ, bool Top2) Matters(World world, Promotion org, Fighter f)
+    {
+        bool champ = world.Titles.Values.Any(t => t.Promotion == org.Id && t.CurrentChampion == f.Id);
+        var div = org.Divisions.FirstOrDefault(d => d.Matches(f));
+        bool top2 = div is not null && world.RosterOf(org.Id).Where(x => x.Status == FighterStatus.Active && div.Matches(x))
+            .OrderByDescending(FighterAbility.CurrentAbility).ThenBy(x => x.Id.Value).Take(2).Any(x => x.Id == f.Id);
+        return (champ, top2);
+    }
+
+    /// <summary>
+    /// Bookkeeping for the offer DIAG (reporting only): every offer for the org seen this
+    /// block, its last state, and lifers who turned a rival down (one per deal).
+    /// </summary>
+    public sealed class OfferLog
+    {
+        private readonly Dictionary<(FighterId, DateOnly), RivalOffer> _seen = new();   // (ids are reused once old offers are dropped)
+        private readonly HashSet<(FighterId, DateOnly)> _refusals = new();
+        private readonly HashSet<RivalOffer> _stars = new(ReferenceEqualityComparer.Instance);
+        public void Scan(World world, Promotion org, Diag d)
+        {
+            foreach (var o in world.RivalOffers.Where(o => o.Holder == org.Id))
+                if (_seen.TryAdd((o.Fighter, o.Made), o))
+                {
+                    d.OffersLodged++;
+                    if (world.Get(o.Fighter) is { } f)
+                    {
+                        var (champ, top2) = Matters(world, org, f);
+                        if (champ) d.OfferChampions++;
+                        if (top2) d.OfferTop2++;
+                        if (champ || top2) _stars.Add(o);
+                    }
+                }
+            foreach (var f in world.RosterOf(org.Id))
+                if (f.Contract is { BondNoticeOn: { } b } c && b == Contract.RefusalTold && _refusals.Add((f.Id, c.SignedOn)))
+                    d.LiferRefusals++;
+        }
+        public void Finish(Diag d)
+        {
+            foreach (var o in _seen.Values)
+                switch (o.State)
+                {
+                    case RivalOfferState.Matched: d.OfferEndMatched++; break;
+                    case RivalOfferState.Beaten: d.OfferEndBeaten++; break;
+                    case RivalOfferState.Signed: d.OfferEndSigned++; if (_stars.Contains(o)) d.OfferStarsLost++; break;
+                    case RivalOfferState.Withdrawn: d.OfferEndWithdrawn++; break;
+                    default: d.OffersOpen++; break;
+                }
+        }
+    }
+
     private static bool Early, KeepToCap, DepthBookable, MimicAi, MimicNoChampForce;   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
 
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;
@@ -267,6 +355,7 @@ public static class ShoeSweep
         }
 
         var run = new Run { Seed = seed };
+        var offers = new OfferLog();
         var lastTier = OrgSizing.SizeOf(nwf);
         try
         {
@@ -281,6 +370,7 @@ public static class ShoeSweep
                         run.D.RosterChecks++;
                         if (f.Contract is { FightsRemaining: <= 0 }) run.D.IdleChecks++;
                     }
+                    if (dealRules && !nwf.Defunct) AnswerOffers(world, nwf, MaxAsk(), run.D);
                     if (dealRules && resign && !nwf.Defunct) run.ReSigned += ReSignInWindow(world, nwf, MaxAsk(), valuation, run.D);
                     PlayerAgent();
                     var inWindow = dealRules ? world.RosterOf(nwf.Id).Where(f => DealWindow.InWindow(world, f)).Select(f => f.Id).ToList() : new();
@@ -289,7 +379,7 @@ public static class ShoeSweep
                         .ToDictionary(f => f.Id, f => (f.Contract!.SignedOn, Purse: f.Contract.PursePerFight.Amount, Ca: FighterAbility.CurrentAbility(f), Pop: f.Intangibles.Popularity.Value,
                             Champ: world.Titles.Values.Any(t => t.Promotion == nwf.Id && t.CurrentChampion == f.Id),
                             Ask: f.Contract.FightsRemaining <= 1 ? Negotiator.EffectiveAskingPurse(world, nwf, f, valuation.Evaluate(world, f)).Amount : 0m));
-                    tick.AdvanceWeeks(world, 4);
+                    for (int w = 0; w < 4; w++) { tick.AdvanceWeek(world); offers.Scan(world, nwf, run.D); }
                     foreach (var (id, was) in before)
                     {
                         var f = world.Get(id);
@@ -340,6 +430,7 @@ public static class ShoeSweep
             }
         }
         finally { FreeAgencyService.HarnessHandsOff = null; }
+        offers.Finish(run.D);
         run.FinalPrestige = nwf.Prestige.Value;
         run.FinalTier = OrgSizing.SizeOf(nwf);
         return run;

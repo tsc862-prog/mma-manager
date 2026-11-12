@@ -58,6 +58,14 @@ a 10-seed × 5-yr sweep ~2–4 min (parallel), a 20-yr shoestring ~2–3 min.
   terms when they fit its budget (`ShoeSweep.ReSignInWindow`). `--ai-renewals`
   restores the old harness (the world AI renews or lets walk, with poaching at
   expiry); `--no-resign` lets every deal end. Same flags for `shoesweep`.
+  Since v46 rival offers reach the founded org too (`Contracts.OfferMarket`: a bigger
+  promotion's real offer on a fighter's last fight; let go, he signs there when his
+  window closes). The script answers each one first (`ShoeSweep.AnswerOffers`): MATCH
+  when he matters (champion, top two in his division, or popularity 40+) and the
+  match fits the bank and 1.25x the larger of its budget and its purse cap, else LET
+  HIM GO. `DIAG rival offers` counts offers lodged per seed-year, how the script
+  answered, how each ended (matched, beaten at the table, lost to the rival,
+  withdrawn) and lifer refusals.
 
 ## Checking modes (simulation QA)
 

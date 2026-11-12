@@ -664,6 +664,15 @@ public sealed class MainViewModel : ObservableObject
             StatusText = $"▶ Time stopped: {hit.Name} lost its main event. Your inbox has the details; book a new headliner.";
         }
 
+        // A rival's offer for one of your fighters needs an answer now (a champion or
+        // headliner, or its last week): time stops on the Desk.
+        if (r.OfferNeedsYou is { } bid && _world.Get(bid.Fighter) is { } courted)
+        {
+            NavigateTo(Tab.Home);
+            StatusText = $"▶ Time stopped: {_world.Get(bid.From)?.Abbreviation ?? "A rival"} has made {courted.FullName} an offer. "
+                       + "Match it or let him go on the Desk, or sit down with him on the Contracts screen.";
+        }
+
         // Reached one of your cards — the advance force-pauses on fight night.
         if (r.PendingPlayerEvent is { } pending)
         {

@@ -379,10 +379,26 @@ public sealed class Negotiator
     /// <summary>How much the fighter likes this org regardless of money (title path, loyalty, home, bonds), 0..1.</summary>
     public static double Appeal(World world, Fighter f, ContractOffer offer, ContractExpectations exp)
     {
-        var promo = world.Get(offer.Promotion);
+        var p = AppealOf(world, f, offer.Promotion, exp);
+        return Math.Clamp(p.Title * 0.45 + p.Loyalty * 0.3 + p.Home * 0.15 + p.Bonds * 0.1, 0, 1);
+    }
+
+    /// <summary>
+    /// The pulls behind <see cref="Appeal"/>, each 0..1 before its weight: a title path
+    /// (the promotion's prestige, as much as he cares for belts), loyalty (it is the
+    /// house he is signed to, as much as he cares), home (his own country, or his
+    /// continent at half) and his people (a friend or family member on its roster, or
+    /// it sponsors his camp). Public facts and his own wants only — never anyone's ability.
+    /// </summary>
+    public readonly record struct AppealParts(double Title, double Loyalty, double Home, double Bonds);
+
+    /// <summary>The weighted pulls a promotion has on a fighter (see <see cref="AppealParts"/>; <see cref="Appeal"/> sums them).</summary>
+    public static AppealParts AppealOf(World world, Fighter f, PromotionId promoId, ContractExpectations exp)
+    {
+        var promo = world.Get(promoId);
         double prestige = (promo?.Prestige.Value ?? 40) / 100.0;
         double title = prestige * (exp.Priorities.TitleOpportunity / 100.0);
-        double loyalty = (f.Contract?.Promotion == offer.Promotion ? 1.0 : 0.0) * (exp.Priorities.Loyalty / 100.0);
+        double loyalty = (f.Contract?.Promotion == promoId ? 1.0 : 0.0) * (exp.Priorities.Loyalty / 100.0);
         // "Fighting at home" is strongest in your own country; the same continent still counts for half.
         double homeMatch = promo is null ? 0.0
             : promo.HomeCity is { } hq && world.Get(hq)?.Country == f.Country ? 1.0
@@ -393,9 +409,9 @@ public sealed class Negotiator
         // makes the org home turf — fighters sign where their circle trains. An org
         // that SPONSORS your camp is already part of the family.
         double bonds = world.Relationships.Any(r => r.Involves(f.Id)
-                && world.Get(r.Other(f.Id))?.Contract?.Promotion == offer.Promotion)
+                && world.Get(r.Other(f.Id))?.Contract?.Promotion == promoId)
             || (promo?.SponsoredCamp is { } sc && f.Camp == sc) ? 1.0 : 0.0;
-        return Math.Clamp(title * 0.45 + loyalty * 0.3 + home * 0.15 + bonds * 0.1, 0, 1);
+        return new AppealParts(title, loyalty, home, bonds);
     }
 
     private ContractOffer BuildCounter(World world, ContractOffer offer, ContractExpectations exp, double threshold)

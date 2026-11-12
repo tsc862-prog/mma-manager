@@ -76,6 +76,7 @@ public static class ContractLifecycle
         f.Contract.PpvPoints = Math.Clamp(offer.PpvPoints, 0, Negotiator.MaxPpvPoints);
         if (f.Contract.IsExclusive) Living.LocalCircuit.YieldTo(world, new[] { f.Id });   // his promotion's fights only, from today
         BiddingWars.OnSigned(world, f, offer.Promotion, on);   // a signature ends any public war over them
+        OfferMarket.OnSigned(world, f, offer.Promotion, on);   // ...and settles any rival's offer for him
         // A move to a new org starts the loyalty clock over.
         f.Loyalty = !renewal ? 20 : earnedRenewal ? Math.Min(100, f.Loyalty + RenewalLoyalty) : f.Loyalty;
         if (world.Get(offer.Promotion) is not { } promo) return;
@@ -216,8 +217,8 @@ public static class ContractLifecycle
             // The player's deals end into an exclusive re-sign window (DealWindow):
             // for its 30 days nobody else may sign him — no poach at expiry — and
             // when it closes unsigned he is a free agent the whole market can
-            // bid for. (The treadmill reaches the player there, and through
-            // WarnExpiring's suitor on his last fight.)
+            // bid for — or, if a rival's offer was lodged on his last fight and
+            // the owner let him go, he signs there (OfferMarket).
             if (DealWindow.PlayerRules(world, promo.Id)) continue;
 
             // AI-to-AI treadmill: a promotion on a bigger stage skims the best

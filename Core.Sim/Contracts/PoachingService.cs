@@ -19,43 +19,12 @@ public static class PoachingService
     private static readonly FighterValuation Valuation = new();
 
     /// <summary>
-    /// Monthly: warn the owner (once per contract) when a bigger org is circling
-    /// a star whose deal is down to its last fight — their cue to re-sign.
-    /// </summary>
-    public static void WarnExpiring(World world, DateOnly date)
-    {
-        if (world.Get(world.PlayerPromotion) is not { } player) return;
-        foreach (var f in world.RosterOf(player.Id).OrderBy(f => f.Id.Value).ToList())
-        {
-            if (f.Status != FighterStatus.Active || f.Contract is not { } c) continue;
-            if (c.PoachWarned || c.FightsRemaining > 1) continue;   // the fight before free agency
-            // A deal already fought out is in its re-sign window (DealWindow): no
-            // rival may call him, and the window's own mails tell the owner where
-            // he stands (a soured lifer's says he is listening, and who is circling).
-            if (DealWindow.InWindow(world, f)) continue;
-            if (BestSuitor(world, player, f) is not { } suitor) continue;
-
-            // A lifer doesn't need a warning — the call came, and he said no.
-            if (Lifers.IsHolding(world, f)) { Lifers.TurnDown(world, f, player, suitor, date); continue; }
-            // (One who said no on this deal and has since soured gets the ordinary
-            // warning: since v45 nobody can take him at expiry, so this is his notice.)
-
-            c.PoachWarned = true;
-            Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
-                $"{suitor.Abbreviation} is circling {f.FullName}",
-                $"{f.FullName}'s deal is down to its last fight, and {suitor.Name} — a bigger stage than ours — " +
-                "is sniffing around. Re-sign them before free agency or we lose them for nothing.",
-                aboutFighter: f.Id);
-        }
-    }
-
-    /// <summary>
     /// Whether a bigger org would sign the player's run-out star away right now.
     /// Not called by the tick since v45 — the player's deals end into an exclusive
     /// re-sign window (<see cref="DealWindow"/>) and then free agency, with no poach
-    /// at expiry. Kept because LiferTests and ProgressionTests use it to probe the
-    /// poach rules (who takes him, a lifer's refusal); stage 6 rival offers reuse
-    /// the same gates.
+    /// at expiry; a rival's interest reaches him as a concrete offer on his last
+    /// fight (<see cref="OfferMarket"/>, the same gates). Kept because LiferTests and
+    /// ProgressionTests use it to probe the poach rules (who takes him, a lifer's refusal).
     /// </summary>
     public static bool TryPoachFromPlayer(World world, Fighter f, DateOnly date) =>
         f.Contract?.Promotion == world.PlayerPromotion && TryPoach(world, f, date);
@@ -115,7 +84,7 @@ public static class PoachingService
     // The most prestigious org on a bigger stage that runs this fighter's division
     // AND would actually want them — talent that fits what a promotion at that level
     // is looking for, not a blanket fame gate.
-    private static Promotion? BestSuitor(World world, Promotion from, Fighter f)
+    internal static Promotion? BestSuitor(World world, Promotion from, Fighter f)
     {
         var fromSize = OrgSizing.SizeOf(from);
         return world.Promotions.Values
@@ -125,21 +94,26 @@ public static class PoachingService
                                                                               // poaching pays the loyalty premium, the most
                                                                               // expensive signing in the sport
             .Where(p => OrgSizing.SizeOf(p) > fromSize)                       // a genuinely bigger stage
-            .Where(p => p.Divisions.Any(d => d.Matches(f)))
-            // ...with ROOM in that division (a couple of seats of slack — a
-            // signing worth poaching is worth squeezing in; a real DRAW always
-            // is). Without this, the giants hoarded every fighter the deepening
-            // talent base produced and simply ate the hoarding retainer: AFC's
-            // roster ran to ~190 on a target of ~110.
-            .Where(p => f.Intangibles.Popularity.Value >= OrgSizing.DrawFloor(OrgSizing.SizeOf(p))
-                || world.RosterOf(p.Id).Count(x => x.Status != FighterStatus.Retired
-                        && p.Divisions.Any(d => d.Matches(f) && d.Matches(x)))
-                   < OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p)) + 2)
+            .Where(p => HasRoom(world, p, f))
             .Where(p => WouldPursue(world, p, f))                             // and a fighter they'd roster
             .OrderByDescending(p => p.Prestige.Value)
             .ThenBy(p => p.Id.Value)
             .FirstOrDefault();
     }
+
+    /// <summary>
+    /// Whether <paramref name="p"/> runs this fighter's division and has ROOM in it
+    /// (a couple of seats of slack — a signing worth poaching is worth squeezing in;
+    /// a real DRAW always is). Without this, the giants hoarded every fighter the
+    /// deepening talent base produced and simply ate the hoarding retainer: AFC's
+    /// roster ran to ~190 on a target of ~110. Public facts only (rosters, popularity).
+    /// </summary>
+    internal static bool HasRoom(World world, Promotion p, Fighter f) =>
+        p.Divisions.Any(d => d.Matches(f))
+        && (f.Intangibles.Popularity.Value >= OrgSizing.DrawFloor(OrgSizing.SizeOf(p))
+            || world.RosterOf(p.Id).Count(x => x.Status != FighterStatus.Retired
+                    && p.Divisions.Any(d => d.Matches(f) && d.Matches(x)))
+               < OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p)) + 2);
 
     // Does a promotion at this level actually want this fighter — the same call it
     // makes signing off the free-agent market? Two independent reasons to pursue:
