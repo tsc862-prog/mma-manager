@@ -991,6 +991,33 @@
         </Style>
         <Style x:Key="FilterChip.Radio" TargetType="RadioButton" BasedOn="{StaticResource FilterChip}" />
 
+        <!-- FilterChip.Compact (ToggleButton): the same pill, smaller, for a narrow rail with many filters ("Needs a fight · 12"). -->
+        <Style x:Key="FilterChip.Compact" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,4,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="b" Background="{StaticResource Track}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                                CornerRadius="{StaticResource Radius.Pill}" Padding="8,2,8,3" MinHeight="22">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource TextSecondary}" /></Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{DynamicResource OrgAccentDim}" />
+                                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource OrgAccent}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- ChipList (ListBox): a wrapping row of one-choice pills bound to SelectedItem
              (News kinds, Inbox folders). Items draw with their ToString or an ItemTemplate. -->
         <Style x:Key="ChipList" TargetType="ListBox">
@@ -1465,6 +1492,74 @@
                 <DataTrigger Binding="{Binding Tone}" Value="Info"><Setter TargetName="b" Property="Background" Value="{StaticResource ToneInfoDim}" /><Setter TargetName="t" Property="Foreground" Value="{StaticResource ToneInfo}" /></DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+
+        <!-- The two corners: frame and name colours for red and blue, wherever a pairing is drawn. -->
+        <SolidColorBrush x:Key="CornerRed" Color="#A8453C" />
+        <SolidColorBrush x:Key="CornerBlue" Color="#3C639E" />
+        <SolidColorBrush x:Key="CornerRedText" Color="#E88A80" />
+        <SolidColorBrush x:Key="CornerBlueText" Color="#82AEE8" />
+
+        <!-- FormChipTemplate: one past result as a square chip ("W" / "L" / "D" / "NC") with Text + Tone + Tip (method, opponent, card). -->
+        <DataTemplate x:Key="FormChipTemplate">
+            <Border Width="22" Height="20" CornerRadius="4" Margin="0,0,3,0" ToolTip="{Binding Tip}"
+                    Background="{Binding Tone, Converter={StaticResource ToneBrush}, ConverterParameter=Dim}">
+                <TextBlock Text="{Binding Text}" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
+            </Border>
+        </DataTemplate>
+
+        <!-- SheetLineTemplate: a labelled line (Label + Text + Tone): a small caps label, then the words, wrapping. -->
+        <DataTemplate x:Key="SheetLineTemplate">
+            <Grid Margin="0,0,0,5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="SheetLabel" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="l" Text="{Binding Label}" Style="{StaticResource SectionLabel}" Margin="0,2,10,0" MaxWidth="110" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" FontSize="12.5"
+                           Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasLabel}" Value="False"><Setter TargetName="l" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- CardList (ListBox): a virtualized column of card rows with keyboard focus (arrows move, the
+             selected row carries the accent edge). Give it an ItemTemplate; Enter is the view's to handle. -->
+        <Style x:Key="CardList" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+            <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,0,0,6" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="edge" BorderThickness="1" BorderBrush="Transparent" CornerRadius="{StaticResource Radius.Card}">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="edge" Property="BorderBrush" Value="{StaticResource TextSecondary}" /></Trigger>
+                                        <Trigger Property="IsSelected" Value="True"><Setter TargetName="edge" Property="BorderBrush" Value="{DynamicResource OrgAccent}" /></Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- TabStrip (ListBox): documents open side by side, one selected (the Card Desk's events).
              Give it an ItemTemplate; the selected tab carries an accent underline. -->

@@ -482,8 +482,14 @@ public partial class App : Application
 
         // Offscreen screenshot of the Card Desk (Book Event):
         // `MmaManager.Wpf --renderbooking [W H] [--floating] [--founded] [--event] [--bouts N]
-        //  [--maincard N] [--picker suggest|division|replace|local] [--room] [--propose]
-        //  [--table] [--poster] [--confirm] <path>`.
+        //  [--maincard N] [--picker suggest|ladder|opponent|division|undercard|replace|local]
+        //  [--search text] [--filters NeedsFight,Ranked] [--room] [--propose] [--look]
+        //  [--sheettable] [--table] [--poster] [--confirm] <path>`.
+        // ladder: the finder browsing the roster; opponent: a first corner chosen
+        // (his opponents, best fight first); division: champion vs his best
+        // opponent on the fight sheet (a title fight); undercard: two unranked on
+        // the sheet; replace: a corner change previewed on the sheet; --look: the
+        // sheet for the first bulk proposal; --sheettable: the sheet's Table toggle.
         // W x H is the whole screen (desk + taskbar); the app is maximized on it,
         // or floating at its default size with --floating. The big org (AFC) by
         // default: a card at the top tier it can stage, filled the way a player
@@ -552,7 +558,21 @@ public partial class App : Application
                 }
                 switch (Arg("--picker"))
                 {
-                    case "suggest": bk.OpenNextSlotCommand.Execute(null); break;
+                    case "suggest":
+                    {
+                        var open = System.Diagnostics.Stopwatch.StartNew();
+                        bk.OpenNextSlotCommand.Execute(null);
+                        Console.WriteLine($"RENDERBOOKING suggestions: {bk.Suggestions.Count} cards with the night projected, opened in {open.Elapsed.TotalMilliseconds:0} ms");
+                        open.Restart();
+                        bk.PickMode = PickMode.Division;
+                        Console.WriteLine($"RENDERBOOKING finder: built {bk.Ladder.Count} rows in {open.Elapsed.TotalMilliseconds:0} ms (first build reads every fighter)");
+                        open.Restart();
+                        bk.PickMode = PickMode.Suggested;
+                        bk.PickMode = PickMode.Division;
+                        Console.WriteLine($"RENDERBOOKING finder: rebuilt {bk.Ladder.Count} rows in {open.Elapsed.TotalMilliseconds:0} ms (facts cached)");
+                        bk.PickMode = PickMode.Suggested;
+                        break;
+                    }
                     case "division":
                         bk.OpenNextSlotCommand.Execute(null);
                         bk.PickMode = PickMode.Division;
@@ -564,20 +584,54 @@ public partial class App : Application
                         }
                         break;
                     case "ladder":
+                        // the finder, browsing the whole roster
                         bk.OpenNextSlotCommand.Execute(null);
                         bk.PickMode = PickMode.Division;
-                        bk.Divisions.FirstOrDefault(d => { bk.SelectedDivision = d; return bk.RedOptions.Count >= 2; });
+                        break;
+                    case "opponent":
+                        // the finder with a first corner chosen: his opponents, best fight first
+                        bk.OpenNextSlotCommand.Execute(null);
+                        bk.PickMode = PickMode.Division;
+                        if (bk.Ladder.FirstOrDefault(l => l.Available && l.Rank != "C") is { } first) bk.PickLadderCommand.Execute(first);
+                        break;
+                    case "undercard":
+                        // an ordinary undercard pairing on the fight sheet: two unranked fighters
+                        bk.OpenNextSlotCommand.Execute(null);
+                        bk.PickMode = PickMode.Division;
+                        foreach (var nr in bk.Ladder.Where(l => l.Available && l.Rank == "NR").ToList())
+                        {
+                            bk.PickLadderCommand.Execute(nr);
+                            if (bk.Ladder.FirstOrDefault(l => l.Available && l.Rank == "NR") is { } opp2) { bk.PickLadderCommand.Execute(opp2); break; }
+                            bk.ClearRedCommand.Execute(null);
+                        }
                         break;
                     case "replace":
                         if ((bk.Bouts.Skip(1).FirstOrDefault() ?? bk.Bouts.FirstOrDefault()) is { } target) bk.ReplaceCornerCommand.Execute(target);
+                        // the first available replacement previewed on the sheet
+                        if (bk.Ladder.FirstOrDefault(l => l.Available) is { } inc) bk.PreviewReplaceCommand.Execute(inc);
                         break;
                     case "local":
                         bk.OpenNextSlotCommand.Execute(null);
                         bk.PickMode = PickMode.Local;
+                        if (bk.Ladder.FirstOrDefault(l => l.Available) is { } mine) bk.PickLadderCommand.Execute(mine);
                         break;
                 }
+                // The finder: --search text, --filters NeedsFight,WinStreak (chip names), timed.
+                if (Arg("--filters") is { } chips)
+                    foreach (var c in bk.FinderChips)
+                        if (chips.Split(',').Any(x => string.Equals(x.Trim(), c.Filter.ToString(), StringComparison.OrdinalIgnoreCase))) c.IsOn = true;
+                if (Arg("--search") is { } q)
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    bk.FinderSearch = q;
+                    Console.WriteLine($"RENDERBOOKING search '{q}': {(bk.ShowTableView ? bk.TableRows.Count : bk.Ladder.Count)} rows ({bk.FinderCount}), "
+                                      + $"filter+sort {bk.LastFinderMs:0.0} ms, rebuild {sw.Elapsed.TotalMilliseconds:0.0} ms");
+                }
+                if (e.Args.Contains("--sheettable")) bk.ShowSheetTable = true;
                 if (e.Args.Contains("--room")) bk.ChangeRoomCommand.Execute(null);
                 if (e.Args.Contains("--propose")) bk.ProposeUndercardCommand.Execute(null);
+                // --look: "Look closer" on the first proposal (the bulk list's fight sheet).
+                if (e.Args.Contains("--look") && bk.Proposed.FirstOrDefault() is { } look) bk.LookCloserCommand.Execute(look);
                 if (e.Args.Contains("--table")) bk.View = DeskView.Table;
                 if (e.Args.Contains("--poster")) bk.View = DeskView.Poster;
                 vm.NavigateTo(MmaManager.Wpf.ViewModels.Tab.BookEvent);
@@ -644,6 +698,8 @@ public partial class App : Application
                         + $"| missed terms {bk.Warnings.Count} | padding {(bk.HasPadding ? bk.PaddingBouts.Count : 0)} | trimmed lines {trimmed}");
                 }
                 if (bk.HasStatus) Console.WriteLine($"RENDERBOOKING status: {bk.Status}");
+                if (bk.IsRailPicker) Console.WriteLine($"RENDERBOOKING finder: {bk.FinderCount} | ladder {bk.Ladder.Count} | last filter {bk.LastFinderMs:0.0} ms | sheet {(bk.HasSheet ? bk.Sheet!.Red.Name + " vs " + bk.Sheet.Blue.Name : "none")}");
+                else if (bk.HasSheet) Console.WriteLine($"RENDERBOOKING sheet {bk.Sheet!.Red.Name} vs {bk.Sheet.Blue.Name}");
 
                 var rtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
                 rtb.Render(root);

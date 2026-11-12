@@ -1,4 +1,4 @@
-<UserControl x:Class="MmaManager.Wpf.Views.BookingView"
+﻿<UserControl x:Class="MmaManager.Wpf.Views.BookingView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
@@ -55,22 +55,44 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock TextWrapping="Wrap">
-                            <Run Text="{Binding Red.Name, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" vs " Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding Blue.Name, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="{Binding Red.Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource CornerRedText}" /><Run Text=" vs " Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding Blue.Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource CornerBlueText}" />
                         </TextBlock>
-                        <TextBlock Text="{Binding Division}" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
+                            <Run Text="{Binding Division, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Terms, Mode=OneWay}" />
+                        </TextBlock>
                     </StackPanel>
-                    <Button Grid.Column="2" Content="Book" Style="{StaticResource Button.Soft}" Padding="14,5" FontSize="12.5"
-                            VerticalAlignment="Center" Margin="8,0,0,0"
-                            Command="{Binding Desk.BookProposalCommand}" CommandParameter="{Binding}"
-                            ToolTip="{Binding Pairing, StringFormat=Book {0} in this slot}" />
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <Button Content="Book" Style="{StaticResource Button.Soft}" Padding="14,5" FontSize="12.5"
+                                Command="{Binding Desk.BookProposalCommand}" CommandParameter="{Binding}"
+                                ToolTip="{Binding Pairing, StringFormat=Book {0} in this slot}" />
+                        <Button Content="Look closer" Style="{StaticResource Button.Link}" FontSize="12" HorizontalAlignment="Center"
+                                Command="{Binding Desk.LookCloserCommand}" CommandParameter="{Binding}"
+                                ToolTip="The whole fight: the fighters side by side, their history, the stakes, and what it does to the night" />
+                    </StackPanel>
                     <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,6,0,0">
-                        <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Secondary}" Foreground="{DynamicResource OrgAccent}" />
-                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,1,0,0">
-                            <Run Text="{Binding Terms, Mode=OneWay}" /><Run Text="  ·  our read: " /><Run Text="{Binding Read, Mode=OneWay}" />
+                        <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Secondary}" Foreground="{DynamicResource OrgAccent}" TextWrapping="Wrap" />
+                        <!-- each corner in a line: rank, record, streak, when he last fought, our read -->
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,0">
+                            <Run Text="●" Foreground="{StaticResource CornerRed}" /><Run Text=" " /><Run Text="{Binding Red.Short, Mode=OneWay}" Foreground="{StaticResource TextSoft}" /><Run Text=": " /><Run Text="{Binding Red.Summary, Mode=OneWay}" />
                         </TextBlock>
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
+                            <Run Text="●" Foreground="{StaticResource CornerBlue}" /><Run Text=" " /><Run Text="{Binding Blue.Short, Mode=OneWay}" Foreground="{StaticResource TextSoft}" /><Run Text=": " /><Run Text="{Binding Blue.Summary, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,0">
+                            <Run Text="{Binding Cost, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Read, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock x:Name="night" Text="{Binding NightEffect}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Foreground="{Binding NightTone, Converter={StaticResource ToneBrush}}" />
+                        <ItemsControl x:Name="notes" ItemsSource="{Binding Notes}" ItemTemplate="{StaticResource ToneTagTemplate}" Focusable="False" Margin="0,5,0,-6">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        </ItemsControl>
                     </StackPanel>
                 </Grid>
             </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasNightEffect}" Value="False"><Setter TargetName="night" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasNotes}" Value="False"><Setter TargetName="notes" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <!-- A proposal in a bulk list: ticked to book. -->
@@ -80,48 +102,102 @@
                 <DockPanel>
                     <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,10,0"
                               ToolTip="Untick to leave this one out" />
-                    <Border DockPanel.Dock="Left" Style="{StaticResource CornerFace}" Width="36" Height="36" BorderBrush="#A8453C">
-                        <Image Source="{Binding Red.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
-                    </Border>
-                    <Border DockPanel.Dock="Left" Style="{StaticResource CornerFace}" Width="36" Height="36" BorderBrush="#3C639E" Margin="4,0,10,0">
-                        <Image Source="{Binding Blue.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
-                    </Border>
+                    <StackPanel DockPanel.Dock="Left" Margin="0,0,10,0" VerticalAlignment="Top">
+                        <Border Style="{StaticResource CornerFace}" Width="34" Height="34" BorderBrush="{StaticResource CornerRed}">
+                            <Image Source="{Binding Red.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                        </Border>
+                        <Border Style="{StaticResource CornerFace}" Width="34" Height="34" BorderBrush="{StaticResource CornerBlue}" Margin="0,4,0,0">
+                            <Image Source="{Binding Blue.Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                        </Border>
+                    </StackPanel>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding SlotLabel}" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" />
-                        <TextBlock TextTrimming="CharacterEllipsis">
-                            <Run Text="{Binding Pairing, Mode=OneWay}" FontWeight="SemiBold" /><Run Text="{Binding Division, Mode=OneWay, StringFormat='  ·  {0}'}" Foreground="{StaticResource TextSecondary}" FontSize="12" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Look closer" Style="{StaticResource Button.Link}" FontSize="12" Margin="6,-2,0,0"
+                                    Command="{Binding Desk.LookCloserCommand}" CommandParameter="{Binding}" VerticalAlignment="Top"
+                                    ToolTip="This fight in full on the left: the fighters, their history, the stakes, what it does to the night" />
+                            <TextBlock TextWrapping="Wrap">
+                                <Run Text="{Binding SlotLabel, Mode=OneWay}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" /><Run Text="  " /><Run Text="{Binding Division, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" FontSize="12" />
+                            </TextBlock>
+                        </DockPanel>
+                        <TextBlock TextWrapping="Wrap">
+                            <Run Text="{Binding Red.Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource CornerRedText}" /><Run Text=" vs " Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding Blue.Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource CornerBlueText}" />
                         </TextBlock>
-                        <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Reason}" />
+                        <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Foreground="{StaticResource TextSoft}" />
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0">
+                            <Run Text="●" Foreground="{StaticResource CornerRed}" /><Run Text=" " /><Run Text="{Binding Red.Summary, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
+                            <Run Text="●" Foreground="{StaticResource CornerBlue}" /><Run Text=" " /><Run Text="{Binding Blue.Summary, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding Cost}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        <ItemsControl x:Name="notes" ItemsSource="{Binding Notes}" ItemTemplate="{StaticResource ToneTagTemplate}" Focusable="False" Margin="0,4,0,-6">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        </ItemsControl>
                     </StackPanel>
                 </DockPanel>
             </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasNotes}" Value="False"><Setter TargetName="notes" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <!-- A fighter in the picker's ladder: rank, face, read, and why not when they can't. -->
         <DataTemplate x:Key="LadderTemplate">
-            <Button x:Name="btn" Style="{StaticResource CardButton}" Margin="0,0,0,6" Command="{Binding Command}" CommandParameter="{Binding}">
-                <DockPanel Margin="8,6,10,6">
-                    <TextBlock DockPanel.Dock="Left" Text="{Binding Rank}" Width="30" FontWeight="Bold" Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
-                    <Border DockPanel.Dock="Left" Width="38" Height="38" CornerRadius="7" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" Margin="0,0,10,0">
-                        <Image Source="{Binding Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
-                    </Border>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
-                        <TextBlock Style="{StaticResource Text.Caption}">
-                            <Run Text="{Binding Record, Mode=OneWay}" /><Run Text="  ·  our read " /><Run Text="{Binding ReadText, Mode=OneWay}" Foreground="{StaticResource TextSoft}" />
+            <Border x:Name="row" Background="{StaticResource CardFill}" CornerRadius="{StaticResource Radius.Card}" Padding="8,6,8,7"
+                    Cursor="Hand" ToolTip="{Binding Tip}">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftClick" Command="{Binding Command}" CommandParameter="{Binding}" />
+                </Border.InputBindings>
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Left" Margin="0,0,9,0">
+                        <Border Width="42" Height="42" CornerRadius="7" ClipToBounds="True" Background="{StaticResource SurfaceSunken}">
+                            <Image Source="{Binding Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                        </Border>
+                        <TextBlock Text="{Binding Rank}" FontWeight="Bold" FontSize="12" Foreground="{StaticResource Gold}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock TextWrapping="Wrap">
+                            <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" /><Run x:Name="nick" Text="{Binding Nickname, Mode=OneWay, StringFormat='  {0}'}" FontStyle="Italic" FontSize="11.5" Foreground="{StaticResource TextSecondary}" />
                         </TextBlock>
-                        <TextBlock x:Name="line" Text="{Binding Line}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Foreground="{StaticResource TextSoft}" />
-                        <TextBlock x:Name="why" Text="{Binding Why}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneWarn}" Visibility="Collapsed" />
+                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
+                            <Run Text="{Binding Division, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Record, Mode=OneWay}" Foreground="{StaticResource TextSoft}" /><Run Text="  ·  fought " /><Run Text="{Binding LastFoughtText, Mode=OneWay}" />
+                        </TextBlock>
+                        <WrapPanel Margin="0,3,0,0">
+                            <Border x:Name="streak" CornerRadius="4" Padding="5,0,5,1" Margin="0,0,6,2" VerticalAlignment="Center"
+                                    Background="{Binding StreakTone, Converter={StaticResource ToneBrush}, ConverterParameter=Dim}">
+                                <TextBlock Text="{Binding Streak}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding StreakTone, Converter={StaticResource ToneBrush}}" />
+                            </Border>
+                            <TextBlock FontSize="12" Margin="0,0,0,2" VerticalAlignment="Center" TextWrapping="Wrap">
+                                <Run Text="{Binding ReadText, Mode=OneWay}" Foreground="{StaticResource TextPrimary}" /><Run Text="  ·  " Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding Draw, Mode=OneWay}" Foreground="{StaticResource TextSoft}" /><Run x:Name="purse" Text="{Binding Purse, Mode=OneWay, StringFormat='  ·  {0}'}" Foreground="{StaticResource TextSecondary}" />
+                            </TextBlock>
+                        </WrapPanel>
+                        <Border x:Name="flag" Style="{StaticResource Chip}" Padding="7,1,7,2" Margin="0,3,0,0" HorizontalAlignment="Left"
+                                Background="{Binding Flag.Tone, Converter={StaticResource ToneBrush}, ConverterParameter=Dim}">
+                            <TextBlock Text="{Binding Flag.Text}" FontSize="11.5" Foreground="{Binding Flag.Tone, Converter={StaticResource ToneBrush}}" />
+                        </Border>
+                        <TextBlock x:Name="line" Text="{Binding Line}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource OrgAccent}" Margin="0,3,0,0" />
+                        <TextBlock x:Name="cost" Text="{Binding Cost}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="why" Text="{Binding Why}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneWarn}" TextWrapping="Wrap" Visibility="Collapsed" />
+                        <Button x:Name="find" Style="{StaticResource Button.Link}" Content="Find an opponent ▸" FontSize="12" HorizontalAlignment="Left" Margin="-4,1,0,-2"
+                                Command="{Binding Desk.FindOpponentCommand}" CommandParameter="{Binding}" Visibility="Collapsed"
+                                ToolTip="Pick him as the first corner and rank everyone he could fight by how good the fight is" />
                     </StackPanel>
                 </DockPanel>
-            </Button>
+            </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Available}" Value="False">
-                    <Setter TargetName="btn" Property="IsEnabled" Value="False" />
-                    <Setter TargetName="btn" Property="Opacity" Value="0.55" />
+                    <Setter TargetName="row" Property="Opacity" Value="0.55" />
+                    <Setter TargetName="row" Property="Cursor" Value="Arrow" />
                     <Setter TargetName="why" Property="Visibility" Value="Visible" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                    <Setter TargetName="row" Property="Background" Value="{DynamicResource OrgAccentDim}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CanFindOpponent}" Value="True"><Setter TargetName="find" Property="Visibility" Value="Visible" /></DataTrigger>
                 <DataTrigger Binding="{Binding HasLine}" Value="False"><Setter TargetName="line" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasCost}" Value="False"><Setter TargetName="cost" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasStreak}" Value="False"><Setter TargetName="streak" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasFlag}" Value="False"><Setter TargetName="flag" Property="Visibility" Value="Collapsed" /></DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -361,6 +437,50 @@
                                   Visibility="{Binding HasNextSlotIdeas, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
             </Border>
+        </DataTemplate>
+
+        <!-- One corner on the fight sheet (CornerSheet): how he wins and loses, his form, when he last
+             fought and whether he's ready, the person, and our scouts' read. -->
+        <DataTemplate x:Key="CornerFactsTemplate">
+            <StackPanel>
+                <TextBlock x:Name="name" Text="{Binding Name}" Style="{StaticResource Text.Heading}" Foreground="{StaticResource CornerRedText}" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
+                    <Run Text="{Binding Standing, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Record, Mode=OneWay}" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" />
+                </TextBlock>
+                <!-- how he wins: a bar split KO / sub / decision -->
+                <Grid x:Name="bar" Height="6" Margin="0,6,0,3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{Binding KoWidth}" />
+                        <ColumnDefinition Width="{Binding SubWidth}" />
+                        <ColumnDefinition Width="{Binding DecWidth}" />
+                    </Grid.ColumnDefinitions>
+                    <Border Background="{StaticResource Crimson}" CornerRadius="3,0,0,3" ToolTip="Wins by KO/TKO" />
+                    <Border Grid.Column="1" Background="{StaticResource World}" ToolTip="Wins by submission" />
+                    <Border Grid.Column="2" Background="{StaticResource TextSecondary}" CornerRadius="0,3,3,0" ToolTip="Wins on the cards" />
+                </Grid>
+                <TextBlock Text="{Binding WinsText}" FontSize="12" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding LossesText}" FontSize="12" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" />
+                <!-- the last five, oldest first -->
+                <StackPanel x:Name="form" Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="LAST 5" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ItemsControl ItemsSource="{Binding Form}" ItemTemplate="{StaticResource FormChipTemplate}" Focusable="False">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding StreakText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSoft}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                </StackPanel>
+                <TextBlock Text="{Binding Readiness}" FontSize="12.5" TextWrapping="Wrap" Margin="0,6,0,6"
+                           Foreground="{Binding ReadinessTone, Converter={StaticResource ToneBrush}}" />
+                <ItemsControl ItemsSource="{Binding Facts}" ItemTemplate="{StaticResource SheetLineTemplate}" Focusable="False" />
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" Margin="0,2,0,0">
+                    <Run Text="OUR READ  " FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding ReadText, Mode=OneWay}" FontWeight="SemiBold" />
+                </TextBlock>
+                <TextBlock Text="{Binding ScoutText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsRed}" Value="False"><Setter TargetName="name" Property="Foreground" Value="{StaticResource CornerBlueText}" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasWins}" Value="False"><Setter TargetName="bar" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasForm}" Value="False"><Setter TargetName="form" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <!-- Money lines in the night panel -->
@@ -611,14 +731,30 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <DockPanel Margin="0,0,0,8">
-                    <Button x:Name="PairButton" DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Content="Pair the two selected" Padding="14,6"
-                            Click="OnPairClick" ToolTip="Select two fighters (Ctrl+click), then compare and book them in the picker" />
-                    <StackPanel>
-                        <TextBlock Text="{Binding TableTitle}" Style="{StaticResource Text.Heading}" />
-                        <TextBlock Style="{StaticResource Text.Caption}" Text="Sort any column. Double-click a fighter for the profile; Ctrl+click two to pair them." />
-                    </StackPanel>
-                </DockPanel>
+                <StackPanel Margin="0,0,0,8">
+                    <DockPanel>
+                        <Button x:Name="PairButton" DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Content="Pair the two selected" Padding="14,6"
+                                Click="OnPairClick" ToolTip="Select two fighters (Ctrl+click), then compare and book them on the fight sheet" />
+                        <StackPanel>
+                            <TextBlock Text="{Binding TableTitle}" Style="{StaticResource Text.Heading}" TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Text="Sort any column. Double-click a fighter for the profile; Ctrl+click two to pair them." />
+                        </StackPanel>
+                    </DockPanel>
+                    <!-- the finder's search, scope and chips (shared with the picker) -->
+                    <WrapPanel Margin="0,8,0,0">
+                        <TextBox x:Name="TableSearchBox" Style="{StaticResource SearchBox}" Tag="Search by name or nickname  (Ctrl+F)" Width="380" Margin="0,0,8,6"
+                                 Text="{Binding FinderSearch, UpdateSourceTrigger=PropertyChanged, Delay=120}" AutomationProperties.Name="Search your roster" />
+                        <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding FinderScope}" Width="200" Height="30" Margin="0,0,0,6" AutomationProperties.Name="Division" />
+                    </WrapPanel>
+                    <ItemsControl ItemsSource="{Binding FinderChips}" Focusable="False" Margin="0,2,0,0">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ToggleButton Style="{StaticResource FilterChip.Compact}" IsChecked="{Binding IsOn}" ToolTip="{Binding Tip}" Content="{Binding Text}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
                 <DataGrid x:Name="TableGrid" Grid.Row="1" ItemsSource="{Binding TableRows}" RowHeight="36" SelectionMode="Extended"
                           mvvm:FighterLink.OpenOnDoubleClick="True" EnableRowVirtualization="True" AutomationProperties.Name="Your roster">
                     <DataGrid.RowStyle>
@@ -638,17 +774,25 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Rk" Binding="{Binding Rank}" SortMemberPath="RankSort" Width="44" />
-                        <DataGridTextColumn Header="Fighter" Binding="{Binding Name}" Width="*" MinWidth="230" />
-                        <DataGridTextColumn Header="Division" Binding="{Binding Division}" Width="128" />
+                        <DataGridTextColumn Header="Rk" Binding="{Binding Rank}" SortMemberPath="RankSort" Width="40" />
+                        <DataGridTextColumn Header="Fighter" Binding="{Binding Name}" Width="*" MinWidth="150" />
+                        <DataGridTextColumn Header="Division" Binding="{Binding Division}" Width="120" />
                         <DataGridTextColumn Header="Record" Binding="{Binding Record}" SortMemberPath="RecordSort" Width="104" />
-                        <DataGridTextColumn Header="Our read" Binding="{Binding ReadText}" SortMemberPath="Read" Width="90" />
-                        <DataGridTextColumn Header="Pop" Binding="{Binding Popularity}" Width="50" />
-                        <DataGridTextColumn Header="Last fought" Binding="{Binding LastFought}" SortMemberPath="LastFoughtSort" Width="92" />
-                        <DataGridTextColumn Header="Left" Binding="{Binding FightsLeft}" Width="46" />
-                        <DataGridTextColumn Header="Morale" Binding="{Binding Morale}" Width="62" />
-                        <DataGridTextColumn Header="For this card" Binding="{Binding Availability}" Width="170" />
-                        <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="128" />
+                        <DataGridTextColumn Header="Streak" Binding="{Binding Streak}" SortMemberPath="StreakSort" Width="58" />
+                        <DataGridTextColumn Header="Our read" Binding="{Binding ReadText}" SortMemberPath="Read" Width="78" />
+                        <DataGridTextColumn Header="Pop" Binding="{Binding Popularity}" Width="44" />
+                        <DataGridTextColumn Header="Fought" Binding="{Binding LastFought}" SortMemberPath="LastFoughtSort" Width="78" />
+                        <DataGridTextColumn Header="Purse" Binding="{Binding Purse}" SortMemberPath="PurseSort" Width="64" />
+                        <DataGridTextColumn Header="Left" Binding="{Binding FightsLeft}" Width="40" />
+                        <DataGridTextColumn Header="Age" Binding="{Binding Age}" Width="40" />
+                        <DataGridTextColumn Header="For this card" Binding="{Binding Availability}" Width="150" />
+                        <DataGridTemplateColumn Header="Notes" Width="170" SortMemberPath="Notes">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Notes}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" Margin="4,0" ToolTip="{Binding Notes}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>
@@ -658,6 +802,243 @@
                 <Border Background="#0B0C10" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1" CornerRadius="{StaticResource Radius.Panel}" Padding="10">
                     <Image Source="{Binding Poster}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                 </Border>
+            </Grid>
+
+            <!-- ===================== THE FIGHT SHEET =====================
+                 One pairing in full, over the bill while the picker (or a proposal) is open in the rail:
+                 the two people and why it matters up top; the fighters, between them, the stakes,
+                 the night and the contracts below; the dense tale of the tape one toggle away. -->
+            <Grid x:Name="SheetPane" Background="{StaticResource Bg}" Margin="0,0,8,0"
+                  Visibility="{Binding HasSheet, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <!-- the band: both fighters, the kicker, the one line, the terms and the button -->
+                    <Border x:Name="SheetBand" DockPanel.Dock="Top" CornerRadius="{StaticResource Radius.Panel}" BorderBrush="{DynamicResource OrgAccent}" BorderThickness="1"
+                            ClipToBounds="True" Margin="0,0,0,10">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#2A2418" Offset="0" />
+                                <GradientStop Color="#1B1F27" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="SheetRedCol" Width="150" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition x:Name="SheetBlueCol" Width="150" />
+                            </Grid.ColumnDefinitions>
+                            <Border Cursor="Hand" ToolTip="Open the profile" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding Sheet.Red.Body}" Stretch="UniformToFill" AlignmentY="Top" />
+                                </Border.Background>
+                                <Border.InputBindings>
+                                    <MouseBinding Gesture="LeftClick" Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Sheet.Red.Id}" />
+                                </Border.InputBindings>
+                            </Border>
+                            <Border Grid.Column="2" Cursor="Hand" ToolTip="Open the profile" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding Sheet.Blue.Body}" Stretch="UniformToFill" AlignmentY="Top" />
+                                </Border.Background>
+                                <Border.InputBindings>
+                                    <MouseBinding Gesture="LeftClick" Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Sheet.Blue.Id}" />
+                                </Border.InputBindings>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="16,12,16,12">
+                                <TextBlock Text="{Binding Sheet.Kicker}" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" TextWrapping="Wrap" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock x:Name="SheetRedName" Text="{Binding Sheet.Red.Name}" Style="{StaticResource Text.Title}" FontSize="21" TextWrapping="Wrap" Foreground="{StaticResource CornerRedText}" />
+                                        <TextBlock Text="{Binding Sheet.Red.Nickname}" Style="{StaticResource Text.Caption}" FontStyle="Italic" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Foreground="{StaticResource TextSoft}">
+                                            <Run Text="{Binding Sheet.Red.Standing, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Sheet.Red.Record, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="VS" FontFamily="{StaticResource DisplayFont}" FontSize="22" FontWeight="Bold"
+                                               Foreground="{StaticResource Crimson}" Margin="12,2,12,0" VerticalAlignment="Top" />
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock x:Name="SheetBlueName" Text="{Binding Sheet.Blue.Name}" Style="{StaticResource Text.Title}" FontSize="21" TextWrapping="Wrap" TextAlignment="Right" Foreground="{StaticResource CornerBlueText}" />
+                                        <TextBlock Text="{Binding Sheet.Blue.Nickname}" Style="{StaticResource Text.Caption}" FontStyle="Italic" TextWrapping="Wrap" TextAlignment="Right" />
+                                        <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" TextAlignment="Right" Foreground="{StaticResource TextSoft}">
+                                            <Run Text="{Binding Sheet.Blue.Standing, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Sheet.Blue.Record, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding Sheet.Headline}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,8,0,6" />
+                                <ItemsControl ItemsSource="{Binding Sheet.Tags}" ItemTemplate="{StaticResource ToneTagTemplate}" Focusable="False">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <WrapPanel Margin="0,4,0,0">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,6" Visibility="{Binding Sheet.CanEditTerms, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="Rounds" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <ComboBox Width="56" Height="28" ItemsSource="{Binding RoundsOptions}" SelectedItem="{Binding SelectedRounds}" AutomationProperties.Name="Rounds" />
+                                        <CheckBox Content="Title fight" IsChecked="{Binding IsTitleBout}" IsEnabled="{Binding CanBeTitle}" VerticalAlignment="Center" Margin="12,0,0,0"
+                                                  ToolTip="A belt can be on the line only with the champion in the bout, or for a vacant belt" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource Button.Primary}" Content="{Binding Sheet.ActionText}" Command="{Binding SheetActionCommand}" Padding="16,6" Margin="0,0,8,6"
+                                            Visibility="{Binding Sheet.HasAction, Converter={StaticResource BoolToVis}}" />
+                                    <Button Style="{StaticResource Button.Ghost}" Content="Back to the card" Command="{Binding CloseSheetCommand}" Margin="0,0,8,6"
+                                            ToolTip="Close the sheet; the picker stays open" />
+                                    <Border Style="{StaticResource Segmented}" Margin="0,0,0,6" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Story" GroupName="sheetView" IsChecked="{Binding ShowSheetStory}" ToolTip="The fight told in groups" />
+                                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" GroupName="sheetView" IsChecked="{Binding ShowSheetTable}" ToolTip="Every line side by side, scouts' reads included" />
+                                        </StackPanel>
+                                    </Border>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
+                        <StackPanel Grid.IsSharedSizeScope="True">
+                            <!-- STORY: the fighters side by side -->
+                            <StackPanel Visibility="{Binding ShowSheetStory, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource Panel}" Padding="14,10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="THE FIGHTERS" Style="{StaticResource Text.Kicker}" Margin="0,0,0,8" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="18" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <ContentControl Content="{Binding Sheet.Red}" ContentTemplate="{StaticResource CornerFactsTemplate}" Focusable="False" />
+                                            <Rectangle Grid.Column="1" Width="1" Fill="{StaticResource GridLine}" HorizontalAlignment="Center" />
+                                            <ContentControl Grid.Column="2" Content="{Binding Sheet.Blue}" ContentTemplate="{StaticResource CornerFactsTemplate}" Focusable="False" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <!-- between them -->
+                                    <Border Style="{StaticResource Panel}" Padding="14,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="BETWEEN THEM" Style="{StaticResource Text.Kicker}" Margin="0,0,0,8" />
+                                            <ItemsControl ItemsSource="{Binding Sheet.Between}" ItemTemplate="{StaticResource SheetLineTemplate}" Focusable="False" />
+                                            <TextBlock Text="{Binding Sheet.Matchmaker}" TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource TextSoft}" Margin="0,4,0,6" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition />
+                                                    <RowDefinition />
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Text="How even" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                <ProgressBar Grid.Column="1" Value="{Binding Sheet.Competitiveness, Mode=OneWay}" Maximum="100" Height="8" Margin="0,3" Foreground="{StaticResource Positive}" BorderThickness="0" />
+                                                <TextBlock Grid.Row="1" Text="Appeal" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                <ProgressBar Grid.Row="1" Grid.Column="1" Value="{Binding Sheet.Appeal, Mode=OneWay}" Maximum="100" Height="8" Margin="0,3" Foreground="{StaticResource World}" BorderThickness="0" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- what's at stake -->
+                                    <Border Grid.Column="2" Style="{StaticResource Panel}" Padding="14,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="WHAT'S AT STAKE" Style="{StaticResource Text.Kicker}" Margin="0,0,0,8" />
+                                            <ItemsControl ItemsSource="{Binding Sheet.Stakes}" ItemTemplate="{StaticResource SheetLineTemplate}" Focusable="False" />
+                                            <TextBlock TextWrapping="Wrap" FontSize="12.5" Margin="0,4,0,0">
+                                                <Run Text="{Binding Sheet.Red.Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource CornerRedText}" />
+                                            </TextBlock>
+                                            <TextBlock TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource ToneGood}"><Run Text="Win: " FontWeight="SemiBold" /><Run Text="{Binding Sheet.Red.WinDoes, Mode=OneWay}" /></TextBlock>
+                                            <TextBlock TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource ToneWarn}"><Run Text="Loss: " FontWeight="SemiBold" /><Run Text="{Binding Sheet.Red.LossRisks, Mode=OneWay}" /></TextBlock>
+                                            <TextBlock TextWrapping="Wrap" FontSize="12.5" Margin="0,6,0,0">
+                                                <Run Text="{Binding Sheet.Blue.Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource CornerBlueText}" />
+                                            </TextBlock>
+                                            <TextBlock TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource ToneGood}"><Run Text="Win: " FontWeight="SemiBold" /><Run Text="{Binding Sheet.Blue.WinDoes, Mode=OneWay}" /></TextBlock>
+                                            <TextBlock TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource ToneWarn}"><Run Text="Loss: " FontWeight="SemiBold" /><Run Text="{Binding Sheet.Blue.LossRisks, Mode=OneWay}" /></TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- what it does to the night -->
+                                    <Border Grid.Row="1" Style="{StaticResource Panel}" Padding="14,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="WHAT IT DOES TO THE NIGHT" Style="{StaticResource Text.Kicker}" Margin="0,0,0,8" />
+                                            <ItemsControl ItemsSource="{Binding Sheet.Night}" Focusable="False">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="NightBefore" />
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="NightAfter" />
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="NightChange" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding Label}" FontSize="12.5" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding Before}" FontSize="12.5" Foreground="{StaticResource TextSecondary}" Margin="8,0,0,0" TextAlignment="Right" />
+                                                            <TextBlock Grid.Column="2" FontSize="12.5" Margin="6,0,0,0"><Run Text="→ " Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding After, Mode=OneWay}" /></TextBlock>
+                                                            <TextBlock Grid.Column="3" Text="{Binding Change}" FontSize="12.5" FontWeight="SemiBold" Margin="10,0,0,0" TextAlignment="Right"
+                                                                       Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Text="{Binding Sheet.NightNote}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,6" />
+                                            <TextBlock Text="Partners" Style="{StaticResource SectionLabel}" Margin="0,2,0,4" Visibility="{Binding Sheet.HasTerms, Converter={StaticResource BoolToVis}}" />
+                                            <ItemsControl ItemsSource="{Binding Sheet.Terms}" ItemTemplate="{StaticResource SheetLineTemplate}" Focusable="False" />
+                                            <TextBlock Text="Risks it brings" Style="{StaticResource SectionLabel}" Margin="0,4,0,4" Visibility="{Binding Sheet.HasRisks, Converter={StaticResource BoolToVis}}" />
+                                            <ItemsControl ItemsSource="{Binding Sheet.Risks}" ItemTemplate="{StaticResource SheetLineTemplate}" Focusable="False" />
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- on their contracts -->
+                                    <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Panel}" Padding="14,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="ON THEIR CONTRACTS" Style="{StaticResource Text.Kicker}" Margin="0,0,0,8" />
+                                            <StackPanel Visibility="{Binding Sheet.Red.HasContract, Converter={StaticResource BoolToVis}}" Margin="0,0,0,6">
+                                                <TextBlock Text="{Binding Sheet.Red.Name}" FontWeight="SemiBold" Foreground="{StaticResource CornerRedText}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                                <ItemsControl ItemsSource="{Binding Sheet.Red.Contract}" ItemTemplate="{StaticResource SheetLineTemplate}" Focusable="False" />
+                                            </StackPanel>
+                                            <StackPanel Visibility="{Binding Sheet.Blue.HasContract, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="{Binding Sheet.Blue.Name}" FontWeight="SemiBold" Foreground="{StaticResource CornerBlueText}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                                <ItemsControl ItemsSource="{Binding Sheet.Blue.Contract}" ItemTemplate="{StaticResource SheetLineTemplate}" Focusable="False" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- TABLE: the dense tale of the tape -->
+                            <Border Style="{StaticResource Panel}" Padding="14,10" Visibility="{Binding ShowSheetTable, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="TALE OF THE TAPE · PUBLIC RECORD AND OUR SCOUTS' READS" Style="{StaticResource Text.Kicker}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                    <ItemsControl ItemsSource="{Binding Sheet.Tape}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1" Padding="0,4">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="150" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock x:Name="r" Text="{Binding Red}" TextAlignment="Right" Margin="0,0,10,0" FontSize="13" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Label}" TextAlignment="Center" FontSize="11.5" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                        <TextBlock x:Name="b" Grid.Column="2" Text="{Binding Blue}" Margin="10,0,0,0" FontSize="13" TextWrapping="Wrap" />
+                                                    </Grid>
+                                                </Border>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding RedBold}" Value="True"><Setter TargetName="r" Property="FontWeight" Value="Bold" /><Setter TargetName="r" Property="Foreground" Value="{StaticResource Positive}" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding BlueBold}" Value="True"><Setter TargetName="b" Property="FontWeight" Value="Bold" /><Setter TargetName="b" Property="Foreground" Value="{StaticResource Positive}" /></DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </Grid>
 
             <!-- ===================== THE RAIL ===================== -->
@@ -815,7 +1196,8 @@
                                 <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Content="✕" Command="{Binding CloseRailCommand}" ToolTip="Close the picker" VerticalAlignment="Top" />
                                 <TextBlock Text="{Binding PickerTitle}" Style="{StaticResource Text.Title}" />
                             </DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="{Binding PickerHint}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,6,10" />
+                            <TextBlock DockPanel.Dock="Top" Text="{Binding PickerHint}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,6,10"
+                                       Visibility="{Binding ShowPickerHint, Converter={StaticResource BoolToVis}}" />
 
                             <!-- replace a corner -->
                             <DockPanel DockPanel.Dock="Top" Margin="0,0,6,8" Visibility="{Binding IsReplacing, Converter={StaticResource BoolToVis}}">
@@ -835,24 +1217,66 @@
                             <StackPanel DockPanel.Dock="Top" Margin="0,0,6,8" Visibility="{Binding IsPickingSlot, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource Segmented}" HorizontalAlignment="Left">
                                     <StackPanel Orientation="Horizontal">
-                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Suggested" GroupName="pickMode" IsChecked="{Binding PickSuggested}" />
-                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="By division" GroupName="pickMode" IsChecked="{Binding PickDivision}" />
-                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Local opponent" GroupName="pickMode" IsChecked="{Binding PickLocal}"
+                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Suggested" GroupName="pickMode" IsChecked="{Binding PickSuggested}"
+                                                     ToolTip="The matchmaker's pairings for this slot" />
+                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Find a fighter" GroupName="pickMode" IsChecked="{Binding PickDivision}"
+                                                     ToolTip="Search your whole roster (Ctrl+F); pick one and every opponent is ranked by the fight they'd make" />
+                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Local" GroupName="pickMode" IsChecked="{Binding PickLocal}"
+                                                     ToolTip="One of yours against the local club scene"
                                                      Visibility="{Binding HasLocalOption, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                 </Border>
-                                <!-- the division, for the ladder and the local opponent -->
-                                <DockPanel Margin="0,8,0,0">
-                                    <DockPanel.Style>
-                                        <Style TargetType="DockPanel">
-                                            <Setter Property="Visibility" Value="Visible" />
+                            </StackPanel>
+
+                            <!-- the finder: search, scope, sort, chips -->
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,6,6" Visibility="{Binding ShowFinderTools, Converter={StaticResource BoolToVis}}">
+                                <TextBox x:Name="FinderSearchBox" Style="{StaticResource SearchBox}" Tag="Search by name or nickname  (Ctrl+F)"
+                                         Text="{Binding FinderSearch, UpdateSourceTrigger=PropertyChanged, Delay=120}" PreviewKeyDown="OnFinderSearchKey"
+                                         AutomationProperties.Name="Search your roster" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="6" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding FinderScope}" Height="28" AutomationProperties.Name="Division"
+                                              ToolTip="Narrow to one division (a filter, not a must)" IsEnabled="{Binding ShowScope}" />
+                                    <ComboBox Grid.Column="2" ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" Height="28" AutomationProperties.Name="Sort by"
+                                              ToolTip="How the list is ordered (ready fighters always first)" />
+                                </Grid>
+                                <!-- a short window folds the chips to one line until opened -->
+                                <Button Style="{StaticResource Button.Link}" HorizontalAlignment="Left" Margin="-4,4,0,0" FontSize="12" Command="{Binding ToggleFiltersCommand}"
+                                        ToolTip="Show or fold the filters">
+                                    <Button.Visibility>
+                                        <Binding Path="(controls:Adaptive.IsCompact)" RelativeSource="{RelativeSource Self}" Converter="{StaticResource BoolToVis}" />
+                                    </Button.Visibility>
+                                    <TextBlock Text="{Binding FiltersLine}" TextWrapping="Wrap" />
+                                </Button>
+                                <ItemsControl ItemsSource="{Binding FinderChips}" Focusable="False" Margin="0,6,0,0">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding PickSuggested}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding (controls:Adaptive.IsCompact), RelativeSource={RelativeSource Self}}" Value="True" />
+                                                        <Condition Binding="{Binding FiltersOpen}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </MultiDataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </DockPanel.Style>
-                                    <TextBlock Text="Division" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <ComboBox ItemsSource="{Binding Divisions}" SelectedItem="{Binding SelectedDivision}" Height="28" AutomationProperties.Name="Division" />
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <ToggleButton Style="{StaticResource FilterChip.Compact}" IsChecked="{Binding IsOn}" ToolTip="{Binding Tip}" Content="{Binding Text}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <DockPanel Margin="0,0,0,0">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Clear" FontSize="12" Command="{Binding ClearFinderCommand}"
+                                            ToolTip="Clear the search and every filter" />
+                                    <TextBlock Text="{Binding FinderCount}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
                                 </DockPanel>
                             </StackPanel>
 
@@ -874,6 +1298,12 @@
                                         </Style>
                                     </ScrollViewer.Style>
                                     <StackPanel>
+                                        <!-- the fighters who need a fight: the finder, filtered to them -->
+                                        <Button Style="{StaticResource Button.Link}" HorizontalAlignment="Left" Margin="-4,-4,0,6" Command="{Binding ShowNeedsCommand}"
+                                                Visibility="{Binding HasNeedsLine, Converter={StaticResource BoolToVis}}"
+                                                ToolTip="Long lay-offs, deals running out and grievances a booking would fix">
+                                            <TextBlock><Run Text="{Binding NeedsLine, Mode=OneWay}" /><Run Text=" ▸" /></TextBlock>
+                                        </Button>
                                         <ItemsControl ItemsSource="{Binding Suggestions}" ItemTemplate="{StaticResource ProposalTemplate}" Focusable="False" />
                                         <StackPanel Visibility="{Binding HasSuggestions, Converter={StaticResource InverseBoolToVis}}">
                                             <TextBlock Text="{Binding SuggestionsEmpty}" Style="{StaticResource Text.Secondary}" />
@@ -883,7 +1313,7 @@
                                     </StackPanel>
                                 </ScrollViewer>
 
-                                <!-- By division / Local / Replace: the ladder, then the comparison -->
+                                <!-- Find / Local / Replace: the finder's list -->
                                 <DockPanel>
                                     <DockPanel.Style>
                                         <Style TargetType="DockPanel">
@@ -916,12 +1346,22 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <DockPanel>
-                                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Change" Command="{Binding ClearRedCommand}" />
-                                            <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
-                                                <Run Text="FIRST CORNER  " FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding RedHead, Mode=OneWay}" FontWeight="SemiBold" Foreground="#E88A80" />
-                                            </TextBlock>
-                                        </DockPanel>
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Change" Command="{Binding ClearRedCommand}" />
+                                                <TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
+                                                    <Run Text="FIRST CORNER  " FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding RedHead, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource CornerRedText}" />
+                                                </TextBlock>
+                                            </DockPanel>
+                                            <WrapPanel Margin="-4,2,0,0">
+                                                <Button Style="{StaticResource Button.Link}" Content="Suggest one" FontSize="12" Command="{Binding SuggestOpponentCommand}"
+                                                        ToolTip="The matchmaker picks the most compelling opponent on our reads"
+                                                        Visibility="{Binding ShowSuggestOne, Converter={StaticResource BoolToVis}}" />
+                                                <Button Style="{StaticResource Button.Link}" Content="Or a local opponent ▸" FontSize="12" Margin="6,0,0,0"
+                                                        Command="{Binding LocalInsteadCommand}" Visibility="{Binding ShowLocalInstead, Converter={StaticResource BoolToVis}}"
+                                                        ToolTip="Put him against the local club scene instead: cheap, easy work for a prospect" />
+                                            </WrapPanel>
+                                        </StackPanel>
                                     </Border>
 
                                     <!-- local opponent: the style and the button -->
@@ -941,8 +1381,9 @@
                                             </Style>
                                         </Border.Style>
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource Text.Secondary}" FontSize="12"
-                                                       Text="One of yours against the local club scene: easy work for a flat $1,000 local, and it builds a prospect up. Careful: locals occasionally bite. Pick your fighter below." />
+                                            <TextBlock Style="{StaticResource Text.Secondary}" FontSize="12" TextWrapping="Wrap"
+                                                       Text="One of yours against the local club scene: easy work for a flat $1,000 local, and it builds a prospect up. Careful: locals occasionally bite." />
+                                            <TextBlock Text="{Binding LocalPickLine}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0" />
                                             <WrapPanel Margin="0,8,0,0">
                                                 <TextBlock Text="Opponent's style" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                 <ComboBox Width="120" Height="28" ItemsSource="{Binding LocalStyles}" SelectedItem="{Binding SelectedLocalStyle}" AutomationProperties.Name="Local opponent's style" />
@@ -953,116 +1394,11 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- the comparison: both corners chosen -->
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
-                                        <ScrollViewer.Style>
-                                            <Style TargetType="ScrollViewer">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding HasPairing}" Value="True" />
-                                                            <Condition Binding="{Binding PickDivision}" Value="True" />
-                                                            <Condition Binding="{Binding IsPickingSlot}" Value="True" />
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ScrollViewer.Style>
-                                        <StackPanel>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel>
-                                                    <Border Height="128" CornerRadius="8" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" BorderBrush="#A8453C" BorderThickness="1" Cursor="Hand">
-                                                        <Border.InputBindings>
-                                                            <MouseBinding Gesture="LeftClick" Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding RedCornerId}" />
-                                                        </Border.InputBindings>
-                                                        <Image Source="{Binding RedBig}" Stretch="UniformToFill" VerticalAlignment="Top" />
-                                                    </Border>
-                                                    <TextBlock Text="{Binding RedHead}" FontWeight="SemiBold" Foreground="#E88A80" TextAlignment="Center" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="1" Text="VS" FontFamily="{StaticResource DisplayFont}" FontWeight="Bold" FontSize="18" Foreground="{StaticResource Crimson}" VerticalAlignment="Center" Margin="10,0" />
-                                                <StackPanel Grid.Column="2">
-                                                    <Border Height="128" CornerRadius="8" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" BorderBrush="#3C639E" BorderThickness="1" Cursor="Hand">
-                                                        <Border.InputBindings>
-                                                            <MouseBinding Gesture="LeftClick" Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding BlueCornerId}" />
-                                                        </Border.InputBindings>
-                                                        <Image Source="{Binding BlueBig}" Stretch="UniformToFill" VerticalAlignment="Top" />
-                                                    </Border>
-                                                    <TextBlock Text="{Binding BlueHead}" FontWeight="SemiBold" Foreground="#82AEE8" TextAlignment="Center" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                                </StackPanel>
-                                            </Grid>
-                                            <TextBlock Text="{Binding Appraisal}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,4" />
-                                            <TextBlock Text="{Binding HeadToHead}" Foreground="{StaticResource Gold}" TextWrapping="Wrap" FontSize="12.5" Margin="0,0,0,4"
-                                                       Visibility="{Binding HasHeadToHead, Converter={StaticResource BoolToVis}}" />
-                                            <Grid Margin="0,2,0,6">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="86" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition />
-                                                    <RowDefinition />
-                                                </Grid.RowDefinitions>
-                                                <TextBlock Text="Competitive" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
-                                                <ProgressBar Grid.Column="1" Value="{Binding Competitiveness, Mode=OneWay}" Maximum="100" Height="8" Margin="0,3" Foreground="{StaticResource Positive}" BorderThickness="0" />
-                                                <TextBlock Grid.Row="1" Text="Appeal" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
-                                                <ProgressBar Grid.Row="1" Grid.Column="1" Value="{Binding Appeal, Mode=OneWay}" Maximum="100" Height="8" Margin="0,3" Foreground="{StaticResource World}" BorderThickness="0" />
-                                            </Grid>
-                                            <WrapPanel Margin="0,2,0,8">
-                                                <TextBlock Text="Rounds" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <ComboBox Width="56" Height="28" ItemsSource="{Binding RoundsOptions}" SelectedItem="{Binding SelectedRounds}" AutomationProperties.Name="Rounds" />
-                                                <CheckBox Content="Title fight" IsChecked="{Binding IsTitleBout}" IsEnabled="{Binding CanBeTitle}" VerticalAlignment="Center" Margin="14,0,0,0"
-                                                          ToolTip="A belt can be on the line only with the champion in the bout, or for a vacant belt" />
-                                            </WrapPanel>
-                                            <WrapPanel>
-                                                <Button Style="{StaticResource Button.Primary}" Content="Book this fight" Command="{Binding AddBoutCommand}" Padding="16,7" Margin="0,0,8,0" />
-                                                <Button Style="{StaticResource Button.Ghost}" Content="Another opponent" Command="{Binding ClearBlueCommand}" />
-                                            </WrapPanel>
-                                            <!-- the tale of the tape (our scouts' reads) -->
-                                            <TextBlock Text="TALE OF THE TAPE · OUR SCOUTS' READS" Style="{StaticResource Text.Kicker}" Margin="0,12,0,4" />
-                                            <ItemsControl ItemsSource="{Binding Tape}" Focusable="False">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1" Padding="0,3">
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="104" />
-                                                                    <ColumnDefinition Width="*" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <TextBlock x:Name="r" Text="{Binding Red}" TextAlignment="Right" Margin="0,0,8,0" FontSize="12.5" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding Label}" TextAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                                                                <TextBlock x:Name="b" Grid.Column="2" Text="{Binding Blue}" Margin="8,0,0,0" FontSize="12.5" />
-                                                            </Grid>
-                                                        </Border>
-                                                        <DataTemplate.Triggers>
-                                                            <DataTrigger Binding="{Binding RedBold}" Value="True"><Setter TargetName="r" Property="FontWeight" Value="Bold" /><Setter TargetName="r" Property="Foreground" Value="{StaticResource Positive}" /></DataTrigger>
-                                                            <DataTrigger Binding="{Binding BlueBold}" Value="True"><Setter TargetName="b" Property="FontWeight" Value="Bold" /><Setter TargetName="b" Property="Foreground" Value="{StaticResource Positive}" /></DataTrigger>
-                                                        </DataTemplate.Triggers>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </ScrollViewer>
-
-                                    <!-- the ladder (hidden once both corners are chosen, and in local mode once a fighter is) -->
+                                    <!-- the list (hidden in local mode once a fighter is chosen) -->
                                     <DockPanel>
                                         <DockPanel.Style>
                                             <Style TargetType="DockPanel">
                                                 <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding HasPairing}" Value="True" />
-                                                            <Condition Binding="{Binding IsPickingSlot}" Value="True" />
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </MultiDataTrigger>
                                                     <MultiDataTrigger>
                                                         <MultiDataTrigger.Conditions>
                                                             <Condition Binding="{Binding HasRedPick}" Value="True" />
@@ -1074,17 +1410,49 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </DockPanel.Style>
-                                        <DockPanel DockPanel.Dock="Top" Margin="0,0,6,6">
-                                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Suggest one" Command="{Binding SuggestOpponentCommand}"
-                                                    ToolTip="The matchmaker picks the most compelling opponent on our reads"
-                                                    Visibility="{Binding HasRedPick, Converter={StaticResource BoolToVis}}" />
-                                            <TextBlock Text="{Binding LadderTitle}" Style="{StaticResource Text.Kicker}" VerticalAlignment="Center" />
-                                        </DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="{Binding LadderEmpty}" Style="{StaticResource Text.Secondary}"
+                                        <!-- who needs a fight: your idle, expiring and unhappy, one click from an opponent -->
+                                        <StackPanel DockPanel.Dock="Top" Margin="0,0,6,6" Visibility="{Binding ShowNeedsStrip, Converter={StaticResource BoolToVis}}">
+                                            <Button Style="{StaticResource Button.Link}" HorizontalAlignment="Left" Margin="-4,0,0,2" Command="{Binding ToggleNeedsCommand}"
+                                                    ToolTip="Your fighters a booking would help most: grievances, expiring deals, long lay-offs">
+                                                <TextBlock Text="{Binding NeedsTitle}" Style="{StaticResource Text.Kicker}" />
+                                            </Button>
+                                            <ItemsControl ItemsSource="{Binding NeedsAFight}" Focusable="False">
+                                                <ItemsControl.Style>
+                                                    <Style TargetType="ItemsControl">
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding (controls:Adaptive.IsCompact), RelativeSource={RelativeSource Self}}" Value="True" />
+                                                                    <Condition Binding="{Binding NeedsOpen}" Value="False" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ItemsControl.Style>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <DockPanel Margin="0,0,0,4" ToolTip="{Binding Tip}">
+                                                            <Border DockPanel.Dock="Left" Width="28" Height="28" CornerRadius="5" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" Margin="0,0,8,0" VerticalAlignment="Top">
+                                                                <Image Source="{Binding Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                                                            </Border>
+                                                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Opponent ▸" FontSize="12" VerticalAlignment="Top" Margin="4,0,-4,0"
+                                                                    Command="{Binding Desk.FindOpponentCommand}" CommandParameter="{Binding}"
+                                                                    ToolTip="Find him an opponent: everyone he could fight, best fight first" />
+                                                            <TextBlock TextWrapping="Wrap" FontSize="12">
+                                                                <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Line, Mode=OneWay}" Foreground="{StaticResource ToneWarn}" />
+                                                            </TextBlock>
+                                                        </DockPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding LadderTitle}" Style="{StaticResource Text.Kicker}" TextWrapping="Wrap" Margin="0,0,6,6"
+                                                   Visibility="{Binding ShowSuggestOne, Converter={StaticResource InverseBoolToVis}}" />
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding LadderEmpty}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,0,6,0"
                                                    Visibility="{Binding HasLadder, Converter={StaticResource InverseBoolToVis}}" />
-                                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
-                                            <ItemsControl ItemsSource="{Binding Ladder}" ItemTemplate="{StaticResource LadderTemplate}" Focusable="False" />
-                                        </ScrollViewer>
+                                        <ListBox x:Name="FinderList" Style="{StaticResource CardList}" ItemsSource="{Binding Ladder}" ItemTemplate="{StaticResource LadderTemplate}"
+                                                 Padding="0,0,6,0" PreviewKeyDown="OnFinderListKey" AutomationProperties.Name="Fighters" />
                                     </DockPanel>
                                 </DockPanel>
                             </Grid>
