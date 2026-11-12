@@ -53,6 +53,7 @@ public static class CardFiller
             if (RosterBout(world, promo, ev.Date, booked) is { } bout)
             {
                 ev.Card.Insert(0, bout);
+                LocalCircuit.YieldTo(world, new[] { bout.RedCorner, bout.BlueCorner });   // beats a staged club card
                 booked.Add(bout.RedCorner);
                 booked.Add(bout.BlueCorner);
                 continue;
@@ -129,7 +130,7 @@ public static class CardFiller
     {
         var booked = new HashSet<FighterId>(ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }));
         foreach (var other in world.Events.Values)
-            if (other.Id != ev.Id && other.Status == EventStatus.Scheduled)
+            if (other.Id != ev.Id && other.Status == EventStatus.Scheduled && !LocalCircuit.IsLocalCard(other))   // a club card loses to us
                 foreach (var f in other.Card) { booked.Add(f.RedCorner); booked.Add(f.BlueCorner); }
         foreach (var t in world.Titles.Values)
             if (t.CurrentChampion is { } champ) booked.Add(champ);

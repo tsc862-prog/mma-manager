@@ -46,6 +46,9 @@ public sealed class NewgenService
                     Nationality = elder.Nationality,
                     CountryCode = world.Countries.TryGetValue(elder.Country, out var c) ? c.Code : null,
                     Sex = elder.Sex,   // keeps the sibling/junior story simple and the division relevant
+                    // A woman fights where women's divisions run: near the elder's
+                    // class, picked by a hash of the id (not a draw on this stream).
+                    WeightClass = elder.Sex == Sex.Female ? WomensClassNear(world, id, elder.WeightClass) : null,
                 };
 
             var prospect = _gen.Generate(id, world.CurrentDate, options);
@@ -57,6 +60,20 @@ public sealed class NewgenService
             Camps.JoinLocalCamp(world, prospect, rng);   // find a room near home
         }
         return intake;
+    }
+
+    /// <summary>
+    /// A women's class for a famous woman's junior: the elder's own class or one
+    /// either side of it (clamped to the classes women fight at), chosen by a
+    /// hash of the prospect's id — deterministic, and no draw on any stream.
+    /// </summary>
+    internal static WeightClass WomensClassNear(World world, FighterId id, WeightClass elderClass)
+    {
+        var classes = WomensDivisions.Classes;
+        int at = Array.IndexOf(classes, elderClass);
+        if (at < 0) at = elderClass < classes[0] ? 0 : classes.Length - 1;   // nearest end of the women's range
+        int step = (int)(SimRandom.Mix(world.RngSeed, (ulong)id.Value ^ 0xD1_4A57_7EUL) % 3) - 1;
+        return classes[Math.Clamp(at + step, 0, classes.Length - 1)];
     }
 
     // A name worth inheriting: a well-known fighter with a real career behind them.

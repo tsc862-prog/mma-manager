@@ -25,6 +25,13 @@ public sealed class WorldTickReport
     /// <summary>Set when an advance stopped because one of the player's cards came due.</summary>
     public Event? PendingPlayerEvent { get; set; }
 
+    /// <summary>
+    /// Set when an advance stopped because one of the player's cards lost its
+    /// main event (a withdrawal, a retirement, a fighter released or signed
+    /// away) — the mail says who and why; the card needs a new headliner.
+    /// </summary>
+    public Event? MainEventLost { get; set; }
+
     public void Add(WorldTickReport o)
     {
         EventsRun += o.EventsRun; Fights += o.Fights; Finishes += o.Finishes;
@@ -69,14 +76,27 @@ public sealed class WorldTick
     public WorldTickReport AdvanceWeeksStoppingForPlayer(World world, int weeks)
     {
         var total = new WorldTickReport { Date = world.CurrentDate };
+        bool players = world.Get(world.PlayerPromotion) is not null;
         for (int i = 0; i < weeks; i++)
         {
+            // The main event each of the player's cards is headed by going into the week.
+            var mains = !players ? new List<(Event Card, FightId Main)>() : world.Events.Values
+                .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == world.PlayerPromotion && e.Card.Count > 0)
+                .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+                .Select(e => (Card: e, Main: e.Card[^1].Id))
+                .ToList();
+
             total.Add(AdvanceWeek(world, runPlayerEvents: false));
-            var pending = world.Events.Values
+            var pending = !players ? null : world.Events.Values
                 .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == world.PlayerPromotion && e.Date <= world.CurrentDate)
                 .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
                 .FirstOrDefault();
             if (pending is not null) { total.PendingPlayerEvent = pending; break; }
+
+            // Time stops when one of the player's MAIN EVENTS falls out (a
+            // withdrawal, a retirement, a fighter lost): the card needs a decision.
+            var lost = mains.FirstOrDefault(m => m.Card.Status == EventStatus.Scheduled && m.Card.Card.All(f => f.Id != m.Main)).Card;
+            if (lost is not null) { total.MainEventLost = lost; break; }
         }
         return total;
     }
@@ -91,6 +111,9 @@ public sealed class WorldTick
         var report = new WorldTickReport { Date = after };
 
         report.Healed = Lifecycle.HealReturning(world, after);
+        // The club shows the local circuit staged for this week's dates (no RNG:
+        // their rolls were made when they were staged; the bouts seed off fight ids).
+        report.LocalFights += LocalCircuit.RunDue(world, after);
         // The world's clock: AI promotions announce their shows weeks ahead,
         // fill the undercards as the dates close in, and take anyone who has
         // left, retired or been suspended off the cards they were booked on.
@@ -154,7 +177,7 @@ public sealed class WorldTick
 
             // The scenes beyond the promotions: idle fighters take local fights,
             // and the wider combat-sports calendar (Olympics, world championships).
-            report.LocalFights = LocalCircuit.RunMonthly(world, after, rng);
+            LocalCircuit.RunMonthly(world, after, rng);   // staged now, fought on their dates (report.LocalFights counts them then)
             SpecialCircuit.RunMonthly(world, after, rng);
 
             // Off-cage drama: feuds flare on social media, fresh beefs start, and
@@ -224,6 +247,7 @@ public sealed class WorldTick
         // and the week's own (a belt passed on when a champion is suspended
         // after a card, a signing out of a bidding war).
         ForwardCalendar.Audit(world, after);
+        LocalCircuit.Audit(world);
 
         return report;
     }
@@ -303,6 +327,7 @@ public sealed class WorldTick
     {
         var due = world.Events.Values
             .Where(e => e.Status == EventStatus.Scheduled && e.Date <= asOf
+                        && !LocalCircuit.IsLocalCard(e)                                  // the club shows run themselves (LocalCircuit.RunDue)
                         && (runPlayerEvents || e.Promotion != world.PlayerPromotion))   // player watches their own
             // The player's cards run first on their night, as they always did
             // when AI cards were created on the day (and so always had the
@@ -358,6 +383,9 @@ public sealed class WorldTick
         Storylines.AfterEvent(world, ev, ev.Date, rng);
         Bonds.AfterEvent(world, ev, ev.Date);   // a bout between friends/family leaves a mark
         Camps.AfterEvent(world, ev, ev.Date);   // teammates colliding + a protégé's golden night
+        // A belt that changed hands tonight may sit on a later card of the player's
+        // without its champion: put his other cards right now, not at the next tick.
+        if (ev.Promotion == world.PlayerPromotion) ForwardCalendar.AuditPlayerCards(world, ev.Date);
 
         if (report is not null)
         {

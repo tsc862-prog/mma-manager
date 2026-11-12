@@ -130,10 +130,13 @@ public static class Lifecycle
     {
         bool wasChampion = world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
         News.Retired(world, f, date, wasChampion);   // reads the contract before it's cleared
+        bool players = f.Contract is { } deal && deal.Promotion == world.PlayerPromotion;
 
         f.Status = FighterStatus.Retired;
         f.CurrentInjury = null;
         f.Contract = null;
+        f.CampStipend = false;   // nobody pays a retired man's corner (not a grievance: he left)
+        if (players) ForwardCalendar.OffPlayerCards(world, f, date, "he retired");   // off the player's cards at once
 
         foreach (var promo in world.Promotions.Values)
             foreach (var div in promo.Divisions)
