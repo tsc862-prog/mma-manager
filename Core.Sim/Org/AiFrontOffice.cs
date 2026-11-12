@@ -21,9 +21,16 @@ public static class AiFrontOffice
             // Everything discretionary is paid out of SURPLUS — cash above a survival
             // buffer of a few months' running costs. No surplus, no spending: an org
             // scraping by during a climb won't market or retain itself into the red.
-            decimal buffer = 800_000m + promo.Prestige.Value * 60_000m;
+            decimal buffer = Buffer(promo, date);
             decimal surplus = promo.Balance.Amount - buffer;
             var roster = world.RosterOf(promo.Id).Where(f => f.Status != FighterStatus.Retired).ToList();
+            // The leap campaign below is a PLAN (a token campaign while the chest
+            // fills, a final push from the excess above the cushion), budgeted
+            // against the prestige floor as it always was: the quarter's reserve
+            // is for the open-ended spending, and holding the plan to it would
+            // stall the mid-size climbers it exists for.
+            bool leap = PromotionLadder.SavingForTheLeap(promo);
+            if (leap) surplus = promo.Balance.Amount - PrestigeFloor(promo);
 
             if (surplus <= 0)
             {
@@ -41,7 +48,7 @@ public static class AiFrontOffice
             // chest is full — falling through to the big spender the month the bank
             // crossed the cushion caused a sawtooth (splurge → back under → repeat)
             // and the org rode just beneath its own cushion forever.
-            if (PromotionLadder.SavingForTheLeap(promo))
+            if (leap)
             {
                 decimal cushion = PromotionLadder.PromotionCushion(promo);
                 if (promo.Balance.Amount < cushion)
@@ -75,6 +82,65 @@ public static class AiFrontOffice
             BuildAProspect(promo, roster, surplus);
             SendAProspectToCamp(world, promo, roster, surplus);
         }
+    }
+
+    /// <summary>
+    /// The cash an AI front office keeps back before it spends a dollar on the
+    /// discretionary sinks: the old prestige-scaled floor, or <see cref="ReserveShare"/>
+    /// of a quarter's running costs, whichever is bigger. The floor alone was sized
+    /// for a club ($5.2M at prestige 74) and the flagship runs ~$20M a quarter in
+    /// purses and production, so it marketed and retained down to about two weeks
+    /// of payroll and had no runway when a TV deal went (seed 8: $105M of brand
+    /// marketing and $29M of retention bonuses over the run, then folded on a
+    /// $20M net loss). Running costs are read off the ledger, not estimated.
+    /// </summary>
+    public static decimal Buffer(Promotion promo, DateOnly date) =>
+        Math.Max(PrestigeFloor(promo), QuarterRunningCosts(promo, date) * ReserveShare);
+
+    /// <summary>
+    /// How much of a quarter's running costs is held back: half (about six weeks).
+    /// A full quarter (measured, 100 seeds) also kept the mid-tier out of the red
+    /// so rarely that takeovers fell from main's 25 to 10; the summit is safe at half.
+    /// </summary>
+    public const decimal ReserveShare = 0.5m;
+
+    /// <summary>The old club-sized reserve: $0.8M plus $60k a prestige point.</summary>
+    public static decimal PrestigeFloor(Promotion promo) => 800_000m + promo.Prestige.Value * 60_000m;
+
+    /// <summary>
+    /// What the business spent in the trailing 91 days on the things it can't
+    /// switch off this month: purses, signing bonuses, production, overhead,
+    /// streaming ops, and routine contract buyouts (cutting guaranteed deals is a
+    /// steady part of running a roster: the flagship pays $1-2M of them every
+    /// quarter). Left out: the discretionary sinks this office controls (brand
+    /// marketing, retention bonuses, promo pushes, camp stipends), so cutting them
+    /// never lowers the bar; and one-offs that say nothing about next quarter: an
+    /// acquisition, the buyouts of the target's cut fighters paid out of its
+    /// price (posted the day of the purchase), and commission fines.
+    /// </summary>
+    public static decimal QuarterRunningCosts(Promotion promo, DateOnly date)
+    {
+        // The days this org bought someone: their buyout lines are the merger's.
+        var takeovers = new HashSet<DateOnly>();
+        for (int i = promo.Ledger.Count - 1; i >= 0; i--)
+        {
+            var e = promo.Ledger[i];
+            if (date.DayNumber - e.Date.DayNumber > 91) break;   // appended in date order
+            if (e.Category == FinanceCategory.Acquisition && e.Amount.Amount < 0) takeovers.Add(e.Date);
+        }
+        decimal spent = 0m;
+        for (int i = promo.Ledger.Count - 1; i >= 0; i--)
+        {
+            var e = promo.Ledger[i];
+            if (date.DayNumber - e.Date.DayNumber > 91) break;
+            if (e.Amount.Amount >= 0) continue;
+            if (e.Category is FinanceCategory.OrgMarketing or FinanceCategory.RetentionBonus
+                or FinanceCategory.FighterMarketing or FinanceCategory.CampFees
+                or FinanceCategory.Acquisition or FinanceCategory.Fines) continue;
+            if (e.Category == FinanceCategory.ContractBuyout && takeovers.Contains(e.Date)) continue;
+            spent -= e.Amount.Amount;
+        }
+        return spent;
     }
 
     // Pour a chunk of surplus into brand marketing — and pour in HARD when within
