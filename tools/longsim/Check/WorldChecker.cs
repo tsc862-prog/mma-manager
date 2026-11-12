@@ -21,7 +21,7 @@ public sealed class WorldChecker
         ("LINEAGE",            "reigns do not overlap, at most one is open, the open reign is the current champion"),
         ("BOOK-DOUBLE-DATE",   "no fighter on two cards on one date, none twice on one card, none against himself"),
         ("EVENT-NAME",         "a promotion's events have distinct names (the local circuit, which belongs to nobody, repeats its names by design)"),
-        ("DRAW-TITLE",         "a drawn title fight crowns nobody: no reign of that belt begins on the card's date with either corner (counts the drawn title fights seen)"),
+        ("DRAW-TITLE",         "a drawn title fight crowns nobody: no reign of that belt begins on the card's date with either corner, unless the champion retired or was stripped that night (counts the drawn title fights seen)"),
         ("BOOK-SCHEDULED",     "scheduled cards: corners exist and are not retired; no fighter on two scheduled cards; title fights belong to the host org"),
         ("CONTRACT-LINK",      "no contract points at a missing or defunct promotion; no retired fighter holds a contract"),
         ("DEFUNCT",            "a defunct promotion runs no scheduled event, holds no champion, keeps no rankings, moves no money"),
@@ -312,7 +312,15 @@ public sealed class WorldChecker
                 {
                     if (fight is not { IsTitleFight: true, Title: { } dt, Outcome: { Method: FightMethod.Draw } } || world.Get(dt) is not { } belt) continue;
                     _log.Checked("DRAW-TITLE", 1);
-                    if (belt.Lineage.Any(r => r.WonOn == ev.Date && (r.Champion == fight.RedCorner || r.Champion == fight.BlueCorner)))
+                    // the one legitimate way: the champion was retired (career injury) or stripped (failed test) that night and the
+                    // belt passed down the rankings to the man he had just drawn with
+                    bool Handed(TitleReign r)
+                    {
+                        int at = belt.Lineage.IndexOf(r);
+                        return at > 0 && belt.Lineage[at - 1] is { LostOn: { } lost } prev && lost == ev.Date
+                            && world.Get(prev.Champion) is { Status: FighterStatus.Retired or FighterStatus.Suspended };
+                    }
+                    if (belt.Lineage.Any(r => r.WonOn == ev.Date && (r.Champion == fight.RedCorner || r.Champion == fight.BlueCorner) && !Handed(r)))
                         V("DRAW-TITLE", $"e{ev.Id.Value}:f{fight.Id.Value}", $"{E(world, ev.Id)}: {F(world, fight.RedCorner)} vs {F(world, fight.BlueCorner)} was a DRAW for {T(world, dt)}, yet a reign of one of them begins that night");
                 }
             if (ev.Status != EventStatus.Scheduled) _validatedEvents.Add(ev.Id);
