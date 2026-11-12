@@ -279,6 +279,8 @@ static void RunCompare(int seeds, int years)
         var retiredAtStart = world.Fighters.Values.Where(f => f.Status == FighterStatus.Retired).Select(f => f.Id).ToHashSet();
         var seenOrg = new Dictionary<PromotionId, OrgVitals>();
         NewsItem? lastSeen = world.News.Count > 0 ? world.News[^1] : null;
+        var flows = new LongSim.MoneyFlows();
+        res.Flows = flows;
 
         for (int yr = 1; yr <= years; yr++)
         {
@@ -308,6 +310,7 @@ static void RunCompare(int seeds, int years)
                     else if (n.Body.StartsWith("Pulled with")) res.FightWeekPullouts++;
                 }
                 if (world.News.Count > 0) lastSeen = world.News[^1];
+                flows.Week(world);
 
                 // Weekly sample of org vitals for the autopsies (roster and tier of
                 // a promotion in its last live week; the week a fold is first seen).
@@ -326,7 +329,9 @@ static void RunCompare(int seeds, int years)
             }
             foreach (var p in world.Promotions.Values.Where(p => p.Defunct))
                 deadAtYear.TryAdd(p.Abbreviation, yr);
+            flows.YearEnd(world);
         }
+        flows.End(world, startDate);
 
         // Durable, from event/fight state (events are never pruned for AI orgs).
         var simEvents = world.Events.Values.Where(e => e.Date > startDate).ToList();
@@ -483,6 +488,7 @@ static void RunCompare(int seeds, int years)
         $"their career bouts avg {all.Average(r => r.RetiredCareerBouts):0.0}");
     PrintFightMix(all.SelectMany(r => r.Bouts).ToList());
     PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
+    LongSim.MoneyFlows.Print(all.Select(r => r.Flows).Where(f => f is not null).Select(f => f!).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     LongSim.TitleShots.Print(results.Values.Select(r => (r.TitleShots!, r.Years)).ToList());
     // Every org's completed cards over the run, pooled by its tier at the end (or when it died): what each tier pays a card.
@@ -661,6 +667,7 @@ sealed class SeedResult
     public List<CardRow> Cards = new();
     public int RetiredInRun;
     public double RetiredCareerBouts;
+    public LongSim.MoneyFlows? Flows;
 }
 
 readonly record struct BoutRow(FightMethod Method, int Rounds, Sex Sex, WeightClass Class, bool Local, int EndRound, int Knockdowns, int TenEights, int CardRounds, int Rating);

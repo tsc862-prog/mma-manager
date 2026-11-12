@@ -42,6 +42,7 @@ public static class Diagnose
         var defunct = world.Promotions.Values.Where(p => p.Defunct).Select(p => p.Id).ToHashSet();
         var tierOf = world.Promotions.Values.ToDictionary(p => p.Id, p => OrgSizing.SizeOf(p));
         NewsItem? lastNews = world.News.Count > 0 ? world.News[^1] : null;
+        var lost = watch.ToDictionary(p => p.Id, _ => (Away: 0, Gate: 0m, Cards: 0));   // per quarter: turned away by the room
 
         for (int week = 1; week <= years * 52; week++)
         {
@@ -69,7 +70,19 @@ public static class Diagnose
                 int popA = main is null ? 0 : world.Get(main.RedCorner)?.Intangibles.Popularity.Value ?? 0;
                 int popB = main is null ? 0 : world.Get(main.BlueCorner)?.Intangibles.Popularity.Value ?? 0;
                 double rating = ev.Card.Where(f => f.Outcome is not null).Select(f => (double)MmaManager.Core.Sim.Flavor.MatchRating.Of(f)).DefaultIfEmpty(0).Average();
-                Console.WriteLine($"  [{ev.Date:yyyy-MM-dd}] {world.Get(ev.Promotion)!.Abbreviation} card {ev.Tier,-10} room {cap,6:N0} house {fin.Attendance,6:N0} " +
+                // The house with no walls (re-computed after the night: close, not exact),
+                // and the city's rooms, to see what the picker had to choose from.
+                int demand = Financials.Demand(world, ev);
+                var cityId = ev.VenueId is { } v2 && world.Get(v2) is { } room2 ? room2.City : (CityId?)null;
+                string rooms = cityId is { } cid ? string.Join("/", world.Venues.Values.Where(x => x.City == cid).OrderBy(x => x.Capacity).Select(x => $"{x.Capacity / 1000.0:0.#}k")) : "?";
+                string cityName = cityId is { } cid2 ? world.Get(cid2)?.Name ?? "?" : "?";
+                if (lost.TryGetValue(ev.Promotion, out var acc))
+                {
+                    int away = Math.Max(0, demand - fin.Attendance);
+                    decimal perHead = fin.Attendance > 0 ? fin.GateRevenue.Amount / fin.Attendance : 0m;
+                    lost[ev.Promotion] = (acc.Away + away, acc.Gate + away * perHead, acc.Cards + (away > 0 ? 1 : 0));
+                }
+                Console.WriteLine($"  [{ev.Date:yyyy-MM-dd}] {world.Get(ev.Promotion)!.Abbreviation} card {ev.Tier,-10} {cityName} [{rooms}] room {cap,6:N0} demand {demand,6:N0} house {fin.Attendance,6:N0} " +
                     $"gate {fin.GateRevenue.Amount,11:C0} ppv {fin.PayPerViewRevenue.Amount,11:C0} purses {fin.FighterPayroll.Amount,11:C0} prod {fin.ProductionCost.Amount,9:C0} · " +
                     $"{ev.Card.Count} bouts, title {(ev.Card.Any(f => f.IsTitleFight) ? "Y" : "n")}, main pops {popA}/{popB}, avg rating {rating:0}");
             }
@@ -129,7 +142,9 @@ public static class Diagnose
                 double room = evs.Select(e => (double)(e.VenueId is { } v ? world.Get(v)?.Capacity ?? 0 : 0)).DefaultIfEmpty(0).Average();
                 Console.WriteLine($"  {p.Abbreviation,-5} {(p.Defunct ? "*** DEFUNCT *** " : "")}bank {p.Balance.Amount,14:C0} pr {p.Prestige.Value} {OrgSizing.Label(OrgSizing.SizeOf(p))} distress {Solvency.Distress(p)} " +
                     $"roster {roster.Count} (active {roster.Count(f => f.Status == FighterStatus.Active)}) committed {roster.Sum(f => f.Contract?.PursePerFight.Amount ?? 0):C0}/fight-cycle " +
-                    $"mkt budget {p.MarketingBudget} · {evs.Count} cards, avg room {room:N0} house {house:N0} · net {inc + exp:C0}");
+                    $"mkt budget {p.MarketingBudget} · {evs.Count} cards, avg room {room:N0} house {house:N0} · " +
+                    $"turned away {lost[p.Id].Away:N0} on {lost[p.Id].Cards} cards (gate ~{lost[p.Id].Gate:C0}) · net {inc + exp:C0}");
+                lost[p.Id] = (0, 0m, 0);
                 Console.WriteLine("        " + string.Join(" | ", byCat.Select(c => $"{c.Cat} {c.Amt:C0} ({c.N})")));
                 Console.WriteLine("        media: " + (p.MediaDeals.Count == 0 ? "none" : string.Join(" · ", p.MediaDeals.Select(Deal)))
                     + (p.Stream is { } s ? $" · stream {s.Subscribers:N0} subs" : ""));

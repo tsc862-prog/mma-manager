@@ -177,6 +177,9 @@ public class SolvencyTests
         var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 31 });
         var victim = world.Promotions.Values.First(p => p.Id != world.PlayerPromotion);
         victim.Balance = new Money(-12_000_000m);   // past even a top brand's deep debt ceiling
+        // Nobody can carry it (a buyer must be out of the red), so it closes rather
+        // than being sold at the ceiling (Acquisitions.TryRescue; see BigMoneyTests).
+        foreach (var p in world.Promotions.Values.Where(p => p.Id != victim.Id)) p.Balance = new Money(-1m);
         int rosterBefore = world.RosterOf(victim.Id).Count();
         Assert.True(rosterBefore > 0);
 

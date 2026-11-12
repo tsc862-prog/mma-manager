@@ -132,16 +132,51 @@ public static class Acquisitions
         // swallowing a bleeding International is the sport's biggest possible
         // story, not a rules violation. A buyer needs stature (National-grade or
         // better) and the cheque — nothing else.
-        var buyer = world.Promotions.Values
+        var buyer = FindBuyer(world, target, price);
+        if (buyer is null) return;
+
+        Execute(world, buyer, target, date, price);
+    }
+
+    /// <summary>
+    /// The richest AI org that can carry the deal: National-grade or better, out
+    /// of distress, with 1.25x the price in the bank. Ties go to the lower id.
+    /// </summary>
+    private static Promotion? FindBuyer(World world, Promotion target, Money price) =>
+        world.Promotions.Values
             .Where(p => !p.Defunct && p.Id != world.PlayerPromotion && p.Id != target.Id
                 && OrgSizing.SizeOf(p) >= OrgSize.National
                 && Solvency.Distress(p) == 0
                 && p.Balance.Amount >= price.Amount * 1.25m)
-            .OrderByDescending(p => p.Balance.Amount)
+            .OrderByDescending(p => p.Balance.Amount).ThenBy(p => p.Id.Value)
             .FirstOrDefault();
-        if (buyer is null) return;
 
+    /// <summary>
+    /// The last-minute sale. Called by <see cref="Solvency"/> in the tick a
+    /// promotion would close: if anyone can carry it, it is SOLD at the fire-sale
+    /// price (deep distress takes 45% off) instead of folding. The monthly broker
+    /// is slow on purpose (a coin-flip a month, a year's cooldown after any deal,
+    /// and a seller must look like it is dying over a trailing quarter), so a fast
+    /// collapse used to beat it to the ceiling: VMMA on seed 40 went from $6M to
+    /// -$3M in nine months with a buyer able to pay and folded outright, 270
+    /// fighters released and its belts dead, where on main it would have been
+    /// bought. Regional-grade and up (a club hall just closes); never the
+    /// sport's #1 brand (see <see cref="IsForSale"/>), never the player (their
+    /// bankruptcy is the game over). No first refusal for the player here: there
+    /// is no time for a desk call when the doors close this tick. No dice.
+    /// </summary>
+    public static bool TryRescue(World world, Promotion target, DateOnly date)
+    {
+        if (target.Defunct || target.Id == world.PlayerPromotion) return false;
+        if (OrgSizing.SizeOf(target) < OrgSize.Regional) return false;
+        if (world.Promotions.Values.Where(x => !x.Defunct)
+                .OrderByDescending(x => x.Prestige.Value).ThenBy(x => x.Id.Value)
+                .FirstOrDefault() is { } flagship && flagship.Id == target.Id)
+            return false;
+        var price = AskingPrice(world, target);
+        if (FindBuyer(world, target, price) is not { } buyer) return false;
         Execute(world, buyer, target, date, price);
+        return true;
     }
 
     /// <summary>

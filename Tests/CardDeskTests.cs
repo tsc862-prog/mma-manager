@@ -773,6 +773,83 @@ public class CardDeskTests
         Assert.Equal(q.PendingStrikes >= MmaManager.Core.Sim.Finance.MediaService.StrikeLimit, q.WouldWalk);
     }
 
+    private static (World World, PlayerBooking Booking, Event Later) TwoCardsAndADeal(int signedDaysAgo, DealRequirement clause)
+    {
+        var world = Build(11);
+        var booking = new PlayerBooking();
+        var promo = world.Get(world.PlayerPromotion)!;
+        var earlier = booking.CreateEvent(world, world.CurrentDate.AddDays(20));
+        BookCard(world, booking, earlier, 2);
+        var later = booking.CreateEvent(world, world.CurrentDate.AddDays(40));
+        var pool = ReadyPool(world, later, 8);   // fighters the earlier card didn't take
+        for (int i = 2; i < 4; i++)
+            Assert.True(booking.AddBout(world, later, pool[2 * i].Id, pool[2 * i + 1].Id, 3, false, out var err), err);
+        promo.MediaDeals.Add(new MediaDeal
+        {
+            Kind = MediaKind.SpecialtyCable, Partner = "Quiet Channel",
+            RightsFeePerEvent = new Money(50_000m), MonthsRemaining = 12, Strikes = 2,
+            SignedOn = world.CurrentDate.AddDays(-signedDaysAgo),
+            LastAiredOn = world.CurrentDate.AddDays(-5),   // the cadence clock: no monthly strike in the window
+            Requirements = { new DealRequirement(DealRequirementKind.EventCadence, 100), clause },
+        });
+        return (world, booking, later);
+    }
+
+    [Fact]
+    public void AnEarlierCleanOnCadenceCard_TakesAStrikeOff_BeforeTheLaterCardIsJudged()
+    {
+        // Strike 2 of 3 today; our earlier card meets every clause on time, so by
+        // the later card it is strike 1 (as settlement would have it).
+        var (world, booking, later) = TwoCardsAndADeal(10, new DealRequirement(DealRequirementKind.MaxMainCard, 20));
+        var p = booking.Project(world, later).Partners.Single(x => x.Partner == "Quiet Channel");
+        Assert.Equal(1, p.StrikesBeforeCard);
+        Assert.Equal(1, p.StrikesBeforeCardBest);
+        Assert.False(p.GoneBeforeCard);
+        Assert.False(p.MayBeGoneBeforeCard);
+    }
+
+    [Fact]
+    public void AnEarlierLateCard_TakesNoStrikeOff()
+    {
+        // The earlier card comes a day later than the cadence clause allows after
+        // our last real airing, so it clears nothing (as settlement).
+        var (world, booking, later) = TwoCardsAndADeal(200, new DealRequirement(DealRequirementKind.MaxMainCard, 20));
+        var promo = world.Get(world.PlayerPromotion)!;
+        var deal = promo.MediaDeals.Single(d => d.Partner == "Quiet Channel");
+        var earlier = world.Events.Values.Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Scheduled && e.Date < later.Date)
+            .OrderBy(e => e.Date).Last();
+        var aired = MmaManager.Core.Sim.Finance.MediaService.PreviousAiring(deal,
+            MmaManager.Core.Sim.Finance.MediaService.LastCardBefore(world, promo.Id, earlier));
+        int gap = earlier.Date.DayNumber - aired.DayNumber;
+        deal.Requirements.RemoveAll(r => r.Kind == DealRequirementKind.EventCadence);
+        deal.Requirements.Add(new DealRequirement(DealRequirementKind.EventCadence, gap - 1));
+        deal.LastAiredOn = earlier.Date.AddDays(-1);   // keep the monthly check quiet: this is about the card
+        Assert.True(gap - 1 > later.Date.DayNumber - earlier.Date.DayNumber, "the later card itself is on time");
+        var p = booking.Project(world, later).Partners.Single(x => x.Partner == "Quiet Channel");
+        Assert.Equal(2, p.StrikesBeforeCardBest);
+    }
+
+    [Fact]
+    public void AClauseJudgedOnTheNight_MakesTheWalkOutAMaybe_AndKeepsTheFee()
+    {
+        // Strike 2 of 3; the earlier card's quality clause is judged on the night:
+        // a miss there ends the deal before the later card, a clean night takes a
+        // strike off. So the later card MAY find the partner gone; the fee stands.
+        var (world, booking, later) = TwoCardsAndADeal(10, new DealRequirement(DealRequirementKind.MinCardQuality, 40));
+        var p = booking.Project(world, later).Partners.Single(x => x.Partner == "Quiet Channel");
+        Assert.False(p.GoneBeforeCard);
+        Assert.True(p.MayBeGoneBeforeCard);
+        Assert.Equal(1, p.StrikesBeforeCardBest);
+        Assert.NotEqual(Money.Zero, p.ExpectedFee);
+
+        // ProjectWith reads the same walk (it projects a copy of the card).
+        var bout = later.Card[0];
+        var with = booking.ProjectWith(world, later, bout.RedCorner, bout.BlueCorner, bout.ScheduledRounds, false,
+            BoutSlot.MainCard, replacing: bout.Id).Partners.Single(x => x.Partner == "Quiet Channel");
+        Assert.Equal(p.GoneBeforeCard, with.GoneBeforeCard);
+        Assert.Equal(p.MayBeGoneBeforeCard, with.MayBeGoneBeforeCard);
+    }
+
     [Fact]
     public void ReplaceFighter_ReleasesAnUnfoughtLocal()
     {

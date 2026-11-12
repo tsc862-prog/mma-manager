@@ -39,6 +39,48 @@ public class BigMoneyTests
     // --- Acquisitions --------------------------------------------------------
 
     [Fact]
+    public void AnOrgAtTheCeiling_IsSoldNotClosed_WhenSomeoneCanCarryIt()
+    {
+        // VMMA on seed 40 hit its debt ceiling in nine months, faster than the
+        // monthly broker could sell it, and folded with a buyer able to pay.
+        var world = Build();
+        world.PlayerPromotion = default;
+        var afc = world.Promotions.Values.First(p => p.Abbreviation == "AFC");
+        var vmma = world.Promotions.Values.First(p => p.Abbreviation == "VMMA");
+        vmma.Balance = new Money(Solvency.DebtCeilingFor(vmma) - 1m);
+        afc.Balance = new Money(Acquisitions.AskingPrice(world, vmma).Amount * 2m);
+        int afcRoster = world.RosterOf(afc.Id).Count();
+
+        Solvency.RunMonthly(world, world.CurrentDate);
+
+        Assert.True(vmma.Defunct);
+        Assert.Contains(afc.Ledger, e => e.Category == FinanceCategory.Acquisition && e.Description.Contains(vmma.Name));
+        Assert.True(world.RosterOf(afc.Id).Count() > afcRoster, "the roster came over");
+        Assert.Contains(world.News, n => n.Headline.Contains("acquires"));
+        Assert.DoesNotContain(world.News, n => n.Headline == $"{vmma.Name} closes its doors");
+    }
+
+    [Fact]
+    public void AnOrgAtTheCeiling_StillCloses_WhenNobodyCanCarryIt_AndTheFlagshipIsNeverSold()
+    {
+        var world = Build();
+        world.PlayerPromotion = default;
+        var vmma = world.Promotions.Values.First(p => p.Abbreviation == "VMMA");
+        foreach (var p in world.Promotions.Values) p.Balance = new Money(-1m);   // nobody out of the red
+        vmma.Balance = new Money(Solvency.DebtCeilingFor(vmma) - 1m);
+        Solvency.RunMonthly(world, world.CurrentDate);
+        Assert.True(vmma.Defunct);
+        Assert.Contains(world.News, n => n.Headline == $"{vmma.Name} closes its doors");
+
+        var w2 = Build();
+        w2.PlayerPromotion = default;
+        var flagship = w2.Promotions.Values.Where(p => !p.Defunct).OrderByDescending(p => p.Prestige.Value).ThenBy(p => p.Id.Value).First();
+        foreach (var p in w2.Promotions.Values.Where(p => p.Id != flagship.Id)) p.Balance = new Money(1_000_000_000m);
+        flagship.Balance = new Money(Solvency.DebtCeilingFor(flagship) - 1m);
+        Assert.False(Acquisitions.TryRescue(w2, flagship, w2.CurrentDate));
+    }
+
+    [Fact]
     public void AnAcquisition_TransfersTheBest_RetiresTheBelts_AndClosesTheBooks()
     {
         var world = Build();

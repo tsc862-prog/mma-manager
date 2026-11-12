@@ -22,6 +22,20 @@ public static class MediaService
 {
     public const int StrikeLimit = 3;
 
+    /// <summary>
+    /// What a card at the top of the sport rates: the median of International
+    /// promotions' card averages as <see cref="DealCompliance"/> reads them.
+    /// Every card-quality clause is written RELATIVE to this, so when the
+    /// fight engine changes how fights rate, this one number is re-measured
+    /// (`longsim compare` prints card quality by tier) and the whole term sheet
+    /// follows. Measured on the #37 engine (40 seeds x 5 years): International
+    /// median 48.6, p10 40.8, p25 44.5; share of cards clearing 42 / 45 = 86% / 72%.
+    /// Prime time sits at par-7 (41) and its strict flagship partner at 43, so
+    /// the #1 promotion's ordinary cards clear its strictest partner about 80-85%
+    /// of the time; cable sports at par-12 (36, flagship 38) clears ~95%.
+    /// </summary>
+    public const int CardQualityPar = 48;
+
     // --- The ladder -----------------------------------------------------------
 
     /// <summary>
@@ -79,7 +93,7 @@ public static class MediaService
             {
                 new DealRequirement(DealRequirementKind.MinMainCard, 4),
                 new DealRequirement(DealRequirementKind.MaxMainCard, 6),
-                new DealRequirement(DealRequirementKind.MinCardQuality, 40),
+                new DealRequirement(DealRequirementKind.MinCardQuality, CardQualityPar - 12),
                 new DealRequirement(DealRequirementKind.EventCadence, 60),
             }),
 
@@ -100,7 +114,7 @@ public static class MediaService
                 new DealRequirement(DealRequirementKind.MinMainCard, 5),
                 new DealRequirement(DealRequirementKind.MaxMainCard, 5),
                 new DealRequirement(DealRequirementKind.MinStarPower, 60),
-                new DealRequirement(DealRequirementKind.MinCardQuality, 45),
+                new DealRequirement(DealRequirementKind.MinCardQuality, CardQualityPar - 7),
                 new DealRequirement(DealRequirementKind.EventCadence, 75),
             }),
 
@@ -175,7 +189,11 @@ public static class MediaService
             {
                 case DealRequirementKind.MinCardQuality:
                     if (strictness < 0) continue;                    // the easy-going don't grade your cards
-                    adjusted.Add(req with { Threshold = req.Threshold + 5 });
+                    // A couple of points stricter, not five: the old +5 on prime
+                    // time's flat 45 wrote a 50 floor the #1 promotion missed on
+                    // 56-58% of nights (both engines) — a contract nobody in
+                    // the world could keep. Now par-7+2 = 43 (~82% of top cards clear it).
+                    adjusted.Add(req with { Threshold = req.Threshold + 2 });
                     break;
                 case DealRequirementKind.MinStarPower:
                     adjusted.Add(req with { Threshold = Math.Max(30, req.Threshold + strictness * 5) });
@@ -479,6 +497,11 @@ public static class MediaService
                 deal.RightsFeePerEvent = new Money(rung.Fee(promo) * ProfileOf(deal.Partner).FeeScale);
                 deal.MonthsRemaining = rung.TermMonths;
                 deal.SignedOn = date;
+                // A renewal is a new contract: today's term sheet, not the one
+                // signed years ago (so a save from before a retune picks up the
+                // new clause thresholds at its next renewal).
+                deal.Requirements.Clear();
+                deal.Requirements.AddRange(AdjustTerms(rung.Terms(promo), ProfileOf(deal.Partner).Strictness));
                 if (promo.Id == world.PlayerPromotion)
                     Living.Mail.Post(world, date, MailCategory.General, deal.Partner,
                         $"{deal.Partner} renews",
@@ -647,6 +670,30 @@ public static class MediaService
     // --- Fight night ----------------------------------------------------------
 
     /// <summary>
+    /// The date of the promotion's last completed card before <paramref name="ev"/>
+    /// (read off the event history, which is durable: <see cref="MediaDeal.LastAiredOn"/>
+    /// is also moved by the monthly cadence check, so it can't say when a card last aired).
+    /// </summary>
+    public static DateOnly? LastCardBefore(World world, PromotionId promo, Event ev)
+    {
+        DateOnly? last = null;
+        foreach (var e in world.Events.Values)
+            if (e.Promotion == promo && e.Id != ev.Id && e.Status == EventStatus.Completed
+                && e.Date <= ev.Date && (last is null || e.Date > last))
+                last = e.Date;
+        return last;
+    }
+
+    /// <summary>When this partner last had a card to air: the last card, or the signing if none since.</summary>
+    public static DateOnly PreviousAiring(MediaDeal deal, DateOnly? lastCard) =>
+        lastCard is { } d && d > deal.SignedOn ? d : deal.SignedOn;
+
+    /// <summary>Does a card on <paramref name="date"/> keep the deal's cadence clause (true when it has none)?</summary>
+    public static bool KeptCadence(MediaDeal deal, DateOnly previousAiring, DateOnly date) =>
+        deal.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence) is not { } cadence
+        || date.DayNumber - previousAiring.DayNumber <= cadence.Threshold;
+
+    /// <summary>
     /// Air the card: every rights partner pays their per-event fee (checked
     /// against the contract's terms — half pay and a strike on a miss), the
     /// cadence clocks reset, the in-house platform converts the night into
@@ -658,9 +705,12 @@ public static class MediaService
         // A crowded band thins the rights money too — finite TV hours, split
         // more ways (see Org.MarketShare; the economy shapes the pyramid now).
         premium *= (decimal)Org.MarketShare.Factor(world, promo);
+        var lastCard = LastCardBefore(world, promo.Id, ev);
 
         foreach (var deal in promo.MediaDeals.ToList())
         {
+            // Read the cadence BEFORE the clock moves: was this card on time?
+            bool onCadence = KeptCadence(deal, PreviousAiring(deal, lastCard), ev.Date);
             deal.LastAiredOn = ev.Date;
             bool ppvNight = ev.Tier >= EventTier.Ppv;
             if (deal.Kind == MediaKind.PpvCarrier && !ppvNight) continue;   // the carrier only judges PPV nights
@@ -674,7 +724,31 @@ public static class MediaService
                     new Money(deal.RightsFeePerEvent.Amount * premium * (honoured ? 1m : 0.5m)),
                     $"{ev.Name} — {deal.Partner} rights{(honoured ? "" : " (terms missed)")}");
 
-            if (honoured) continue;
+            if (honoured)
+            {
+                // A clean card earns a strike back. Strikes used to be forever,
+                // which made a strict partner a cliff on a timer: the flagship's
+                // ordinary cards miss a 50 quality floor about half the time and a
+                // 45 floor one time in five, so every prime-time deal it signed was
+                // gone within months however good the rest of its nights were (the
+                // AFC lost seven in three years and folded, seed 8, 2029). Now the
+                // partner judges the RUN of cards: an org that delivers more often
+                // than it misses keeps the deal; one that keeps missing still walks.
+                // Only a card that ALSO kept the cadence earns one back: a late
+                // card can't clear the cadence strike its own lateness caused (a
+                // card every 130 days on a 100-day clause would otherwise strike,
+                // clear, strike, clear forever). A card with nothing fought on it
+                // proves nothing either.
+                if (deal.Strikes > 0 && onCadence && ev.Card.Any(f => f.Outcome is not null))
+                {
+                    deal.Strikes--;
+                    if (promo.Id == world.PlayerPromotion)
+                        Living.Mail.Post(world, ev.Date, MailCategory.General, deal.Partner,
+                            $"{deal.Partner} liked {ev.Name}",
+                            $"The card met every term, and they've taken a strike off the slate ({deal.Strikes} of {StrikeLimit} now).");
+                }
+                continue;
+            }
             deal.Strikes++;
             if (promo.Id == world.PlayerPromotion)
                 Living.Mail.Post(world, ev.Date, MailCategory.BoardNote, deal.Partner,
