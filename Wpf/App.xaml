@@ -38,6 +38,8 @@
         <mvvm:InverseBoolToVisibility x:Key="InverseBoolToVis" />
         <!-- CardTone -> Tone{Good,Warn,Bad,Info} brush; ConverterParameter=Dim for the background shade. -->
         <mvvm:ToneBrush x:Key="ToneBrush" />
+        <!-- bool (is she a woman) -> the ConverterParameter text with he/his/him turned to she/her. -->
+        <mvvm:Pronouns x:Key="Pronouns" />
 
         <!-- ================= Text ================= -->
         <Style TargetType="TextBlock">

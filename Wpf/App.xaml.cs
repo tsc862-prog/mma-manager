@@ -973,13 +973,15 @@ public partial class App : Application
         }
 
         // THE TABLE (the negotiation window) in one of its states:
-        // `MmaManager.Wpf --rendertable <none|talked|endofdeal|freeagent|lodged|cameback|notenough> [--afc] <path>`.
+        // `MmaManager.Wpf --rendertable <none|talked|endofdeal|broke|freeagent|letgo|lodged|cameback|notenough> [--afc] <path>`.
         // A newly founded shoestring promotion (seed 7) unless --afc (the quick-start AFC career).
         // Rival offers are planted by hand (harness only): the biggest other promotion puts
         // paper in front of the top free agent (freeagent, lodged, cameback, notenough) or the
         // player's best-known fighter (endofdeal). lodged puts his own number in writing through
         // the real PutInWriting; notenough writes a lowball and shows the refusal; talked tables
-        // one offer under his number with no rival, so the reactions and transcript show.
+        // one offer under his number with no rival, so the reactions and transcript show. broke is
+        // endofdeal with the bank overdrawn (Match it is off, and says why); letgo is a free
+        // agent's offer already let go, the week not yet turned.
         if (e.Args.Contains("--rendertable"))
         {
             try
@@ -1001,7 +1003,7 @@ public partial class App : Application
                 var mine = w.Get(w.PlayerPromotion)!;
                 var valuation = new MmaManager.Core.Sim.Contracts.FighterValuation();
 
-                bool endOfDeal = scenario == "endofdeal";
+                bool endOfDeal = scenario is "endofdeal" or "broke";
                 var freeAgents = w.Fighters.Values.Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is null && !f.LocalTalent)
                     .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).ToList();
                 var who = endOfDeal
@@ -1020,7 +1022,7 @@ public partial class App : Application
                 }
                 var exp = valuation.Evaluate(w, who);
 
-                if (scenario is "endofdeal" or "freeagent" or "lodged" or "cameback" or "notenough")
+                if (scenario is "endofdeal" or "broke" or "freeagent" or "letgo" or "lodged" or "cameback" or "notenough")
                 {
                     var rival = w.Promotions.Values.Where(p => p.Id != mine.Id && !p.Defunct)
                         .OrderByDescending(p => p.Prestige).ThenBy(p => p.Id.Value).First();
@@ -1043,6 +1045,8 @@ public partial class App : Application
                         offer.Deadline = w.CurrentDate.AddDays(7);
                     }
                     w.RivalOffers.Add(offer);
+                    if (scenario == "letgo") MmaManager.Core.Sim.Contracts.OfferMarket.LetGo(w, offer, w.CurrentDate);
+                    if (scenario == "broke") mine.Balance = new MmaManager.Core.Model.Money(-50_000m);
                 }
 
                 var session = MmaManager.Core.Sim.Contracts.NegotiationSession.Resume(w, who, mine, exp);

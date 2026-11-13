@@ -91,7 +91,7 @@ public sealed class MyContractRow
 /// <summary>
 /// The Contracts screen: pursue free agents, renew your own fighters, and release
 /// them. "Negotiate contract" opens the negotiating room — multi-round talks with
-/// the fighter's agent (<see cref="NegotiationSession"/>) built on the same math
+/// the fighter himself (<see cref="NegotiationSession"/>) built on the same math
 /// the AI's <see cref="Negotiator"/> uses, so both sides play by the same rules.
 /// </summary>
 public sealed class ContractsViewModel : ObservableObject
@@ -375,8 +375,8 @@ public sealed class ContractsViewModel : ObservableObject
         {
             ResponseTone = "Bad";
             Response = DealWindow.TalksClosed(_world, f)
-                ? $"Talks are closed — {f.FullName} walked out and will test the market on {f.Contract!.WindowEndsOn:MMM d}."
-                : $"Their camp hasn't cooled off — no talks until {until:MMM d}.";
+                ? Lifers.Gendered(f, $"Talks are closed — {f.FullName} walked out and will test the market on {f.Contract!.WindowEndsOn:MMM d}.")
+                : Lifers.Gendered(f, $"{f.FullName} hasn't cooled off yet — he won't sit down again until {until:MMM d}.");
             return;
         }
 
@@ -387,7 +387,8 @@ public sealed class ContractsViewModel : ObservableObject
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
             win.Owner = owner;
         win.ShowDialog();
-        session.Remember(_world.CurrentDate);
+        // A match re-signed him on the spot, as the Desk's does: no talks are left to remember.
+        if (vm.Settled != TableSettlement.Matched) session.Remember(_world.CurrentDate);
 
         if (vm.SignedOffer is { } deal)
         {
@@ -407,8 +408,8 @@ public sealed class ContractsViewModel : ObservableObject
             var cooloff = NegotiationSession.SouredUntil(_world, f.Id, promo.Id) ?? _world.CurrentDate.AddDays(NegotiationSession.CoolOffDays);
             ResponseTone = "Bad";
             Response = DealWindow.TalksClosed(_world, f)
-                ? $"{f.FullName} walked out — talks are closed, and on {f.Contract!.WindowEndsOn:MMM d} he tests the market."
-                : $"{f.FullName}'s camp walked out — talks are dead until {cooloff:MMM d}.";
+                ? Lifers.Gendered(f, $"{f.FullName} walked out — talks are closed, and on {f.Contract!.WindowEndsOn:MMM d} he tests the market.")
+                : Lifers.Gendered(f, $"{f.FullName} walked out — he won't talk again until {cooloff:MMM d}.");
         }
         else if (session.RivalOffer is { Final: not null } lodged && session.Outcome != TalkOutcome.TheyWalked)
         {

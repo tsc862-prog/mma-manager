@@ -48,8 +48,10 @@ public sealed class NegotiationViewModel : ObservableObject
     public event Action<bool>? CloseRequested;
 
     /// <summary>
-    /// Ask before something costly or final (heading, body, detail, confirm label, keep label);
-    /// null in harness runs, which go ahead as scripted.
+    /// Ask before something costly or final (heading, body, detail, confirm label, keep label).
+    /// The window wires it to <see cref="MessageWindow.Ask"/> when it takes this view model; a
+    /// view model driven without the window (the render harness, before it builds one) has none
+    /// and goes ahead as scripted.
     /// </summary>
     public Func<string, string, string?, string, string, bool>? Confirm { get; set; }
 
@@ -98,7 +100,7 @@ public sealed class NegotiationViewModel : ObservableObject
         SplitCommand = new RelayCommand(SplitTheDifference, () => CanTalk);
         WalkAwayCommand = new RelayCommand(WalkAway, () => CanTalk);
         PutInWritingCommand = new RelayCommand(PutInWriting, () => CanPutInWriting);
-        MatchCommand = new RelayCommand(MatchIt, () => CanMatch);
+        MatchCommand = new RelayCommand(MatchIt, () => CanAffordMatch);
         LetGoCommand = new RelayCommand(LetHimGo, () => CanLetGo);
 
         RefreshTable();
@@ -118,6 +120,9 @@ public sealed class NegotiationViewModel : ObservableObject
     public string Name { get; }
     public string FirstName { get; }
     public string Nickname { get; }
+    /// <summary>For the window's he/she text (<see cref="Pronouns"/>).</summary>
+    public bool IsWoman => _fighter.Sex == Sex.Female;
+    private string G(string text) => Pronouns.For(IsWoman, text);
     public ImageSource? Portrait { get; }
     /// <summary>Public facts as chips: division, record, the scout's read, hometown, who he is.</summary>
     public IReadOnlyList<string> Facts { get; }
@@ -176,7 +181,7 @@ public sealed class NegotiationViewModel : ObservableObject
     // His number on the terms you are writing — pencilled in the slip's margin.
     public string HisPurse => _view.Position.PursePerFight.ToString();
     public string HisWinBonus => _view.Position.WinBonus.ToString();
-    public string HisSigning => _view.Position.SigningBonus.Amount > 0 ? $"he wants {_view.Position.SigningBonus}" : "doesn't need one";
+    public string HisSigning => _view.Position.SigningBonus.Amount > 0 ? G($"he wants {_view.Position.SigningBonus}") : "doesn't need one";
     public string HisFights => $"wants {_view.Position.Fights}";
 
     private string _offerTotalLine = "";
@@ -194,12 +199,12 @@ public sealed class NegotiationViewModel : ObservableObject
     public string RivalWinBonus => Rival is { } r && r.WinBonus.Amount > 0 ? r.WinBonus.ToString() : "none";
     public string RivalSigning => Rival is { } r && r.SigningBonus.Amount > 0 ? r.SigningBonus.ToString() : "none";
     public string RivalFights => Rival is { } r ? $"{r.Fights}" : "";
-    public string RivalExclusive => Rival is { } r ? (r.Exclusive ? "Exclusive" : "Non-exclusive — he keeps outside fights") : "";
+    public string RivalExclusive => Rival is { } r ? (r.Exclusive ? "Exclusive" : G("Non-exclusive — he keeps outside fights")) : "";
     public bool RivalImproved => Rival?.Improved == true;
     public bool IsFreeAgentOffer => Rival?.Kind == RivalOfferKind.FreeAgent;
 
     /// <summary>The kicker on the rival's paper.</summary>
-    public string RivalKicker => Rival?.Kind == RivalOfferKind.FreeAgent ? "THEIR OFFER — TO SIGN NOW" : "THEIR OFFER — FOR WHEN HIS DEAL IS UP";
+    public string RivalKicker => Rival?.Kind == RivalOfferKind.FreeAgent ? "THEIR OFFER — TO SIGN NOW" : G("THEIR OFFER — FOR WHEN HIS DEAL IS UP");
 
     /// <summary>The deadline in his terms ("Signs it after 14 Mar — 9 days").</summary>
     public string RivalDeadline
@@ -208,11 +213,14 @@ public sealed class NegotiationViewModel : ObservableObject
         {
             if (Rival is not { } r) return "";
             string days = r.DaysLeft == 0 ? "today" : r.DaysLeft == 1 ? "1 day" : $"{r.DaysLeft} days";
+            bool letGo = _session.RivalOffer?.State == RivalOfferState.LetGo;
             if (r.Kind == RivalOfferKind.FreeAgent)
-                return $"He signs it after {r.Deadline:d MMM} — {days} left";
-            if (_session.RivalOffer?.State == RivalOfferState.LetGo)
-                return $"You let him go: he signs it when his re-sign window closes, unless you keep him first";
-            return $"Answer by {r.Deadline:d MMM} — {days} left. He signs it when his deal is up";
+                return G(letGo
+                    ? $"You let him go: {r.Abbreviation} signs him when the week turns. Until then you can still sign him here"
+                    : $"He signs it after {r.Deadline:d MMM} — {days} left");
+            if (letGo)
+                return G("You let him go: he signs it when his re-sign window closes, unless you keep him first");
+            return G($"Answer by {r.Deadline:d MMM} — {days} left. He signs it when his deal is up");
         }
     }
 
@@ -231,9 +239,9 @@ public sealed class NegotiationViewModel : ObservableObject
           + (o.SigningBonus.Amount > 0 ? $", {o.SigningBonus} to sign" : "")
           + (o.Exclusive ? "" : ", non-exclusive")
         : "";
-    public string FinalNote => Rival?.Improved == true
+    public string FinalNote => G(Rival?.Improved == true
         ? $"In his hands. {RivalAbbr} has already come back once and won't go again."
-        : $"In his hands. {RivalAbbr} gets one chance to come back; you'll hear within the week.";
+        : $"In his hands. {RivalAbbr} gets one chance to come back; you'll hear within the week.");
 
     // --- Answering the rival -----------------------------------------------------------
     private bool PendingRival => _session.RivalOffer is { State: RivalOfferState.Pending } && Settled == TableSettlement.None;
@@ -247,6 +255,27 @@ public sealed class NegotiationViewModel : ObservableObject
                             && _fighter.Contract?.Promotion == o.Holder;
     public string MatchText => CanMatch && _session.RivalOffer is { } o
         ? $"Match it — {OfferMarket.MatchTerms(_world, o).PursePerFight} a fight" : "Match it";
+
+    /// <summary>
+    /// The bank can cover a match (<see cref="OfferMarket.Match"/> refuses when the balance is
+    /// under the signing bonus: overdrawn, even a $0 bonus). The button is off when it can't,
+    /// so a click never fails (each failed match posts the board another note).
+    /// </summary>
+    public bool CanAffordMatch => CanMatch && _session.RivalOffer is { } o && _world.Get(_promoId) is { } p
+                                  && p.Balance.Amount >= OfferMarket.MatchTerms(_world, o).SigningBonus.Amount;
+
+    /// <summary>Why "Match it" is off, in terms of the bank ("" when it isn't).</summary>
+    public string MatchBlocked
+    {
+        get
+        {
+            if (!CanMatch || CanAffordMatch || _session.RivalOffer is not { } o || _world.Get(_promoId) is not { } p) return "";
+            var bonus = OfferMarket.MatchTerms(_world, o).SigningBonus;
+            return p.Balance.Amount < 0
+                ? $"Matching is off while the bank is overdrawn by {new Money(-p.Balance.Amount)}: the books can't sign a new deal until the balance is back above zero."
+                : $"Matching means {bonus} up front and the bank holds {p.Balance}. Find the money before the deadline, or beat their paper at the table.";
+        }
+    }
 
     /// <summary>"Let him go": answer the rival's paper with no.</summary>
     public bool CanLetGo => PendingRival;
@@ -302,7 +331,7 @@ public sealed class NegotiationViewModel : ObservableObject
         }
         else if (resp.Verdict == TalkVerdict.WalkOut)
         {
-            Transcript.Add(new("", $"{FirstName} got up and left. The talks are dead until he cools off.", "Info"));
+            Transcript.Add(new("", G($"{FirstName} got up and left. The talks are dead until he cools off."), "Info"));
             Say($"{FirstName} walked out. The talks are dead until he cools off.", CardTone.Bad);
         }
     }
@@ -348,13 +377,21 @@ public sealed class NegotiationViewModel : ObservableObject
     private void PutInWriting()
     {
         var offer = BuildOffer();
+        // Binding: he may sign it next week. Ask first, and say what it commits.
+        var guaranteed = new Money(offer.PursePerFight.Amount * offer.Fights + offer.SigningBonus.Amount);
+        if (Confirm is { } ask && !ask($"Put your offer to {Name} in writing?",
+                G($"It's binding: if he takes it over {RivalAbbr}'s paper, he signs it next week at {offer.PursePerFight} a fight for {offer.Fights} fights"
+                  + (offer.SigningBonus.Amount > 0 ? $", {offer.SigningBonus} up front." : ".")),
+                $"That commits {guaranteed} guaranteed over the deal" + (offer.SigningBonus.Amount > 0 ? $", {offer.SigningBonus} of it on signing." : "."),
+                "Put it in writing", "Not yet"))
+            return;
         var result = _session.PutInWriting(offer);
         string abbr = RivalAbbr.Length > 0 ? RivalAbbr : "the other side";
         switch (result)
         {
             case FinalOfferResult.Lodged:
                 Transcript.Add(new("You", "In writing: " + Describe(offer), "You"));
-                Transcript.Add(new("", $"{FirstName} folded the paper into his pocket. He'll take it to {abbr}; you'll hear within the week.", "Info"));
+                Transcript.Add(new("", G($"{FirstName} folded the paper into his pocket. He'll take it to {abbr}; you'll hear within the week."), "Info"));
                 Status = "";   // the lodged paper itself says so, on the table
                 break;
             case FinalOfferResult.NotEnough:
@@ -383,8 +420,9 @@ public sealed class NegotiationViewModel : ObservableObject
         string cost = $"{terms.PursePerFight} a fight for {terms.Fights} fights"
                       + (terms.SigningBonus.Amount > 0 ? $", {terms.SigningBonus} up front" : "");
         var guaranteed = new Money(terms.PursePerFight.Amount * terms.Fights + terms.SigningBonus.Amount);
+        if (!CanAffordMatch) { Say(MatchBlocked, CardTone.Bad); return; }
         if (Confirm is { } ask && !ask($"Match {RivalAbbr} for {Name}?",
-                $"He re-signs now: {cost}.",
+                G($"He re-signs now: {cost}."),
                 $"That commits {guaranteed} guaranteed over the deal" + (terms.SigningBonus.Amount > 0 ? $", {terms.SigningBonus} of it today." : "."),
                 "Match it", "Not yet"))
             return;
@@ -395,7 +433,7 @@ public sealed class NegotiationViewModel : ObservableObject
         }
         else
         {
-            Say($"Matching means {terms.SigningBonus} up front and the books say no. {RivalAbbr}'s offer stands until the deadline.", CardTone.Bad);
+            Say(MatchBlocked.Length > 0 ? MatchBlocked : $"The match didn't go through. {RivalAbbr}'s offer stands until the deadline.", CardTone.Bad);
             RefreshTable();
         }
     }
@@ -405,18 +443,18 @@ public sealed class NegotiationViewModel : ObservableObject
     {
         if (_session.RivalOffer is not { } o) return;
         bool fa = o.Kind == RivalOfferKind.FreeAgent;
-        string body = fa
+        string body = G(fa
             ? $"You stop courting him, and {RivalAbbr} signs him on its paper at the next weekly tick."
-            : $"He fights out his deal with you. His re-sign window still opens, but the day it closes unsigned he signs with {RivalAbbr}.";
+            : $"He fights out his deal with you. His re-sign window still opens, but the day it closes unsigned he signs with {RivalAbbr}.");
         if (Confirm is { } ask && !ask($"Let {Name} go?", body,
                 fa ? "Any offer you put in writing goes with it." : "The call on your Desk goes with it.",
-                "Let him go", "Keep talking"))
+                G("Let him go"), "Keep talking"))
             return;
         OfferMarket.LetGo(_world, o, _world.CurrentDate);
         _session.WalkAway();
-        Settle(TableSettlement.LetGo, fa
+        Settle(TableSettlement.LetGo, G(fa
             ? $"You let {Name} go: {RivalAbbr} signs him this week."
-            : $"You let {Name} go: he signs with {RivalAbbr} when his window closes, unless you re-sign him first.");
+            : $"You let {Name} go: he signs with {RivalAbbr} when his window closes, unless you re-sign him first."));
         CloseRequested?.Invoke(false);
     }
 
@@ -431,7 +469,7 @@ public sealed class NegotiationViewModel : ObservableObject
     private void Say(string line, CardTone tone)
     {
         StatusTone = tone;
-        Status = line;
+        Status = G(line);
     }
 
     // --- Refresh ------------------------------------------------------------------------
@@ -456,7 +494,7 @@ public sealed class NegotiationViewModel : ObservableObject
         nameof(RivalImproved), nameof(IsFreeAgentOffer), nameof(RivalKicker), nameof(RivalDeadline),
         nameof(HasLeaning), nameof(LeansTheirs), nameof(LeansTorn), nameof(LeansYours), nameof(LeaningWords),
         nameof(HasFinal), nameof(FinalLine), nameof(FinalNote),
-        nameof(CanPutInWriting), nameof(PutInWritingText), nameof(CanMatch), nameof(MatchText), nameof(CanLetGo),
+        nameof(CanPutInWriting), nameof(PutInWritingText), nameof(CanMatch), nameof(MatchText), nameof(CanAffordMatch), nameof(MatchBlocked), nameof(CanLetGo),
     };
 
     private void RefreshTotals()
@@ -471,12 +509,14 @@ public sealed class NegotiationViewModel : ObservableObject
     private static decimal RoundTo(decimal v) => Math.Round(v / 500m) * 500m;
 
     /// <summary>
-    /// The session still describes the old agent ("hard-nosed representation"); at this
-    /// table the fighter speaks for himself, so say it about him. Unknown text passes through.
+    /// The session may still describe the old agent ("hard-nosed representation"); at this
+    /// table the fighter speaks for himself, so those three are said about him. Any other
+    /// stance (the sim's own wording about him, once renamed) passes through, capitalised.
     /// </summary>
     internal static string HisStance(string stance) =>
-        stance.Contains("hard", StringComparison.OrdinalIgnoreCase) ? "Drives a hard bargain"
-        : stance.Contains("firm", StringComparison.OrdinalIgnoreCase) ? "Firm but fair"
-        : stance.Contains("easy", StringComparison.OrdinalIgnoreCase) ? "Easy to deal with"
+        stance.Contains("representation", StringComparison.OrdinalIgnoreCase) ? "Drives a hard bargain"
+        : stance.Contains("fair agent", StringComparison.OrdinalIgnoreCase) ? "Firm but fair"
+        : stance.Contains("easygoing camp", StringComparison.OrdinalIgnoreCase) ? "Easy to deal with"
+        : stance.Length > 0 ? char.ToUpperInvariant(stance[0]) + stance[1..]   // a renamed stance, already about him
         : stance;
 }

@@ -28,8 +28,8 @@
                 BorderThickness="0,1,0,0" Padding="16,8">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Leave the table" IsCancel="True" Style="{StaticResource Button.Ghost}"
-                        ToolTip="Get up for now — he remembers where you left it" />
-                <TextBlock Text="Nothing is committed until the paper is signed. Leave and come back: he remembers where you left it."
+                        ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Get up for now — he remembers where you left it'}" />
+                <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Nothing is committed until the paper is signed. Leave and come back: he remembers where you left it.'}"
                            Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
             </DockPanel>
         </Border>
@@ -96,7 +96,7 @@
                                         <Run Text="Mood: " /><Run Text="{Binding MoodLabel, Mode=OneWay}" />
                                     </TextBlock>
                                 </Border>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" ToolTip="Rounds of goodwill left before he walks out">
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Rounds of goodwill left before he walks out'}">
                                     <TextBlock Text="Patience" Foreground="{StaticResource TextSecondary}" FontSize="11.5" Margin="0,0,7,0" VerticalAlignment="Center" />
                                     <ItemsControl ItemsSource="{Binding PatienceDots}" VerticalAlignment="Center">
                                         <ItemsControl.ItemsPanel>
@@ -118,7 +118,7 @@
                             </Grid>
                             <TextBlock Text="{Binding BondLine}" Style="{StaticResource BondLineText}" Margin="0,10,0,0" />
 
-                            <TextBlock Text="WHAT DRIVES HIS NUMBER" Style="{StaticResource Text.Kicker}" Margin="0,14,0,4" />
+                            <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='WHAT DRIVES HIS NUMBER'}" Style="{StaticResource Text.Kicker}" Margin="0,14,0,4" />
                             <ItemsControl ItemsSource="{Binding Reasons}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -139,21 +139,22 @@
             <DockPanel Grid.Column="2">
             <!-- What you can do: always in view, under the paperwork -->
             <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource PanelEdge}" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,8,0,0">
+                    <StackPanel>
                     <!-- What you can do -->
                     <WrapPanel>
                         <Button Content="Table the offer" Command="{Binding TableOfferCommand}" Style="{StaticResource Button.Primary}" Margin="0,0,8,8"
-                                ToolTip="Slide the slip across and hear his answer" />
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Slide the slip across and hear his answer'}" />
                         <Button Content="Split the difference" Command="{Binding SplitCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
                                 ToolTip="Halve the gap on every money line (doesn't table it yet)" />
-                        <Button Content="Meet his number" Command="{Binding MeetTermsCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
-                                ToolTip="Write in his current number and table it — he signs on the spot" />
+                        <Button Content="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Meet his number'}" Command="{Binding MeetTermsCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Write in his current number and table it — he signs on the spot'}" />
                         <Button Content="{Binding PutInWritingText}" Command="{Binding PutInWritingCommand}" Style="{StaticResource Button.Soft}" Margin="0,0,8,8"
                                 Visibility="{Binding CanPutInWriting, Converter={StaticResource BoolToVis}}"
-                                ToolTip="Lodge this slip as your final offer: he weighs it against their paper, they get one chance to come back, and you hear within the week" />
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Lodge this slip as your final offer: he weighs it against their paper, they get one chance to come back, and you hear within the week. Asks first.'}" />
                         <Button Content="{Binding MatchText}" Command="{Binding MatchCommand}" Style="{StaticResource Button.Soft}" Margin="0,0,8,8"
-                                Visibility="{Binding CanMatch, Converter={StaticResource BoolToVis}}"
-                                ToolTip="Re-sign him now on their length and bonuses, at the purse that beats their paper by his lights" />
-                        <Button Content="Let him go" Command="{Binding LetGoCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
+                                Visibility="{Binding CanMatch, Converter={StaticResource BoolToVis}}" ToolTipService.ShowOnDisabled="True"
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Re-sign him now on their length and bonuses, at the purse that beats their paper by his lights. Asks first.'}" />
+                        <Button Content="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Let him go'}" Command="{Binding LetGoCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
                                 Foreground="{StaticResource Negative}"
                                 Visibility="{Binding CanLetGo, Converter={StaticResource BoolToVis}}"
                                 ToolTip="Answer their paper with no — asks first" />
@@ -161,6 +162,9 @@
                                 Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"
                                 ToolTip="Leave on good terms — the door stays open" />
                     </WrapPanel>
+                    <!-- Why "Match it" is off: the bank, in plain words -->
+                    <TextBlock Text="{Binding MatchBlocked}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneBad}" Margin="0,0,0,4" />
+                    </StackPanel>
             </Border>
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
@@ -189,13 +193,13 @@
                                 <TextBlock Text="PURSE A FIGHT" Style="{StaticResource Slip.Label}" />
                                 <DockPanel>
                                     <TextBlock Text="$" Style="{StaticResource Slip.Value}" VerticalAlignment="Center" Margin="0,0,4,0" Width="9" /><TextBox Width="110" Style="{StaticResource Slip.Field}" Text="{Binding OfferPurse, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" />
-                                    <TextBlock Style="{StaticResource Slip.Note}"><Run Text="he wants " /><Run Text="{Binding HisPurse, Mode=OneWay}" /></TextBlock>
+                                    <TextBlock Style="{StaticResource Slip.Note}"><Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='he wants ', Mode=OneWay}" /><Run Text="{Binding HisPurse, Mode=OneWay}" /></TextBlock>
                                 </DockPanel>
 
                                 <TextBlock Text="WIN BONUS" Style="{StaticResource Slip.Label}" />
                                 <DockPanel>
                                     <TextBlock Text="$" Style="{StaticResource Slip.Value}" VerticalAlignment="Center" Margin="0,0,4,0" Width="9" /><TextBox Width="110" Style="{StaticResource Slip.Field}" Text="{Binding OfferWinBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" />
-                                    <TextBlock Style="{StaticResource Slip.Note}"><Run Text="he wants " /><Run Text="{Binding HisWinBonus, Mode=OneWay}" /></TextBlock>
+                                    <TextBlock Style="{StaticResource Slip.Note}"><Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='he wants ', Mode=OneWay}" /><Run Text="{Binding HisWinBonus, Mode=OneWay}" /></TextBlock>
                                 </DockPanel>
 
                                 <TextBlock Text="SIGNING BONUS" Style="{StaticResource Slip.Label}" />
@@ -230,9 +234,9 @@
 
                                 <WrapPanel Margin="0,12,0,0">
                                     <CheckBox Content="Exclusive" IsChecked="{Binding OfferExclusive}" Style="{StaticResource Slip.Check}"
-                                              ToolTip="Ties him to your cards only — a non-exclusive deal runs ~20% cheaper" />
+                                              ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Ties him to your cards only — a non-exclusive deal runs ~20% cheaper'}" />
                                     <CheckBox Content="Champion's clause" IsChecked="{Binding OfferChampionsClause}" Style="{StaticResource Slip.Check}"
-                                              ToolTip="A title win auto-extends the deal — a leash he charges ~8% extra to wear" />
+                                              ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='A title win auto-extends the deal — a leash he charges ~8% extra to wear'}" />
                                 </WrapPanel>
 
                                 <Rectangle Height="1" Fill="{StaticResource TableRule}" Margin="0,12,0,6" />
@@ -300,11 +304,11 @@
                                     <controls:Icon Kind="Envelope" Width="44" Height="44" HorizontalAlignment="Left" Brush="{StaticResource TextMuted}" />
                                     <TextBlock Text="No other paper on the table" Style="{StaticResource Text.Heading}" Margin="0,12,0,0" />
                                     <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0">
-                                        <Run Text="{Binding FirstName, Mode=OneWay}" /><Run Text=" is only talking to you. Take too long and that can change: a promotion that wants him can put an offer in his hand while you talk, and he'll show it to you here." />
+                                        <Run Text="{Binding FirstName, Mode=OneWay}" /><Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter=' is only talking to you. Take too long and that can change: a promotion that wants him can put an offer in his hand while you talk, and he’ll show it to you here.', Mode=OneWay}" />
                                     </TextBlock>
                                     <TextBlock Text="HOW IT WORKS" Style="{StaticResource Text.Kicker}" Margin="0,16,0,4" />
                                     <TextBlock Style="{StaticResource Text.Secondary}" FontSize="12"
-                                               Text="Write your terms on the slip and table them. His number is pencilled beside each line; every round you bargain in good faith it comes down a little, and a lowball costs you his mood and patience." />
+                                               Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Write your terms on the slip and table them. His number is pencilled beside each line; every round you bargain in good faith it comes down a little, and a lowball costs you his mood and patience.'}" />
                                 </StackPanel>
                             </Border>
                         <!-- Your final offer, in writing -->
@@ -327,7 +331,7 @@
                     <Border Style="{StaticResource Panel}" Padding="14,12" Margin="0,8,0,0"
                             Visibility="{Binding HasLeaning, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="WHICH WAY HE LEANS" Style="{StaticResource Text.Kicker}" Margin="0,0,0,6" />
+                            <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='WHICH WAY HE LEANS'}" Style="{StaticResource Text.Kicker}" Margin="0,0,0,6" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
@@ -372,7 +376,7 @@
             <Border Grid.Column="4" Style="{StaticResource Panel}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
-                        <TextBlock Text="IN HIS OWN WORDS" Style="{StaticResource Text.Kicker}" />
+                        <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='IN HIS OWN WORDS'}" Style="{StaticResource Text.Kicker}" />
                         <Border BorderBrush="{DynamicResource OrgAccent}" BorderThickness="3,0,0,0" Padding="12,2,0,2" Margin="0,10,0,0">
                             <TextBlock Text="{Binding HisLine}" Style="{StaticResource Text.Quote}" FontSize="16.5" LineHeight="24" />
                         </Border>
@@ -394,7 +398,7 @@
                         </StackPanel>
 
                         <TextBlock Style="{StaticResource Text.Note}" Margin="0,16,0,0" Visibility="{Binding HasHistory, Converter={StaticResource InverseBoolToVis}}"
-                                   Text="Table an offer and he'll tell you how each term lands. Every exchange is kept here." />
+                                   Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Table an offer and he’ll tell you how each term lands. Every exchange is kept here.'}" />
                         <TextBlock Text="THE TALKS SO FAR" Style="{StaticResource Text.Kicker}" Margin="0,16,0,6"
                                    Visibility="{Binding HasHistory, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
