@@ -18,6 +18,26 @@ public sealed record TermReaction(string Term, TermFeel Feel, string Note);
 public sealed record TalkResponse(TalkVerdict Verdict, string Line, IReadOnlyList<TermReaction> Reactions);
 
 /// <summary>
+/// A rival's offer as the table discloses it: the promotion, its stage, the terms, the
+/// deadline, and whether it has already come up once. Never its walk-away number or its read.
+/// </summary>
+public sealed record RivalSlip(
+    PromotionId Promotion, string Name, string Abbreviation, string Tier, RivalOfferKind Kind,
+    Money Purse, Money WinBonus, Money SigningBonus, int Fights, bool Exclusive,
+    DateOnly Deadline, int DaysLeft, bool Improved);
+
+/// <summary>
+/// The negotiating table as the UI reads it (<see cref="NegotiationSession.View"/>): his
+/// position on the terms asked about, the reasons behind it in words, the rival's paper
+/// (<see cref="Rival"/>, null when there is none), his leaning between the two, the final
+/// offer in writing (<see cref="Final"/>), and the answer to the last offer tabled.
+/// </summary>
+public sealed record NegotiationView(
+    FighterId Fighter, string Name, string Stance, string OpeningLine, string Mood, int Patience, int Round,
+    TalkOutcome Outcome, bool Resumed, ContractOffer Position, IReadOnlyList<string> Reasons,
+    RivalSlip? Rival, Leaning? Leaning, ContractOffer? Final, TalkResponse? Last);
+
+/// <summary>
 /// A sit-down with a fighter's agent: stateful, multi-round talks. The agent
 /// opens at the full ask and CONCEDES toward a floor as the player bargains in
 /// good faith — how fast depends on the agent's toughness, and how low the
@@ -42,6 +62,7 @@ public sealed class NegotiationSession
     private readonly Money? _liveFloor;       // a renewal of a live deal never goes under its show money (see Negotiator.LivePurseFloor)
     private Money? _rivalFloor;               // a rival's live offer is his walk-away: the match purse (OfferMarket.MatchTerms; set by Resume)
     private string? _rivalName;
+    private RivalOffer? _offer;               // the live rival offer the table reads (set by Resume)
     private decimal? _rivalScore;             // the rival's paper by his lights (OfferMarket.Score): a deal here must be worth at least this
 
     public NegotiationSession(World world, Fighter fighter, Promotion promo, ContractExpectations exp)
@@ -105,21 +126,28 @@ public sealed class NegotiationSession
         var session = new NegotiationSession(world, fighter, promo, exp);
         // A rival's paper in his pocket (OfferMarket): he won't take less than what
         // beats it, and he says so as he sits down. (Its terms are the offer's own;
-        // nothing about how the rival read him.)
-        if (OfferMarket.LiveFor(world, fighter.Id) is { } rival && rival.Holder == promo.Id)
+        // nothing about how the rival read him.) A dead rival's paper is no paper.
+        if (OfferMarket.LiveFor(world, fighter.Id) is { } rival && rival.Holder == promo.Id
+            && world.Get(rival.From) is { Defunct: false } from)
         {
+            session._offer = rival;
             session._rivalFloor = OfferMarket.MatchTerms(world, rival).PursePerFight;
-            session._rivalName = world.Get(rival.From)?.Abbreviation ?? "the other side";
+            session._rivalName = from.Abbreviation;
             session._rivalScore = OfferMarket.Score(world, fighter, OfferMarket.AsContractOffer(rival), exp);
-            session.OpeningLine = Lifers.Gendered(fighter,
-                $"\"{session._rivalName} has {fighter.FirstName} at {rival.Purse} a fight for {rival.Fights} fights. Beat that and we stay.\"");
+            session.OpeningLine = Lifers.Gendered(fighter, rival.Kind == RivalOfferKind.FreeAgent
+                ? $"\"Before we start: {session._rivalName} has offered {fighter.FirstName} {OfferTerms(rival)}."
+                  + (rival.Improvements > 0 ? " They've already come up once." : "") + " Beat that and he's yours.\""
+                : $"\"{session._rivalName} has {fighter.FirstName} at {rival.Purse} a fight for {rival.Fights} fights. Beat that and we stay.\"");
         }
         if (Memory(world, fighter.Id, promo.Id) is not { } m || m.SouredUntil is not null
             || world.CurrentDate.DayNumber - m.LastTalked.DayNumber > DealWindow.TalksMemoryDays)
+        {
+            if (session._offer is not null) session.Patience++;   // with paper in his pocket he'll hear you out
             return session;
+        }
         session._demandFrac = Math.Max(session._floorFrac, Math.Min(1.0, m.DemandFrac));
         session.Mood = m.Mood;
-        session.Patience = m.Patience;
+        session.Patience = m.Patience + (session._offer is { } o && o.Made > m.LastTalked ? 1 : 0);   // (an offer since: he'll hear you out)
         session.Round = m.Round;
         session.Resumed = true;
         if (session._rivalFloor is null)
@@ -269,7 +297,12 @@ public sealed class NegotiationSession
     };
 
     /// <summary>Put an offer on the table and hear the room's answer.</summary>
-    public TalkResponse Table(ContractOffer offer)
+    public TalkResponse Table(ContractOffer offer) => Last = TableCore(offer);
+
+    /// <summary>The room's answer to the last offer tabled in this sit-down; null before the first.</summary>
+    public TalkResponse? Last { get; private set; }
+
+    private TalkResponse TableCore(ContractOffer offer)
     {
         if (Outcome != TalkOutcome.Open)
             return new(TalkVerdict.WalkOut, "The talks are over.", Array.Empty<TermReaction>());
@@ -340,6 +373,71 @@ public sealed class NegotiationSession
     {
         if (Outcome == TalkOutcome.Open) Outcome = TalkOutcome.YouWalked;
     }
+
+    // --- A rival's paper on the table (OfferMarket) ----------------------------------
+
+    /// <summary>The live rival offer this table reads (its holder or courting side is this promotion), if any.</summary>
+    public RivalOffer? RivalOffer => _offer;
+
+    /// <summary>
+    /// "Put it in writing" (a courted free agent with a rival's offer in his hand): the
+    /// owner's best offer, lodged with the sim (<see cref="OfferMarket.LodgeFinal"/>). He
+    /// takes it over the rival's paper if it is worth more to him (<see cref="OfferMarket.Score"/>)
+    /// — even under his asking number — after the rival has had one chance to come back,
+    /// on the next weekly tick. It must still be a deal he'd sign: his length (give or take
+    /// one), a real signing bonus if he wants one, enough guaranteed money. Counts as a
+    /// round (the talks are remembered); the room stays open.
+    /// </summary>
+    public FinalOfferResult PutInWriting(ContractOffer offer)
+    {
+        if (Outcome != TalkOutcome.Open || _offer is not { Kind: RivalOfferKind.FreeAgent }) return FinalOfferResult.NoOffer;
+        if (Math.Abs(offer.Fights - _exp.DesiredFights) > 1 || !SigningOk(offer) || !GuaranteedOk(offer))
+            return FinalOfferResult.OffTerms;
+        var result = OfferMarket.LodgeFinal(_world, _fighter, _promo, offer);
+        if (result == FinalOfferResult.Lodged) Round++;
+        return result;
+    }
+
+    /// <summary>
+    /// Everything the table shows, in one read model (the only thing the UI needs): his
+    /// position on the given terms, why it sits where it does, the rival's disclosed paper,
+    /// which way he leans and the final offer in writing. Public facts and his own wants
+    /// only — never the rival's read of him, its walk-away number, nor anyone's ability.
+    /// </summary>
+    public NegotiationView View(bool exclusive, bool clause)
+    {
+        var reasons = new List<string>();
+        var pri = _exp.Priorities;
+        var wants = new (int W, string Why)[]
+        {
+            (pri.Money, "the money"), (pri.TitleOpportunity, "a path to a belt"),
+            (pri.Loyalty, "loyalty to the people who backed him"), (pri.HomeRegion, "fighting near home"),
+        };
+        reasons.Add($"What he weighs most: {string.Join(" and ", wants.OrderByDescending(x => x.W).ThenBy(x => x.Why, StringComparer.Ordinal).Take(2).Select(x => x.Why))}.");
+        reasons.Add($"He wants a {_exp.DesiredFights}-fight deal" + (_exp.WantsSigningBonus ? " and a signing bonus." : "."));
+        if (_home < 1m) reasons.Add("He gives this house a personal discount.");
+        if (_liveFloor is { } lf) reasons.Add($"He's signed at {lf} a fight and won't tear that up for less.");
+        if (_offer is not null)
+            reasons.Add($"{_rivalName} has real paper on the table: a deal here must be worth more to him than theirs.");
+
+        RivalSlip? slip = null;
+        Leaning? lean = null;
+        if (_offer is { } o && _world.Get(o.From) is { } rival)
+        {
+            slip = new RivalSlip(rival.Id, rival.Name, rival.Abbreviation, Org.OrgSizing.Label(Org.OrgSizing.SizeOf(rival)), o.Kind,
+                o.Purse, o.WinBonus, o.SigningBonus, o.Fights, o.Exclusive, o.Deadline,
+                Math.Max(0, o.Deadline.DayNumber - _world.CurrentDate.DayNumber), o.Improvements > 0);
+            lean = OfferMarket.LeaningOf(_world, o);
+        }
+        return new NegotiationView(
+            _fighter.Id, _fighter.FullName, AgentStance, OpeningLine, MoodLabel, Patience, Round, Outcome, Resumed,
+            TheirTermsAsOffer(exclusive, clause), reasons, slip, lean, _offer?.Final, Last);
+    }
+
+    private static string OfferTerms(RivalOffer o) =>
+        $"{o.Purse} a fight for {o.Fights} fights"
+        + (o.WinBonus.Amount > 0 ? $", {o.WinBonus} to win" : "")
+        + (o.SigningBonus.Amount > 0 ? $", {o.SigningBonus} to sign" : "");
 
     // Whatever the upside, the guaranteed money (purse plus signing bonus spread
     // over the deal) must cover a real share of what they're quoting as
