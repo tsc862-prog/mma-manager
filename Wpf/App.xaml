@@ -38,6 +38,8 @@
         <mvvm:InverseBoolToVisibility x:Key="InverseBoolToVis" />
         <!-- CardTone -> Tone{Good,Warn,Bad,Info} brush; ConverterParameter=Dim for the background shade. -->
         <mvvm:ToneBrush x:Key="ToneBrush" />
+        <!-- bool (is she a woman) -> the ConverterParameter text with he/his/him turned to she/her. -->
+        <mvvm:Pronouns x:Key="Pronouns" />
 
         <!-- ================= Text ================= -->
         <Style TargetType="TextBlock">
@@ -1904,6 +1906,149 @@
                     <Setter Property="Text" Value="⚠" />
                     <Setter Property="Foreground" Value="{StaticResource Negative}" />
                     <Setter Property="Margin" Value="0,0,8,0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ================= THE TABLE (NegotiationWindow) =================
+             Talks are promoter and fighter: his photo on the left, the paperwork in the
+             middle (your slip, the rival's paper beside it), what he says on the right.
+             Paper is the one light surface in the app: a physical object on a dark table.
+               TablePaper / TablePaperCool   your slip (warm) / a rival's letterhead (cool)
+               TableInk / TableInkSoft       typed text on paper / its labels
+               TablePencil                   his number, pencilled in your slip's margin
+               Slip (Border), Slip.Label, Slip.Value, Slip.Note, Slip.Field (TextBox), Slip.Check
+               Stamp (Border) + Stamp.Text   rubber stamp on paper ("CAME BACK ONCE")
+               LeanSegment (Border) + LeanSegment.Text: one third of the leaning bar, lit when its Tag is bound to true
+             ===================================================================== -->
+        <SolidColorBrush x:Key="TablePaper" Color="#ECE5D3" />
+        <SolidColorBrush x:Key="TablePaperCool" Color="#DCE2E8" />
+        <SolidColorBrush x:Key="TableInk" Color="#1D2127" />
+        <SolidColorBrush x:Key="TableInkSoft" Color="#5E5A50" />
+        <SolidColorBrush x:Key="TableRule" Color="#B3AA96" />
+        <SolidColorBrush x:Key="TablePencil" Color="#A8423B" />
+
+        <Style x:Key="Slip" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource TablePaper}" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="18,16,18,14" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Direction="270" Opacity="0.55" Color="Black" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Slip.Kicker" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInkSoft}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Title" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Label" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInkSoft}" />
+            <Setter Property="Margin" Value="0,8,0,1" />
+        </Style>
+        <Style x:Key="Slip.Value" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Note" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontStyle" Value="Italic" />
+            <Setter Property="Foreground" Value="{StaticResource TablePencil}" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="Margin" Value="10,0,0,3" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Field" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TableInk}" />
+            <Setter Property="SelectionBrush" Value="#C9A54A" />
+            <Setter Property="Background" Value="#F6F1E4" />
+            <Setter Property="BorderBrush" Value="{StaticResource TableRule}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1.5" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="2,2,0,0">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource TableInk}" />
+                                <Setter TargetName="b" Property="Background" Value="#FBF8F0" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="b" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Slip.Check" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+            <!-- (the app's implicit TextBlock style is light-on-dark: give the label paper ink) -->
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#1D2127" FontSize="12" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Stamp" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource TablePencil}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="Opacity" Value="0.85" />
+        </Style>
+        <Style x:Key="Stamp.Text" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource TablePencil}" />
+        </Style>
+        <Style x:Key="LeanSegment" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Track}" />
+            <Setter Property="Padding" Value="0,5" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource OrgAccent}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="LeanSegment.Text" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                    <Setter Property="Foreground" Value="#15181D" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>

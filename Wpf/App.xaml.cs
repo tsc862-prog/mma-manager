@@ -972,6 +972,125 @@ public partial class App : Application
             return;
         }
 
+        // THE TABLE (the negotiation window) in one of its states:
+        // `MmaManager.Wpf --rendertable <none|talked|endofdeal|broke|freeagent|letgo|lodged|cameback|notenough> [--afc] <path>`.
+        // A newly founded shoestring promotion (seed 7) unless --afc (the quick-start AFC career).
+        // Rival offers are planted by hand (harness only): the biggest other promotion puts
+        // paper in front of the top free agent (freeagent, lodged, cameback, notenough) or the
+        // player's best-known fighter (endofdeal). lodged puts his own number in writing through
+        // the real PutInWriting; notenough writes a lowball and shows the refusal; talked tables
+        // one offer under his number with no rival, so the reactions and transcript show. broke is
+        // endofdeal with the bank overdrawn (Match it is off, and says why); letgo is a free
+        // agent's offer already let go, the week not yet turned.
+        if (e.Args.Contains("--rendertable"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--rendertable");
+                string scenario = e.Args[at + 1];
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                if (!e.Args.Contains("--afc"))
+                    vm.StartWorld(new WorldBuilder.Options
+                    {
+                        Seed = 7,
+                        Founding = new WorldBuilder.FoundingSpec
+                        {
+                            Name = "New Wave Fighting", Abbreviation = "NWF", Region = MmaManager.Core.Model.Region.Europe,
+                        },
+                    }, "You founded New Wave Fighting.");
+                var w = vm.LiveWorld!;
+                var mine = w.Get(w.PlayerPromotion)!;
+                var valuation = new MmaManager.Core.Sim.Contracts.FighterValuation();
+
+                bool endOfDeal = scenario is "endofdeal" or "broke";
+                var freeAgents = w.Fighters.Values.Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is null && !f.LocalTalent)
+                    .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).ToList();
+                var who = endOfDeal
+                    ? w.RosterOf(mine.Id).Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is not null && !f.LocalTalent)
+                        .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).FirstOrDefault()
+                    : freeAgents[0];
+                if (who is null)
+                {
+                    // A day-one shoestring roster is all unknowns: sign a known free agent at his
+                    // number first (harness only), so there is someone worth an offer.
+                    who = freeAgents[1];
+                    var signExp = valuation.Evaluate(w, who);
+                    var terms = new MmaManager.Core.Sim.Contracts.NegotiationSession(w, who, mine, signExp)
+                        .TheirTermsAsOffer(MmaManager.Core.Sim.Contracts.Negotiator.WantsExclusivity(mine), clause: false);
+                    MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(w, who, terms, w.CurrentDate);
+                }
+                var exp = valuation.Evaluate(w, who);
+
+                if (scenario is "endofdeal" or "broke" or "freeagent" or "letgo" or "lodged" or "cameback" or "notenough")
+                {
+                    var rival = w.Promotions.Values.Where(p => p.Id != mine.Id && !p.Defunct)
+                        .OrderByDescending(p => p.Prestige).ThenBy(p => p.Id.Value).First();
+                    decimal purse = Math.Ceiling(exp.AskingPurse.Amount * 1.12m / 500m) * 500m;
+                    var offer = new MmaManager.Core.Model.RivalOffer
+                    {
+                        Id = w.RivalOffers.Count == 0 ? 1 : w.RivalOffers.Max(o => o.Id) + 1,
+                        Fighter = who.Id, From = rival.Id, Holder = mine.Id,
+                        Kind = endOfDeal ? MmaManager.Core.Model.RivalOfferKind.EndOfDeal : MmaManager.Core.Model.RivalOfferKind.FreeAgent,
+                        Purse = new MmaManager.Core.Model.Money(purse),
+                        WinBonus = new MmaManager.Core.Model.Money(Math.Ceiling(purse * 0.5m / 500m) * 500m),
+                        SigningBonus = new MmaManager.Core.Model.Money(endOfDeal ? 0m : Math.Ceiling(purse * 0.25m / 500m) * 500m),
+                        Fights = exp.DesiredFights, Exclusive = true,
+                        Made = w.CurrentDate.AddDays(-3), Deadline = w.CurrentDate.AddDays(endOfDeal ? 18 : 9),
+                    };
+                    if (scenario == "cameback")
+                    {
+                        offer.Purse = new MmaManager.Core.Model.Money(purse + 2_000m);
+                        offer.Improvements = 1;
+                        offer.Deadline = w.CurrentDate.AddDays(7);
+                    }
+                    w.RivalOffers.Add(offer);
+                    if (scenario == "letgo") MmaManager.Core.Sim.Contracts.OfferMarket.LetGo(w, offer, w.CurrentDate);
+                    if (scenario == "broke") mine.Balance = new MmaManager.Core.Model.Money(-50_000m);
+                }
+
+                var session = MmaManager.Core.Sim.Contracts.NegotiationSession.Resume(w, who, mine, exp);
+                var roomVm = new NegotiationViewModel(w, who, mine, exp, session, renewal: who.Contract?.Promotion == mine.Id);
+                if (scenario is "lodged" or "notenough" or "talked")
+                {
+                    var his = session.View(roomVm.OfferExclusive, false).Position;
+                    decimal k = scenario == "lodged" ? 1m : 0.8m;
+                    roomVm.OfferPurse = Math.Ceiling(his.PursePerFight.Amount * k / 500m) * 500m;
+                    roomVm.OfferWinBonus = his.WinBonus.Amount;
+                    roomVm.OfferSigningBonus = his.SigningBonus.Amount;
+                    roomVm.OfferFights = his.Fights;
+                    if (scenario == "talked") roomVm.TableOfferCommand.Execute(null);
+                    else roomVm.PutInWritingCommand.Execute(null);
+                }
+
+                var roomWin = new NegotiationWindow { DataContext = roomVm };
+                var roomRoot = (FrameworkElement)roomWin.Content;
+                roomWin.Content = null;
+                var roomSize = new Size(roomWin.Width, roomWin.Height);
+                var host = new System.Windows.Controls.Border
+                {
+                    Background = (Brush)Current.Resources["Bg"] ?? Brushes.Black,
+                    Child = roomRoot, DataContext = roomVm,
+                };
+                host.Measure(roomSize); host.Arrange(new Rect(roomSize)); host.UpdateLayout();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                    System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                host.Measure(roomSize); host.Arrange(new Rect(roomSize)); host.UpdateLayout();
+                var bmp = new RenderTargetBitmap((int)roomSize.Width, (int)roomSize.Height, 96, 96, PixelFormats.Pbgra32);
+                bmp.Render(host);
+                var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp));
+                string p = e.Args[^1];
+                using (var fs = File.Create(p)) enc.Save(fs);
+                Console.WriteLine($"RENDERTABLE {scenario} OK -> {Path.GetFullPath(p)}: {who.FullName} ({mine.Abbreviation}); "
+                                  + $"his purse {roomVm.HisPurse}; rival {(roomVm.HasRival ? roomVm.RivalAbbr + " " + roomVm.RivalPurse : "none")}; "
+                                  + $"leaning {roomVm.LeaningWords}; status '{roomVm.Status}'; final '{roomVm.FinalLine}'");
+                roomWin.Close();
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERTABLE FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
         // One app on the desktop at a real screen size, maximised or floating at its
         // default window size: `MmaManager.Wpf --renderapp <appId> <W> <H> [--founded]
         // [--floating] [--months N] [--card] [--cards N] [--table] <path>` (the Planner adds
@@ -1214,7 +1333,7 @@ public partial class App : Application
                         string roomPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(e.Args[^1]))!,
                             Path.GetFileNameWithoutExtension(e.Args[^1]) + "-room.png");
                         using (var fs = File.Create(roomPath)) roomEnc.Save(fs);
-                        Console.WriteLine($"RENDERAPP room -> {roomPath}: their purse {roomVm.TheirPurse}; {roomVm.AskWhy}");
+                        Console.WriteLine($"RENDERAPP room -> {roomPath}: his purse {roomVm.HisPurse}; {roomVm.AskWhy}");
                         roomWin.Close();
                     }
                 }
