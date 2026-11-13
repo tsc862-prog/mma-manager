@@ -517,7 +517,8 @@ public static class Promises
     }
 
     /// <summary>What a promise of this kind means to him, in words (for the table's options).</summary>
-    internal static string WorthWords(World world, Promotion promo, Fighter f, PromiseKind kind, int fights, ContractExpectations exp)
+    internal static string WorthWords(World world, Promotion promo, Fighter f, PromiseKind kind, int fights, ContractExpectations exp,
+        bool firstPerson = false)
     {
         double pull = kind switch
         {
@@ -526,6 +527,8 @@ public static class Promises
             _ => ActivityPull(world, f, fights),
         };
         string thing = What(world, kind, fights, f);
+        if (firstPerson)
+            return pull >= 0.55 ? $"{thing} matters a lot to me" : pull >= 0.25 ? $"I'd like {thing}" : $"{thing} doesn't mean much to me";
         return Lifers.Gendered(f, pull >= 0.55 ? $"{thing} matters a lot to him"
             : pull >= 0.25 ? $"he'd like {thing}" : $"{thing} means little to him");
     }

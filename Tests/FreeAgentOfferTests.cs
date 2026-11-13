@@ -668,6 +668,77 @@ public class FreeAgentOfferTests
         }
     }
 
+    // --- He speaks for himself (lead review, 2026-11-13: talks are promoter and fighter only) ---------
+
+    [Fact]
+    public void EveryLineAtTheTable_IsHisOwn_FirstPerson_NoAgentNoWe()
+    {
+        var bad = new System.Text.RegularExpressions.Regex(@"\b(we|We|we're|We're|our|us)\b|his people|her people|agent|representation");
+        int lines = 0;
+        foreach (ulong seed in new ulong[] { 48, 7 })
+        {
+            var (world, offers) = CourtedMarket(seed);
+            var promo = world.Get(world.PlayerPromotion)!;
+            bool excl = Negotiator.WantsExclusivity(promo);
+            var valuation = new FighterValuation();
+            var people = offers.Select(o => world.Get(o.Fighter)!)
+                .Concat(world.RosterOf(promo.Id).Take(4))
+                .Concat(world.FreeAgents().Where(x => x.Status == FighterStatus.Active).Take(6));
+            foreach (var f in people)
+                foreach (double frac in new[] { 0.5, 0.85, 0.97, 1.0 })
+                {
+                    var s = NegotiationSession.Resume(world, f, promo, valuation.Evaluate(world, f));
+                    var said = new List<string> { s.OpeningLine, s.Stance };
+                    var o = s.TheirTermsAsOffer(new ContractOffer
+                    {
+                        Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, MatchingRight = frac > 0.9,
+                        PromiseTitleShot = true, PromiseHomeShow = frac < 0.9, PromiseFights = 2,
+                    });
+                    o.PursePerFight = new Money(Math.Round(o.PursePerFight.Amount * (decimal)frac / 500m) * 500m);
+                    o.Fights += frac == 0.97 ? 2 : 0;
+                    for (int r = 0; r < 3 && s.Outcome == TalkOutcome.Open; r++)
+                    {
+                        var answer = s.Table(o);
+                        said.Add(answer.Line);
+                        said.AddRange(answer.Reactions.Select(x => x.Note));
+                    }
+                    foreach (var line in said)
+                    {
+                        lines++;
+                        Assert.False(line.Contains(f.FirstName), $"he names himself: {line}");
+                        Assert.False(bad.IsMatch(line), $"not his own voice: {line}");
+                    }
+                }
+        }
+        Assert.True(lines > 100, $"only {lines} lines heard");
+    }
+
+    [Fact]
+    public void HisNumberUnderTheRivalsPurse_IsExplainedInHisReasons()
+    {
+        int explained = 0;
+        foreach (ulong seed in new ulong[] { 48, 7, 11 })
+        {
+            var (world, offers) = CourtedMarket(seed);
+            var promo = world.Get(world.PlayerPromotion)!;
+            foreach (var o in offers)
+            {
+                var f = world.Get(o.Fighter)!;
+                var s = NegotiationSession.Resume(world, f, promo, new FighterValuation().Evaluate(world, f));
+                var view = s.View(Negotiator.WantsExclusivity(promo), clause: false);
+                if (view.Position.PursePerFight.Amount >= o.Purse.Amount) continue;
+                // Still worth at least the rival's paper to him (the table's rule) ...
+                var exp = new FighterValuation().Evaluate(world, f);
+                Assert.True(OfferMarket.Score(world, f, view.Position, exp) >= OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp));
+                // ... and the reasons say why it can be lower.
+                Assert.Contains(view.Reasons, r => r.Contains($"under {world.Get(o.From)!.Abbreviation}'s"));
+                explained++;
+            }
+        }
+        _out.WriteLine($"numbers under the rival's purse, explained: {explained}");
+        Assert.True(explained > 0, "no number under a rival's purse in three seeds (precondition)");
+    }
+
     // --- Helpers ----------------------------------------------------------------------------------
 
     private static World FoundedWorld(ulong seed) =>
