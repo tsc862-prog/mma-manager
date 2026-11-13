@@ -118,14 +118,33 @@ public static class OfferMarket
     /// at the promotion he is signed to — by his personal discount (a lifer's hometown
     /// rate, a discovered local's gratitude: a dollar from home is worth more to him).
     /// A rival that once discovered him gets no such lift: he owes the house he is in.
+    /// A free agent's "house" is the promotion courting him with a rival's offer standing
+    /// (<see cref="RivalOffer.Holder"/>): the same discount his table there quotes (a
+    /// discoverer's gratitude), so the rival's paper can't erase it.
     /// </summary>
     public static decimal Score(World world, Fighter f, ContractOffer o, ContractExpectations exp)
     {
         decimal excl = o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor;
-        decimal home = f.Contract?.Promotion == o.Promotion ? Negotiator.TableDiscount(world, f, o.Promotion) : 1m;
+        decimal home = HomeFactor(world, f, o.Promotion);
         double appeal = Negotiator.Appeal(world, f, o, exp);
         return Negotiator.MoneyValue(world, o) / excl * (1m + (decimal)appeal * 0.25m) / home;
     }
+
+    // His personal discount for this promotion as Score weighs it: at the house he is
+    // signed to, or (a free agent) at the one courting him with a rival's offer live.
+    private static decimal HomeFactor(World world, Fighter f, PromotionId promo) =>
+        f.Contract?.Promotion == promo
+        || (f.Contract is null && world.RivalOffers.Count > 0
+            && LiveFor(world, f.Id) is { Kind: RivalOfferKind.FreeAgent } fa && fa.Holder == promo)
+            ? Negotiator.TableDiscount(world, f, promo) : 1m;
+
+    /// <summary>
+    /// A final offer in writing as he weighs it against the rival's paper: its
+    /// <see cref="Score"/>, less the price of a champion's clause (the leash the table
+    /// charges <see cref="Negotiator.ChampionsClausePremium"/> for).
+    /// </summary>
+    public static decimal FinalScore(World world, Fighter f, ContractOffer o, ContractExpectations exp) =>
+        Score(world, f, o, exp) / (o.ChampionsClause ? Negotiator.ChampionsClausePremium : 1m);
 
     /// <summary>
     /// What it takes to keep him: the rival's structure (length, win bonus, signing
@@ -148,7 +167,7 @@ public static class OfferMarket
         };
         double appeal = Negotiator.Appeal(world, f, ours, exp);
         decimal exclF = excl ? 1m : Negotiator.NonExclusiveMoneyFactor;
-        decimal home = f.Contract?.Promotion == holder.Id ? Negotiator.TableDiscount(world, f, holder.Id) : 1m;
+        decimal home = HomeFactor(world, f, holder.Id);
         decimal neededValue = theirs * home * exclF / (1m + (decimal)appeal * 0.25m);
         decimal signingPerFight = o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount;
         decimal purse = NegotiationSession.UpTo500(neededValue - 0.5m * o.WinBonus.Amount - signingPerFight);
@@ -526,8 +545,11 @@ public static class OfferMarket
 
     /// <summary>
     /// The AI free-agency pass would sign this free agent on <paramref name="terms"/>
-    /// today. If a player-rules promotion is courting him (<see cref="CourtedBy"/>) and the
-    /// yearly offer cap (<see cref="MaxPerYear"/>, both kinds together) has room, the rival
+    /// today. If a player-rules promotion is courting him (<see cref="CourtedBy"/>), the
+    /// caps have room (<see cref="FreeAgentMaxPerYear"/> of this kind and <see cref="MaxPerYear"/>
+    /// of both together in the trailing year, and at most one of this kind per courting
+    /// promotion per pass), and the rival can really sign him today (solvent, room, the
+    /// signing bonus in the bank: the same gates as at the deadline, so no offer is a bluff), the rival
     /// lodges exactly those terms as a <see cref="RivalOfferKind.FreeAgent"/> offer with a
     /// 10-14 day deadline instead, and the owner hears it from the fighter (the terms come
     /// out at the table). Returns whether it was lodged; false leaves today's instant
@@ -537,6 +559,11 @@ public static class OfferMarket
     {
         if (CourtedBy(world, f, date) is not { } courting || courting == rival.Id) return false;
         if (HasLiveOffer(world, f.Id) || OffersThisYear(world, courting, date) >= MaxPerYear) return false;
+        if (FreeAgentOffersThisYear(world, courting, date) >= FreeAgentMaxPerYear
+            || world.RivalOffers.Any(x => x.Kind == RivalOfferKind.FreeAgent && x.Holder == courting && x.Made == date))
+            return false;
+        if (Solvency.Distress(rival) > 0 || !PoachingService.HasRoom(world, rival, f) || rival.Balance.Amount < terms.SigningBonus.Amount)
+            return false;
         int span = FreeAgentMaxDays - FreeAgentMinDays + 1;
         int days = FreeAgentMinDays + (int)(SimRandom.Mix(world.RngSeed,
             (ulong)f.Id.Value * 0x9E37_79B9UL ^ (ulong)date.DayNumber ^ DeadlineSalt) % (ulong)span);
@@ -560,34 +587,60 @@ public static class OfferMarket
     }
 
     /// <summary>
-    /// The rival's walk-away purse for a courted free agent: 15% past the smaller of its
-    /// budget and his ask, never under what it already offered. Public facts only (its
-    /// purse cap, his public-facts ask). Sim-only: never shown.
+    /// Free-agent offers allowed per courting promotion in the trailing 365 days (they also
+    /// count toward <see cref="MaxPerYear"/>), so shopping the market can't use up the year's
+    /// calls on the owner's own fighters.
+    /// </summary>
+    public const int FreeAgentMaxPerYear = 2;
+
+    /// <summary>Free-agent offers lodged for this courting promotion in the 365 days to <paramref name="date"/>.</summary>
+    public static int FreeAgentOffersThisYear(World world, PromotionId holder, DateOnly date) =>
+        world.RivalOffers.Count(o => o.Holder == holder && o.Kind == RivalOfferKind.FreeAgent && date.DayNumber - o.Made.DayNumber < 365);
+
+    /// <summary>
+    /// The rival's walk-away purse for a courted free agent: the smaller of its purse cap
+    /// and his ask (never past its own budget), never under what it already offered. Public
+    /// facts only. Sim-only: never shown.
     /// </summary>
     internal static decimal CeilingPurse(World world, Promotion rival, RivalOffer o, ContractExpectations exp)
     {
         decimal ask = exp.AskingPurse.Amount * (o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor);
-        decimal top = Math.Floor(Math.Min(Negotiator.PurseCap(world, rival), ask) * 1.15m / 500m) * 500m;
+        decimal top = Math.Floor(Math.Min(Negotiator.PurseCap(world, rival), ask) / 500m) * 500m;
         return Math.Max(o.Purse.Amount, top);
     }
+
+    /// <summary>Chance the rival answers a final offer at all (a keyed roll per offer; else it folds).</summary>
+    public const double ComeBackChance = 0.5;
+
+    private const ulong ComeBackSalt = 0x0FFE_C0BA_C4UL;
+
+    /// <summary>
+    /// Whether the rival is minded to come back once if the owner's final offer beats its paper:
+    /// its own call, a keyed hash of the world, the rival, the fighter and the day it made the
+    /// offer (no RNG stream). Whether it CAN is a separate question (<see cref="Improve"/>).
+    /// </summary>
+    internal static bool WouldComeBack(World world, RivalOffer o) =>
+        new SimRandom(SimRandom.Mix(world.RngSeed,
+            ((ulong)o.From.Value << 32) ^ (ulong)o.Fighter.Value ^ ((ulong)o.Made.DayNumber * 0x9E37_79B9UL) ^ ComeBackSalt))
+            .Chance(ComeBackChance);
 
     /// <summary>
     /// "Put it in writing": the owner's final offer to a courted free agent with a rival's
     /// paper in his hand. Lodged only if it is worth at least as much to him as the rival's
-    /// (<see cref="Score"/>) and the promotion can cover its signing bonus; a new one replaces
+    /// (<see cref="FinalScore"/>: a champion's clause is priced in) and the promotion can cover its signing bonus; a new one replaces
     /// an earlier one. On the next weekly tick the rival may come back once
     /// (<see cref="RivalOffer.Improvements"/>) or fold, and he chooses by score. Callers
     /// normally go through <see cref="NegotiationSession.PutInWriting"/>, which also holds
     /// the offer to the table's sanity rules (length, signing bonus, guaranteed money).
     /// </summary>
-    public static FinalOfferResult LodgeFinal(World world, Fighter f, Promotion promo, ContractOffer ours)
+    internal static FinalOfferResult LodgeFinal(World world, Fighter f, Promotion promo, ContractOffer ours)
     {
         if (LiveFor(world, f.Id) is not { Kind: RivalOfferKind.FreeAgent, State: RivalOfferState.Pending } o
             || o.Holder != promo.Id || f.Contract is not null || world.Get(o.From) is not { Defunct: false })
             return FinalOfferResult.NoOffer;
         if (promo.Balance.Amount < ours.SigningBonus.Amount) return FinalOfferResult.CantAfford;
         var exp = Valuation.Evaluate(world, f);
-        if (Score(world, f, ours, exp) < Score(world, f, AsContractOffer(o), exp)) return FinalOfferResult.NotEnough;
+        if (FinalScore(world, f, ours, exp) < Score(world, f, AsContractOffer(o), exp)) return FinalOfferResult.NotEnough;
         o.Final = new ContractOffer
         {
             Fighter = f.Id, Promotion = promo.Id,
@@ -620,6 +673,10 @@ public static class OfferMarket
             return null;
         }
 
+        // He walked out of the owner's talks: a final offer in writing goes with them.
+        bool walkedOut = world.Talks.Any(t => t.Fighter == f.Id && t.Promotion == o.Holder && t.SouredUntil is not null);
+        if (walkedOut) o.Final = null;
+
         // The owner's final offer, in writing: the rival's one chance, then his choice.
         if (o.Final is not null && o.State == RivalOfferState.Pending)
         {
@@ -630,7 +687,6 @@ public static class OfferMarket
         // Let go, he walked out of the owner's talks, or the deadline passed: the rival
         // signs him on its paper. (Talks merely going quiet don't end it before the
         // deadline the owner was given.)
-        bool walkedOut = world.Talks.Any(t => t.Fighter == f.Id && t.Promotion == o.Holder && t.SouredUntil is not null);
         if (o.State == RivalOfferState.LetGo || walkedOut || date > o.Deadline)
         {
             RivalSigns(world, o, f, rival, date);
@@ -686,7 +742,7 @@ public static class OfferMarket
         o.Final = null;
         bool mine = o.Holder == world.PlayerPromotion;
         var exp = Valuation.Evaluate(world, f);
-        decimal sOurs = Score(world, f, ours, exp), sTheirs = Score(world, f, AsContractOffer(o), exp);
+        decimal sOurs = FinalScore(world, f, ours, exp), sTheirs = Score(world, f, AsContractOffer(o), exp);
         bool broke = holder.Balance.Amount < ours.SigningBonus.Amount;
 
         if (broke || sOurs < sTheirs)
@@ -701,9 +757,11 @@ public static class OfferMarket
             return (false, null);
         }
 
-        // The rival's one chance: come back to beat ours by 5% (by his lights), up to its
-        // walk-away purse, if it is solvent and can pay — or fold.
-        if (o.Improvements == 0 && Solvency.Distress(rival) == 0 && Improve(world, o, f, rival, sOurs * 1.05m, exp))
+        // The rival's one chance, if it chooses to take it (a keyed roll: no automatic
+        // escalation): come back to beat ours by 5% (by his lights), within its budget, if
+        // it is solvent, has the room and can pay — or fold.
+        if (o.Improvements == 0 && WouldComeBack(world, o) && Solvency.Distress(rival) == 0
+            && PoachingService.HasRoom(world, rival, f) && Improve(world, o, f, rival, sOurs * 1.05m, exp))
         {
             if (o.Deadline < date.AddDays(FinalWeekDays)) o.Deadline = date.AddDays(FinalWeekDays);
             if (mine)
@@ -725,29 +783,25 @@ public static class OfferMarket
         return (true, null);
     }
 
-    // Raise the rival's purse (its signing bonus following, as AI offers price it) on the
-    // $500 step until its paper scores at least <paramref name="target"/>; false when that
-    // is past its walk-away purse or its bank.
-    private static bool Improve(World world, RivalOffer o, Fighter f, Promotion rival, decimal target, ContractExpectations exp)
+    // Raise the rival's paper until it scores at least <paramref name="target"/>: the purse on
+    // the $500 step up to its walk-away purse (CeilingPurse: never past its own purse cap),
+    // then a signing bonus up to half that purse (how AI offers price one). False when that
+    // isn't enough, or the bank can't cover the bonus.
+    internal static bool Improve(World world, RivalOffer o, Fighter f, Promotion rival, decimal target, ContractExpectations exp)
     {
         decimal ceiling = CeilingPurse(world, rival, o, exp);
-        ContractOffer At(decimal p) => new()
+        decimal maxSigning = Math.Max(o.SigningBonus.Amount, Math.Floor(ceiling * 0.5m / 500m) * 500m);
+        ContractOffer At(decimal p, decimal sb) => new()
         {
             Fighter = o.Fighter, Promotion = o.From, PursePerFight = new Money(p), WinBonus = o.WinBonus,
-            SigningBonus = o.SigningBonus.Amount > 0 ? new Money(Math.Round(p * 0.5m / 500m) * 500m) : Money.Zero,
-            Fights = o.Fights, Exclusive = o.Exclusive,
+            SigningBonus = new Money(sb), Fights = o.Fights, Exclusive = o.Exclusive,
         };
-        decimal purse = o.Purse.Amount;
-        decimal s = Score(world, f, At(purse), exp);
-        decimal per500 = Score(world, f, At(purse + 500m), exp) - s;
-        if (per500 <= 0) return false;
-        purse += Math.Max(500m, Math.Floor((target - s) / per500) * 500m);
-        for (int i = 0; i < 40 && Score(world, f, At(purse), exp) < target; i++) purse += 500m;
-        if (purse > ceiling || Score(world, f, At(purse), exp) < target) return false;
-        var better = At(purse);
-        if (rival.Balance.Amount < better.SigningBonus.Amount) return false;
-        o.Purse = better.PursePerFight;
-        o.SigningBonus = better.SigningBonus;
+        decimal purse = o.Purse.Amount, signing = o.SigningBonus.Amount;
+        while (purse + 500m <= ceiling && Score(world, f, At(purse, signing), exp) < target) purse += 500m;
+        while (signing + 500m <= maxSigning && Score(world, f, At(purse, signing), exp) < target) signing += 500m;
+        if (Score(world, f, At(purse, signing), exp) < target || rival.Balance.Amount < signing) return false;
+        o.Purse = new Money(purse);
+        o.SigningBonus = new Money(signing);
         o.Improvements++;
         return true;
     }

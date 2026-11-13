@@ -26,8 +26,7 @@ public class FreeAgentOfferTests
     {
         var (world, offers) = CourtedMarket(48);
         _out.WriteLine($"lodged {offers.Count}");
-        Assert.NotEmpty(offers);
-        Assert.True(offers.Count <= OfferMarket.MaxPerYear, "the yearly cap covers free-agent offers too");
+        Assert.Single(offers);   // at most one per courting promotion per monthly pass, however many it courts
         foreach (var o in offers)
         {
             var f = world.Get(o.Fighter)!;
@@ -94,17 +93,122 @@ public class FreeAgentOfferTests
     {
         var world = FoundedWorld(48);
         // Five end-of-deal offers already this year: no free-agent offer, the AI signs as before.
-        for (int i = 0; i < OfferMarket.MaxPerYear; i++)
-            world.RivalOffers.Add(new RivalOffer
-            {
-                Id = i + 1, Fighter = new FighterId(900_000 + i), From = world.Promotions.Keys.First(),
-                Holder = world.PlayerPromotion, Made = world.CurrentDate.AddDays(-30), Kind = RivalOfferKind.EndOfDeal,
-                State = RivalOfferState.Withdrawn, Resolved = world.CurrentDate.AddDays(-20),
-            });
+        for (int i = 0; i < OfferMarket.MaxPerYear; i++) world.RivalOffers.Add(PastOffer(world, i + 1, RivalOfferKind.EndOfDeal, 30));
         CourtEveryone(world);
         FreeAgencyService.RunMonthly(world, world.CurrentDate);
         Assert.DoesNotContain(world.RivalOffers, o => o.Kind == RivalOfferKind.FreeAgent);
     }
+
+    [Fact]
+    public void FreeAgentOffers_HaveTheirOwnCapOfTwoAYear_AndOnePerPass()
+    {
+        var world = FoundedWorld(48);
+        var tick = new WorldTick();
+        for (int m = 0; m < 13; m++)
+        {
+            CourtEveryone(world);
+            int before = world.RivalOffers.Count(o => o.Kind == RivalOfferKind.FreeAgent);
+            for (int w = 0; w < 4; w++) tick.AdvanceWeek(world);
+            Assert.True(world.RivalOffers.Count(o => o.Kind == RivalOfferKind.FreeAgent) - before <= 1, "one per monthly pass");
+        }
+        var fa = world.RivalOffers.Where(o => o.Kind == RivalOfferKind.FreeAgent).Select(o => o.Made).OrderBy(d => d).ToList();
+        _out.WriteLine($"free-agent offers in a year of courting: {fa.Count}");
+        Assert.NotEmpty(fa);
+        Assert.True(fa.All(d => fa.Count(x => x >= d && x.DayNumber - d.DayNumber < 365) <= OfferMarket.FreeAgentMaxPerYear));
+    }
+
+    [Fact]
+    public void WithTwoFreeAgentOffersUsed_EndOfDealOffersStillCome_ThreeMore()
+    {
+        var world = FoundedWorld(48);
+        world.RivalOffers.Add(PastOffer(world, 1, RivalOfferKind.FreeAgent, 40));
+        world.RivalOffers.Add(PastOffer(world, 2, RivalOfferKind.FreeAgent, 20));
+        CourtEveryone(world);
+        FreeAgencyService.RunMonthly(world, world.CurrentDate);
+        Assert.Equal(2, world.RivalOffers.Count(o => o.Kind == RivalOfferKind.FreeAgent));   // the free-agent cap is spent
+
+        // Stars on their last fight: end-of-deal calls keep coming until the total of five.
+        var promo = world.Get(world.PlayerPromotion)!;
+        int made = 0;
+        foreach (var f in world.FreeAgents().Where(x => x.Status == FighterStatus.Active && promo.Divisions.Any(d => d.Matches(x)))
+                     .OrderBy(x => x.Id.Value).Take(40).ToList())
+        {
+            ContractLifecycle.Sign(world, f, new ContractOffer
+            {
+                Fighter = f.Id, Promotion = promo.Id, PursePerFight = new Money(5_000m), WinBonus = new Money(5_000m), Fights = 1,
+            }, world.CurrentDate);
+            foreach (var a in Raise(f)) a(72);
+            f.Record.Wins = 14; f.Record.Losses = 2; f.Record.CurrentStreak = 4; f.Intangibles.Popularity = 55; f.Loyalty = 10;
+            f.Disposition = Disposition.Warhorse;
+            if (OfferMarket.OffersThisYear(world, promo.Id, world.CurrentDate) < OfferMarket.MaxPerYear
+                && OfferMarket.Call(world, f, world.CurrentDate) is not null) made++;
+        }
+        Assert.Equal(OfferMarket.MaxPerYear - 2, made);
+        Assert.Equal(OfferMarket.MaxPerYear, OfferMarket.OffersThisYear(world, promo.Id, world.CurrentDate));
+    }
+
+    [Fact]
+    public void ARivalThatCouldNotReallySignHim_DoesNotLodgeAPhantomOffer()
+    {
+        // The would-be rival and its terms from a real pass; then, in a fresh copy of that
+        // world, the same rival in the red, without room, or without the signing bonus:
+        // no offer (the pass signs on the spot exactly as main does).
+        var (seen, offers) = CourtedMarket(48);
+        var o = offers.Single();
+        var terms = OfferMarket.AsContractOffer(o);
+        terms.SigningBonus = new Money(10_000m);
+
+        World Fresh(out Promotion rival, out Fighter f)
+        {
+            var w = FoundedWorld(48);
+            CourtEveryone(w);
+            rival = w.Get(o.From)!;
+            f = w.Get(o.Fighter)!;
+            rival.Balance = new Money(1_000_000m);
+            return w;
+        }
+
+        var ok = Fresh(out var r0, out var f0);
+        Assert.True(OfferMarket.TryLodgeFreeAgent(ok, r0, f0, terms, ok.CurrentDate), "precondition: a solvent rival with room lodges");
+
+        var red = Fresh(out var r1, out var f1);
+        r1.Balance = new Money(-1m);
+        Assert.True(MmaManager.Core.Sim.Org.Solvency.Distress(r1) > 0);
+        Assert.False(OfferMarket.TryLodgeFreeAgent(red, r1, f1, terms, red.CurrentDate));
+
+        var broke = Fresh(out var r2, out var f2);
+        r2.Balance = new Money(5_000m);   // solvent, but not the $10,000 bonus
+        Assert.False(OfferMarket.TryLodgeFreeAgent(broke, r2, f2, terms, broke.CurrentDate));
+
+        var full = Fresh(out var r3, out var f3);
+        f3.Intangibles.Popularity = 0;   // no draw to squeeze in
+        var div = r3.Divisions.First(d => d.Matches(f3));
+        foreach (var x in full.FreeAgents().Where(x => x.Status == FighterStatus.Active && div.Matches(x) && x.Id != f3.Id).Take(60).ToList())
+            ContractLifecycle.Sign(full, x, new ContractOffer { Fighter = x.Id, Promotion = r3.Id, PursePerFight = new Money(1_000m), Fights = 2 }, full.CurrentDate);
+        Assert.False(PoachingService.HasRoom(full, r3, f3), "precondition: the division is full");
+        Assert.False(OfferMarket.TryLodgeFreeAgent(full, r3, f3, terms, full.CurrentDate));
+
+        Assert.Empty(red.RivalOffers);
+        Assert.Empty(broke.RivalOffers);
+        Assert.Empty(full.RivalOffers);
+    }
+
+    private static RivalOffer PastOffer(World world, int id, RivalOfferKind kind, int daysAgo) => new()
+    {
+        Id = id, Fighter = new FighterId(900_000 + id), From = world.Promotions.Keys.First(),
+        Holder = world.PlayerPromotion, Made = world.CurrentDate.AddDays(-daysAgo), Kind = kind,
+        State = RivalOfferState.Withdrawn, Resolved = world.CurrentDate.AddDays(-daysAgo + 10),
+    };
+
+    private static IEnumerable<Action<int>> Raise(Fighter f) => new Action<int>[]
+    {
+        v => f.Striking.PunchPower = v, v => f.Striking.PunchTechnique = v, v => f.Striking.StrikingDefense = v,
+        v => f.Striking.Footwork = v, v => f.Striking.KickTechnique = v, v => f.Grappling.TakedownOffense = v,
+        v => f.Grappling.TakedownDefense = v, v => f.Grappling.TopControl = v, v => f.Grappling.Scrambling = v,
+        v => f.Grappling.SubmissionOffense = v, v => f.Grappling.SubmissionDefense = v,
+        v => f.Physical.Cardio = v, v => f.Physical.Speed = v, v => f.Physical.Chin = v, v => f.Physical.Strength = v,
+        v => f.Mental.FightIQ = v, v => f.Mental.Composure = v, v => f.Mental.Heart = v,
+    };
 
     // --- The deadline: the rival signs him -----------------------------------------------
 
@@ -114,6 +218,7 @@ public class FreeAgentOfferTests
         var (world, o, f) = OneOffer(48);
         var rival = world.Get(o.From)!;
         rival.Balance = new Money(Math.Max(rival.Balance.Amount, 2_000_000m));
+        foreach (var a in Raise(f)) a(72);   // a name the press covers (signings under that go unreported)
         int bonusLines = rival.Ledger.Count(l => l.Category == FinanceCategory.SigningBonus && l.Description.Contains(f.FullName));
         int news = world.News.Count(n => n.Category == NewsCategory.Signing && n.Headline.Contains(f.FullName));
         int playerLines = world.Get(world.PlayerPromotion)!.Ledger.Count;
@@ -132,7 +237,7 @@ public class FreeAgentOfferTests
         Assert.Equal(o.Fights, f.Contract.FightsRemaining);
         Assert.Equal(o.SigningBonus.Amount > 0 ? 1 : 0,
             rival.Ledger.Count(l => l.Category == FinanceCategory.SigningBonus && l.Description.Contains(f.FullName)) - bonusLines);
-        Assert.True(world.News.Count(n => n.Category == NewsCategory.Signing && n.Headline.Contains(f.FullName)) - news <= 1);
+        Assert.Equal(1, world.News.Count(n => n.Category == NewsCategory.Signing && n.Headline.Contains(f.FullName)) - news);
         Assert.Equal(playerLines, world.Get(world.PlayerPromotion)!.Ledger.Count);
         Assert.Contains(world.Mail, m => m.Subject == $"{f.FullName} signed with {rival.Abbreviation}");
 
@@ -234,56 +339,113 @@ public class FreeAgentOfferTests
 
     // --- Put it in writing --------------------------------------------------------------------
 
+    // Seed 40's rival is minded to come back (its keyed roll), seed 48's is not: both could afford to.
+    private const ulong ComesBackSeed = 40, FoldsSeed = 48;
+
     [Fact]
-    public void AFinalOffer_TheRivalComesBackOnce_ThenHeChoosesByWhatHeWants()
+    public void AFinalOffer_ARivalMindedToComeBack_RaisesOnce_WithinItsBudget_ThenHeChoosesOurs()
     {
-        var (world, o, f) = OneOffer(48);
+        var (world, o, f) = OneOffer(ComesBackSeed);
+        Assert.True(OfferMarket.WouldComeBack(world, o), "precondition: this rival chooses to come back");
         var promo = world.Get(world.PlayerPromotion)!;
         promo.Balance = new Money(5_000_000m);
         var rival = world.Get(o.From)!;
         rival.Balance = new Money(Math.Max(rival.Balance.Amount, 2_000_000m));
         var exp = new FighterValuation().Evaluate(world, f);
-        decimal purse0 = o.Purse.Amount;
+        decimal before = OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp);
 
-        // Just beating their paper: lodged, and the rival gets its one chance.
-        var ours = OfferMarket.MatchTerms(world, o);
+        var ours = JustBeating(world, o);
         Assert.Equal(FinalOfferResult.Lodged, OfferMarket.LodgeFinal(world, f, promo, ours));
-        Assert.NotNull(o.Final);
         var stop = OfferMarket.RunWeekly(world, o.Made.AddDays(7));
-        Assert.Null(o.Final);
-        if (o.Improvements == 1)
-        {
-            Assert.Same(o, stop);   // "They came back": the owner must answer now
-            Assert.True(o.Purse.Amount > purse0);
-            Assert.True(o.Purse.Amount <= OfferMarket.CeilingPurse(world, rival, o, exp));
-            Assert.True(OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp) > OfferMarket.Score(world, f, ours, exp));
-            Assert.Contains(world.Mail, m => m.Subject == $"{rival.Abbreviation} came back for {f.FullName}");
-            Assert.Null(f.Contract);
-            Assert.True(o.Deadline >= o.Made.AddDays(7 + OfferMarket.FinalWeekDays));
 
-            // Our old offer no longer beats it.
-            Assert.Equal(FinalOfferResult.NotEnough, OfferMarket.LodgeFinal(world, f, promo, ours));
-            // Beat the new paper: no second improvement — he signs with us.
-            var better = OfferMarket.MatchTerms(world, o);
-            Assert.Equal(FinalOfferResult.Lodged, OfferMarket.LodgeFinal(world, f, promo, better));
-            OfferMarket.RunWeekly(world, o.Made.AddDays(14));
-            Assert.Equal(1, o.Improvements);
-            Assert.Equal(promo.Id, f.Contract!.Promotion);
-            Assert.Equal(better.PursePerFight, f.Contract.PursePerFight);
-        }
-        else
-        {
-            // The rival folded: he took ours.
-            Assert.Equal(promo.Id, f.Contract!.Promotion);
-        }
+        Assert.Equal(1, o.Improvements);
+        Assert.Same(o, stop);   // "They came back": the owner must answer now
+        Assert.Null(o.Final);
+        Assert.Null(f.Contract);
+        decimal after = OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp);
+        Assert.True(after > before);
+        Assert.True(after >= OfferMarket.FinalScore(world, f, ours, exp) * 1.05m);
+        Assert.True(o.Purse.Amount <= Math.Max(OfferMarket.CeilingPurse(world, rival, o, exp), Negotiator.PurseCap(world, rival)),
+            "never past its own purse cap");
+        Assert.Contains(world.Mail, m => m.Subject == $"{rival.Abbreviation} came back for {f.FullName}");
+        Assert.True(o.Deadline >= o.Made.AddDays(7 + OfferMarket.FinalWeekDays));
+
+        // Our old offer no longer beats it; beat the new paper and he signs with us: no second raise.
+        Assert.Equal(FinalOfferResult.NotEnough, OfferMarket.LodgeFinal(world, f, promo, ours));
+        var better = JustBeating(world, o);
+        Assert.Equal(FinalOfferResult.Lodged, OfferMarket.LodgeFinal(world, f, promo, better));
+        OfferMarket.RunWeekly(world, o.Made.AddDays(14));
+        Assert.Equal(1, o.Improvements);
         Assert.Equal(RivalOfferState.Beaten, o.State);
+        Assert.Equal(promo.Id, f.Contract!.Promotion);
+        Assert.Equal(better.PursePerFight, f.Contract.PursePerFight);
         Assert.Contains(world.Mail, m => m.Subject == $"{f.FullName} is ours");
+    }
+
+    [Fact]
+    public void AFinalOffer_ARivalNotMindedToComeBack_Folds_EvenThoughItCouldAffordTo()
+    {
+        var (world, o, f) = OneOffer(FoldsSeed);
+        Assert.False(OfferMarket.WouldComeBack(world, o), "precondition: this rival does not choose to come back");
+        var promo = world.Get(world.PlayerPromotion)!;
+        promo.Balance = new Money(5_000_000m);
+        var rival = world.Get(o.From)!;
+        rival.Balance = new Money(Math.Max(rival.Balance.Amount, 2_000_000m));
+        var exp = new FighterValuation().Evaluate(world, f);
+        var ours = JustBeating(world, o);
+        var probe = new RivalOffer
+        {
+            Id = 0, Fighter = o.Fighter, From = o.From, Holder = o.Holder, Made = o.Made,
+            Purse = o.Purse, WinBonus = o.WinBonus, SigningBonus = o.SigningBonus, Fights = o.Fights, Exclusive = o.Exclusive,
+        };
+        Assert.True(OfferMarket.Improve(world, probe, f, rival, OfferMarket.FinalScore(world, f, ours, exp) * 1.05m, exp),
+            "precondition: it could have come back");
+
+        Assert.Equal(FinalOfferResult.Lodged, OfferMarket.LodgeFinal(world, f, promo, ours));
+        Assert.Null(OfferMarket.RunWeekly(world, o.Made.AddDays(7)));
+        Assert.Equal(0, o.Improvements);
+        Assert.Equal(RivalOfferState.Beaten, o.State);
+        Assert.Equal(promo.Id, f.Contract!.Promotion);
+        Assert.Equal(ours.PursePerFight, f.Contract.PursePerFight);
+    }
+
+    [Fact]
+    public void AFinalOffer_WithAChampionsClause_MustBeatThePaperByTheClausesPrice()
+    {
+        var (world, o, f) = OneOffer(48);
+        var promo = world.Get(world.PlayerPromotion)!;
+        promo.Balance = new Money(5_000_000m);
+        var exp = new FighterValuation().Evaluate(world, f);
+        decimal theirs = OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp);
+        var ours = JustBeating(world, o);
+        Assert.True(OfferMarket.Score(world, f, ours, exp) < theirs * Negotiator.ChampionsClausePremium, "precondition: only just beats it");
+        ours.ChampionsClause = true;
+        Assert.Equal(FinalOfferResult.NotEnough, OfferMarket.LodgeFinal(world, f, promo, ours));
+        ours.ChampionsClause = false;
+        Assert.Equal(FinalOfferResult.Lodged, OfferMarket.LodgeFinal(world, f, promo, ours));
+    }
+
+    [Fact]
+    public void AWalkOut_CancelsAFinalOfferInWriting_AndTheRivalSignsHim()
+    {
+        var (world, o, f) = OneOffer(ComesBackSeed);
+        var promo = world.Get(world.PlayerPromotion)!;
+        promo.Balance = new Money(5_000_000m);
+        world.Get(o.From)!.Balance = new Money(2_000_000m);
+        Assert.Equal(FinalOfferResult.Lodged, OfferMarket.LodgeFinal(world, f, promo, JustBeating(world, o)));
+        world.Talks.Single(x => x.Fighter == f.Id && x.Promotion == promo.Id).SouredUntil = world.CurrentDate.AddDays(21);
+
+        OfferMarket.RunWeekly(world, o.Made.AddDays(7));
+        Assert.Null(o.Final);
+        Assert.Equal(0, o.Improvements);
+        Assert.Equal(RivalOfferState.Signed, o.State);
+        Assert.Equal(o.From, f.Contract!.Promotion);
     }
 
     [Fact]
     public void AFinalOfferPastTheRivalsWalkAway_MakesItFold()
     {
-        var (world, o, f) = OneOffer(48);
+        var (world, o, f) = OneOffer(ComesBackSeed);   // minded to come back, but it can't reach this
         var promo = world.Get(world.PlayerPromotion)!;
         promo.Balance = new Money(5_000_000m);
         var exp = new FighterValuation().Evaluate(world, f);
@@ -324,6 +486,28 @@ public class FreeAgentOfferTests
         promo.Balance = new Money(5_000_000m);
         Assert.Equal(FinalOfferResult.Lodged, room.PutInWriting(good));
         Assert.NotNull(room.View(Negotiator.WantsExclusivity(promo), false).Final);
+    }
+
+    [Fact]
+    public void TheCourtingDiscoverer_KeepsHisGratitude_WhenARivalsPaperIsOnTheTable()
+    {
+        var (world, o, f) = OneOffer(48);
+        var promo = world.Get(world.PlayerPromotion)!;
+        bool excl = Negotiator.WantsExclusivity(promo);
+        f.Record.Wins = 3; f.Record.Losses = 1;   // young career: the discoverer's discount applies
+        var exp = new FighterValuation().Evaluate(world, f);
+        var room = NegotiationSession.Resume(world, f, promo, exp);
+        var deal = room.TheirTermsAsOffer(excl, false);
+        decimal plain = OfferMarket.Score(world, f, deal, exp);
+
+        f.DiscoveredBy = promo.Id;
+        decimal grateful = OfferMarket.Score(world, f, deal, exp);
+        Assert.Equal(plain / Negotiator.TableDiscount(world, f, promo.Id), grateful);   // a dollar from the house that found him counts for more
+        Assert.True(Negotiator.TableDiscount(world, f, promo.Id) < 1m);
+        // ...and his number at our table is the lower for it, not pushed back up to the rival's.
+        var thankful = NegotiationSession.Resume(world, f, promo, exp).TheirTermsAsOffer(excl, false);
+        Assert.True(thankful.PursePerFight.Amount < deal.PursePerFight.Amount,
+            $"{thankful.PursePerFight} vs {deal.PursePerFight}");
     }
 
     // --- Lifecycle edges --------------------------------------------------------------------------
@@ -437,6 +621,20 @@ public class FreeAgentOfferTests
         foreach (var o in fa.Where(o => o.State == RivalOfferState.Signed))
             Assert.True(world.Get(o.Fighter)!.Contract is null || world.Get(o.Fighter)!.Status == FighterStatus.Retired
                         || world.Get(o.Fighter)!.Contract!.SignedOn >= o.Made);
+    }
+
+    // The owner's offer on the rival's structure at the lowest purse whose final score beats its paper.
+    internal static ContractOffer JustBeating(World world, RivalOffer o)
+    {
+        var f = world.Get(o.Fighter)!;
+        var exp = new FighterValuation().Evaluate(world, f);
+        decimal theirs = OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp);
+        var ours = OfferMarket.MatchTerms(world, o);
+        while (ours.PursePerFight.Amount > 500m && OfferMarket.FinalScore(world, f, ours, exp) >= theirs)
+            ours.PursePerFight = new Money(ours.PursePerFight.Amount - 500m);
+        while (OfferMarket.FinalScore(world, f, ours, exp) < theirs)
+            ours.PursePerFight = new Money(ours.PursePerFight.Amount + 500m);
+        return ours;
     }
 
     // --- Helpers ----------------------------------------------------------------------------------
