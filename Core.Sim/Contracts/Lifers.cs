@@ -115,7 +115,7 @@ public static class Lifers
 
     // --- Why a lifer breaks ------------------------------------------------------
 
-    public enum GrievanceKind { OrgInTrouble, PassedOver, Benched, Underpaid, Skid }
+    public enum GrievanceKind { OrgInTrouble, PassedOver, Benched, Underpaid, Skid, BrokenPromise }
 
     /// <summary>A standing grievance and its plain-language reason.</summary>
     public sealed record Grievance(GrievanceKind Kind, string Reason);
@@ -164,6 +164,7 @@ public static class Lifers
         GrievanceKind.PassedOver => "book him the title shot",
         GrievanceKind.Benched => "put him on a card",
         GrievanceKind.Underpaid => "re-sign him on a raise",
+        GrievanceKind.BrokenPromise => "make him a promise and keep it — or give it a year",
         _ => "get him a win",
     });
 
@@ -186,6 +187,11 @@ public static class Lifers
             return new(GrievanceKind.OrgInTrouble, distress >= 2
                 ? $"{org.Abbreviation} is fighting for its life and can't promise him a future"
                 : $"{org.Abbreviation} is in the red and can't promise him a future");
+
+        // A promise made at the table and broken (contracts stage 9; none in an AI world).
+        if (Promises.Grievance(world, f, org.Id, date) is { } broken)
+            return new(GrievanceKind.BrokenPromise,
+                $"{org.Abbreviation} promised him {Promises.What(world, broken)} and broke its word");
 
         // One pass over this promotion's cards: when he last fought here, whether
         // he is booked, and who has been getting title shots in his division.

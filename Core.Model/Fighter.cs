@@ -292,6 +292,13 @@ public sealed class Contract
 
     /// <summary>The owner has had the "last week to re-sign him" warning for this window (sent once).</summary>
     public bool WindowWarned { get; set; }
+
+    /// <summary>
+    /// The holder bought the right to match a rival's end-of-deal offer for him and keep
+    /// him on the rival's terms exactly (contracts stage 9; player-rules promotions only).
+    /// Spent when he re-signs: the new deal carries it only if its own slip did.
+    /// </summary>
+    public bool MatchingRight { get; set; }
 }
 
 public sealed class Injury

@@ -140,31 +140,55 @@ public static class OfferMarket
 
     /// <summary>
     /// A final offer in writing as he weighs it against the rival's paper: its
-    /// <see cref="Score"/>, less the price of a champion's clause (the leash the table
-    /// charges <see cref="Negotiator.ChampionsClausePremium"/> for).
+    /// <see cref="Score"/>, less the price of the leash terms on it (a champion's clause,
+    /// <see cref="Negotiator.ChampionsClausePremium"/>; a matching right,
+    /// <see cref="Negotiator.MatchingRightPremium"/>) — what the table charges for them.
     /// </summary>
     public static decimal FinalScore(World world, Fighter f, ContractOffer o, ContractExpectations exp) =>
-        Score(world, f, o, exp) / (o.ChampionsClause ? Negotiator.ChampionsClausePremium : 1m);
+        Score(world, f, o, exp) / Negotiator.LeashFactor(o);
+
+    /// <summary>
+    /// Whether the holder of this end-of-deal offer bought the right to match it (contracts
+    /// stage 9): his deal with the holder carries <see cref="Contract.MatchingRight"/>, and the
+    /// holder runs under the player's deal rules. A free agent's offer never has one.
+    /// </summary>
+    public static bool HasMatchingRight(World world, RivalOffer o) =>
+        o.Kind == RivalOfferKind.EndOfDeal
+        && world.Get(o.Fighter)?.Contract is { MatchingRight: true } c && c.Promotion == o.Holder
+        && DealWindow.PlayerRules(world, o.Holder);
 
     /// <summary>
     /// What it takes to keep him: the rival's structure (length, win bonus, signing
     /// bonus) on the holder's terms (its exclusivity), at the lowest purse on the $500
     /// step whose <see cref="Score"/> beats the rival's — and never under his live
     /// deal's show money or the floor his own table would come down to.
+    ///
+    /// With a MATCHING RIGHT (<see cref="HasMatchingRight"/>) the holder keeps him on the
+    /// rival's terms exactly: the rival's purse, win bonus, signing bonus and length, even
+    /// when the rival's stage, home or people pull him harder (his <see cref="Score"/> would
+    /// prefer the rival's paper) and even under his own table's floor. Only his live deal's
+    /// show money still stands under it (nobody re-signs for a pay cut). That is the whole
+    /// difference the right makes: without it the match must beat the rival by his lights.
     /// </summary>
     public static ContractOffer MatchTerms(World world, RivalOffer o)
     {
         var f = world.Get(o.Fighter)!;
         var holder = world.Get(o.Holder)!;
-        var exp = Valuation.Evaluate(world, f);
-        decimal theirs = Score(world, f, AsContractOffer(o), exp);
-
         bool excl = Negotiator.WantsExclusivity(holder);
         var ours = new ContractOffer
         {
             Fighter = f.Id, Promotion = holder.Id, WinBonus = o.WinBonus, SigningBonus = o.SigningBonus,
             Fights = o.Fights, Exclusive = excl, Round = 0,
         };
+        if (HasMatchingRight(world, o))
+        {
+            decimal live = Negotiator.LivePurseFloor(f, holder.Id) is { } held ? NegotiationSession.UpTo500(held.Amount) : 0m;
+            ours.PursePerFight = new Money(Math.Max(o.Purse.Amount, live));
+            return ours;
+        }
+
+        var exp = Valuation.Evaluate(world, f);
+        decimal theirs = Score(world, f, AsContractOffer(o), exp);
         double appeal = Negotiator.Appeal(world, f, ours, exp);
         decimal exclF = excl ? 1m : Negotiator.NonExclusiveMoneyFactor;
         decimal home = HomeFactor(world, f, holder.Id);
@@ -647,6 +671,8 @@ public static class OfferMarket
             PursePerFight = ours.PursePerFight, WinBonus = ours.WinBonus, SigningBonus = ours.SigningBonus,
             Fights = ours.Fights, Exclusive = ours.Exclusive, ChampionsClause = ours.ChampionsClause,
             PpvPoints = ours.PpvPoints, PerformanceBonus = ours.PerformanceBonus, Round = 0,
+            PromiseFights = ours.PromiseFights, PromiseHomeShow = ours.PromiseHomeShow,
+            PromiseTitleShot = ours.PromiseTitleShot, MatchingRight = ours.MatchingRight,
         };
         return FinalOfferResult.Lodged;
     }
@@ -836,6 +862,7 @@ public static class OfferMarket
             $"{f.FullName} has an offer from {rival.Abbreviation}",
             Lifers.Gendered(f, $"“{rival.Name} put paper in front of me: {terms}. {voice}” "
                 + $"{f.FullName}'s deal with {holder.Abbreviation} is down to its last fight. {lean.Words} "
+                + (HasMatchingRight(world, o) ? $"But we hold a matching right: match {rival.Abbreviation}'s terms exactly and he has to stay. " : "")
                 + $"Answer by {o.Deadline:d MMMM}: match it on the Desk (Home), sit down with him on the Contracts screen, "
                 + $"or let him go — he signs with {rival.Abbreviation} when his deal is up."),
             aboutFighter: f.Id);
@@ -865,6 +892,7 @@ public static class OfferMarket
             Id = id, Kind = DecisionKind.RivalOffer, Created = created, Deadline = o.Deadline,
             Fighter = f.Id, Promotion = rival.Id, Price = match.PursePerFight,
             Detail = Lifers.Gendered(f, $"{rival.Name} ({tier}) has offered {f.FullName} {TermsText(o)}. {lean.Words} "
+                + (HasMatchingRight(world, o) ? "We hold a matching right on his deal: match their terms exactly and he stays, whatever pulls him there. " : "")
                 + $"Match: {match.PursePerFight} a fight for {match.Fights} fights"
                 + (match.SigningBonus.Amount > 0 ? $" and {match.SigningBonus} to sign" : "")
                 + $" keeps him. Let him go and he signs with {rival.Abbreviation} when his deal is up — "

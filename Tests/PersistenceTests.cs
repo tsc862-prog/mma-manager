@@ -60,7 +60,16 @@ public class PersistenceTests
                     Fighter = world.Fighters.Keys.Skip(4).First(), Promotion = world.Promotions.Keys.Skip(1).First(),
                     PursePerFight = new Money(12_500m), WinBonus = new Money(6_000m), SigningBonus = new Money(4_000m),
                     Fights = 3, PpvPoints = 2, PerformanceBonus = new Money(2_500m), Exclusive = false, ChampionsClause = true,
+                    PromiseFights = 3, PromiseHomeShow = true, PromiseTitleShot = true, MatchingRight = true,
                 },
+            });
+            // A promise written into a deal (contracts stage 9), resolved, with a note.
+            world.Promises.Add(new Promise
+            {
+                Id = 1, Fighter = world.Fighters.Keys.Skip(5).First(), Promotion = world.Promotions.Keys.First(),
+                Kind = PromiseKind.TitleShot, Fights = 2, Made = world.CurrentDate.AddDays(-40),
+                Deadline = world.CurrentDate.AddDays(325), State = PromiseState.Broken,
+                Resolved = world.CurrentDate.AddDays(-2), Warned = true, Note = "the deadline passed",
             });
 
             PersistenceGraph.FillUnpopulated(world);

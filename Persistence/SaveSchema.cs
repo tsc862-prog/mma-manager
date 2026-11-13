@@ -118,7 +118,7 @@ internal static class SaveSchema
                 contract_promotion INTEGER, contract_signed_on TEXT, contract_type TEXT,
                 purse TEXT, win_bonus TEXT, fights_remaining INTEGER, is_exclusive INTEGER, has_champions_clause INTEGER,
                 signing_bonus TEXT, ppv_points INTEGER, performance_bonus TEXT, guaranteed INTEGER, poach_warned INTEGER, bond_notice_on TEXT,
-                window_ends_on TEXT, window_warned INTEGER,
+                window_ends_on TEXT, window_warned INTEGER, matching_right INTEGER,
                 injury_severity TEXT, injury_desc TEXT, injury_occurred TEXT, injury_return TEXT,
                 ready_to_fight_on TEXT, loyalty INTEGER NOT NULL, marketing_push INTEGER NOT NULL, camp_id INTEGER,
                 camp_stipend INTEGER NOT NULL DEFAULT 0, star_power INTEGER NOT NULL DEFAULT 0,
@@ -253,7 +253,14 @@ internal static class SaveSchema
                 made TEXT NOT NULL, deadline TEXT NOT NULL, state TEXT NOT NULL, resolved TEXT,
                 improvements INTEGER NOT NULL,
                 final_purse TEXT, final_win_bonus TEXT, final_signing_bonus TEXT, final_fights INTEGER,
-                final_exclusive INTEGER, final_clause INTEGER, final_ppv INTEGER, final_perf TEXT
+                final_exclusive INTEGER, final_clause INTEGER, final_ppv INTEGER, final_perf TEXT,
+                final_promise_fights INTEGER, final_promise_home INTEGER, final_promise_title INTEGER, final_matching_right INTEGER
+            );
+
+            CREATE TABLE promises (
+                ordinal INTEGER NOT NULL, id INTEGER NOT NULL, fighter_id INTEGER NOT NULL, promotion_id INTEGER NOT NULL,
+                kind TEXT NOT NULL, fights INTEGER NOT NULL, made TEXT NOT NULL, deadline TEXT NOT NULL,
+                state TEXT NOT NULL, resolved TEXT, warned INTEGER NOT NULL, note TEXT NOT NULL DEFAULT ''
             );
 
 

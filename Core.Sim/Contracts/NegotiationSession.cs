@@ -30,12 +30,19 @@ public sealed record RivalSlip(
 /// The negotiating table as the UI reads it (<see cref="NegotiationSession.View"/>): his
 /// position on the terms asked about, the reasons behind it in words, the rival's paper
 /// (<see cref="Rival"/>, null when there is none), his leaning between the two, the final
-/// offer in writing (<see cref="Final"/>), and the answer to the last offer tabled.
+/// offer in writing (<see cref="Final"/>), and the answer to the last offer tabled. Contracts
+/// stage 9 adds the promises the owner could put on the slip (<see cref="PromiseOptions"/>:
+/// allowed or why not, what each is worth to him, how much it takes off his purse), the
+/// promises already on the books for him (<see cref="Promises"/>), whether the deal he is on
+/// carries a matching right (<see cref="MatchingRightHeld"/>), and what granting one on this
+/// slip adds to his purse (<see cref="MatchingRightCost"/>).
 /// </summary>
 public sealed record NegotiationView(
     FighterId Fighter, string Name, string Stance, string OpeningLine, string Mood, int Patience, int Round,
     TalkOutcome Outcome, bool Resumed, ContractOffer Position, IReadOnlyList<string> Reasons,
-    RivalSlip? Rival, Leaning? Leaning, ContractOffer? Final, TalkResponse? Last);
+    RivalSlip? Rival, Leaning? Leaning, ContractOffer? Final, TalkResponse? Last,
+    IReadOnlyList<PromiseOption> PromiseOptions, IReadOnlyList<PromiseStatus> Promises,
+    bool MatchingRightHeld, Money MatchingRightCost);
 
 /// <summary>
 /// A sit-down with a fighter's agent: stateful, multi-round talks. The agent
@@ -64,6 +71,7 @@ public sealed class NegotiationSession
     private string? _rivalName;
     private RivalOffer? _offer;               // the live rival offer the table reads (set by Resume)
     private decimal? _rivalScore;             // the rival's paper by his lights (OfferMarket.Score): a deal here must be worth at least this
+    private readonly decimal _distrust;       // this promotion broke its word to him: his number is higher (Promises.Distrust; else 1)
 
     public NegotiationSession(World world, Fighter fighter, Promotion promo, ContractExpectations exp)
     {
@@ -78,10 +86,11 @@ public sealed class NegotiationSession
         _floorFrac = 1.0 - _appeal * 0.25;    // a dream situation is worth ~25% off the ask
         _home = Negotiator.TableDiscount(world, fighter, promo.Id);
         _liveFloor = Negotiator.LivePurseFloor(fighter, promo.Id);
+        _distrust = Promises.Distrust(world, fighter.Id, promo.Id, world.CurrentDate);
 
         AgentToughness = FighterValuation.AgentToughness(fighter);
         _concessionRate = 0.45 - AgentToughness * 0.002;   // 0.25 (hard-nosed) .. 0.45 (easygoing)
-        Patience = 3 + (_appeal > 0.5 ? 1 : 0);
+        Patience = 3 + (_appeal > 0.5 ? 1 : 0) - (_distrust > 1m ? 1 : 0);   // a broken promise: less patience
         Mood = 60 + (int)(_appeal * 25);
 
         AgentStance =
@@ -131,9 +140,13 @@ public sealed class NegotiationSession
             && world.Get(rival.From) is { Defunct: false } from)
         {
             session._offer = rival;
-            session._rivalFloor = OfferMarket.MatchTerms(world, rival).PursePerFight;
+            var match = OfferMarket.MatchTerms(world, rival);
+            session._rivalFloor = match.PursePerFight;
             session._rivalName = from.Abbreviation;
-            session._rivalScore = OfferMarket.Score(world, fighter, OfferMarket.AsContractOffer(rival), exp);
+            // With a matching right the bar is the exact match (worth at least that to him),
+            // not the rival's paper by his lights (contracts stage 9).
+            session._rivalScore = OfferMarket.Score(world, fighter,
+                OfferMarket.HasMatchingRight(world, rival) ? match : OfferMarket.AsContractOffer(rival), exp);
             session.OpeningLine = Lifers.Gendered(fighter, rival.Kind == RivalOfferKind.FreeAgent
                 ? $"\"Before we start: {session._rivalName} has offered {fighter.FirstName} {OfferTerms(rival)}."
                   + (rival.Improvements > 0 ? " They've already come up once." : "") + " Beat that and he's yours.\""
@@ -237,25 +250,54 @@ public sealed class NegotiationSession
     // champion's clause is a leash they charge extra to wear. Both scale the
     // whole position, so toggling a checkbox visibly moves their number.
 
-    private decimal Factor(bool exclusive, bool clause) =>
-        (exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor)
-        * (clause ? Negotiator.ChampionsClausePremium : 1m)
-        * _home;
+    // The terms on the slip that move his number: exclusivity, the leash terms (champion's
+    // clause, matching right) and the promises (contracts stage 9).
+    private readonly record struct Slip(bool Exclusive, bool Clause, bool Match = false, int Fights = 0, bool Home = false, bool Title = false)
+    {
+        public static Slip Of(ContractOffer o) =>
+            new(o.Exclusive, o.ChampionsClause, o.MatchingRight, o.PromiseFights, o.PromiseHomeShow, o.PromiseTitleShot);
+        public bool HasPromises => Fights > 0 || Home || Title;
+    }
 
-    public Money DemandPurse(bool exclusive, bool clause)
+    private decimal Factor(Slip s) =>
+        (s.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor)
+        * (s.Clause ? Negotiator.ChampionsClausePremium : 1m)
+        * (s.Match ? Negotiator.MatchingRightPremium : 1m)
+        * _home * _distrust * PromiseFactor(s);
+
+    // What the promises on the slip take off his number: the same appeal the Negotiator
+    // reads (Promises.AppealOf), turned into money the way the floor is (a quarter of it).
+    private decimal PromiseFactor(Slip s)
+    {
+        if (!s.HasPromises) return 1m;
+        var rep = new ContractOffer
+        {
+            Fighter = _fighter.Id, Promotion = _promo.Id,
+            PromiseFights = s.Fights, PromiseHomeShow = s.Home, PromiseTitleShot = s.Title,
+        };
+        double with = Negotiator.Appeal(_world, _fighter, rep, _exp);
+        return (decimal)((1.0 - with * 0.25) / (1.0 - _appeal * 0.25));
+    }
+
+    public Money DemandPurse(bool exclusive, bool clause) => DemandPurse(new Slip(exclusive, clause));
+
+    /// <summary>His number on the terms of this slip: its exclusivity, leash terms and promises (its money is ignored).</summary>
+    public Money DemandPurse(ContractOffer terms) => DemandPurse(Slip.Of(terms));
+
+    private Money DemandPurse(Slip s)
     {
         decimal p = Math.Max(Math.Max(_liveFloor?.Amount ?? 0m, _rivalFloor?.Amount ?? 0m),
-            UpTo500(_exp.AskingPurse.Amount * Factor(exclusive, clause) * (decimal)_demandFrac));
-        return new(_rivalScore is { } target ? BeatRival(p, target, exclusive, clause) : p);
+            UpTo500(_exp.AskingPurse.Amount * Factor(s) * (decimal)_demandFrac));
+        return new(_rivalScore is { } target ? BeatRival(p, target, s) : p);
     }
 
     // With a rival's paper in his pocket, his number on his own terms (his win bonus,
     // his signing bonus, his length) must be worth more to him than the rival's whole
     // deal: raise the purse, on the $500 step, until it is. (Score is linear in the
     // purse: one closed-form step, then the rounding is checked.)
-    private decimal BeatRival(decimal purse, decimal target, bool exclusive, bool clause)
+    private decimal BeatRival(decimal purse, decimal target, Slip terms)
     {
-        decimal ScoreAt(decimal p) => OfferMarket.Score(_world, _fighter, AtPurse(p, exclusive, clause), _exp);
+        decimal ScoreAt(decimal p) => OfferMarket.Score(_world, _fighter, AtPurse(p, terms), _exp);
         decimal s = ScoreAt(purse);
         if (s >= target) return purse;
         decimal per500 = ScoreAt(purse + 500m) - s;
@@ -265,34 +307,57 @@ public sealed class NegotiationSession
     }
 
     // His terms at a given purse (what TheirTermsAsOffer tables, with that purse).
-    private ContractOffer AtPurse(decimal purse, bool exclusive, bool clause) => new()
+    private ContractOffer AtPurse(decimal purse, Slip s) => new()
     {
         Fighter = _fighter.Id, Promotion = _promo.Id,
         PursePerFight = new Money(purse),
-        WinBonus = DemandWinBonus(exclusive, clause),
+        WinBonus = DemandWinBonus(s),
         SigningBonus = _exp.WantsSigningBonus ? new Money(UpTo500(purse * 0.5m)) : Money.Zero,
-        Fights = _exp.DesiredFights, Exclusive = exclusive, ChampionsClause = clause,
+        Fights = _exp.DesiredFights, Exclusive = s.Exclusive, ChampionsClause = s.Clause,
+        MatchingRight = s.Match, PromiseFights = s.Fights, PromiseHomeShow = s.Home, PromiseTitleShot = s.Title,
     };
 
-    public Money DemandWinBonus(bool exclusive, bool clause) =>
-        new(UpTo500(_exp.AskingWinBonus.Amount * Factor(exclusive, clause) * (decimal)_demandFrac));
+    public Money DemandWinBonus(bool exclusive, bool clause) => DemandWinBonus(new Slip(exclusive, clause));
 
-    public Money DemandSigning(bool exclusive, bool clause) =>
+    /// <summary>His win bonus on the terms of this slip (see <see cref="DemandPurse(ContractOffer)"/>).</summary>
+    public Money DemandWinBonus(ContractOffer terms) => DemandWinBonus(Slip.Of(terms));
+
+    private Money DemandWinBonus(Slip s) =>
+        new(UpTo500(_exp.AskingWinBonus.Amount * Factor(s) * (decimal)_demandFrac));
+
+    public Money DemandSigning(bool exclusive, bool clause) => DemandSigning(new Slip(exclusive, clause));
+
+    /// <summary>His signing bonus on the terms of this slip (see <see cref="DemandPurse(ContractOffer)"/>).</summary>
+    public Money DemandSigning(ContractOffer terms) => DemandSigning(Slip.Of(terms));
+
+    private Money DemandSigning(Slip s) =>
         _exp.WantsSigningBonus
-            ? new(UpTo500(DemandPurse(exclusive, clause).Amount * 0.5m))
+            ? new(UpTo500(DemandPurse(s).Amount * 0.5m))
             : Money.Zero;
 
     /// <summary>Their current position drawn up as a signable offer ("meet their terms").</summary>
-    public ContractOffer TheirTermsAsOffer(bool exclusive, bool clause) => new()
+    public ContractOffer TheirTermsAsOffer(bool exclusive, bool clause) => TheirTermsAsOffer(new Slip(exclusive, clause));
+
+    /// <summary>
+    /// Their current position on the terms of this slip — its exclusivity, leash terms and
+    /// promises carried over — drawn up as a signable offer (its money is ignored).
+    /// </summary>
+    public ContractOffer TheirTermsAsOffer(ContractOffer terms) => TheirTermsAsOffer(Slip.Of(terms));
+
+    private ContractOffer TheirTermsAsOffer(Slip s) => new()
     {
         Fighter = _fighter.Id,
         Promotion = _promo.Id,
-        PursePerFight = DemandPurse(exclusive, clause),
-        WinBonus = DemandWinBonus(exclusive, clause),
-        SigningBonus = DemandSigning(exclusive, clause),
+        PursePerFight = DemandPurse(s),
+        WinBonus = DemandWinBonus(s),
+        SigningBonus = DemandSigning(s),
         Fights = _exp.DesiredFights,
-        Exclusive = exclusive,
-        ChampionsClause = clause,
+        Exclusive = s.Exclusive,
+        ChampionsClause = s.Clause,
+        MatchingRight = s.Match,
+        PromiseFights = s.Fights,
+        PromiseHomeShow = s.Home,
+        PromiseTitleShot = s.Title,
         Round = Round,
     };
 
@@ -306,15 +371,20 @@ public sealed class NegotiationSession
     {
         if (Outcome != TalkOutcome.Open)
             return new(TalkVerdict.WalkOut, "The talks are over.", Array.Empty<TermReaction>());
+        // A promise that can't be kept is refused before anything else (it costs no round).
+        if (Promises.FirstRefusal(_world, _promo, _fighter, offer) is { } no)
+            return new(TalkVerdict.Counter, $"\"Take that promise off the paper. {no.Why}\"",
+                new[] { new TermReaction(PromiseTerm(no.Kind), TermFeel.Sore, no.Why) });
         Round++;
 
         // Measure the offer against their CURRENT position (the number they're
         // actually quoting today), not the opening ask — concessions are real.
         // The quoted signing bonus counts on the same per-fight scale as
         // MoneyValue, so meeting their terms exactly is worth exactly 1.0.
-        decimal needed = DemandPurse(offer.Exclusive, offer.ChampionsClause).Amount
-                       + 0.5m * DemandWinBonus(offer.Exclusive, offer.ChampionsClause).Amount
-                       + DemandSigning(offer.Exclusive, offer.ChampionsClause).Amount / Math.Max(1, _exp.DesiredFights);
+        var slip = Slip.Of(offer);
+        decimal needed = DemandPurse(slip).Amount
+                       + 0.5m * DemandWinBonus(slip).Amount
+                       + DemandSigning(slip).Amount / Math.Max(1, _exp.DesiredFights);
         decimal offered = Negotiator.MoneyValue(_world, offer);
         double ratio = needed <= 0 ? 2.0 : (double)(offered / needed);
 
@@ -360,7 +430,7 @@ public sealed class NegotiationSession
 
         string line = ratio < 0.70 ? Line(LowballLines)
                     : !payOk ? $"\"{_fighter.FirstName} is signed at {_liveFloor} a fight. We're not tearing that up for less.\""
-                    : !beatsRival ? $"\"{_rivalName} has real paper on the table. {_fighter.FirstName} stays for a deal worth more to him than theirs — on these terms that's {DemandPurse(offer.Exclusive, offer.ChampionsClause)} a fight or better, with the bonuses.\""
+                    : !beatsRival ? $"\"{_rivalName} has real paper on the table. {_fighter.FirstName} stays for a deal worth more to him than theirs — on these terms that's {DemandPurse(slip)} a fight or better, with the bonuses.\""
                     : !guaranteedOk ? $"\"Bonuses are nice. Guaranteed money pays the rent — {_fighter.FirstName} needs at least {GuaranteedNeeded(offer)} a fight he can count on.\""
                     : !signingOk ? "\"Close on the money — but no signing bonus, no signature.\""
                     : !lengthOk ? $"\"The money can work, but {_fighter.FirstName} wants a {_exp.DesiredFights}-fight deal.\""
@@ -391,7 +461,8 @@ public sealed class NegotiationSession
     public FinalOfferResult PutInWriting(ContractOffer offer)
     {
         if (Outcome != TalkOutcome.Open || _offer is not { Kind: RivalOfferKind.FreeAgent }) return FinalOfferResult.NoOffer;
-        if (Math.Abs(offer.Fights - _exp.DesiredFights) > 1 || !SigningOk(offer) || !GuaranteedOk(offer))
+        if (Math.Abs(offer.Fights - _exp.DesiredFights) > 1 || !SigningOk(offer) || !GuaranteedOk(offer)
+            || Promises.FirstRefusal(_world, _promo, _fighter, offer) is not null)
             return FinalOfferResult.OffTerms;
         var result = OfferMarket.LodgeFinal(_world, _fighter, _promo, offer);
         if (result == FinalOfferResult.Lodged) Round++;
@@ -404,8 +475,16 @@ public sealed class NegotiationSession
     /// which way he leans and the final offer in writing. Public facts and his own wants
     /// only — never the rival's read of him, its walk-away number, nor anyone's ability.
     /// </summary>
-    public NegotiationView View(bool exclusive, bool clause)
+    public NegotiationView View(bool exclusive, bool clause) =>
+        View(new ContractOffer { Fighter = _fighter.Id, Promotion = _promo.Id, Exclusive = exclusive, ChampionsClause = clause });
+
+    /// <summary>
+    /// <see cref="View(bool, bool)"/> on the terms of this slip: its exclusivity, leash terms
+    /// and promises (its money is ignored). The promise options are priced against this slip.
+    /// </summary>
+    public NegotiationView View(ContractOffer terms)
     {
+        var onSlip = Slip.Of(terms);
         var reasons = new List<string>();
         var pri = _exp.Priorities;
         var wants = new (int W, string Why)[]
@@ -418,7 +497,11 @@ public sealed class NegotiationSession
         if (_home < 1m) reasons.Add("He gives this house a personal discount.");
         if (_liveFloor is { } lf) reasons.Add($"He's signed at {lf} a fight and won't tear that up for less.");
         if (_offer is not null)
-            reasons.Add($"{_rivalName} has real paper on the table: a deal here must be worth more to him than theirs.");
+            reasons.Add(OfferMarket.HasMatchingRight(_world, _offer)
+                ? $"{_rivalName} has real paper on the table, but we hold a matching right: matching their terms exactly is enough."
+                : $"{_rivalName} has real paper on the table: a deal here must be worth more to him than theirs.");
+        if (_distrust > 1m)
+            reasons.Add(Lifers.Gendered(_fighter, "You broke your word to him: he asks more, has less patience, and won't count a promise from you."));
 
         RivalSlip? slip = null;
         Leaning? lean = null;
@@ -429,9 +512,35 @@ public sealed class NegotiationSession
                 Math.Max(0, o.Deadline.DayNumber - _world.CurrentDate.DayNumber), o.Improvements > 0);
             lean = OfferMarket.LeaningOf(_world, o);
         }
+        // The promises the owner could add (each priced against this slip without it), and the matching right.
+        var options = new List<PromiseOption>();
+        void Option(PromiseKind kind, int fights, Slip with, Slip without)
+        {
+            var probe = new ContractOffer
+            {
+                Fighter = _fighter.Id, Promotion = _promo.Id, Fights = _exp.DesiredFights,
+                PromiseFights = kind == PromiseKind.Activity ? fights : 0,
+                PromiseHomeShow = kind == PromiseKind.HomeShow, PromiseTitleShot = kind == PromiseKind.TitleShot,
+            };
+            string? no = Promises.FirstRefusal(_world, _promo, _fighter, probe)?.Why;
+            decimal off = no is null ? Math.Max(0m, DemandPurse(without).Amount - DemandPurse(with).Amount) : 0m;
+            options.Add(new PromiseOption(kind, fights, no is null, no ?? "",
+                _distrust > 1m ? Lifers.Gendered(_fighter, "a promise from you is worth nothing to him now")
+                    : Promises.WorthWords(_world, _promo, _fighter, kind, fights, _exp),
+                new Money(off)));
+        }
+        Option(PromiseKind.TitleShot, 0, onSlip with { Title = true }, onSlip with { Title = false });
+        Option(PromiseKind.HomeShow, 0, onSlip with { Home = true }, onSlip with { Home = false });
+        for (int n = Promises.MinActivity; n <= Promises.MaxActivity; n++)
+            Option(PromiseKind.Activity, n, onSlip with { Fights = n }, onSlip with { Fights = 0 });
+        var rightCost = new Money(Math.Max(0m,
+            DemandPurse(onSlip with { Match = true }).Amount - DemandPurse(onSlip with { Match = false }).Amount));
+
         return new NegotiationView(
             _fighter.Id, _fighter.FullName, AgentStance, OpeningLine, MoodLabel, Patience, Round, Outcome, Resumed,
-            TheirTermsAsOffer(exclusive, clause), reasons, slip, lean, _offer?.Final, Last);
+            TheirTermsAsOffer(onSlip), reasons, slip, lean, _offer?.Final, Last,
+            options, Promises.For(_world, _fighter.Id),
+            _fighter.Contract is { MatchingRight: true } held && held.Promotion == _promo.Id, rightCost);
     }
 
     private static string OfferTerms(RivalOffer o) =>
@@ -444,8 +553,8 @@ public sealed class NegotiationSession
     // guaranteed today — the promotion decides whether he ever fights on a PPV,
     // for a bonus, or against someone he can beat.
     private decimal GuaranteedFloor(ContractOffer o) =>
-        (DemandPurse(o.Exclusive, o.ChampionsClause).Amount
-         + DemandSigning(o.Exclusive, o.ChampionsClause).Amount / Math.Max(1, _exp.DesiredFights))
+        (DemandPurse(Slip.Of(o)).Amount
+         + DemandSigning(Slip.Of(o)).Amount / Math.Max(1, _exp.DesiredFights))
         * Negotiator.GuaranteedFloorFraction;
 
     private bool GuaranteedOk(ContractOffer o) => Negotiator.GuaranteedPerFight(o) >= GuaranteedFloor(o);
@@ -457,16 +566,17 @@ public sealed class NegotiationSession
     private bool SigningOk(ContractOffer o) =>
         !_exp.WantsSigningBonus || _appeal > 0.5
         || (o.SigningBonus.Amount > 0
-            && o.SigningBonus.Amount >= DemandSigning(o.Exclusive, o.ChampionsClause).Amount * Negotiator.SigningBonusMinFraction);
+            && o.SigningBonus.Amount >= DemandSigning(Slip.Of(o)).Amount * Negotiator.SigningBonusMinFraction);
 
     // --- Per-term reactions ---------------------------------------------------
 
     private List<TermReaction> React(ContractOffer o)
     {
         var list = new List<TermReaction>();
-        var purse = DemandPurse(o.Exclusive, o.ChampionsClause);
-        var winB = DemandWinBonus(o.Exclusive, o.ChampionsClause);
-        var signing = DemandSigning(o.Exclusive, o.ChampionsClause);
+        var slip = Slip.Of(o);
+        var purse = DemandPurse(slip);
+        var winB = DemandWinBonus(slip);
+        var signing = DemandSigning(slip);
 
         list.Add(o.PursePerFight.Amount >= purse.Amount
             ? new("Purse", TermFeel.Pleased, "the show money is there")
@@ -515,11 +625,30 @@ public sealed class NegotiationSession
                 "on top of the house bonus — counted at about one night in eight, never above the show money"));
         if (o.ChampionsClause)
             list.Add(new("Champion's clause", TermFeel.Close, "reads as a leash — it adds ~8% to their price"));
+        if (o.MatchingRight)
+            list.Add(new("Matching right", TermFeel.Close, "a hold on his next move — it adds ~5% to his price"));
+        bool trusted = _distrust <= 1m;
+        if (o.PromiseTitleShot) list.Add(PromiseReaction(PromiseKind.TitleShot, 0, trusted));
+        if (o.PromiseHomeShow) list.Add(PromiseReaction(PromiseKind.HomeShow, 0, trusted));
+        if (o.PromiseFights > 0) list.Add(PromiseReaction(PromiseKind.Activity, o.PromiseFights, trusted));
         if (o.Exclusive && !Negotiator.WantsExclusivity(_promo))
             list.Add(new("Exclusivity", TermFeel.Close, "tying them down at your level charges the full rate"));
 
         return list;
     }
+
+    private TermReaction PromiseReaction(PromiseKind kind, int fights, bool trusted) =>
+        !trusted
+            ? new(PromiseTerm(kind), TermFeel.Sore, Lifers.Gendered(_fighter, "you broke your word to him once — a promise from you is worth nothing to him now"))
+            : new(PromiseTerm(kind), TermFeel.Pleased,
+                Promises.WorthWords(_world, _promo, _fighter, kind, fights, _exp) + " — and it has teeth: break it and he'll take it hard");
+
+    private static string PromiseTerm(PromiseKind kind) => kind switch
+    {
+        PromiseKind.TitleShot => "Promise: title shot",
+        PromiseKind.HomeShow => "Promise: home show",
+        _ => "Promise: activity",
+    };
 
     // --- Agent dialogue ---------------------------------------------------------
 
