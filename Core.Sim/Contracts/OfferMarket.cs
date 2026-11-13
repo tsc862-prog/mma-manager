@@ -169,6 +169,8 @@ public static class OfferMarket
     /// prefer the rival's paper) and even under his own table's floor. Only his live deal's
     /// show money still stands under it (nobody re-signs for a pay cut). That is the whole
     /// difference the right makes: without it the match must beat the rival by his lights.
+    /// The right is never a cost: when the match by his lights comes cheaper than the rival's
+    /// exact money (a non-exclusive deal is worth more to him a dollar), the cheaper stands.
     /// </summary>
     public static ContractOffer MatchTerms(World world, RivalOffer o)
     {
@@ -180,12 +182,9 @@ public static class OfferMarket
             Fighter = f.Id, Promotion = holder.Id, WinBonus = o.WinBonus, SigningBonus = o.SigningBonus,
             Fights = o.Fights, Exclusive = excl, Round = 0,
         };
-        if (HasMatchingRight(world, o))
-        {
-            decimal live = Negotiator.LivePurseFloor(f, holder.Id) is { } held ? NegotiationSession.UpTo500(held.Amount) : 0m;
-            ours.PursePerFight = new Money(Math.Max(o.Purse.Amount, live));
-            return ours;
-        }
+        decimal exact = HasMatchingRight(world, o)
+            ? Math.Max(o.Purse.Amount, Negotiator.LivePurseFloor(f, holder.Id) is { } held ? NegotiationSession.UpTo500(held.Amount) : 0m)
+            : decimal.MaxValue;
 
         var exp = Valuation.Evaluate(world, f);
         decimal theirs = Score(world, f, AsContractOffer(o), exp);
@@ -202,7 +201,9 @@ public static class OfferMarket
             AskingQuote.For(world, holder, f, exp, excl).Purse.Amount * (decimal)(1.0 - appeal * 0.25));
         decimal liveFloor = Negotiator.LivePurseFloor(f, holder.Id) is { } lf ? NegotiationSession.UpTo500(lf.Amount) : 0m;
         purse = Math.Max(purse, Math.Max(tableFloor, liveFloor));
-        ours.PursePerFight = new Money(purse);
+        // The right never makes keeping him dearer: when matching by his lights already costs
+        // less than the rival's exact money (a non-exclusive deal, his discount), that stands.
+        ours.PursePerFight = new Money(Math.Min(purse, exact));
         return ours;
     }
 

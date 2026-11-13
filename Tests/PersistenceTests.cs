@@ -456,6 +456,47 @@ public class PersistenceTests
     }
 
     /// <summary>
+    /// Promises with teeth (contracts stage 9): a world saved with an open promise in a deal
+    /// that carries a matching right loads with both, and runs on past the promise's deadline
+    /// (warned, then kept or broken) exactly like the world that was never saved.
+    /// </summary>
+    [Fact]
+    public void ASaveWithAnOpenPromise_RunsOnPastItsDeadline_LikeANeverSavedWorld()
+    {
+        (World W, FighterId Promised) Setup()
+        {
+            var w = PlayerWorld(21);
+            var f = w.RosterOf(w.PlayerPromotion).Where(x => x.Status == FighterStatus.Active && x.Contract is { FightsRemaining: >= 2 })
+                .OrderBy(x => x.Id.Value).First();
+            var c = f.Contract!;
+            MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(w, f, new ContractOffer
+            {
+                Fighter = f.Id, Promotion = c.Promotion, PursePerFight = c.PursePerFight, WinBonus = c.WinBonus,
+                Fights = Math.Max(2, c.FightsRemaining), Exclusive = c.IsExclusive, PromiseFights = 2, MatchingRight = true,
+            }, w.CurrentDate);
+            var p = Assert.Single(w.Promises);
+            p.Deadline = w.CurrentDate.AddDays(45);   // the run-on crosses it
+            new WorldTick().AdvanceWeeks(w, 1);
+            Assert.True(p.Live);
+            return (w, f.Id);
+        }
+
+        var (straight, promised) = Setup();
+        var (split, _) = Setup();
+        var resumed = RoundTrip(split);
+        AssertSame(split, resumed);
+        Assert.True(resumed.Promises.Single().Live);
+        Assert.True(resumed.Get(promised)!.Contract!.MatchingRight);
+
+        new WorldTick().AdvanceWeeks(straight, 16);
+        new WorldTick().AdvanceWeeks(resumed, 16);
+        Assert.False(straight.Promises.Single().Live);   // kept or broken by now
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
+        Assert.True(diffs.Count == 0,
+            "A world saved mid-promise diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    /// <summary>
     /// Free-agent offers (contracts stage 7): a world saved with a rival's offer standing for a
     /// free agent the player courts, and the owner's final offer in writing on it, loads with the
     /// same offer and final offer and runs on (the rival's answer, the deadline) exactly like the
