@@ -663,7 +663,7 @@ public sealed class BriefingViewModel : ObservableObject
                     $"{rival?.Name ?? "A rival"}{tier} has made {f.FirstName} {f.LastName} an offer — he signs it after {offer.Deadline:d MMMM} unless you beat it."
                     + (cameBack ? " They've raised it once, answering yours, and they won't go again." : offer.Improvements > 0 ? " They've already raised it once." : "")
                     + written
-                    + " Sit down with him and his people will put the paper on the table: beat it there and he's yours."
+                    + " Sit down with him and he puts their paper on the table: beat it there and he's yours."
                     + $" Let him go and {abbr} signs him when the week turns.");
                 Art = Portraits.Body(f, w);
                 People.Add(Person(w, f, $"Free agent  ·  {(days <= 0 ? "last day" : days == 1 ? "1 day left" : $"{days} days left")}"));

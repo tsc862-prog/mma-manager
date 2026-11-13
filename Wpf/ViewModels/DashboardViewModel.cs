@@ -530,7 +530,7 @@ public sealed class DashboardViewModel : ObservableObject
                 Icon = "Money",
                 Title = DeskCalls.FreeAgentTitle(world, o),
                 Detail = DeskCalls.FreeAgentLine(world, o)
-                         + MmaManager.Core.Sim.Contracts.Lifers.Gendered(who, " Sit down with him and his people will show you their paper."),
+                         + MmaManager.Core.Sim.Contracts.Lifers.Gendered(who, " Sit down with him and he will show you their paper."),
                 Due = days <= 0 ? "today" : days == 1 ? "by tomorrow" : $"{days} days left",
                 Tone = days <= 7 ? CardTone.Bad : CardTone.Warn,
                 Picture = Portraits.Thumb(who, world),
