@@ -592,6 +592,7 @@ public sealed class PlannerViewModel : ObservableObject
         DecisionKind.SponsorShowcase => $"{(d.Sponsor.Length > 0 ? d.Sponsor : "A sponsor")} wants a showcase answer",
         DecisionKind.VeteranCut => $"The board wants an answer on {who?.LastName ?? "a veteran"}",
         DecisionKind.AcquisitionOffer => $"{(d.Promotion is { } p && w.Get(p) is { } org ? org.Abbreviation : "A rival")} is for sale: answer due",
+        DecisionKind.RivalOffer => $"{(d.Promotion is { } rp && w.Get(rp) is { } rival ? rival.Abbreviation : "A rival")} wants {who?.LastName ?? "one of ours"}: match or let go",
         _ => "A decision is due",
     };
 

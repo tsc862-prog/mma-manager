@@ -48,6 +48,12 @@ public class PersistenceTests
                 DemandFrac = 0.913, Mood = 51, Patience = 2, Round = 3,
                 SouredUntil = world.CurrentDate.AddDays(9), LastTalked = world.CurrentDate.AddDays(-12),
             });
+            // A rival's offer on the books (the sample fill gives every field a value).
+            world.RivalOffers.Add(new RivalOffer
+            {
+                Id = 1, Fighter = world.Fighters.Keys.Skip(4).First(), From = world.Promotions.Keys.First(),
+                Holder = world.Promotions.Keys.Skip(1).First(), Made = world.CurrentDate.AddDays(-3),
+            });
             PersistenceGraph.FillUnpopulated(world);
         }
         return world;
@@ -378,6 +384,57 @@ public class PersistenceTests
         var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "A world saved mid-window diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    /// <summary>
+    /// Rival offers (Contracts.OfferMarket): a world saved a week into a live offer for one
+    /// of the player's fighters — on the Desk, its deadline still ahead — loads with the same
+    /// offer and the same call on the Desk, and runs on past the deadline (silence lets him
+    /// go) exactly like the world that was never saved.
+    /// </summary>
+    [Fact]
+    public void ASaveWithALiveRivalOffer_MidDeadline_LoadsTheSameOffer_AndRunsOnLikeANeverSavedWorld()
+    {
+        (World W, FighterId Courted) Setup()
+        {
+            var w = PlayerWorld(21);
+            // The first of the roster a bigger promotion would make an offer for, once he is a proven name.
+            Fighter? f = null;
+            foreach (var x in w.RosterOf(w.PlayerPromotion).Where(x => x.Status == FighterStatus.Active).OrderBy(x => x.Id.Value).ToList())
+            {
+                x.Striking.PunchPower = x.Striking.PunchTechnique = x.Striking.StrikingDefense = x.Striking.Footwork = x.Striking.KickTechnique = 72;
+                x.Grappling.TakedownOffense = x.Grappling.TakedownDefense = x.Grappling.TopControl = x.Grappling.Scrambling = 72;
+                x.Grappling.SubmissionOffense = x.Grappling.SubmissionDefense = 72;
+                x.Physical.Cardio = x.Physical.Speed = x.Physical.Chin = x.Physical.Strength = 72;
+                x.Mental.FightIQ = x.Mental.Composure = x.Mental.Heart = 72;
+                x.Record.Wins = 14; x.Record.Losses = 2; x.Record.WinsByKo = 7; x.Record.WinsByDecision = 7;
+                x.Record.CurrentStreak = 4;
+                x.Intangibles.Popularity = 60;
+                x.Loyalty = 15;
+                x.Disposition = Disposition.Warhorse;
+                x.Contract!.FightsRemaining = 1;
+                if (MmaManager.Core.Sim.Contracts.OfferMarket.Call(w, x, w.CurrentDate) is not null) { f = x; break; }
+                x.Contract.FightsRemaining = 3;
+            }
+            Assert.NotNull(f);
+            new WorldTick().AdvanceWeeks(w, 1);
+            Assert.Equal(RivalOfferState.Pending, w.RivalOffers.Single(o => o.Fighter == f.Id).State);   // mid-deadline
+            return (w, f.Id);
+        }
+
+        var (straight, courted) = Setup();
+        var (split, _) = Setup();
+        var resumed = RoundTrip(split);
+        AssertSame(split, resumed);
+        Assert.Contains(resumed.RivalOffers, o => o.Fighter == courted && o.Live);
+        Assert.Contains(resumed.Decisions, d => d.Kind == DecisionKind.RivalOffer && d.Fighter == courted);
+
+        new WorldTick().AdvanceWeeks(straight, 4);
+        new WorldTick().AdvanceWeeks(resumed, 4);
+        Assert.NotEqual(RivalOfferState.Pending, straight.RivalOffers.Single(o => o.Fighter == courted).State);   // the deadline passed
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
+        Assert.True(diffs.Count == 0,
+            "A world saved mid-offer diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
     }
 
     private static World RoundTrip(World w)

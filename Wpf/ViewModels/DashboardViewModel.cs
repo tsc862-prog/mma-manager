@@ -504,6 +504,7 @@ public sealed class DashboardViewModel : ObservableObject
                     DecisionKind.SponsorShowcase => "Money",
                     DecisionKind.VeteranCut => "Warning",
                     DecisionKind.AcquisitionOffer => "Building",
+                    DecisionKind.RivalOffer => "Money",
                     _ => "Warning",
                 },
                 Title = d.Kind switch
@@ -512,14 +513,17 @@ public sealed class DashboardViewModel : ObservableObject
                     DecisionKind.SponsorShowcase => $"{d.Sponsor} wants a showcase",
                     DecisionKind.VeteranCut => "The board wants a release",
                     DecisionKind.AcquisitionOffer => "A promotion is for sale",
+                    DecisionKind.RivalOffer => $"{who?.FullName ?? "One of ours"} has an offer from {(d.Promotion is { } rp && world.Get(rp) is { } rival ? rival.Abbreviation : "a rival")}",
                     _ => "A decision for you",
                 },
                 Detail = d.Detail,
                 Due = days <= 0 ? "today" : days == 1 ? "by tomorrow" : $"{days} days left",
                 Tone = days <= 3 ? CardTone.Bad : CardTone.Warn,
                 Picture = who is null ? null : Portraits.Thumb(who, world),
-                PrimaryText = "Do it", PrimaryCommand = AcceptDecisionCommand, PrimaryParameter = d,
-                SecondaryText = "Pass", SecondaryCommand = DeclineDecisionCommand, SecondaryParameter = d,
+                PrimaryText = d.Kind == DecisionKind.RivalOffer ? $"Match ({d.Price}/fight)" : "Do it",
+                PrimaryCommand = AcceptDecisionCommand, PrimaryParameter = d,
+                SecondaryText = d.Kind == DecisionKind.RivalOffer ? "Let him go" : "Pass",
+                SecondaryCommand = DeclineDecisionCommand, SecondaryParameter = d,
             });
         }
 

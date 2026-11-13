@@ -128,6 +128,7 @@ public static class Lifecycle
     /// <summary>Retire a fighter: release him, strip him from rankings, hand off any belt.</summary>
     public static void Retire(World world, Fighter f, DateOnly date)
     {
+        if (f.Contract is { } held) Contracts.OfferMarket.OnLeaving(world, f, held.Promotion, date);   // a rival's offer dies with his career
         bool wasChampion = world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
         News.Retired(world, f, date, wasChampion);   // reads the contract before it's cleared
         bool players = f.Contract is { } deal && deal.Promotion == world.PlayerPromotion;

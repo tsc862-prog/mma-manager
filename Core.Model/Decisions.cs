@@ -14,6 +14,9 @@ public enum DecisionKind
 
     /// <summary>A struggling rival promotion is quietly for sale — buy it (roster, brand and all) or let the market decide.</summary>
     AcquisitionOffer,
+
+    /// <summary>A bigger promotion has put a real offer in front of one of our fighters on his last fight — match it, sit down with him, or let him go (see World.RivalOffers).</summary>
+    RivalOffer,
 }
 
 public enum DecisionState

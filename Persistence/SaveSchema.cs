@@ -245,6 +245,14 @@ internal static class SaveSchema
                 soured_until TEXT, last_talked TEXT NOT NULL
             );
 
+            CREATE TABLE rival_offers (
+                ordinal INTEGER NOT NULL, id INTEGER NOT NULL, fighter_id INTEGER NOT NULL,
+                from_id INTEGER NOT NULL, holder_id INTEGER NOT NULL, kind TEXT NOT NULL,
+                purse TEXT NOT NULL, win_bonus TEXT NOT NULL, signing_bonus TEXT NOT NULL,
+                fights INTEGER NOT NULL, exclusive INTEGER NOT NULL,
+                made TEXT NOT NULL, deadline TEXT NOT NULL, state TEXT NOT NULL, resolved TEXT
+            );
+
             CREATE TABLE fight_stats (
                 fight_id INTEGER NOT NULL, fighter_id INTEGER NOT NULL,
                 sig_landed INTEGER NOT NULL, sig_att INTEGER NOT NULL,

@@ -116,14 +116,17 @@ static void RunShoestring(ulong seed, int years, bool scriptOnly = false, bool d
 
     var lastTier = OrgSizing.SizeOf(nwf);
     int lastLedger = 0;
+    var offerDiag = new LongSim.ShoeSweep.Diag();
+    var offerLog = new LongSim.ShoeSweep.OfferLog();
     for (int year = 1; year <= years; year++)
     {
         // Month-by-month so the player agent can work the market like a human would.
         for (int m = 0; m < 13 && !nwf.Defunct; m++)
         {
+            if (dealRules) LongSim.ShoeSweep.AnswerOffers(world, nwf, 3_000m + nwf.Prestige.Value * 300m, offerDiag);
             if (dealRules && resign) LongSim.ShoeSweep.ReSignInWindow(world, nwf, 3_000m + nwf.Prestige.Value * 300m, valuation);
             PlayerAgent();
-            tick.AdvanceWeeks(world, 4);
+            for (int w = 0; w < 4; w++) { tick.AdvanceWeek(world); offerLog.Scan(world, nwf, offerDiag); }
         }
 
         if (nwf.Defunct)
@@ -201,6 +204,10 @@ static void RunShoestring(ulong seed, int years, bool scriptOnly = false, bool d
     if (!nwf.Defunct)
     {
         Console.WriteLine($"=== AFTER {years} YEARS ===");
+        offerLog.Finish(offerDiag);
+        var od = offerDiag;
+        Console.WriteLine($"DIAG rival offers: lodged {od.OffersLodged} ({(double)od.OffersLodged / years:0.00}/yr; champions {od.OfferChampions}, top-2 {od.OfferTop2}) · script matched {od.OffersMatchedByScript} · let go {od.OffersLetGoByScript}"
+            + $" · ended: matched {od.OfferEndMatched} · beaten at the table {od.OfferEndBeaten} · lost to the rival {od.OfferEndSigned} · withdrawn {od.OfferEndWithdrawn} · open {od.OffersOpen} · lifer refusals {od.LiferRefusals}");
         Console.WriteLine($"{nwf.Name}: prestige {nwf.Prestige.Value} ({OrgSizing.Label(OrgSizing.SizeOf(nwf))}) · {nwf.Balance} · " +
             $"#{world.Promotions.Values.Where(p => !p.Defunct).Count(p => p.Prestige.Value > nwf.Prestige.Value) + 1} in the world");
     }
