@@ -637,6 +637,37 @@ public class FreeAgentOfferTests
         return ours;
     }
 
+    // --- Letting him go, and how his leaning reads (lead review, 2026-11-13) -----------------------
+
+    [Fact]
+    public void LettingACourtedFreeAgentGo_TellsTheOwner()
+    {
+        var (world, o, f) = OneOffer(48);
+        int mail = world.Mail.Count;
+        OfferMarket.LetGo(world, o, world.CurrentDate);
+        Assert.Equal(RivalOfferState.LetGo, o.State);
+        var abbr = world.Get(o.From)!.Abbreviation;
+        var letter = Assert.Single(world.Mail.Skip(mail));
+        Assert.Equal($"We let {f.FullName} go to {abbr}", letter.Subject);
+        Assert.Equal(f.Id, letter.AboutFighter);
+        Assert.Contains("when the week turns", letter.Body);
+    }
+
+    [Fact]
+    public void AFreeAgentsLeaning_NeverCallsTheCourtingPromotionHisHouse()
+    {
+        var (world, all) = CourtedMarket(48);
+        Assert.NotEmpty(all);
+        foreach (var o in all)
+        {
+            string words = OfferMarket.LeaningOf(world, o).Words;
+            Assert.DoesNotContain("house that built", words);
+            Assert.DoesNotContain("his people", words);
+            Assert.DoesNotContain("her people", words);
+            Assert.DoesNotContain("fighting at home with us", words);
+        }
+    }
+
     // --- Helpers ----------------------------------------------------------------------------------
 
     private static World FoundedWorld(ulong seed) =>

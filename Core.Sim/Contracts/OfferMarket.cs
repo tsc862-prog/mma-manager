@@ -241,10 +241,15 @@ public static class OfferMarket
             if (d > 0.005) pullsThem.Add((d, forThem));
             else if (d < -0.005) pullsUs.Add((-d, forUs));
         }
+        // A free agent has no house: the courting promotion is not his home (the loyalty pull
+        // is zero for both sides), and what it can claim is having discovered him. Wording only:
+        // the pulls are read for words, never for the score.
+        bool free = o.Kind == RivalOfferKind.FreeAgent;
         Pull(them.Title, us.Title, 0.45, $"a title path on {abbr}'s bigger stage", "a title path here");
-        Pull(them.Home, us.Home, 0.15, $"{abbr} fights closer to home", "fighting at home with us");
-        Pull(them.Bonds, us.Bonds, 0.10, $"his people are at {abbr}", "his people are here");
-        Pull(them.Loyalty, us.Loyalty, 0.30, "", "loyalty to the house that built him");
+        Pull(them.Home, us.Home, 0.15, $"{abbr} stages its cards closer to home", free ? "we stage our cards in his part of the world" : "fighting at home with us");
+        Pull(them.Bonds, us.Bonds, 0.10, $"his friends or his camp are tied to {abbr}", "his friends or his camp are tied to us");
+        if (!free) Pull(them.Loyalty, us.Loyalty, 0.30, "", "loyalty to the house that built him");
+        else if (Negotiator.GratitudeFactor(f, holder.Id) < 1m) pullsUs.Add((0.01, "we gave him his first shot"));
 
         static string Top(List<(double W, string Why)> l) => string.Join(" and ",
             l.Where(x => x.Why.Length > 0).OrderByDescending(x => x.W).ThenBy(x => x.Why, StringComparer.Ordinal).Take(2).Select(x => x.Why));
@@ -491,7 +496,20 @@ public static class OfferMarket
         o.State = RivalOfferState.LetGo;
         // A courted free agent let go: the owner has stopped courting him, so the rival
         // signs him on the next tick (if it still can). There is no re-sign window to wait on.
-        if (o.Kind == RivalOfferKind.FreeAgent) { o.Final = null; return; }
+        if (o.Kind == RivalOfferKind.FreeAgent)
+        {
+            o.Final = null;
+            if (o.Holder == world.PlayerPromotion && world.Get(o.Fighter) is { } fa)
+            {
+                string rivalAbbr = world.Get(o.From)?.Abbreviation ?? "the rival";
+                Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
+                    $"We let {fa.FullName} go to {rivalAbbr}",
+                    Lifers.Gendered(fa, $"We've stopped courting {fa.FullName}. {rivalAbbr} signs him on its paper when the week turns "
+                        + "— if it still has the room and the money; if not, he stays on the open market."),
+                    aboutFighter: fa.Id);
+            }
+            return;
+        }
         RemoveDesk(world, o);
         if (o.Holder != world.PlayerPromotion || world.Get(o.Fighter) is not { } f) return;
         string abbr = world.Get(o.From)?.Abbreviation ?? "the rival";
