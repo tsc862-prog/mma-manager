@@ -62,6 +62,12 @@ public static class ShoeSweep
         public int OffersLodged, OffersMatchedByScript, OffersLetGoByScript, OfferEndMatched, OfferEndBeaten, OfferEndSigned, OfferEndWithdrawn, OffersOpen, LiferRefusals;
         public int OfferChampions, OfferTop2, OfferStarsLost;
         public decimal MatchPurseSum;
+        // Free-agent offers (contracts stage 7): free agents the script courted, the rivals'
+        // offers that came for them, how the script answered, and how each ended.
+        public int FaCourted, FaCourtSigned, FaOffers, FaBeatenAtTable, FaFinalsLodged, FaFinalsRefused, FaLetGo, FaImproved;
+        public int FaEndBeaten, FaEndSigned, FaEndWithdrawn, FaOpen;
+        public decimal FaOfferPurseSum, FaWonPurseSum;
+        public int FaWonPurseN, FaWonByFinal, FaRivalFolded, FaLostAfterFinal;
         public void Add(Diag o)
         {
             foreach (var fl in typeof(Diag).GetFields())
@@ -78,7 +84,7 @@ public static class ShoeSweep
         int years = int.Parse(args[3]);
         bool scriptOnly = args.Contains("--script-only");
         bool dealRules = PlayerDealRules(args), resign = !args.Contains("--no-resign");
-        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable"); MimicAi = args.Contains("--mimic-ai") || args.Contains("--mimic-ai-no-champ"); MimicNoChampForce = args.Contains("--mimic-ai-no-champ");
+        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable"); MimicAi = args.Contains("--mimic-ai") || args.Contains("--mimic-ai-no-champ"); MimicNoChampForce = args.Contains("--mimic-ai-no-champ"); Court = !args.Contains("--no-court");
         var runs = new ConcurrentBag<Run>();
         Parallel.ForEach(Enumerable.Range((int)from, (int)(to - from + 1)).Select(i => (ulong)i),
             new ParallelOptions { MaxDegreeOfParallelism = Parallelism(args) },
@@ -87,7 +93,7 @@ public static class ShoeSweep
         var all = runs.OrderBy(r => r.Seed).ToList();
         Console.WriteLine($"=== SHOESWEEP seeds {from}-{to} · {years} years · {(scriptOnly ? "SCRIPT ONLY" : "default harness (world AI also signs)")}"
             + $" · {(dealRules ? (resign ? "player deal rules, script re-signs in the window" : "player deal rules, NO re-signing") : "AI renewals")}"
-            + $"{(Early ? " · re-signs on the LAST FIGHT" : "")}{(KeepToCap ? " · keeps up to the org's purse cap" : "")}{(DepthBookable ? " · hires around men in their window" : "")} ===");
+            + $"{(Early ? " · re-signs on the LAST FIGHT" : "")}{(dealRules && Court ? " · courts free agents" : "")}{(KeepToCap ? " · keeps up to the org's purse cap" : "")}{(DepthBookable ? " · hires around men in their window" : "")} ===");
         Console.WriteLine($"  re-signed in the window (all seeds): {all.Sum(r => r.ReSigned)} · windows lapsed to free agency: {all.Sum(r => r.Lapsed)}");
         Console.WriteLine("  per seed: " + string.Join(" ", all.Select(r => $"{r.Seed}:{r.FinalPrestige}{(r.Folded ? "F" : "")}")));
         var d = new Diag(); foreach (var r in all) d.Add(r.D);
@@ -106,6 +112,12 @@ public static class ShoeSweep
             + $" · script matched {d.OffersMatchedByScript} (mean match purse {(d.OffersMatchedByScript == 0 ? 0 : d.MatchPurseSum / d.OffersMatchedByScript):N0}) · let go {d.OffersLetGoByScript}"
             + $" · ended: matched {d.OfferEndMatched} · beaten at the table {d.OfferEndBeaten} · LOST to the rival {d.OfferEndSigned} (champion/top-2 {d.OfferStarsLost})"
             + $" · withdrawn {d.OfferEndWithdrawn} · still open {d.OffersOpen} · lifer refusals {d.LiferRefusals}");
+        Console.WriteLine($"  DIAG free-agent offers: courted {d.FaCourted} (signed by courting {d.FaCourtSigned}) · offers {d.FaOffers} ({(double)d.FaOffers / seedYears:0.00} per seed-year,"
+            + $" all offers {(double)(d.FaOffers + d.OffersLodged) / seedYears:0.00}; mean rival purse {(d.FaOffers == 0 ? 0 : d.FaOfferPurseSum / d.FaOffers):N0})"
+            + $" · script: beat at the table {d.FaBeatenAtTable} · finals lodged {d.FaFinalsLodged} (refused {d.FaFinalsRefused}) · let go {d.FaLetGo} · rival came back {d.FaImproved}"
+            + $" · ended: won {d.FaEndBeaten} (mean purse at signing {(d.FaWonPurseN == 0 ? 0 : d.FaWonPurseSum / d.FaWonPurseN):N0}) · LOST to the rival {d.FaEndSigned} · withdrawn {d.FaEndWithdrawn} · still open {d.FaOpen}");
+        Console.WriteLine($"  DIAG free-agent finals: lodged {d.FaFinalsLodged} · rival raised {d.FaImproved} · rival folded {d.FaRivalFolded} · won by a final {d.FaWonByFinal} · lost after a final {d.FaLostAfterFinal}");
+
         Console.WriteLine($"  DIAG belts: champions renewed by the AI {d.ChampAiRenewals} (below his ask {d.ChampAiRenewBelowAsk}) · all AI renewals below his ask {d.AiRenewBelowAsk}/{d.AiRenewals}"
             + $" · champions who left {d.ChampLeft} · belts filled {(d.BeltChecks == 0 ? 0 : 100.0 * d.BeltHeldChecks / d.BeltChecks):0.0}% of monthly checks · title fights {d.TitleFights} on {d.Cards} cards");
         foreach (var r in all.Where(r => r.Seed is 3 or 5))
@@ -240,7 +252,7 @@ public static class ShoeSweep
     /// </summary>
     public static void AnswerOffers(World world, Promotion org, decimal maxAsk, Diag? diag = null)
     {
-        foreach (var o in world.RivalOffers.Where(o => o.Holder == org.Id && o.State == RivalOfferState.Pending).OrderBy(o => o.Id).ToList())
+        foreach (var o in world.RivalOffers.Where(o => o.Holder == org.Id && o.State == RivalOfferState.Pending && o.Kind == RivalOfferKind.EndOfDeal).OrderBy(o => o.Id).ToList())
         {
             if (world.Get(o.Fighter) is not { } f) continue;
             var (champ, top2) = Matters(world, org, f);
@@ -256,6 +268,141 @@ public static class ShoeSweep
             OfferMarket.LetGo(world, o, world.CurrentDate);
             if (diag is not null) diag.OffersLetGoByScript++;
         }
+    }
+
+    /// <summary>The script's stretch budget for a free agent it courts: 30% past the shoestring budget.</summary>
+    public const decimal StretchFactor = 1.3m;
+
+    /// <summary>
+    /// The scripted owner courts free agents (contracts stage 7). Monthly, for up to two
+    /// thin divisions, it sits down with the best free agent just past its budget (ask up to
+    /// <see cref="StretchFactor"/>x the shoestring budget), tables the budget, and leaves the
+    /// table: open talks. The next month it comes back and signs him at his (lower) number if
+    /// that fits the stretch. Courted, he is a free agent an AI promotion makes an offer for
+    /// instead of signing on the spot (Contracts.OfferMarket), which <see cref="AnswerFreeAgentOffers"/>
+    /// answers. Reads true ability to pick, as the rest of the script does. --no-court skips this.
+    /// </summary>
+    public static void CourtFreeAgents(World world, Promotion org, decimal maxAsk, FighterValuation valuation, Diag? diag = null)
+    {
+        if (org.Defunct || org.Balance.Amount < 300_000m) return;
+        bool excl = Negotiator.WantsExclusivity(org);
+        decimal stretch = maxAsk * StretchFactor;
+        int depth = 4 + (org.Balance.Amount > 600_000m ? 1 : 0) + (org.Balance.Amount > 1_500_000m ? 1 : 0);
+        var thin = org.Divisions
+            .Where(d => world.RosterOf(org.Id).Count(f => d.Matches(f) && f.Status == FighterStatus.Active) < depth)
+            .Take(2).ToList();
+        foreach (var div in thin)
+        {
+            var pick = world.FreeAgents()
+                .Where(f => f.Status == FighterStatus.Active && div.Matches(f) && !OfferMarket.HasLiveOffer(world, f.Id)
+                            && NegotiationSession.SouredUntil(world, f.Id, org.Id) is null)
+                .Select(f => (Fighter: f, Ask: Negotiator.EffectiveAskingPurse(world, org, f, valuation.Evaluate(world, f)).Amount))
+                .Where(x => x.Ask > maxAsk && x.Ask <= stretch)
+                .OrderByDescending(x => FighterAbility.CurrentAbility(x.Fighter)).ThenBy(x => x.Fighter.Id.Value)
+                .FirstOrDefault();
+            if (pick.Fighter is not { } f) continue;
+            var exp = valuation.Evaluate(world, f);
+            var session = NegotiationSession.Resume(world, f, org, exp);
+            var his = session.TheirTermsAsOffer(excl, clause: false);
+            if (session.Resumed)
+            {
+                // Back at the table a month on: if his number fits the stretch, sign him.
+                if (his.PursePerFight.Amount <= stretch && org.Balance.Amount >= 150_000m + his.SigningBonus.Amount
+                    && session.Table(his).Verdict == TalkVerdict.Accept)
+                {
+                    session.Remember(world.CurrentDate);
+                    ContractLifecycle.Sign(world, f, his, world.CurrentDate);
+                    if (diag is not null) diag.FaCourtSigned++;
+                    continue;
+                }
+            }
+            else
+            {
+                // First sit-down: table the budget on his terms, and leave the table.
+                var haggle = session.TheirTermsAsOffer(excl, clause: false);
+                haggle.PursePerFight = new Money(Math.Min(haggle.PursePerFight.Amount, Math.Max(500m, Math.Floor(maxAsk / 500m) * 500m)));
+                session.Table(haggle);
+                if (session.Outcome == TalkOutcome.Signed)
+                {
+                    session.Remember(world.CurrentDate);
+                    ContractLifecycle.Sign(world, f, haggle, world.CurrentDate);
+                    if (diag is not null) diag.FaCourtSigned++;
+                    continue;
+                }
+                if (diag is not null) diag.FaCourted++;
+            }
+            if (session.Outcome == TalkOutcome.Open) session.WalkAway();
+            session.Remember(world.CurrentDate);
+        }
+    }
+
+    /// <summary>
+    /// The scripted owner's answer to each rival offer for a free agent it courts (run after
+    /// every week: their deadlines are 10-14 days). If his number at the table fits the
+    /// stretch budget, sign him there; else put the rival-beating terms
+    /// (<see cref="OfferMarket.MatchTerms"/>) in writing if they fit; else let him go.
+    /// A final offer already in writing waits for the tick to answer it.
+    /// </summary>
+    public static void AnswerFreeAgentOffers(World world, Promotion org, decimal maxAsk, FighterValuation valuation, Diag? diag = null)
+    {
+        if (org.Defunct) return;
+        bool excl = Negotiator.WantsExclusivity(org);
+        decimal stretch = maxAsk * StretchFactor;
+        foreach (var o in world.RivalOffers.Where(o => o.Holder == org.Id && o.State == RivalOfferState.Pending
+                                                       && o.Kind == RivalOfferKind.FreeAgent && o.Final is null)
+                     .OrderBy(o => o.Id).ToList())
+        {
+            if (world.Get(o.Fighter) is not { } f) continue;
+            var session = NegotiationSession.Resume(world, f, org, valuation.Evaluate(world, f));
+            if (session.RivalOffer is null) continue;
+            var his = session.TheirTermsAsOffer(excl, clause: false);
+            bool Cash(ContractOffer x) => org.Balance.Amount >= 150_000m + x.SigningBonus.Amount;
+            if (his.PursePerFight.Amount <= stretch && Cash(his) && session.Table(his).Verdict == TalkVerdict.Accept)
+            {
+                session.Remember(world.CurrentDate);
+                ContractLifecycle.Sign(world, f, his, world.CurrentDate);
+                if (diag is not null) diag.FaBeatenAtTable++;
+                continue;
+            }
+            // The table won't do it: put the cheapest rival-beating terms the script can afford
+            // in writing — the rival's structure on our exclusivity, at the lowest purse he'd take
+            // over theirs (and that is a real deal by the table's rules), within the stretch.
+            if (session.Outcome == TalkOutcome.Open && BestFinal(world, o, session, excl, stretch, Cash) is { } final)
+            {
+                if (diag is not null) diag.FaFinalsLodged++;
+                session.Remember(world.CurrentDate);
+                continue;
+            }
+            if (diag is not null && session.Outcome == TalkOutcome.Open) diag.FaFinalsRefused++;
+            if (session.Outcome == TalkOutcome.Open) session.WalkAway();
+            session.Remember(world.CurrentDate);
+            OfferMarket.LetGo(world, o, world.CurrentDate);
+            if (diag is not null) diag.FaLetGo++;
+        }
+    }
+
+    // The cheapest final offer that lodges (beats the rival's paper by his lights and passes the
+    // table's rules), stepping the purse up within the stretch; null when none does.
+    private static ContractOffer? BestFinal(World world, RivalOffer o, NegotiationSession session, bool excl, decimal stretch, Func<ContractOffer, bool> cash)
+    {
+        var f = world.Get(o.Fighter)!;
+        var exp = new FighterValuation().Evaluate(world, f);
+        decimal theirs = OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp);
+        var x = new ContractOffer
+        {
+            Fighter = o.Fighter, Promotion = o.Holder, PursePerFight = new Money(500m), WinBonus = o.WinBonus,
+            SigningBonus = o.SigningBonus, Fights = o.Fights, Exclusive = excl,
+        };
+        while (x.PursePerFight.Amount <= stretch && OfferMarket.Score(world, f, x, exp) < theirs)
+            x.PursePerFight = new Money(x.PursePerFight.Amount + 500m);
+        for (; x.PursePerFight.Amount <= stretch; x.PursePerFight = new Money(x.PursePerFight.Amount + 500m))
+        {
+            if (!cash(x)) return null;
+            var r = session.PutInWriting(x);
+            if (r == FinalOfferResult.Lodged) return x;
+            if (r is FinalOfferResult.NoOffer or FinalOfferResult.CantAfford) return null;
+        }
+        return null;
     }
 
     private static (bool Champ, bool Top2) Matters(World world, Promotion org, Fighter f)
@@ -279,6 +426,17 @@ public static class ShoeSweep
         public void Scan(World world, Promotion org, Diag d)
         {
             foreach (var o in world.RivalOffers.Where(o => o.Holder == org.Id))
+            {
+                if (o.Kind == RivalOfferKind.FreeAgent)
+                {
+                    if (_free.TryAdd((o.Fighter, o.Made), o)) { d.FaOffers++; d.FaOfferPurseSum += o.Purse.Amount; }
+                    if (o.Improvements > 0 && _improved.Add((o.Fighter, o.Made))) d.FaImproved++;
+                    if (o.Final is not null) _hadFinal.Add((o.Fighter, o.Made));
+                    // What we signed him for, read the week it happened (not at the end of the run).
+                    if (o.State == RivalOfferState.Beaten && world.Get(o.Fighter)?.Contract is { } won && won.Promotion == o.Holder)
+                        _wonPurse.TryAdd((o.Fighter, o.Made), won.PursePerFight.Amount);
+                    continue;
+                }
                 if (_seen.TryAdd((o.Fighter, o.Made), o))
                 {
                     d.OffersLodged++;
@@ -290,12 +448,33 @@ public static class ShoeSweep
                         if (champ || top2) _stars.Add(o);
                     }
                 }
+            }
             foreach (var f in world.RosterOf(org.Id))
                 if (f.Contract is { BondNoticeOn: { } b } c && b == Contract.RefusalTold && _refusals.Add((f.Id, c.SignedOn)))
                     d.LiferRefusals++;
         }
-        public void Finish(Diag d)
+        private readonly Dictionary<(FighterId, DateOnly), RivalOffer> _free = new();
+        private readonly HashSet<(FighterId, DateOnly)> _improved = new();
+        private readonly HashSet<(FighterId, DateOnly)> _hadFinal = new();
+        private readonly Dictionary<(FighterId, DateOnly), decimal> _wonPurse = new();
+        public void Finish(Diag d, World? world = null)
         {
+            foreach (var o in _free.Values)
+                switch (o.State)
+                {
+                    case RivalOfferState.Beaten:
+                        d.FaEndBeaten++;
+                        if (_wonPurse.TryGetValue((o.Fighter, o.Made), out var wp)) { d.FaWonPurseSum += wp; d.FaWonPurseN++; }
+                        if (_hadFinal.Contains((o.Fighter, o.Made))) { d.FaWonByFinal++; if (o.Improvements == 0) d.FaRivalFolded++; }
+                        break;
+                    case RivalOfferState.Signed when _hadFinal.Contains((o.Fighter, o.Made)):
+                        d.FaEndSigned++; d.FaLostAfterFinal++;
+                        break;
+                    case RivalOfferState.Signed: d.FaEndSigned++; break;
+                    case RivalOfferState.Withdrawn: d.FaEndWithdrawn++; break;
+                    default: d.FaOpen++; break;
+                }
+
             foreach (var o in _seen.Values)
                 switch (o.State)
                 {
@@ -308,7 +487,7 @@ public static class ShoeSweep
         }
     }
 
-    private static bool Early, KeepToCap, DepthBookable, MimicAi, MimicNoChampForce;   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
+    private static bool Early, KeepToCap, DepthBookable, MimicAi, MimicNoChampForce, Court = true;   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
 
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;
 
@@ -339,6 +518,7 @@ public static class ShoeSweep
                 if (thin.Count == 0) return;
                 var pick = world.FreeAgents()
                     .Where(f => f.Status == FighterStatus.Active && thin.Any(d => d.Matches(f)))
+                    .Where(f => !OfferMarket.HasLiveOffer(world, f.Id))   // a rival's offer stands: the courting path answers it at the table
                     .Select(f => (Fighter: f, Exp: valuation.Evaluate(world, f)))
                     .Where(x => x.Exp.AskingPurse.Amount <= maxAsk)
                     .OrderByDescending(x => FighterAbility.CurrentAbility(x.Fighter)
@@ -372,6 +552,7 @@ public static class ShoeSweep
                     }
                     if (dealRules && !nwf.Defunct) AnswerOffers(world, nwf, MaxAsk(), run.D);
                     if (dealRules && resign && !nwf.Defunct) run.ReSigned += ReSignInWindow(world, nwf, MaxAsk(), valuation, run.D);
+                    if (dealRules && Court && !nwf.Defunct) CourtFreeAgents(world, nwf, MaxAsk(), valuation, run.D);
                     PlayerAgent();
                     var inWindow = dealRules ? world.RosterOf(nwf.Id).Where(f => DealWindow.InWindow(world, f)).Select(f => f.Id).ToList() : new();
                     // Every deal on the books before the four weeks, to class what became of it.
@@ -379,7 +560,12 @@ public static class ShoeSweep
                         .ToDictionary(f => f.Id, f => (f.Contract!.SignedOn, Purse: f.Contract.PursePerFight.Amount, Ca: FighterAbility.CurrentAbility(f), Pop: f.Intangibles.Popularity.Value,
                             Champ: world.Titles.Values.Any(t => t.Promotion == nwf.Id && t.CurrentChampion == f.Id),
                             Ask: f.Contract.FightsRemaining <= 1 ? Negotiator.EffectiveAskingPurse(world, nwf, f, valuation.Evaluate(world, f)).Amount : 0m));
-                    for (int w = 0; w < 4; w++) { tick.AdvanceWeek(world); offers.Scan(world, nwf, run.D); }
+                    for (int w = 0; w < 4; w++)
+                    {
+                        tick.AdvanceWeek(world);
+                        offers.Scan(world, nwf, run.D);
+                        if (dealRules && Court && !nwf.Defunct) { AnswerFreeAgentOffers(world, nwf, MaxAsk(), valuation, run.D); offers.Scan(world, nwf, run.D); }
+                    }
                     foreach (var (id, was) in before)
                     {
                         var f = world.Get(id);
@@ -430,7 +616,7 @@ public static class ShoeSweep
             }
         }
         finally { FreeAgencyService.HarnessHandsOff = null; }
-        offers.Finish(run.D);
+        offers.Finish(run.D, world);
         run.FinalPrestige = nwf.Prestige.Value;
         run.FinalTier = OrgSizing.SizeOf(nwf);
         return run;

@@ -13,7 +13,7 @@ public sealed class World
     /// shape. Development rule: saves are never migrated — the reader refuses any
     /// other version and the player starts a new world (see PROJECT.md).
     /// </summary>
-    public const int LatestSaveVersion = 46;   // v46: rival offers (World.RivalOffers, DecisionKind.RivalOffer); v45: deals end (Contract.WindowEndsOn/WindowWarned) + World.Talks (talks remembered); v44: Contract.BondNoticeOn (lifer stories told once); v43: safe save (entity ordinals keep dictionary order, round scores + poach warning + cross-org rankings persisted, loyalty/marketing_push NOT NULL); v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
+    public const int LatestSaveVersion = 47;   // v47: free-agent rival offers (RivalOffer.Improvements + the owner's final offer, RivalOffer.Final; Purse/WinBonus/SigningBonus settable); v46: rival offers (World.RivalOffers, DecisionKind.RivalOffer); v45: deals end (Contract.WindowEndsOn/WindowWarned) + World.Talks (talks remembered); v44: Contract.BondNoticeOn (lifer stories told once); v43: safe save (entity ordinals keep dictionary order, round scores + poach warning + cross-org rankings persisted, loyalty/marketing_push NOT NULL); v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
 
     /// <summary>The version a loaded save was written at (always <see cref="LatestSaveVersion"/> — older saves are refused on load).</summary>
     public int SaveVersion { get; init; } = LatestSaveVersion;

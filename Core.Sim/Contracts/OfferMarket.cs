@@ -10,6 +10,21 @@ public enum LeaningSide { Theirs, Torn, Yours }
 /// <summary>His leaning in words: the side, and why (what pulls him each way).</summary>
 public sealed record Leaning(LeaningSide Side, string Words);
 
+/// <summary>What became of a final offer the owner put in writing (<see cref="OfferMarket.LodgeFinal"/>).</summary>
+public enum FinalOfferResult
+{
+    /// <summary>In writing: he decides between it and the rival's paper on the next tick.</summary>
+    Lodged,
+    /// <summary>No live offer from a rival for this courted free agent: there is nothing to beat in writing.</summary>
+    NoOffer,
+    /// <summary>Worth less to him than the rival's paper (by <see cref="OfferMarket.Score"/>): he won't take it, so it isn't lodged.</summary>
+    NotEnough,
+    /// <summary>The promotion can't cover its own signing bonus.</summary>
+    CantAfford,
+    /// <summary>Not a deal he'd sign whatever the money: the wrong length, no real signing bonus, too little guaranteed.</summary>
+    OffTerms,
+}
+
 /// <summary>
 /// RIVAL OFFERS for the player's fighters (contracts stage 6). When one of the
 /// player's fighters is on the last fight of his deal, a bigger promotion that
@@ -30,6 +45,15 @@ public sealed record Leaning(LeaningSide Side, string Words);
 ///   and the money; otherwise he walks onto the open market as before.</item>
 /// </list>
 /// A holding lifer refuses the call (<see cref="Lifers.TurnDown"/>) and no offer is lodged.
+///
+/// FREE AGENTS the owner courts (contracts stage 7, <see cref="RivalOfferKind.FreeAgent"/>):
+/// when the AI free-agency pass would sign a free agent who has open talks with a
+/// player-rules promotion, the rival lodges that same deal with a 10-14 day deadline
+/// instead (<see cref="TryLodgeFreeAgent"/>; <see cref="RivalOffer.Holder"/> is then the
+/// courting promotion). The owner beats it at the table (<see cref="NegotiationSession.Resume"/>
+/// reads it), or puts a final offer in writing (<see cref="LodgeFinal"/>), which the rival may
+/// answer once on the next tick; past the deadline, or if the owner lets him go or he walks
+/// out of the owner's talks, the rival signs him. Both kinds share <see cref="MaxPerYear"/>.
 ///
 /// Only promotions under the player's deal rules (<see cref="DealWindow.PlayerRules"/>)
 /// see offers, so an all-AI world never reaches any of this. No RNG stream is drawn:
@@ -94,14 +118,33 @@ public static class OfferMarket
     /// at the promotion he is signed to — by his personal discount (a lifer's hometown
     /// rate, a discovered local's gratitude: a dollar from home is worth more to him).
     /// A rival that once discovered him gets no such lift: he owes the house he is in.
+    /// A free agent's "house" is the promotion courting him with a rival's offer standing
+    /// (<see cref="RivalOffer.Holder"/>): the same discount his table there quotes (a
+    /// discoverer's gratitude), so the rival's paper can't erase it.
     /// </summary>
     public static decimal Score(World world, Fighter f, ContractOffer o, ContractExpectations exp)
     {
         decimal excl = o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor;
-        decimal home = f.Contract?.Promotion == o.Promotion ? Negotiator.TableDiscount(world, f, o.Promotion) : 1m;
+        decimal home = HomeFactor(world, f, o.Promotion);
         double appeal = Negotiator.Appeal(world, f, o, exp);
         return Negotiator.MoneyValue(world, o) / excl * (1m + (decimal)appeal * 0.25m) / home;
     }
+
+    // His personal discount for this promotion as Score weighs it: at the house he is
+    // signed to, or (a free agent) at the one courting him with a rival's offer live.
+    private static decimal HomeFactor(World world, Fighter f, PromotionId promo) =>
+        f.Contract?.Promotion == promo
+        || (f.Contract is null && world.RivalOffers.Count > 0
+            && LiveFor(world, f.Id) is { Kind: RivalOfferKind.FreeAgent } fa && fa.Holder == promo)
+            ? Negotiator.TableDiscount(world, f, promo) : 1m;
+
+    /// <summary>
+    /// A final offer in writing as he weighs it against the rival's paper: its
+    /// <see cref="Score"/>, less the price of a champion's clause (the leash the table
+    /// charges <see cref="Negotiator.ChampionsClausePremium"/> for).
+    /// </summary>
+    public static decimal FinalScore(World world, Fighter f, ContractOffer o, ContractExpectations exp) =>
+        Score(world, f, o, exp) / (o.ChampionsClause ? Negotiator.ChampionsClausePremium : 1m);
 
     /// <summary>
     /// What it takes to keep him: the rival's structure (length, win bonus, signing
@@ -124,7 +167,7 @@ public static class OfferMarket
         };
         double appeal = Negotiator.Appeal(world, f, ours, exp);
         decimal exclF = excl ? 1m : Negotiator.NonExclusiveMoneyFactor;
-        decimal home = f.Contract?.Promotion == holder.Id ? Negotiator.TableDiscount(world, f, holder.Id) : 1m;
+        decimal home = HomeFactor(world, f, holder.Id);
         decimal neededValue = theirs * home * exclF / (1m + (decimal)appeal * 0.25m);
         decimal signingPerFight = o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount;
         decimal purse = NegotiationSession.UpTo500(neededValue - 0.5m * o.WinBonus.Amount - signingPerFight);
@@ -189,7 +232,7 @@ public static class OfferMarket
             LeaningSide.Torn => "He's torn."
                                 + (pullThem.Length > 0 ? $" For {abbr}: {pullThem}." : "")
                                 + (pullUs.Length > 0 ? $" For us: {pullUs}." : ""),
-            _ => $"He's leaning our way{(pullUs.Length > 0 ? $": {pullUs}" : "")}. Pay him his number and he stays.",
+            _ => $"He's leaning our way{(pullUs.Length > 0 ? $": {pullUs}" : "")}. Pay him his number and he {(o.Kind == RivalOfferKind.FreeAgent ? "signs" : "stays")}.",
         };
         return new Leaning(side, Lifers.Gendered(f, words));
     }
@@ -295,6 +338,7 @@ public static class OfferMarket
     // One live offer through the week: answered, timed out, overtaken, or taken.
     private static RivalOffer? Resolve(World world, RivalOffer o, DateOnly date)
     {
+        if (o.Kind == RivalOfferKind.FreeAgent) return ResolveFreeAgent(world, o, date);
         var f = world.Get(o.Fighter);
         var rival = world.Get(o.From);
         if (f is null || f.Status == FighterStatus.Retired || f.Contract?.Promotion != o.Holder)
@@ -421,6 +465,9 @@ public static class OfferMarket
     {
         if (o.State != RivalOfferState.Pending) return;
         o.State = RivalOfferState.LetGo;
+        // A courted free agent let go: the owner has stopped courting him, so the rival
+        // signs him on the next tick (if it still can). There is no re-sign window to wait on.
+        if (o.Kind == RivalOfferKind.FreeAgent) { o.Final = null; return; }
         RemoveDesk(world, o);
         if (o.Holder != world.PlayerPromotion || world.Get(o.Fighter) is not { } f) return;
         string abbr = world.Get(o.From)?.Abbreviation ?? "the rival";
@@ -454,6 +501,309 @@ public static class OfferMarket
         if (LiveFor(world, f.Id) is { } o && o.Holder == from) Close(world, o, RivalOfferState.Withdrawn, date);
         if (world.RivalOffers.Any(x => x.State == RivalOfferState.Pending && (x.Holder == from || x.From == from)))
             RefreshDesk(world);
+    }
+
+    /// <summary>A free agent retires: any offer for him dies now, not at the next tick.</summary>
+    internal static void OnRetired(World world, Fighter f, DateOnly date)
+    {
+        if (world.RivalOffers.Count == 0) return;
+        if (LiveFor(world, f.Id) is { } o) Close(world, o, RivalOfferState.Withdrawn, date);
+    }
+
+    // --- Free agents the player courts (contracts stage 7) -----------------------------------
+
+    /// <summary>Shortest and longest deadline (days) on a courted free agent's offer: a keyed hash picks within it.</summary>
+    public const int FreeAgentMinDays = 10, FreeAgentMaxDays = 14;
+
+    private const ulong DeadlineSalt = 0x0FFE_FA0D_EAD1UL;
+
+    /// <summary>Whether a rival's offer for him is live (so the quiet market leaves him alone).</summary>
+    public static bool HasLiveOffer(World world, FighterId fighter) =>
+        world.RivalOffers.Count > 0 && LiveFor(world, fighter) is not null;
+
+    /// <summary>Seats in <paramref name="div"/> that <paramref name="promo"/> holds for free agents it has lodged offers for.</summary>
+    public static int SeatsHeld(World world, PromotionId promo, Division div) =>
+        world.RivalOffers.Count == 0 ? 0
+            : world.RivalOffers.Count(o => o.Live && o.Kind == RivalOfferKind.FreeAgent && o.From == promo
+                                           && world.Get(o.Fighter) is { } x && div.Matches(x));
+
+    /// <summary>
+    /// The player-rules promotion courting this free agent, if any: open talks
+    /// (<see cref="World.Talks"/>, list order) that he has not walked out of, inside
+    /// <see cref="DealWindow.TalksMemoryDays"/>. Null when nobody is courting him.
+    /// </summary>
+    public static PromotionId? CourtedBy(World world, Fighter f, DateOnly date)
+    {
+        if (world.Talks.Count == 0 || f.Contract is not null) return null;
+        foreach (var t in world.Talks)
+            if (t.Fighter == f.Id && t.SouredUntil is null
+                && date.DayNumber - t.LastTalked.DayNumber <= DealWindow.TalksMemoryDays
+                && DealWindow.PlayerRules(world, t.Promotion) && world.Get(t.Promotion) is { Defunct: false })
+                return t.Promotion;
+        return null;
+    }
+
+    /// <summary>
+    /// The AI free-agency pass would sign this free agent on <paramref name="terms"/>
+    /// today. If a player-rules promotion is courting him (<see cref="CourtedBy"/>), the
+    /// caps have room (<see cref="FreeAgentMaxPerYear"/> of this kind and <see cref="MaxPerYear"/>
+    /// of both together in the trailing year, and at most one of this kind per courting
+    /// promotion per pass), and the rival can really sign him today (solvent, room, the
+    /// signing bonus in the bank: the same gates as at the deadline, so no offer is a bluff), the rival
+    /// lodges exactly those terms as a <see cref="RivalOfferKind.FreeAgent"/> offer with a
+    /// 10-14 day deadline instead, and the owner hears it from the fighter (the terms come
+    /// out at the table). Returns whether it was lodged; false leaves today's instant
+    /// signing to the caller. No RNG stream: the deadline is a keyed hash.
+    /// </summary>
+    internal static bool TryLodgeFreeAgent(World world, Promotion rival, Fighter f, ContractOffer terms, DateOnly date)
+    {
+        if (CourtedBy(world, f, date) is not { } courting || courting == rival.Id) return false;
+        if (HasLiveOffer(world, f.Id) || OffersThisYear(world, courting, date) >= MaxPerYear) return false;
+        if (FreeAgentOffersThisYear(world, courting, date) >= FreeAgentMaxPerYear
+            || world.RivalOffers.Any(x => x.Kind == RivalOfferKind.FreeAgent && x.Holder == courting && x.Made == date))
+            return false;
+        if (Solvency.Distress(rival) > 0 || !PoachingService.HasRoom(world, rival, f) || rival.Balance.Amount < terms.SigningBonus.Amount)
+            return false;
+        int span = FreeAgentMaxDays - FreeAgentMinDays + 1;
+        int days = FreeAgentMinDays + (int)(SimRandom.Mix(world.RngSeed,
+            (ulong)f.Id.Value * 0x9E37_79B9UL ^ (ulong)date.DayNumber ^ DeadlineSalt) % (ulong)span);
+        var o = new RivalOffer
+        {
+            Id = world.RivalOffers.Count == 0 ? 1 : world.RivalOffers.Max(x => x.Id) + 1,
+            Fighter = f.Id, From = rival.Id, Holder = courting, Kind = RivalOfferKind.FreeAgent,
+            Purse = terms.PursePerFight, WinBonus = terms.WinBonus, SigningBonus = terms.SigningBonus,
+            Fights = terms.Fights, Exclusive = terms.Exclusive,
+            Made = date, Deadline = date.AddDays(days),
+        };
+        world.RivalOffers.Add(o);
+        if (courting == world.PlayerPromotion)
+            Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
+                $"{f.FullName} has an offer from {rival.Abbreviation}",
+                Lifers.Gendered(f, $"“{rival.Name} put paper in front of me. I said I'd hear you out first — but not for long.” "
+                    + $"{f.FullName} will give us until {o.Deadline:d MMMM}: sit down with him on the Contracts screen and he'll show us "
+                    + $"what they're offering. Beat it at the table, or put our best offer in writing. If we say nothing, he signs with {rival.Abbreviation}."),
+                aboutFighter: f.Id);
+        return true;
+    }
+
+    /// <summary>
+    /// Free-agent offers allowed per courting promotion in the trailing 365 days (they also
+    /// count toward <see cref="MaxPerYear"/>), so shopping the market can't use up the year's
+    /// calls on the owner's own fighters.
+    /// </summary>
+    public const int FreeAgentMaxPerYear = 2;
+
+    /// <summary>Free-agent offers lodged for this courting promotion in the 365 days to <paramref name="date"/>.</summary>
+    public static int FreeAgentOffersThisYear(World world, PromotionId holder, DateOnly date) =>
+        world.RivalOffers.Count(o => o.Holder == holder && o.Kind == RivalOfferKind.FreeAgent && date.DayNumber - o.Made.DayNumber < 365);
+
+    /// <summary>
+    /// The rival's walk-away purse for a courted free agent: the smaller of its purse cap
+    /// and his ask (never past its own budget), never under what it already offered. Public
+    /// facts only. Sim-only: never shown.
+    /// </summary>
+    internal static decimal CeilingPurse(World world, Promotion rival, RivalOffer o, ContractExpectations exp)
+    {
+        decimal ask = exp.AskingPurse.Amount * (o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor);
+        decimal top = Math.Floor(Math.Min(Negotiator.PurseCap(world, rival), ask) / 500m) * 500m;
+        return Math.Max(o.Purse.Amount, top);
+    }
+
+    /// <summary>Chance the rival answers a final offer at all (a keyed roll per offer; else it folds).</summary>
+    public const double ComeBackChance = 0.5;
+
+    private const ulong ComeBackSalt = 0x0FFE_C0BA_C4UL;
+
+    /// <summary>
+    /// Whether the rival is minded to come back once if the owner's final offer beats its paper:
+    /// its own call, a keyed hash of the world, the rival, the fighter and the day it made the
+    /// offer (no RNG stream). Whether it CAN is a separate question (<see cref="Improve"/>).
+    /// </summary>
+    internal static bool WouldComeBack(World world, RivalOffer o) =>
+        new SimRandom(SimRandom.Mix(world.RngSeed,
+            ((ulong)o.From.Value << 32) ^ (ulong)o.Fighter.Value ^ ((ulong)o.Made.DayNumber * 0x9E37_79B9UL) ^ ComeBackSalt))
+            .Chance(ComeBackChance);
+
+    /// <summary>
+    /// "Put it in writing": the owner's final offer to a courted free agent with a rival's
+    /// paper in his hand. Lodged only if it is worth at least as much to him as the rival's
+    /// (<see cref="FinalScore"/>: a champion's clause is priced in) and the promotion can cover its signing bonus; a new one replaces
+    /// an earlier one. On the next weekly tick the rival may come back once
+    /// (<see cref="RivalOffer.Improvements"/>) or fold, and he chooses by score. Callers
+    /// normally go through <see cref="NegotiationSession.PutInWriting"/>, which also holds
+    /// the offer to the table's sanity rules (length, signing bonus, guaranteed money).
+    /// </summary>
+    internal static FinalOfferResult LodgeFinal(World world, Fighter f, Promotion promo, ContractOffer ours)
+    {
+        if (LiveFor(world, f.Id) is not { Kind: RivalOfferKind.FreeAgent, State: RivalOfferState.Pending } o
+            || o.Holder != promo.Id || f.Contract is not null || world.Get(o.From) is not { Defunct: false })
+            return FinalOfferResult.NoOffer;
+        if (promo.Balance.Amount < ours.SigningBonus.Amount) return FinalOfferResult.CantAfford;
+        var exp = Valuation.Evaluate(world, f);
+        if (FinalScore(world, f, ours, exp) < Score(world, f, AsContractOffer(o), exp)) return FinalOfferResult.NotEnough;
+        o.Final = new ContractOffer
+        {
+            Fighter = f.Id, Promotion = promo.Id,
+            PursePerFight = ours.PursePerFight, WinBonus = ours.WinBonus, SigningBonus = ours.SigningBonus,
+            Fights = ours.Fights, Exclusive = ours.Exclusive, ChampionsClause = ours.ChampionsClause,
+            PpvPoints = ours.PpvPoints, PerformanceBonus = ours.PerformanceBonus, Round = 0,
+        };
+        return FinalOfferResult.Lodged;
+    }
+
+    // A courted free agent's offer through the week: settled elsewhere, the rival or the
+    // courting side gone, a final offer answered, his talks with the owner over, the
+    // deadline passed (the rival signs him), or its last week (the clock stops).
+    private static RivalOffer? ResolveFreeAgent(World world, RivalOffer o, DateOnly date)
+    {
+        var f = world.Get(o.Fighter);
+        if (f is null || f.Status == FighterStatus.Retired || f.Contract is not null
+            || world.Get(o.Holder) is not { Defunct: false } holder)
+            return Close(world, o, RivalOfferState.Withdrawn, date);
+        bool mine = o.Holder == world.PlayerPromotion;
+        if (world.Get(o.From) is not { Defunct: false } rival)
+        {
+            Close(world, o, RivalOfferState.Withdrawn, date);
+            if (mine)
+                Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
+                    $"{world.Get(o.From)?.Abbreviation ?? "The rival"}'s offer for {f.FullName} is off",
+                    Lifers.Gendered(f, $"{world.Get(o.From)?.Name ?? "The promotion that wanted him"} has closed its doors, and its offer for {f.FullName} went with it. "
+                        + "He's still a free agent."),
+                    aboutFighter: f.Id);
+            return null;
+        }
+
+        // He walked out of the owner's talks: a final offer in writing goes with them.
+        bool walkedOut = world.Talks.Any(t => t.Fighter == f.Id && t.Promotion == o.Holder && t.SouredUntil is not null);
+        if (walkedOut) o.Final = null;
+
+        // The owner's final offer, in writing: the rival's one chance, then his choice.
+        if (o.Final is not null && o.State == RivalOfferState.Pending)
+        {
+            var (done, stop) = AnswerFinal(world, o, f, holder, rival, date);
+            if (done) return stop;
+        }
+
+        // Let go, he walked out of the owner's talks, or the deadline passed: the rival
+        // signs him on its paper. (Talks merely going quiet don't end it before the
+        // deadline the owner was given.)
+        if (o.State == RivalOfferState.LetGo || walkedOut || date > o.Deadline)
+        {
+            RivalSigns(world, o, f, rival, date);
+            return null;
+        }
+
+        // The last week to beat it: the owner hears it, and the clock stops.
+        int left = o.Deadline.DayNumber - date.DayNumber;
+        if (left <= FinalWeekDays && left + 7 > FinalWeekDays)
+        {
+            if (mine)
+                Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
+                    $"Last week to beat {rival.Abbreviation} for {f.FullName}",
+                    Lifers.Gendered(f, $"{f.FullName} has {rival.Name}'s offer in his hand and will sign it after {o.Deadline:d MMMM}. "
+                        + "Sit down with him on the Contracts screen to beat it, or put our best offer in writing."),
+                    aboutFighter: f.Id);
+            return o;
+        }
+        return null;
+    }
+
+    // The rival signs him on the lodged terms, if it still has the room and the money;
+    // otherwise the offer falls away and he stays on the market.
+    private static void RivalSigns(World world, RivalOffer o, Fighter f, Promotion rival, DateOnly date)
+    {
+        bool mine = o.Holder == world.PlayerPromotion;
+        o.Final = null;
+        if (Solvency.Distress(rival) > 0 || !PoachingService.HasRoom(world, rival, f) || rival.Balance.Amount < o.SigningBonus.Amount)
+        {
+            Close(world, o, RivalOfferState.Withdrawn, date);
+            if (mine)
+                Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
+                    $"{rival.Abbreviation} pulled its offer for {f.FullName}",
+                    Lifers.Gendered(f, $"{rival.Name} no longer has the room or the money for {f.FullName}. He's still a free agent — we can still talk to him."),
+                    aboutFighter: f.Id);
+            return;
+        }
+        Close(world, o, RivalOfferState.Signed, date);
+        ContractLifecycle.Sign(world, f, AsContractOffer(o), date);   // (posts the signing news itself)
+        if (mine)
+            Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
+                $"{f.FullName} signed with {rival.Abbreviation}",
+                Lifers.Gendered(f, $"We didn't beat {rival.Name}'s paper in time, and {f.FullName} signed it: {TermsText(o)}."),
+                aboutFighter: f.Id);
+    }
+
+    // He weighs the owner's final offer against the rival's paper. Done = the offer is
+    // settled for this week (he signed with us, or the rival came back and the owner must
+    // answer: Stop is then the offer); not done = he turned ours down and the offer runs on.
+    private static (bool Done, RivalOffer? Stop) AnswerFinal(World world, RivalOffer o, Fighter f, Promotion holder, Promotion rival, DateOnly date)
+    {
+        var ours = o.Final!;
+        o.Final = null;
+        bool mine = o.Holder == world.PlayerPromotion;
+        var exp = Valuation.Evaluate(world, f);
+        decimal sOurs = FinalScore(world, f, ours, exp), sTheirs = Score(world, f, AsContractOffer(o), exp);
+        bool broke = holder.Balance.Amount < ours.SigningBonus.Amount;
+
+        if (broke || sOurs < sTheirs)
+        {
+            if (mine)
+                Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
+                    $"{f.FullName} turned down our offer",
+                    Lifers.Gendered(f, broke
+                        ? $"“You can't cover the signing bonus you wrote down.” {rival.Abbreviation}'s paper still stands until {o.Deadline:d MMMM}."
+                        : $"“{rival.Abbreviation}'s paper is worth more to me than yours.” It still stands until {o.Deadline:d MMMM}."),
+                    aboutFighter: f.Id);
+            return (false, null);
+        }
+
+        // The rival's one chance, if it chooses to take it (a keyed roll: no automatic
+        // escalation): come back to beat ours by 5% (by his lights), within its budget, if
+        // it is solvent, has the room and can pay — or fold.
+        if (o.Improvements == 0 && WouldComeBack(world, o) && Solvency.Distress(rival) == 0
+            && PoachingService.HasRoom(world, rival, f) && Improve(world, o, f, rival, sOurs * 1.05m, exp))
+        {
+            if (o.Deadline < date.AddDays(FinalWeekDays)) o.Deadline = date.AddDays(FinalWeekDays);
+            if (mine)
+                Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
+                    $"{rival.Abbreviation} came back for {f.FullName}",
+                    Lifers.Gendered(f, $"“They came back at {o.Purse} a fight. Your move.” {rival.Name} raised its offer to {TermsText(o)}. "
+                        + $"Beat it by {o.Deadline:d MMMM} or he signs there — they won't go again."),
+                    aboutFighter: f.Id);
+            return (true, o);   // the owner must answer now: the clock stops
+        }
+
+        // He takes ours (the signing settles the offer as Beaten).
+        ContractLifecycle.Sign(world, f, ours, date);
+        if (mine)
+            Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
+                $"{f.FullName} is ours",
+                Lifers.Gendered(f, $"“I'm yours.” {f.FullName} took our offer over {rival.Name}'s: {ours.PursePerFight} a fight for {ours.Fights} fights."),
+                aboutFighter: f.Id);
+        return (true, null);
+    }
+
+    // Raise the rival's paper until it scores at least <paramref name="target"/>: the purse on
+    // the $500 step up to its walk-away purse (CeilingPurse: never past its own purse cap),
+    // then a signing bonus up to half that purse (how AI offers price one). False when that
+    // isn't enough, or the bank can't cover the bonus.
+    internal static bool Improve(World world, RivalOffer o, Fighter f, Promotion rival, decimal target, ContractExpectations exp)
+    {
+        decimal ceiling = CeilingPurse(world, rival, o, exp);
+        decimal maxSigning = Math.Max(o.SigningBonus.Amount, Math.Floor(ceiling * 0.5m / 500m) * 500m);
+        ContractOffer At(decimal p, decimal sb) => new()
+        {
+            Fighter = o.Fighter, Promotion = o.From, PursePerFight = new Money(p), WinBonus = o.WinBonus,
+            SigningBonus = new Money(sb), Fights = o.Fights, Exclusive = o.Exclusive,
+        };
+        decimal purse = o.Purse.Amount, signing = o.SigningBonus.Amount;
+        while (purse + 500m <= ceiling && Score(world, f, At(purse, signing), exp) < target) purse += 500m;
+        while (signing + 500m <= maxSigning && Score(world, f, At(purse, signing), exp) < target) signing += 500m;
+        if (Score(world, f, At(purse, signing), exp) < target || rival.Balance.Amount < signing) return false;
+        o.Purse = new Money(purse);
+        o.SigningBonus = new Money(signing);
+        o.Improvements++;
+        return true;
     }
 
     // --- Plumbing --------------------------------------------------------------------------

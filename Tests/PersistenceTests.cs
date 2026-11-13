@@ -53,7 +53,16 @@ public class PersistenceTests
             {
                 Id = 1, Fighter = world.Fighters.Keys.Skip(4).First(), From = world.Promotions.Keys.First(),
                 Holder = world.Promotions.Keys.Skip(1).First(), Made = world.CurrentDate.AddDays(-3),
+                Kind = RivalOfferKind.FreeAgent,
+                // The owner's final offer in writing (a courted free agent's offer): every lever set.
+                Final = new ContractOffer
+                {
+                    Fighter = world.Fighters.Keys.Skip(4).First(), Promotion = world.Promotions.Keys.Skip(1).First(),
+                    PursePerFight = new Money(12_500m), WinBonus = new Money(6_000m), SigningBonus = new Money(4_000m),
+                    Fights = 3, PpvPoints = 2, PerformanceBonus = new Money(2_500m), Exclusive = false, ChampionsClause = true,
+                },
             });
+
             PersistenceGraph.FillUnpopulated(world);
         }
         return world;
@@ -435,6 +444,50 @@ public class PersistenceTests
         var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "A world saved mid-offer diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    /// <summary>
+    /// Free-agent offers (contracts stage 7): a world saved with a rival's offer standing for a
+    /// free agent the player courts, and the owner's final offer in writing on it, loads with the
+    /// same offer and final offer and runs on (the rival's answer, the deadline) exactly like the
+    /// world that was never saved.
+    /// </summary>
+    [Fact]
+    public void ASaveWithAFreeAgentOffer_AndAFinalOfferInWriting_RunsOnLikeANeverSavedWorld()
+    {
+        (World W, FighterId Courted) Setup()
+        {
+            var w = PlayerWorld(21);
+            var promo = w.Get(w.PlayerPromotion)!;
+            promo.Balance = new Money(5_000_000m);
+            RivalOffer? o = null;
+            for (int week = 0; week < 10 && o is null; week++)
+            {
+                FreeAgentOfferTests.CourtEveryone(w);
+                new WorldTick().AdvanceWeek(w);
+                o = w.RivalOffers.FirstOrDefault(x => x.Kind == RivalOfferKind.FreeAgent && x.State == RivalOfferState.Pending);
+            }
+            Assert.NotNull(o);
+            var f = w.Get(o.Fighter)!;
+            Assert.Equal(MmaManager.Core.Sim.Contracts.FinalOfferResult.Lodged,
+                MmaManager.Core.Sim.Contracts.OfferMarket.LodgeFinal(w, f, promo, MmaManager.Core.Sim.Contracts.OfferMarket.MatchTerms(w, o)));
+            return (w, f.Id);
+        }
+
+        var (straight, courted) = Setup();
+        var (split, _) = Setup();
+        var resumed = RoundTrip(split);
+        AssertSame(split, resumed);
+        var live = resumed.RivalOffers.Single(o => o.Fighter == courted && o.Live);
+        Assert.Equal(RivalOfferKind.FreeAgent, live.Kind);
+        Assert.NotNull(live.Final);
+
+        new WorldTick().AdvanceWeeks(straight, 4);
+        new WorldTick().AdvanceWeeks(resumed, 4);
+        Assert.False(straight.RivalOffers.Single(o => o.Fighter == courted).Live);   // answered and settled
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
+        Assert.True(diffs.Count == 0,
+            "A world saved mid free-agent offer diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
     }
 
     private static World RoundTrip(World w)

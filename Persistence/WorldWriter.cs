@@ -138,8 +138,9 @@ internal sealed class WorldWriter
     private void WriteRivalOffers(World w)
     {
         using var cmd = _c.Cmd(_tx,
-            "INSERT INTO rival_offers (ordinal, id, fighter_id, from_id, holder_id, kind, purse, win_bonus, signing_bonus, fights, exclusive, made, deadline, state, resolved) "
-            + "VALUES ($o,$id,$f,$fr,$h,$k,$p,$wb,$sb,$n,$x,$m,$d,$st,$r)");
+            "INSERT INTO rival_offers (ordinal, id, fighter_id, from_id, holder_id, kind, purse, win_bonus, signing_bonus, fights, exclusive, made, deadline, state, resolved, "
+            + "improvements, final_purse, final_win_bonus, final_signing_bonus, final_fights, final_exclusive, final_clause, final_ppv, final_perf) "
+            + "VALUES ($o,$id,$f,$fr,$h,$k,$p,$wb,$sb,$n,$x,$m,$d,$st,$r,$im,$fp,$fw,$fs,$fn,$fx,$fc,$fv,$ff)");
         for (int i = 0; i < w.RivalOffers.Count; i++)
         {
             var o = w.RivalOffers[i];
@@ -159,7 +160,18 @@ internal sealed class WorldWriter
             cmd.Bind("$d", Db.Date(o.Deadline));
             cmd.Bind("$st", o.State.ToString());
             cmd.Bind("$r", Db.DateN(o.Resolved));
+            cmd.Bind("$im", o.Improvements);
+            var fin = o.Final;   // the owner's final offer in writing, if any (all null when none)
+            cmd.Bind("$fp", fin is null ? DBNull.Value : Db.Cash(fin.PursePerFight));
+            cmd.Bind("$fw", fin is null ? DBNull.Value : Db.Cash(fin.WinBonus));
+            cmd.Bind("$fs", fin is null ? DBNull.Value : Db.Cash(fin.SigningBonus));
+            cmd.Bind("$fn", fin is null ? DBNull.Value : fin.Fights);
+            cmd.Bind("$fx", fin is null ? DBNull.Value : fin.Exclusive ? 1 : 0);
+            cmd.Bind("$fc", fin is null ? DBNull.Value : fin.ChampionsClause ? 1 : 0);
+            cmd.Bind("$fv", fin is null ? DBNull.Value : fin.PpvPoints);
+            cmd.Bind("$ff", fin is null ? DBNull.Value : Db.Cash(fin.PerformanceBonus));
             cmd.ExecuteNonQuery();
+
         }
     }
 

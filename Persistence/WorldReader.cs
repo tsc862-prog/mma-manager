@@ -514,7 +514,17 @@ internal sealed class WorldReader
                 Deadline = r.Date("deadline"),
                 State = r.Enum<RivalOfferState>("state"),
                 Resolved = r.DateN("resolved"),
+                Improvements = r.Int("improvements"),
+                Final = r.IsDBNull(r.GetOrdinal("final_purse")) ? null : new ContractOffer
+                {
+                    Fighter = new FighterId(r.Int("fighter_id")), Promotion = new PromotionId(r.Int("holder_id")),
+                    PursePerFight = r.Cash("final_purse"), WinBonus = r.Cash("final_win_bonus"),
+                    SigningBonus = r.Cash("final_signing_bonus"), Fights = r.Int("final_fights"),
+                    Exclusive = r.Bool("final_exclusive"), ChampionsClause = r.Bool("final_clause"),
+                    PpvPoints = r.Int("final_ppv"), PerformanceBonus = r.Cash("final_perf"), Round = 0,
+                },
             });
+
     }
 
     private void ReadRelationships(World world)

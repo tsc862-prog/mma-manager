@@ -81,8 +81,12 @@ public static class FreeAgencyService
                 : Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo));
             foreach (var div in promo.Divisions)
             {
+                // (A free agent this org has lodged an offer for — one the player is
+                // courting, OfferMarket — holds his seat until the offer resolves. Only a
+                // player-rules world ever has one: the all-AI count is untouched.)
                 int Have() => world.RosterOf(promo.Id)
-                    .Count(f => div.Matches(f) && f.Status != FighterStatus.Retired);
+                    .Count(f => div.Matches(f) && f.Status != FighterStatus.Retired)
+                    + OfferMarket.SeatsHeld(world, promo.Id, div);
                 if (Have() >= target) continue;
 
                 // Chase the best SIGNINGS, not just the best fighters — a genuine
@@ -102,6 +106,9 @@ public static class FreeAgencyService
                     // A star with a public bidding war running is off the quiet
                     // market — the war (or a player swoop) decides where they land.
                     if (world.BiddingWars.Any(w => w.Fighter == fa.Id)) continue;
+                    // Likewise a free agent with a rival's offer in his hand (one the
+                    // player courts): that offer decides, not a second quiet bid.
+                    if (OfferMarket.HasLiveOffer(world, fa.Id)) continue;
                     // A National+ org doesn't stock RAW kids as filler — a debut
                     // belongs on the small-hall circuit until the record says
                     // otherwise (the rare elite/famous prospect still gets
@@ -119,6 +126,12 @@ public static class FreeAgencyService
 
                     var offer = Negotiator.AiOpeningOffer(world, promo, fa, exp);
                     if (Negotiator.Evaluate(world, fa, offer, exp).Verdict != NegotiationVerdict.Accept) continue;
+
+                    // A free agent the player is courting (open talks): the org puts
+                    // this same deal in front of him with a deadline instead of signing
+                    // him on the spot — the player gets his chance to beat it. Nobody
+                    // else's free agents are touched (no talks, no offer: today's signing).
+                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) continue;
 
                     ContractLifecycle.Sign(world, fa, offer, date);
                     signings++;
