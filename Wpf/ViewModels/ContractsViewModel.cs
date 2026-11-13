@@ -393,6 +393,15 @@ public sealed class ContractsViewModel : ObservableObject
         {
             Sign(deal);
         }
+        else if (vm.Settled != TableSettlement.None)
+        {
+            // The rival's paper was answered at the table (the sim has already acted).
+            ClearTarget();
+            RefreshLists();
+            ResponseTone = vm.Settled == TableSettlement.Matched ? "Good" : "Warn";
+            Response = vm.SettledLine;
+            OnChanged?.Invoke();
+        }
         else if (session.Outcome == TalkOutcome.TheyWalked)
         {
             var cooloff = NegotiationSession.SouredUntil(_world, f.Id, promo.Id) ?? _world.CurrentDate.AddDays(NegotiationSession.CoolOffDays);
@@ -400,6 +409,12 @@ public sealed class ContractsViewModel : ObservableObject
             Response = DealWindow.TalksClosed(_world, f)
                 ? $"{f.FullName} walked out — talks are closed, and on {f.Contract!.WindowEndsOn:MMM d} he tests the market."
                 : $"{f.FullName}'s camp walked out — talks are dead until {cooloff:MMM d}.";
+        }
+        else if (session.RivalOffer is { Final: not null } lodged && session.Outcome != TalkOutcome.TheyWalked)
+        {
+            ResponseTone = "Good";
+            Response = $"Your final offer to {f.FullName} is in writing — you'll hear within the week"
+                       + (_world.Get(lodged.From) is { } rival ? $" whether it beats {rival.Abbreviation}." : ".");
         }
         else
         {
