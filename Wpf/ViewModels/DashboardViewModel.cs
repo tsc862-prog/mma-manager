@@ -61,6 +61,8 @@ public sealed class DashboardViewModel : ObservableObject
     public ICommand? WatchTonightCommand { get; set; }
     public ICommand? SimTonightCommand { get; set; }
     public ICommand? NegotiateCommand { get; set; }
+    /// <summary>Stop courting a free agent a rival has made an offer to (parameter = fighter id; asks first).</summary>
+    public ICommand? LetCourtedGoCommand { get; set; }
     public ICommand? OpenFighterCommand { get; set; }
     public Func<bool>? IsFightNight { get; set; }
 
@@ -514,6 +516,26 @@ public sealed class DashboardViewModel : ObservableObject
                 PrimaryCommand = AcceptDecisionCommand, PrimaryParameter = d,
                 SecondaryText = DeskCalls.NoText(world, d, short_: true),
                 SecondaryCommand = DeclineDecisionCommand, SecondaryParameter = d,
+            });
+        }
+
+        // A rival's offer to a free agent you're courting: no Desk card and no match —
+        // beat it at the table, or let him go.
+        foreach (var o in DeskCalls.Courted(world))
+        {
+            int days = o.Deadline.DayNumber - today.DayNumber;
+            var who = world.Get(o.Fighter)!;
+            NeedsYou.Add(new ActionItemModel
+            {
+                Icon = "Money",
+                Title = DeskCalls.FreeAgentTitle(world, o),
+                Detail = DeskCalls.FreeAgentLine(world, o)
+                         + MmaManager.Core.Sim.Contracts.Lifers.Gendered(who, " Sit down with him and his people will show you their paper."),
+                Due = days <= 0 ? "today" : days == 1 ? "by tomorrow" : $"{days} days left",
+                Tone = days <= 7 ? CardTone.Bad : CardTone.Warn,
+                Picture = Portraits.Thumb(who, world),
+                PrimaryText = DeskCalls.SitDownText(who), PrimaryCommand = NegotiateCommand, PrimaryParameter = who.Id.Value,
+                SecondaryText = DeskCalls.LetGoText(who), SecondaryCommand = LetCourtedGoCommand, SecondaryParameter = who.Id.Value,
             });
         }
 

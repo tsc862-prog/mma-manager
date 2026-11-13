@@ -462,7 +462,8 @@ public sealed partial class BookingViewModel
         else if (x is { NeedsFight: true })
             lines.Add(new SheetLine("This booking", $"Gets him back in there after {x.ShelfDays / 30} months unused.", CardTone.Good));
         // PoachWarned now means a rival lodged a real offer on this deal (OfferMarket).
-        if (MmaManager.Core.Sim.Contracts.OfferMarket.LiveFor(_world!, f.Id) is { } live)
+        // (Only an end-of-deal offer can stand on a fighter under contract: a free agent's dies when he signs.)
+        if (MmaManager.Core.Sim.Contracts.OfferMarket.LiveFor(_world!, f.Id) is { Kind: RivalOfferKind.EndOfDeal } live)
         {
             string rival = _world!.Get(live.From)?.Name ?? "A rival";
             lines.Add(new SheetLine("Rivals", live.State == RivalOfferState.LetGo

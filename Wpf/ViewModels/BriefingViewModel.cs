@@ -157,6 +157,8 @@ public sealed class BriefingViewModel : ObservableObject
     public Action<int>? OpenEvent { get; set; }
     public Action? Close { get; set; }
     public ICommand? NegotiateCommand { get; set; }
+    /// <summary>Stop courting a free agent a rival has made an offer to (parameter = fighter id; asks first).</summary>
+    public ICommand? LetCourtedGoCommand { get; set; }
     public ICommand? WatchTonightCommand { get; set; }
     public ICommand? SimTonightCommand { get; set; }
     public ICommand? AcceptDecisionCommand { get; set; }
@@ -174,7 +176,8 @@ public sealed class BriefingViewModel : ObservableObject
 
     // --- What stopped the clock (ids only; rebuilt into words on every refresh) ----
     private sealed record Stop(BriefingKind Kind, string Key, DateOnly On, int Weeks,
-        int EventId = 0, int OutId = 0, int StayId = 0, string Reason = "", int CardCount = 0, int Extra = 0, bool Grouped = false);
+        int EventId = 0, int OutId = 0, int StayId = 0, string Reason = "", int CardCount = 0, int Extra = 0, bool Grouped = false,
+        bool Hard = false);   // the sim stopped the clock for it (WorldTickReport), not just the week running out
 
     private Stop? _stop;
     private World? _world;
@@ -196,6 +199,8 @@ public sealed class BriefingViewModel : ObservableObject
 
     public BriefingKind Kind => _stop?.Kind ?? BriefingKind.Desk;
     public bool IsQuiet => Kind == BriefingKind.Quiet;
+    /// <summary>The fighter a rival-offer headline is about (0 for any other headline).</summary>
+    public int StopFighterId => _stop is { Kind: BriefingKind.RivalOffer } s ? s.EventId : 0;
 
     /// <summary>
     /// After an advance: decide the headline (the report's hard stops first, then a
@@ -216,7 +221,7 @@ public sealed class BriefingViewModel : ObservableObject
                 CardCount: before.Cards.TryGetValue(lost2.Id.Value, out var c) ? c.Count : 0, Extra: holes.Count);
         else if (r.OfferNeedsYou is { } bid)
             stop = new Stop(BriefingKind.RivalOffer, OfferKey(w, bid.Fighter), w.CurrentDate, weeks, bid.Fighter.Value,
-                Extra: bid.Deadline.DayNumber - w.CurrentDate.DayNumber <= OfferMarket.FinalWeekDays ? 1 : 0);
+                Extra: bid.Deadline.DayNumber - w.CurrentDate.DayNumber <= OfferMarket.FinalWeekDays ? 1 : 0, Hard: true);
         else if (holes.FirstOrDefault() is { } h)
             stop = new Stop(BriefingKind.CardHole, $"hole:{h.EventId}:{h.OutId}", w.CurrentDate, weeks, h.EventId,
                 h.OutId, h.StayId, h.Reason, h.CardBefore, holes.Count - 1);
@@ -229,7 +234,8 @@ public sealed class BriefingViewModel : ObservableObject
         // The headline already is the offer: its own letter doesn't repeat in the digest.
         if (stop.Kind == BriefingKind.RivalOffer && w.Get(new FighterId(stop.EventId)) is { } courted)
             _digest.RemoveAll(i => i.Kicker.StartsWith("A LETTER", StringComparison.Ordinal)
-                                   && i.Text.StartsWith($"{courted.FullName} has an offer from ", StringComparison.Ordinal));
+                                   && (i.Text.StartsWith($"{courted.FullName} has an offer from ", StringComparison.Ordinal)
+                                       || i.Text.EndsWith($" came back for {courted.FullName}", StringComparison.Ordinal)));
         int days = Math.Max(0, w.CurrentDate.DayNumber - before.Date.DayNumber);
         _digestWindow = $"Since {before.Date:ddd d MMM}  ·  {Plural(days, "day")}" +
                         (r.EventsRun > 0 ? $"  ·  {Plural(r.EventsRun, "card")} around the sport, {Plural(r.Fights, "fight")}" : "");
@@ -390,6 +396,9 @@ public sealed class BriefingViewModel : ObservableObject
             else
                 list.Add(new Need(BriefingKind.Decision, $"decision:{d.Id}", 100, d.Id, Due: d.Deadline));
         }
+        // A rival's offer to a free agent you're courting has no Desk card: read it off the offer.
+        foreach (var o in DeskCalls.Courted(w))
+            list.Add(new Need(BriefingKind.RivalOffer, OfferKey(w, o.Fighter), 110, o.Fighter.Value, Due: o.Deadline));
 
         var roster = w.RosterOf(player.Id).Where(f => f.Status != FighterStatus.Retired).ToList();
 
@@ -436,8 +445,11 @@ public sealed class BriefingViewModel : ObservableObject
     private Stop PickNeed(World w, int weeks)
     {
         var needs = Needs(w);
-        // (A rival offer headlines only when the sim stopped the clock for it; else it waits on the agenda.)
-        if (needs.FirstOrDefault(n => !_announced.Contains(n.Key) && n.Kind != BriefingKind.RivalOffer) is { } fresh)
+        // (A rival offer for one of yours headlines only when the sim stopped the clock for it; else it
+        // waits on the agenda. One to a free agent you court has no Desk card and never stops the clock
+        // when it is made, so it headlines once, the week it lands.)
+        if (needs.FirstOrDefault(n => !_announced.Contains(n.Key)
+                                      && (n.Kind != BriefingKind.RivalOffer || DeskCalls.CourtedOffer(w, new FighterId(n.Id)) is not null)) is { } fresh)
         {
             bool grouped = fresh.Kind == BriefingKind.ExpiringDeal
                            || (fresh.Kind is BriefingKind.DealUp or BriefingKind.LastWeek && !fresh.Single);
@@ -607,7 +619,7 @@ public sealed class BriefingViewModel : ObservableObject
                 // A grouped headline stays up while any of its group is still open.
                 if (need is null && stop.Grouped)
                     need = needs.FirstOrDefault(n => n.Kind == stop.Kind && (stop.Kind == BriefingKind.ExpiringDeal || !n.Single));
-                string kicker = stop.Kind == BriefingKind.RivalOffer ? "TIME STOPPED"
+                string kicker = stop.Hard ? "TIME STOPPED"
                     : stretch.Length > 0 ? stretch : today.ToString("dddd d MMMM").ToUpperInvariant();
                 if (need is null)
                 {
@@ -627,8 +639,48 @@ public sealed class BriefingViewModel : ObservableObject
         switch (need.Kind)
         {
             case BriefingKind.RivalOffer
+                when w.Get(new FighterId(need.Id)) is { } f && DeskCalls.CourtedOffer(w, f.Id) is { } offer:
+            {
+                // A free agent you're courting. No Desk card and no match: his people show the
+                // rival's paper at the table, where you beat it — or you let him go. The terms
+                // aren't quoted here; they come out when you sit down.
+                var rival = w.Get(offer.From);
+                string abbr = rival?.Abbreviation ?? "a rival";
+                int days = offer.Deadline.DayNumber - today.DayNumber;
+                bool finalWeek = days <= OfferMarket.FinalWeekDays;
+                bool cameBack = DeskCalls.CameBackToday(w, offer);
+                string tier = rival is null ? "" : $" ({OrgSizing.Label(OrgSizing.SizeOf(rival))})";
+                Icon = "Money";
+                Tone = finalWeek ? CardTone.Bad : CardTone.Warn;
+                Kicker = $"{kicker}  ·  {(cameBack ? "THEY CAME BACK" : finalWeek ? "LAST WEEK TO BEAT IT" : "A RIVAL OFFER")}  ·  FREE AGENT  ·  {abbr}  ·  SIGNS AFTER {offer.Deadline:d MMM}".ToUpperInvariant();
+                Headline = cameBack ? $"{abbr} came back for {f.FirstName} {f.LastName}."
+                    : finalWeek ? $"Last week to beat {abbr} for {f.FirstName} {f.LastName}."
+                    : DeskCalls.FreeAgentTitle(w, offer) + ".";
+                string written = offer.Final is not null
+                    ? " Your offer in writing is with him; he gives his answer when the week turns."
+                    : "";
+                Lede = Lifers.Gendered(f,
+                    $"{rival?.Name ?? "A rival"}{tier} has made {f.FirstName} {f.LastName} an offer — he signs it after {offer.Deadline:d MMMM} unless you beat it."
+                    + (cameBack ? " They've raised it once, answering yours, and they won't go again." : offer.Improvements > 0 ? " They've already raised it once." : "")
+                    + written
+                    + " Sit down with him and his people will put the paper on the table: beat it there and he's yours."
+                    + $" Let him go and {abbr} signs him when the week turns.");
+                Art = Portraits.Body(f, w);
+                People.Add(Person(w, f, $"Free agent  ·  {(days <= 0 ? "last day" : days == 1 ? "1 day left" : $"{days} days left")}"));
+                if (NegotiateCommand is not null)
+                    Actions.Add(new BriefingAction(DeskCalls.SitDownText(f), Then(NegotiateCommand, f.Id.Value), IsPrimary: true,
+                        Hint: Lifers.Gendered(f, "Opens talks with him on the Contracts desk; the table shows the rival's paper.")));
+                if (LetCourtedGoCommand is not null)
+                    Actions.Add(new BriefingAction(DeskCalls.LetGoText(f), Then(LetCourtedGoCommand, f.Id.Value),
+                        Hint: "Asks first."));
+                Actions.Add(new BriefingAction("Profile", Do(() => OpenFighter?.Invoke(f.Id.Value))));
+                Actions.Add(new BriefingAction("Later", CarryOnCommand));
+                return;
+            }
+
+            case BriefingKind.RivalOffer
                 when w.Get(new FighterId(need.Id)) is { } f
-                     && OfferMarket.LiveFor(w, f.Id) is { State: RivalOfferState.Pending } offer
+                     && OfferMarket.LiveFor(w, f.Id) is { State: RivalOfferState.Pending, Kind: RivalOfferKind.EndOfDeal } offer
                      && w.Decisions.FirstOrDefault(x => x.Kind == DecisionKind.RivalOffer && x.Fighter == f.Id) is { } rd:
             {
                 var rival = w.Get(offer.From);
@@ -856,7 +908,16 @@ public sealed class BriefingViewModel : ObservableObject
                 : f.Contract is null ? $"{f.FirstName} {f.LastName} is a free agent now." : $"{f.FirstName} {f.LastName} has moved on.",
             BriefingKind.RivalOffer when w.Get(new FighterId(stop.EventId)) is { } f =>
                 w.RivalOffers.Where(o => o.Fighter == f.Id).OrderByDescending(o => o.Id).FirstOrDefault() is { } last
-                    ? last.State switch
+                    ? last.Kind == RivalOfferKind.FreeAgent
+                        ? last.State switch
+                        {
+                            _ when f.Contract?.Promotion == w.PlayerPromotion => $"{f.FirstName} {f.LastName} is yours.",
+                            RivalOfferState.LetGo => $"You let {f.FirstName} {f.LastName} go. {w.Get(last.From)?.Abbreviation ?? "The rival"} signs {Pronoun(f)} when the week turns.",
+                            RivalOfferState.Signed => $"{f.FirstName} {f.LastName} signed with {w.Get(last.From)?.Abbreviation ?? "the rival"}.",
+                            _ when f.Contract is { } fc => $"{f.FirstName} {f.LastName} signed with {w.Get(fc.Promotion)?.Abbreviation ?? "another promotion"}.",
+                            _ => $"{w.Get(last.From)?.Abbreviation ?? "The rival"}'s offer for {f.FirstName} {f.LastName} is off. {(Pronoun(f) == "her" ? "She" : "He")}'s still a free agent.",
+                        }
+                    : last.State switch
                     {
                         RivalOfferState.Matched or RivalOfferState.Beaten => $"{f.FirstName} {f.LastName} is staying.",
                         RivalOfferState.LetGo => $"{f.FirstName} {f.LastName} goes to {w.Get(last.From)?.Abbreviation ?? "the rival"} when {Possessive(f)} deal is up.",
@@ -875,7 +936,12 @@ public sealed class BriefingViewModel : ObservableObject
         if (stop.Kind is BriefingKind.ExpiringDeal or BriefingKind.DealUp or BriefingKind.LastWeek or BriefingKind.RivalOffer && w.Get(new FighterId(stop.EventId)) is { } who)
         {
             Art = Portraits.Body(who, w);
-            People.Add(Person(w, who, who.Contract?.Promotion == w.PlayerPromotion ? $"{Plural(who.Contract.FightsRemaining, "fight")} on the deal" : "No longer yours"));
+            People.Add(Person(w, who, who.Contract?.Promotion == w.PlayerPromotion ? $"{Plural(who.Contract.FightsRemaining, "fight")} on the deal"
+                : who.Contract is null ? "Free agent"
+                : stop.Kind == BriefingKind.RivalOffer && w.Get(who.Contract.Promotion) is { } now
+                  && w.RivalOffers.Where(o => o.Fighter == who.Id).OrderByDescending(o => o.Id).FirstOrDefault()?.Kind == RivalOfferKind.FreeAgent
+                    ? $"Signed with {now.Abbreviation}"
+                : "No longer yours"));
         }
         else if (player is not null) { Art = LogoFactory.ForPromotion(player); ArtIsFramed = true; }
         Actions.Add(new BriefingAction("Carry on", CarryOnCommand, IsPrimary: true));
@@ -991,6 +1057,21 @@ public sealed class BriefingViewModel : ObservableObject
             }
             switch (n.Kind)
             {
+                case BriefingKind.RivalOffer
+                    when w.Get(new FighterId(n.Id)) is { } cf && DeskCalls.CourtedOffer(w, cf.Id) is { } co:
+                {
+                    int days = co.Deadline.DayNumber - today.DayNumber;
+                    Waiting.Add(new BriefingItem
+                    {
+                        Icon = "Money", Picture = Portraits.Thumb(cf, w),
+                        Text = DeskCalls.FreeAgentTitle(w, co),
+                        Detail = Lifers.Gendered(cf, $"Free agent  ·  he signs it after {co.Deadline:d MMM} unless you beat it"),
+                        Tone = days <= OfferMarket.FinalWeekDays ? CardTone.Bad : CardTone.Warn,
+                        ActionText = "Sit down ▸",
+                        Command = NegotiateCommand is null ? Do(() => OpenFighter?.Invoke(cf.Id.Value)) : Then(NegotiateCommand, cf.Id.Value),
+                    });
+                    break;
+                }
                 case BriefingKind.RivalOffer
                     when w.Get(new FighterId(n.Id)) is { } of
                          && w.Decisions.FirstOrDefault(x => x.Kind == DecisionKind.RivalOffer && x.Fighter == of.Id) is { } rd:

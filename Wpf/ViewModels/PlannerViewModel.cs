@@ -39,6 +39,8 @@ public sealed class PlannerViewModel : ObservableObject
     public Action<EventId>? OpenMyCard { get; set; }
     /// <summary>Set by the shell: jump to another app (a <see cref="Tab"/> index).</summary>
     public Action<int>? Navigate { get; set; }
+    /// <summary>Contract talks with a fighter (parameter = fighter id): a courted free agent's offer deadline opens them.</summary>
+    public System.Windows.Input.ICommand? NegotiateCommand { get; set; }
 
     private readonly PlayerBooking _booking = new();
     private World? _world;
@@ -566,6 +568,26 @@ public sealed class PlannerViewModel : ObservableObject
                 FighterId = who?.Id.Value,
                 Open = new RelayCommand(() => Navigate?.Invoke(Tab.Home)),
                 OpenText = "On the desk",
+            });
+        }
+
+        // A rival's offer to a free agent you're courting: he signs it after the deadline unless you beat it.
+        foreach (var fo in DeskCalls.Courted(w).Where(x => inRange(x.Deadline)))
+        {
+            var who = w.Get(fo.Fighter)!;
+            list.Add(new PlannerMarker
+            {
+                Date = fo.Deadline,
+                Icon = "Money",
+                Short = $"{who.LastName} signs elsewhere",
+                Text = DeskCalls.FreeAgentDueLine(w, fo),
+                Detail = DeskCalls.FreeAgentLine(w, fo),
+                Tone = CardTone.Bad,
+                FighterId = who.Id.Value,
+                Face = new LazyFace(ready => Portraits.Thumb(who, w, ready)),
+                Open = NegotiateCommand ?? AppCommands.OpenFighter,
+                OpenParameter = who.Id.Value,
+                OpenText = NegotiateCommand is null ? "Profile" : "Sit down",
             });
         }
 

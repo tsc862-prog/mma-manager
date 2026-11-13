@@ -10,6 +10,8 @@ using MmaManager.Core.Sim.Living;
 using MmaManager.Persistence;
 using MmaManager.Wpf.Mvvm;
 using RetentionService = MmaManager.Core.Sim.Contracts.RetentionService;
+using OfferMarket = MmaManager.Core.Sim.Contracts.OfferMarket;
+using Lifers = MmaManager.Core.Sim.Contracts.Lifers;
 using MarketingService = MmaManager.Core.Sim.Org.MarketingService;
 
 namespace MmaManager.Wpf.ViewModels;
@@ -90,6 +92,7 @@ public sealed class MainViewModel : ObservableObject
         SimTonightCommand = new RelayCommand(SimPendingEvent, () => IsFightNight);
         RetainFighterCommand = new RelayCommand(RetainSelected, () => CanRetainSelected);
         NegotiateFighterCommand = new RelayCommand<int>(NegotiateFighter);
+        LetCourtedGoCommand = new RelayCommand<int>(LetCourtedGo);
         ToggleMarketingCommand = new RelayCommand(ToggleMarketingSelected, () => SelectedIsMine);
         ToggleCampStipendCommand = new RelayCommand(ToggleCampStipendSelected, () => SelectedIsMine);
         MakeFaceCommand = new RelayCommand(MakeFaceSelected, () => SelectedIsMine);
@@ -112,6 +115,7 @@ public sealed class MainViewModel : ObservableObject
         Dashboard.WatchTonightCommand = WatchTonightCommand;   // home "needs you": fight night's two doors
         Dashboard.SimTonightCommand = SimTonightCommand;
         Dashboard.NegotiateCommand = NegotiateFighterCommand;  // home "needs you": re-sign a fighter
+        Dashboard.LetCourtedGoCommand = LetCourtedGoCommand;   // a rival's offer to a free agent you court
         Dashboard.OpenFighterCommand = OpenFighterCommand;
         Dashboard.IsFightNight = () => IsFightNight;
         MyRoster.OpenContracts = () => NavigateTo(Tab.Contracts);   // the empty gym's way out
@@ -131,6 +135,7 @@ public sealed class MainViewModel : ObservableObject
         };
         Planner.OpenMyCard = id => { Booking.SelectEvent(id); NavigateTo(Tab.BookEvent); };
         Planner.Navigate = NavigateTo;
+        Planner.NegotiateCommand = NegotiateFighterCommand;   // a free agent's offer deadline: sit down with him
         Moments.OpenFighter = OpenFighter;
         Moments.OpenEvent = id => OpenEventCommand.Execute(id);
         WireMail();
@@ -163,6 +168,7 @@ public sealed class MainViewModel : ObservableObject
         Mail.AcceptMediaCommand = Media.AcceptOfferCommand;
         Mail.DeclineMediaCommand = Media.DeclineOfferCommand;
         Mail.NegotiateCommand = NegotiateFighterCommand;
+        Mail.LetCourtedGoCommand = LetCourtedGoCommand;                   // asks first, refreshes the app
         Mail.PromoteCommand = Org.AcceptPromotionCommand;                 // Org.OnChanged refreshes
         Mail.Navigate = NavigateTo;
         Mail.AfterAction = RefreshAll;
@@ -186,6 +192,7 @@ public sealed class MainViewModel : ObservableObject
             if (Desktop.Windows.FirstOrDefault(w => w.Spec.Id == "briefing") is { } win) Desktop.Close(win);
         };
         Briefing.NegotiateCommand = NegotiateFighterCommand;
+        Briefing.LetCourtedGoCommand = LetCourtedGoCommand;
         Briefing.WatchTonightCommand = WatchTonightCommand;
         Briefing.SimTonightCommand = SimTonightCommand;
         Briefing.AcceptDecisionCommand = Dashboard.AcceptDecisionCommand;   // OnDecisionMade refreshes everything
@@ -337,6 +344,24 @@ public sealed class MainViewModel : ObservableObject
         {
             StatusText = $"Can't open talks with {f.FullName}: under contract with {theirs.Abbreviation}. Wait for the deal to run out, then bid.";
         }
+    }
+
+    /// <summary>
+    /// Stop courting a free agent a rival has made an offer to (parameter = fighter id):
+    /// the rival signs him when the week turns. Asks first in the interactive app.
+    /// </summary>
+    public ICommand LetCourtedGoCommand { get; }
+
+    private void LetCourtedGo(int fighterId)
+    {
+        if (_world is null || DeskCalls.CourtedOffer(_world, new FighterId(fighterId)) is not { } offer
+            || _world.Get(offer.Fighter) is not { } f) return;
+        var cost = DeskCalls.LetGoCosts(_world, offer);
+        if (!HeadlessAutoBoot && !MessageWindow.Ask(cost.Heading, cost.Body, cost.Detail, cost.Confirm, keep: "Not yet")) return;
+        OfferMarket.LetGo(_world, offer, _world.CurrentDate);
+        string abbr = _world.Get(offer.From)?.Abbreviation ?? "the rival";
+        RefreshAll();
+        StatusText = Lifers.Gendered(f, $"You let {f.FirstName} {f.LastName} go: {abbr} signs him when the week turns.");
     }
 
     /// <summary>The home page (your promotion at a glance).</summary>
@@ -738,9 +763,21 @@ public sealed class MainViewModel : ObservableObject
         // headliner, or its last week): time stops, and the briefing carries the three ways forward.
         if (r.OfferNeedsYou is { } bid && _world.Get(bid.Fighter) is { } courted)
         {
-            if (!BriefingOnStop) NavigateTo(Tab.Home);
-            StatusText = $"▶ Time stopped: {_world.Get(bid.From)?.Abbreviation ?? "A rival"} has made {courted.FullName} an offer. "
-                       + "Match it, sit down with him, or let him go — the briefing has all three.";
+            string abbr = _world.Get(bid.From)?.Abbreviation ?? "A rival";
+            if (bid.Kind == MmaManager.Core.Model.RivalOfferKind.FreeAgent)
+            {
+                // A free agent you're courting: no Desk card, no match — the table or let him go.
+                if (!BriefingOnStop) NegotiateFighter(courted.Id.Value);
+                StatusText = Lifers.Gendered(courted, DeskCalls.CameBackToday(_world, bid)
+                    ? $"▶ Time stopped: {abbr} came back for {courted.FirstName} {courted.LastName} — he signs with them after {bid.Deadline:d MMM} unless you beat it. Sit down with him, or let him go: the briefing has both."
+                    : $"▶ Time stopped: {abbr} has made {courted.FirstName} {courted.LastName} an offer — he signs it after {bid.Deadline:d MMM} unless you beat it. Sit down with him, or let him go: the briefing has both.");
+            }
+            else
+            {
+                if (!BriefingOnStop) NavigateTo(Tab.Home);
+                StatusText = Lifers.Gendered(courted, $"▶ Time stopped: {abbr} has made {courted.FullName} an offer. "
+                           + "Match it, sit down with him, or let him go — the briefing has all three.");
+            }
         }
 
         // Reached one of your cards — the advance force-pauses on fight night.

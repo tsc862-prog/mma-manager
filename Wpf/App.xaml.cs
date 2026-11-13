@@ -983,7 +983,9 @@ public partial class App : Application
         //   quiet      weeks go by until nothing new needs you (the plain weekly digest);
         //   fightnight a card of yours is booked five days out and the week runs into it;
         //   card       that card is then simmed (any Moment is carried on from first);
-        //   desk       nothing advanced: the briefing opened by hand on day one.
+        //   freeagentoffer  a founded promotion courts the free agents; a rival's offer to one of
+        //              them reaches its last week and stops the clock (sit down / let go);
+        //   desk      nothing advanced: the briefing opened by hand on day one.
         if (e.Args.Contains("--renderbriefing"))
         {
             try
@@ -1162,6 +1164,43 @@ public partial class App : Application
                             throw new InvalidOperationException($"no rival offer stopped the clock ({w.RivalOffers.Count} offers made)");
                         break;
                     }
+                    case "freeagentoffer":
+                    {
+                        // A founded shoestring promotion has open talks with every free agent on the
+                        // market (harness only: the talks are written straight into World.Talks and kept
+                        // fresh each week). Weeks go by through the real advance until a rival that would
+                        // have signed one lodges an offer instead and its last week stops the clock.
+                        vm.StartWorld(new WorldBuilder.Options
+                        {
+                            Seed = 7,
+                            Founding = new WorldBuilder.FoundingSpec { Name = "New Wave Fighting", Abbreviation = "NWF", Region = MmaManager.Core.Model.Region.Europe },
+                        }, "You founded New Wave Fighting.");
+                        w = vm.LiveWorld!;
+                        void Court()
+                        {
+                            foreach (var fa in w.FreeAgents().Where(x => x.Status == MmaManager.Core.Model.FighterStatus.Active && !x.LocalTalent).OrderBy(x => x.Id.Value).ToList())
+                            {
+                                var t = w.Talks.FirstOrDefault(x => x.Fighter == fa.Id && x.Promotion == w.PlayerPromotion);
+                                if (t is null) w.Talks.Add(new MmaManager.Core.Model.TalksMemory { Fighter = fa.Id, Promotion = w.PlayerPromotion, Round = 1, Mood = 60, Patience = 2, LastTalked = w.CurrentDate });
+                                else if (t.SouredUntil is null) t.LastTalked = w.CurrentDate;
+                            }
+                        }
+                        // (The week it lands it headlines; the stop comes in its last week.)
+                        bool Stopped() => vm.Briefing.Kind == BriefingKind.RivalOffer
+                                          && vm.Briefing.Kicker.StartsWith("TIME STOPPED", StringComparison.Ordinal)
+                                          && DeskCalls.Courted(w).Any(o => o.Fighter.Value == vm.Briefing.StopFighterId);
+                        for (int i = 0; i < 26 && !Stopped(); i++)
+                        {
+                            Court();
+                            vm.AdvanceWeekCommand.Execute(null);
+                            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+                            vm.Moments.Reset();
+                            Report($"week {i + 1} ({w.RivalOffers.Count(o => o.Kind == MmaManager.Core.Model.RivalOfferKind.FreeAgent)} free-agent offers)");
+                        }
+                        if (!Stopped())
+                            throw new InvalidOperationException($"no free-agent offer stopped the clock ({w.RivalOffers.Count} offers made)");
+                        break;
+                    }
                     case "desk":
                         break;
                     default:
@@ -1192,6 +1231,28 @@ public partial class App : Application
                 string p = e.Args[^1];
                 using (var fs = File.Create(p)) enc.Save(fs);
                 Console.WriteLine("RENDERBRIEFING OK -> " + Path.GetFullPath(p));
+
+                if (scenario == "freeagentoffer")
+                {
+                    // Press the two doors: "Sit down" must land on free-agent talks (not a re-sign
+                    // window), and "Let him go" must hand him to the rival when the week turns.
+                    var courted = w.Get(new MmaManager.Core.Model.FighterId(b.StopFighterId))!;
+                    b.Actions.First(a => a.Text.StartsWith("Sit down", StringComparison.Ordinal)).Command.Execute(null);
+                    Console.WriteLine($"RENDERBRIEFING sit down -> windows [{string.Join(", ", vm.Desktop.Windows.Select(x => x.Spec.Id))}], target {vm.Contracts.TargetName} | {vm.Contracts.TargetSub} | own={vm.Contracts.IsOwnFighter}");
+                    vm.Desktop.Open("briefing");
+                    vm.Briefing.Actions.First(a => a.Text.StartsWith("Let ", StringComparison.Ordinal)).Command.Execute(null);
+                    Layout();
+                    Report("let go");
+                    Console.WriteLine($"RENDERBRIEFING strip: {vm.StatusText}");
+                    var rtb2 = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
+                    rtb2.Render(root);
+                    var enc2 = new PngBitmapEncoder(); enc2.Frames.Add(BitmapFrame.Create(rtb2));
+                    string p2 = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-letgo.png");
+                    using (var fs2 = File.Create(p2)) enc2.Save(fs2);
+                    Console.WriteLine("RENDERBRIEFING OK -> " + p2);
+                    vm.AdvanceWeekCommand.Execute(null);
+                    Console.WriteLine($"RENDERBRIEFING a week on: {courted.FullName} is with {(courted.Contract is { } cc ? w.Get(cc.Promotion)?.Abbreviation : "nobody")}");
+                }
             }
             catch (Exception ex) { Console.WriteLine("RENDERBRIEFING FAIL: " + ex); Environment.Exit(1); }
             Environment.Exit(0);

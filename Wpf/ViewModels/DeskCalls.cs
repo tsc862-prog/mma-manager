@@ -140,4 +140,61 @@ public static class DeskCalls
         + (o.WinBonus.Amount > 0 ? $", {o.WinBonus} to win" : "")
         + (o.SigningBonus.Amount > 0 ? $", {o.SigningBonus} to sign" : "")
         + (o.Exclusive ? "" : ", non-exclusive");
+
+    // =====================================================================================
+    // Rival offers on the free agents the player courts (RivalOfferKind.FreeAgent). There
+    // is no Desk card and no Match: the owner beats it at the table (sit down with him) or
+    // lets him go. The terms come out at the table, so these lines never quote them.
+    // =====================================================================================
+
+    /// <summary>Pending rival offers on free agents the player is courting, soonest deadline first.</summary>
+    public static List<RivalOffer> Courted(World w) =>
+        w.RivalOffers.Where(o => o.Kind == RivalOfferKind.FreeAgent && o.State == RivalOfferState.Pending
+                                 && o.Holder == w.PlayerPromotion && w.Get(o.Fighter) is { Contract: null })
+            .OrderBy(o => o.Deadline).ThenBy(o => o.Id).ToList();
+
+    /// <summary>The player's pending free-agent offer for this fighter, if any.</summary>
+    public static RivalOffer? CourtedOffer(World w, FighterId fighter) =>
+        OfferMarket.LiveFor(w, fighter) is { Kind: RivalOfferKind.FreeAgent, State: RivalOfferState.Pending } o
+        && o.Holder == w.PlayerPromotion ? o : null;
+
+    private static string RivalOf(World w, RivalOffer o) => w.Get(o.From)?.Abbreviation ?? "A rival";
+
+    /// <summary>The rival raised its offer this week (answering the owner's final offer in writing): its letter is today's.</summary>
+    public static bool CameBackToday(World w, RivalOffer o) =>
+        o.Improvements > 0 && w.Get(o.Fighter) is { } f
+        && w.Mail.Any(m => m.Date == w.CurrentDate && m.AboutFighter == f.Id && m.Subject == $"{RivalOf(w, o)} came back for {f.FullName}");
+
+    /// <summary>"NFC has made Kenji Morita an offer" (no full stop).</summary>
+    public static string FreeAgentTitle(World w, RivalOffer o) =>
+        $"{RivalOf(w, o)} has made {(w.Get(o.Fighter) is { } f ? $"{f.FirstName} {f.LastName}" : "a free agent")} an offer";
+
+    /// <summary>"NFC has made Kenji Morita an offer — he signs it after 14 March unless you beat it."</summary>
+    public static string FreeAgentLine(World w, RivalOffer o) => w.Get(o.Fighter) is { } f
+        ? Lifers.Gendered(f, $"{FreeAgentTitle(w, o)} — he signs it after {o.Deadline:d MMMM} unless you beat it.")
+        : FreeAgentTitle(w, o) + ".";
+
+    /// <summary>The Planner's marker on the deadline.</summary>
+    public static string FreeAgentDueLine(World w, RivalOffer o) =>
+        $"{w.Get(o.Fighter)?.LastName ?? "A free agent"} signs with {RivalOf(w, o)} unless you beat it";
+
+    /// <summary>"Sit down with him ▸" / "...her ▸".</summary>
+    public static string SitDownText(Fighter? f) => $"Sit down with {Him(f)} ▸";
+
+    /// <summary>"Let him go" / "Let her go".</summary>
+    public static string LetGoText(Fighter? f) => $"Let {Him(f)} go";
+
+    /// <summary>What letting a courted free agent go costs: heading, body, detail and the confirm button.</summary>
+    public static (string Heading, string Body, string Detail, string Confirm) LetGoCosts(World w, RivalOffer o)
+    {
+        var f = w.Get(o.Fighter);
+        string name = f?.FullName ?? "him";
+        string rival = w.Get(o.From)?.Name ?? "The rival";
+        string abbr = RivalOf(w, o);
+        string body = $"You stop courting {name}. {rival} signs {Him(f)} on its paper when the week turns, if it still has the room and the money.";
+        string detail = o.Final is not null
+            ? $"Your offer in writing is withdrawn with it. There's no calling {Him(f)} back once {abbr} has {Him(f)}."
+            : $"There's no calling {Him(f)} back once {abbr} has {Him(f)}.";
+        return ($"Let {name} go to {abbr}?", body, detail, LetGoText(f));
+    }
 }
