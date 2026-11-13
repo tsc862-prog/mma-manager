@@ -68,6 +68,9 @@ public static class ShoeSweep
         public int FaEndBeaten, FaEndSigned, FaEndWithdrawn, FaOpen;
         public decimal FaOfferPurseSum, FaWonPurseSum;
         public int FaWonPurseN, FaWonByFinal, FaRivalFolded, FaLostAfterFinal, FaFinalOffTerms, FaFinalTooDear, FaFinalNoCash;
+        // Promises and matching rights (contracts stage 9): what the script wrote into renewals, and how each ended.
+        public int PromTitle, PromActivity, PromKept, PromBroken, PromVoid, RightsBought, RightMatches;
+        public decimal PromPurseOffSum, RightMatchPurseSum, RightRivalPurseSum;
         public void Add(Diag o)
         {
             foreach (var fl in typeof(Diag).GetFields())
@@ -84,7 +87,7 @@ public static class ShoeSweep
         int years = int.Parse(args[3]);
         bool scriptOnly = args.Contains("--script-only");
         bool dealRules = PlayerDealRules(args), resign = !args.Contains("--no-resign");
-        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable"); MimicAi = args.Contains("--mimic-ai") || args.Contains("--mimic-ai-no-champ"); MimicNoChampForce = args.Contains("--mimic-ai-no-champ"); Court = !args.Contains("--no-court");
+        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable"); MimicAi = args.Contains("--mimic-ai") || args.Contains("--mimic-ai-no-champ"); MimicNoChampForce = args.Contains("--mimic-ai-no-champ"); Court = !args.Contains("--no-court"); Promising = !args.Contains("--no-promises");
         var runs = new ConcurrentBag<Run>();
         Parallel.ForEach(Enumerable.Range((int)from, (int)(to - from + 1)).Select(i => (ulong)i),
             new ParallelOptions { MaxDegreeOfParallelism = Parallelism(args) },
@@ -93,7 +96,7 @@ public static class ShoeSweep
         var all = runs.OrderBy(r => r.Seed).ToList();
         Console.WriteLine($"=== SHOESWEEP seeds {from}-{to} · {years} years · {(scriptOnly ? "SCRIPT ONLY" : "default harness (world AI also signs)")}"
             + $" · {(dealRules ? (resign ? "player deal rules, script re-signs in the window" : "player deal rules, NO re-signing") : "AI renewals")}"
-            + $"{(Early ? " · re-signs on the LAST FIGHT" : "")}{(dealRules && Court ? " · courts free agents" : "")}{(KeepToCap ? " · keeps up to the org's purse cap" : "")}{(DepthBookable ? " · hires around men in their window" : "")} ===");
+            + $"{(Early ? " · re-signs on the LAST FIGHT" : "")}{(dealRules && Court ? " · courts free agents" : "")}{(dealRules && resign && Promising ? " · makes promises" : "")}{(KeepToCap ? " · keeps up to the org's purse cap" : "")}{(DepthBookable ? " · hires around men in their window" : "")} ===");
         Console.WriteLine($"  re-signed in the window (all seeds): {all.Sum(r => r.ReSigned)} · windows lapsed to free agency: {all.Sum(r => r.Lapsed)}");
         Console.WriteLine("  per seed: " + string.Join(" ", all.Select(r => $"{r.Seed}:{r.FinalPrestige}{(r.Folded ? "F" : "")}")));
         var d = new Diag(); foreach (var r in all) d.Add(r.D);
@@ -118,6 +121,10 @@ public static class ShoeSweep
             + $" · ended: won {d.FaEndBeaten} (mean purse at signing {(d.FaWonPurseN == 0 ? 0 : d.FaWonPurseSum / d.FaWonPurseN):N0}) · LOST to the rival {d.FaEndSigned} · withdrawn {d.FaEndWithdrawn} · still open {d.FaOpen}");
         Console.WriteLine($"  DIAG free-agent finals: lodged {d.FaFinalsLodged} (none fit: too dear {d.FaFinalTooDear}, no real deal in budget {d.FaFinalOffTerms}, bank {d.FaFinalNoCash}) · rival raised {d.FaImproved} · rival folded {d.FaRivalFolded} · won by a final {d.FaWonByFinal} · lost after a final {d.FaLostAfterFinal}");
 
+        if (Promising)
+            Console.WriteLine($"  DIAG promises: made {d.PromTitle + d.PromActivity} (title shot {d.PromTitle}, activity {d.PromActivity}; mean purse off {(d.PromTitle + d.PromActivity == 0 ? 0 : d.PromPurseOffSum / (d.PromTitle + d.PromActivity)):0})"
+                + $" · kept {d.PromKept} · broken {d.PromBroken} · void {d.PromVoid}"
+                + $" · matching rights bought {d.RightsBought}, used {d.RightMatches} (mean match purse {(d.RightMatches == 0 ? 0 : d.RightMatchPurseSum / d.RightMatches):0} vs rival {(d.RightMatches == 0 ? 0 : d.RightRivalPurseSum / d.RightMatches):0})");
         Console.WriteLine($"  DIAG belts: champions renewed by the AI {d.ChampAiRenewals} (below his ask {d.ChampAiRenewBelowAsk}) · all AI renewals below his ask {d.AiRenewBelowAsk}/{d.AiRenewals}"
             + $" · champions who left {d.ChampLeft} · belts filled {(d.BeltChecks == 0 ? 0 : 100.0 * d.BeltHeldChecks / d.BeltChecks):0.0}% of monthly checks · title fights {d.TitleFights} on {d.Cards} cards");
         foreach (var r in all.Where(r => r.Seed is 3 or 5))
@@ -205,6 +212,19 @@ public static class ShoeSweep
             var exp = valuation.Evaluate(world, f);
             var session = NegotiationSession.Resume(world, f, org, exp);
             var offer = session.TheirTermsAsOffer(Negotiator.WantsExclusivity(org), clause: false);
+            // Promises (contracts stage 9; off with --no-promises): about half the renewals (a hash
+            // of the fighter and the day) carry one — a title shot to a top-2 contender, else two
+            // fights in the year — and a man who matters gets a matching right written in.
+            decimal unpromised = offer.PursePerFight.Amount;
+            if (Promising && ((uint)f.Id.Value * 2654435761u ^ (uint)world.CurrentDate.DayNumber * 40503u) % 2u == 0u)
+            {
+                var (champ, top2) = Matters(world, org, f);
+                var slip = new ContractOffer { Fighter = f.Id, Promotion = org.Id, Exclusive = Negotiator.WantsExclusivity(org) };
+                if (top2 && Promises.Refusal(world, org, f, PromiseKind.TitleShot, 0, exp.DesiredFights) is null) slip.PromiseTitleShot = true;
+                else if (Promises.Refusal(world, org, f, PromiseKind.Activity, 2, exp.DesiredFights) is null) slip.PromiseFights = 2;
+                slip.MatchingRight = champ || top2 || f.Intangibles.Popularity.Value >= 40;
+                if (slip.HasPromises || slip.MatchingRight) offer = session.TheirTermsAsOffer(slip);
+            }
             decimal budget = Math.Max(maxAsk, f.Contract.PursePerFight.Amount * 1.5m);
             if (KeepToCap) budget = Math.Max(budget, Negotiator.PurseCap(world, org));
             if (offer.PursePerFight.Amount > budget)
@@ -235,10 +255,29 @@ public static class ShoeSweep
                     diag.DaysToResignN++;
                 }
             }
+            if (diag is not null)
+            {
+                if (offer.PromiseTitleShot) diag.PromTitle++;
+                if (offer.PromiseFights > 0) diag.PromActivity++;
+                if (offer.HasPromises) diag.PromPurseOffSum += unpromised - offer.PursePerFight.Amount;
+                if (offer.MatchingRight) diag.RightsBought++;
+            }
             ContractLifecycle.Sign(world, f, offer, world.CurrentDate);
             n++;
         }
         return n;
+    }
+
+    /// <summary>Promises resolved since the last look (reporting only; ids already counted are remembered per run).</summary>
+    private static void CountPromises(World world, HashSet<int> seen, Diag d)
+    {
+        foreach (var p in world.Promises)
+        {
+            if (p.Live || !seen.Add(p.Id)) continue;
+            if (p.State == PromiseState.Kept) d.PromKept++;
+            else if (p.State == PromiseState.Broken) d.PromBroken++;
+            else d.PromVoid++;
+        }
     }
 
     /// <summary>
@@ -260,8 +299,10 @@ public static class ShoeSweep
             bool matters = champ || top2 || f.Intangibles.Popularity.Value >= 40;
             bool affordable = org.Balance.Amount >= 150_000m + terms.SigningBonus.Amount
                               && terms.PursePerFight.Amount <= Math.Max(maxAsk, Negotiator.PurseCap(world, org)) * 1.25m;
+            bool right = OfferMarket.HasMatchingRight(world, o);
             if (matters && affordable && OfferMarket.Match(world, o, world.CurrentDate))
             {
+                if (diag is not null && right) { diag.RightMatches++; diag.RightMatchPurseSum += terms.PursePerFight.Amount; diag.RightRivalPurseSum += o.Purse.Amount; }
                 if (diag is not null) { diag.OffersMatchedByScript++; diag.MatchPurseSum += terms.PursePerFight.Amount; }
                 continue;
             }
@@ -507,7 +548,7 @@ public static class ShoeSweep
         }
     }
 
-    private static bool Early, KeepToCap, DepthBookable, MimicAi, MimicNoChampForce, Court = true;   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
+    private static bool Early, KeepToCap, DepthBookable, MimicAi, MimicNoChampForce, Court = true, Promising = true;   // --no-promises: the stage 7 script (no promises, no matching rights)   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
 
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;
 
@@ -556,6 +597,7 @@ public static class ShoeSweep
 
         var run = new Run { Seed = seed };
         var offers = new OfferLog();
+        var promisesSeen = new HashSet<int>();
         var lastTier = OrgSizing.SizeOf(nwf);
         try
         {
@@ -605,6 +647,7 @@ public static class ShoeSweep
                         if (was.Champ) run.D.ChampLeft++;
                         run.D.LeftN++; run.D.LeftCaSum += was.Ca; run.D.LeftPopSum += was.Pop;
                     }
+                    CountPromises(world, promisesSeen, run.D);
                     // a window that closed in these four weeks: he walked to free agency
                     run.Lapsed += inWindow.Count(id => world.Get(id) is { } f && f.Contract?.Promotion != nwf.Id && f.Status != FighterStatus.Retired);
                 }
