@@ -29,6 +29,7 @@ internal sealed class WorldWriter
         WriteBiddingWars(world);
         WriteTalks(world);
         WriteRivalOffers(world);
+        WritePromises(world);
         WriteRelationships(world);
         WriteEvents(world);
     }
@@ -139,8 +140,9 @@ internal sealed class WorldWriter
     {
         using var cmd = _c.Cmd(_tx,
             "INSERT INTO rival_offers (ordinal, id, fighter_id, from_id, holder_id, kind, purse, win_bonus, signing_bonus, fights, exclusive, made, deadline, state, resolved, "
-            + "improvements, final_purse, final_win_bonus, final_signing_bonus, final_fights, final_exclusive, final_clause, final_ppv, final_perf) "
-            + "VALUES ($o,$id,$f,$fr,$h,$k,$p,$wb,$sb,$n,$x,$m,$d,$st,$r,$im,$fp,$fw,$fs,$fn,$fx,$fc,$fv,$ff)");
+            + "improvements, final_purse, final_win_bonus, final_signing_bonus, final_fights, final_exclusive, final_clause, final_ppv, final_perf, "
+            + "final_promise_fights, final_promise_home, final_promise_title, final_matching_right) "
+            + "VALUES ($o,$id,$f,$fr,$h,$k,$p,$wb,$sb,$n,$x,$m,$d,$st,$r,$im,$fp,$fw,$fs,$fn,$fx,$fc,$fv,$ff,$pf,$ph,$pt,$mr)");
         for (int i = 0; i < w.RivalOffers.Count; i++)
         {
             var o = w.RivalOffers[i];
@@ -170,8 +172,37 @@ internal sealed class WorldWriter
             cmd.Bind("$fc", fin is null ? DBNull.Value : fin.ChampionsClause ? 1 : 0);
             cmd.Bind("$fv", fin is null ? DBNull.Value : fin.PpvPoints);
             cmd.Bind("$ff", fin is null ? DBNull.Value : Db.Cash(fin.PerformanceBonus));
+            cmd.Bind("$pf", fin is null ? DBNull.Value : fin.PromiseFights);
+            cmd.Bind("$ph", fin is null ? DBNull.Value : fin.PromiseHomeShow ? 1 : 0);
+            cmd.Bind("$pt", fin is null ? DBNull.Value : fin.PromiseTitleShot ? 1 : 0);
+            cmd.Bind("$mr", fin is null ? DBNull.Value : fin.MatchingRight ? 1 : 0);
             cmd.ExecuteNonQuery();
 
+        }
+    }
+
+    private void WritePromises(World w)
+    {
+        using var cmd = _c.Cmd(_tx,
+            "INSERT INTO promises (ordinal, id, fighter_id, promotion_id, kind, fights, made, deadline, state, resolved, warned, note) "
+            + "VALUES ($o,$id,$f,$p,$k,$n,$m,$d,$st,$r,$w,$no)");
+        for (int i = 0; i < w.Promises.Count; i++)
+        {
+            var p = w.Promises[i];
+            cmd.Parameters.Clear();
+            cmd.Bind("$o", i);
+            cmd.Bind("$id", p.Id);
+            cmd.Bind("$f", p.Fighter.Value);
+            cmd.Bind("$p", p.Promotion.Value);
+            cmd.Bind("$k", p.Kind.ToString());
+            cmd.Bind("$n", p.Fights);
+            cmd.Bind("$m", Db.Date(p.Made));
+            cmd.Bind("$d", Db.Date(p.Deadline));
+            cmd.Bind("$st", p.State.ToString());
+            cmd.Bind("$r", Db.DateN(p.Resolved));
+            cmd.Bind("$w", p.Warned ? 1 : 0);
+            cmd.Bind("$no", p.Note);
+            cmd.ExecuteNonQuery();
         }
     }
 
@@ -409,7 +440,7 @@ internal sealed class WorldWriter
             "contract_promotion", "contract_signed_on", "contract_type", "purse", "win_bonus",
             "fights_remaining", "is_exclusive", "has_champions_clause",
             "signing_bonus", "ppv_points", "performance_bonus", "guaranteed", "poach_warned", "bond_notice_on",
-            "window_ends_on", "window_warned",
+            "window_ends_on", "window_warned", "matching_right",
             "injury_severity", "injury_desc", "injury_occurred", "injury_return",
             "ready_to_fight_on", "loyalty", "marketing_push", "camp_id", "camp_stipend", "star_power",
             "discovered_by", "disposition", "origin_country",
@@ -478,10 +509,11 @@ internal sealed class WorldWriter
                 cmd.Bind("$bond_notice_on", Db.DateN(k.BondNoticeOn));
                 cmd.Bind("$window_ends_on", Db.DateN(k.WindowEndsOn));
                 cmd.Bind("$window_warned", k.WindowWarned ? 1 : 0);
+                cmd.Bind("$matching_right", k.MatchingRight ? 1 : 0);
             }
             else
             {
-                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed", "$poach_warned", "$bond_notice_on", "$window_ends_on", "$window_warned" })
+                foreach (var p in new[] { "$contract_promotion", "$contract_signed_on", "$contract_type", "$purse", "$win_bonus", "$fights_remaining", "$is_exclusive", "$has_champions_clause", "$signing_bonus", "$ppv_points", "$performance_bonus", "$guaranteed", "$poach_warned", "$bond_notice_on", "$window_ends_on", "$window_warned", "$matching_right" })
                     cmd.Bind(p, DBNull.Value);
             }
 

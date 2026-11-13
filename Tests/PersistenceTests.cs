@@ -60,7 +60,16 @@ public class PersistenceTests
                     Fighter = world.Fighters.Keys.Skip(4).First(), Promotion = world.Promotions.Keys.Skip(1).First(),
                     PursePerFight = new Money(12_500m), WinBonus = new Money(6_000m), SigningBonus = new Money(4_000m),
                     Fights = 3, PpvPoints = 2, PerformanceBonus = new Money(2_500m), Exclusive = false, ChampionsClause = true,
+                    PromiseFights = 3, PromiseHomeShow = true, PromiseTitleShot = true, MatchingRight = true,
                 },
+            });
+            // A promise written into a deal (contracts stage 9), resolved, with a note.
+            world.Promises.Add(new Promise
+            {
+                Id = 1, Fighter = world.Fighters.Keys.Skip(5).First(), Promotion = world.Promotions.Keys.First(),
+                Kind = PromiseKind.TitleShot, Fights = 2, Made = world.CurrentDate.AddDays(-40),
+                Deadline = world.CurrentDate.AddDays(325), State = PromiseState.Broken,
+                Resolved = world.CurrentDate.AddDays(-2), Warned = true, Note = "the deadline passed",
             });
 
             PersistenceGraph.FillUnpopulated(world);
@@ -444,6 +453,47 @@ public class PersistenceTests
         var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "A world saved mid-offer diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    /// <summary>
+    /// Promises with teeth (contracts stage 9): a world saved with an open promise in a deal
+    /// that carries a matching right loads with both, and runs on past the promise's deadline
+    /// (warned, then kept or broken) exactly like the world that was never saved.
+    /// </summary>
+    [Fact]
+    public void ASaveWithAnOpenPromise_RunsOnPastItsDeadline_LikeANeverSavedWorld()
+    {
+        (World W, FighterId Promised) Setup()
+        {
+            var w = PlayerWorld(21);
+            var f = w.RosterOf(w.PlayerPromotion).Where(x => x.Status == FighterStatus.Active && x.Contract is { FightsRemaining: >= 2 })
+                .OrderBy(x => x.Id.Value).First();
+            var c = f.Contract!;
+            MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(w, f, new ContractOffer
+            {
+                Fighter = f.Id, Promotion = c.Promotion, PursePerFight = c.PursePerFight, WinBonus = c.WinBonus,
+                Fights = Math.Max(2, c.FightsRemaining), Exclusive = c.IsExclusive, PromiseFights = 2, MatchingRight = true,
+            }, w.CurrentDate);
+            var p = Assert.Single(w.Promises);
+            p.Deadline = w.CurrentDate.AddDays(45);   // the run-on crosses it
+            new WorldTick().AdvanceWeeks(w, 1);
+            Assert.True(p.Live);
+            return (w, f.Id);
+        }
+
+        var (straight, promised) = Setup();
+        var (split, _) = Setup();
+        var resumed = RoundTrip(split);
+        AssertSame(split, resumed);
+        Assert.True(resumed.Promises.Single().Live);
+        Assert.True(resumed.Get(promised)!.Contract!.MatchingRight);
+
+        new WorldTick().AdvanceWeeks(straight, 16);
+        new WorldTick().AdvanceWeeks(resumed, 16);
+        Assert.False(straight.Promises.Single().Live);   // kept or broken by now
+        var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
+        Assert.True(diffs.Count == 0,
+            "A world saved mid-promise diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
     }
 
     /// <summary>

@@ -130,6 +130,7 @@ public static class Lifecycle
     {
         if (f.Contract is { } held) Contracts.OfferMarket.OnLeaving(world, f, held.Promotion, date);   // a rival's offer dies with his career
         else Contracts.OfferMarket.OnRetired(world, f, date);   // ...as does one for a free agent the player was courting
+        Contracts.Promises.OnRetired(world, f, date);   // promises made him fall away (nobody's fault)
         bool wasChampion = world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
         News.Retired(world, f, date, wasChampion);   // reads the contract before it's cleared
         bool players = f.Contract is { } deal && deal.Promotion == world.PlayerPromotion;

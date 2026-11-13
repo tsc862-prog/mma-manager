@@ -33,6 +33,7 @@ internal sealed class WorldReader
         ReadBiddingWars(world);
         ReadTalks(world);
         ReadRivalOffers(world);
+        ReadPromises(world);
         ReadRelationships(world);
         ReadEvents(world);
 
@@ -140,6 +141,7 @@ internal sealed class WorldReader
                     BondNoticeOn = r.DateN("bond_notice_on"),
                     WindowEndsOn = r.DateN("window_ends_on"),
                     WindowWarned = r.Bool("window_warned"),
+                    MatchingRight = r.Bool("matching_right"),
                 };
             }
 
@@ -522,9 +524,32 @@ internal sealed class WorldReader
                     SigningBonus = r.Cash("final_signing_bonus"), Fights = r.Int("final_fights"),
                     Exclusive = r.Bool("final_exclusive"), ChampionsClause = r.Bool("final_clause"),
                     PpvPoints = r.Int("final_ppv"), PerformanceBonus = r.Cash("final_perf"), Round = 0,
+                    PromiseFights = r.Int("final_promise_fights"), PromiseHomeShow = r.Bool("final_promise_home"),
+                    PromiseTitleShot = r.Bool("final_promise_title"), MatchingRight = r.Bool("final_matching_right"),
                 },
             });
 
+    }
+
+    private void ReadPromises(World world)
+    {
+        using var cmd = _c.Cmd(null, "SELECT * FROM promises ORDER BY ordinal");
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            world.Promises.Add(new Promise
+            {
+                Id = r.Int("id"),
+                Fighter = new FighterId(r.Int("fighter_id")),
+                Promotion = new PromotionId(r.Int("promotion_id")),
+                Kind = r.Enum<PromiseKind>("kind"),
+                Fights = r.Int("fights"),
+                Made = r.Date("made"),
+                Deadline = r.Date("deadline"),
+                State = r.Enum<PromiseState>("state"),
+                Resolved = r.DateN("resolved"),
+                Warned = r.Bool("warned"),
+                Note = r.Str("note"),
+            });
     }
 
     private void ReadRelationships(World world)

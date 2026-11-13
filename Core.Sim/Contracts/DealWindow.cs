@@ -173,6 +173,12 @@ public static class DealWindow
         if (offer is not null && world.Get(offer.From) is { } rival)
             body += $" {rival.Name} has {offer.Purse} a fight for {offer.Fights} fights on the table for him: "
                   + $"if the window closes unsigned, that's where he goes. He won't re-sign for less than what beats it.";
+        // A promise still open (contracts stage 9) can only be kept if he re-signs.
+        var open = world.Promises.Count == 0 ? new List<Promise>()
+            : world.Promises.Where(p => p.Live && p.Fighter == f.Id && p.Promotion == c.Promotion).ToList();
+        if (open.Count > 0)
+            body += $" We promised him {string.Join(" and ", open.Select(p => Promises.What(world, p)))} and haven't kept it yet: "
+                  + "if he leaves us without it, the promise is broken.";
         Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
             $"{f.FullName}'s deal is up — re-sign him by {end:MMM d}",
             Lifers.Gendered(f, body), aboutFighter: f.Id);
