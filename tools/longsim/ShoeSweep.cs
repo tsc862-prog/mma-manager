@@ -67,7 +67,7 @@ public static class ShoeSweep
         public int FaCourted, FaCourtSigned, FaOffers, FaBeatenAtTable, FaFinalsLodged, FaFinalsRefused, FaLetGo, FaImproved;
         public int FaEndBeaten, FaEndSigned, FaEndWithdrawn, FaOpen;
         public decimal FaOfferPurseSum, FaWonPurseSum;
-        public int FaWonPurseN, FaWonByFinal, FaRivalFolded, FaLostAfterFinal;
+        public int FaWonPurseN, FaWonByFinal, FaRivalFolded, FaLostAfterFinal, FaFinalOffTerms, FaFinalTooDear, FaFinalNoCash;
         public void Add(Diag o)
         {
             foreach (var fl in typeof(Diag).GetFields())
@@ -116,7 +116,7 @@ public static class ShoeSweep
             + $" all offers {(double)(d.FaOffers + d.OffersLodged) / seedYears:0.00}; mean rival purse {(d.FaOffers == 0 ? 0 : d.FaOfferPurseSum / d.FaOffers):N0})"
             + $" · script: beat at the table {d.FaBeatenAtTable} · finals lodged {d.FaFinalsLodged} (refused {d.FaFinalsRefused}) · let go {d.FaLetGo} · rival came back {d.FaImproved}"
             + $" · ended: won {d.FaEndBeaten} (mean purse at signing {(d.FaWonPurseN == 0 ? 0 : d.FaWonPurseSum / d.FaWonPurseN):N0}) · LOST to the rival {d.FaEndSigned} · withdrawn {d.FaEndWithdrawn} · still open {d.FaOpen}");
-        Console.WriteLine($"  DIAG free-agent finals: lodged {d.FaFinalsLodged} · rival raised {d.FaImproved} · rival folded {d.FaRivalFolded} · won by a final {d.FaWonByFinal} · lost after a final {d.FaLostAfterFinal}");
+        Console.WriteLine($"  DIAG free-agent finals: lodged {d.FaFinalsLodged} (none fit: too dear {d.FaFinalTooDear}, no real deal in budget {d.FaFinalOffTerms}, bank {d.FaFinalNoCash}) · rival raised {d.FaImproved} · rival folded {d.FaRivalFolded} · won by a final {d.FaWonByFinal} · lost after a final {d.FaLostAfterFinal}");
 
         Console.WriteLine($"  DIAG belts: champions renewed by the AI {d.ChampAiRenewals} (below his ask {d.ChampAiRenewBelowAsk}) · all AI renewals below his ask {d.AiRenewBelowAsk}/{d.AiRenewals}"
             + $" · champions who left {d.ChampLeft} · belts filled {(d.BeltChecks == 0 ? 0 : 100.0 * d.BeltHeldChecks / d.BeltChecks):0.0}% of monthly checks · title fights {d.TitleFights} on {d.Cards} cards");
@@ -367,13 +367,26 @@ public static class ShoeSweep
             // The table won't do it: put the cheapest rival-beating terms the script can afford
             // in writing — the rival's structure on our exclusivity, at the lowest purse he'd take
             // over theirs (and that is a real deal by the table's rules), within the stretch.
-            if (session.Outcome == TalkOutcome.Open && BestFinal(world, o, session, excl, stretch, Cash) is { } final)
+            // A final may reach the budget the script matches end-of-deal offers up to (the larger
+            // of the stretch and 1.25x its purse cap): it is what it would pay to keep a man.
+            decimal finalBudget = Math.Max(stretch, Negotiator.PurseCap(world, org) * 1.25m);
+            if (session.Outcome == TalkOutcome.Open)
             {
-                if (diag is not null) diag.FaFinalsLodged++;
-                session.Remember(world.CurrentDate);
-                continue;
+                var (final, why) = BestFinal(world, o, session, excl, finalBudget, Cash);
+                if (final is not null)
+                {
+                    if (diag is not null) diag.FaFinalsLodged++;
+                    session.Remember(world.CurrentDate);
+                    continue;
+                }
+                if (diag is not null)
+                {
+                    diag.FaFinalsRefused++;
+                    if (why == FinalOfferResult.OffTerms) diag.FaFinalOffTerms++;
+                    else if (why == FinalOfferResult.NotEnough) diag.FaFinalTooDear++;
+                    else diag.FaFinalNoCash++;
+                }
             }
-            if (diag is not null && session.Outcome == TalkOutcome.Open) diag.FaFinalsRefused++;
             if (session.Outcome == TalkOutcome.Open) session.WalkAway();
             session.Remember(world.CurrentDate);
             OfferMarket.LetGo(world, o, world.CurrentDate);
@@ -382,27 +395,34 @@ public static class ShoeSweep
     }
 
     // The cheapest final offer that lodges (beats the rival's paper by his lights and passes the
-    // table's rules), stepping the purse up within the stretch; null when none does.
-    private static ContractOffer? BestFinal(World world, RivalOffer o, NegotiationSession session, bool excl, decimal stretch, Func<ContractOffer, bool> cash)
+    // table's rules: his length, a real signing bonus if he wants one, enough guaranteed money),
+    // stepping the purse up within the budget. Returns it, or null and the last reason refused
+    // (NotEnough: too dear for the budget; OffTerms: no real deal within it; CantAfford: the bank).
+    private static (ContractOffer? Final, FinalOfferResult Why) BestFinal(World world, RivalOffer o, NegotiationSession session, bool excl, decimal budget, Func<ContractOffer, bool> cash)
     {
         var f = world.Get(o.Fighter)!;
         var exp = new FighterValuation().Evaluate(world, f);
         decimal theirs = OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp);
+        // A real signing bonus if he wants one (at least the table's quarter of his quote).
+        decimal wantSigning = session.WantsSigningBonus
+            ? Math.Ceiling(session.DemandSigning(excl, false).Amount * Negotiator.SigningBonusMinFraction / 500m) * 500m : 0m;
         var x = new ContractOffer
         {
             Fighter = o.Fighter, Promotion = o.Holder, PursePerFight = new Money(500m), WinBonus = o.WinBonus,
-            SigningBonus = o.SigningBonus, Fights = o.Fights, Exclusive = excl,
+            SigningBonus = new Money(Math.Max(o.SigningBonus.Amount, wantSigning)),
+            Fights = Math.Abs(o.Fights - exp.DesiredFights) <= 1 ? o.Fights : exp.DesiredFights, Exclusive = excl,
         };
-        while (x.PursePerFight.Amount <= stretch && OfferMarket.Score(world, f, x, exp) < theirs)
+        while (x.PursePerFight.Amount <= budget && OfferMarket.FinalScore(world, f, x, exp) < theirs)
             x.PursePerFight = new Money(x.PursePerFight.Amount + 500m);
-        for (; x.PursePerFight.Amount <= stretch; x.PursePerFight = new Money(x.PursePerFight.Amount + 500m))
+        var why = FinalOfferResult.NotEnough;
+        for (; x.PursePerFight.Amount <= budget; x.PursePerFight = new Money(x.PursePerFight.Amount + 500m))
         {
-            if (!cash(x)) return null;
-            var r = session.PutInWriting(x);
-            if (r == FinalOfferResult.Lodged) return x;
-            if (r is FinalOfferResult.NoOffer or FinalOfferResult.CantAfford) return null;
+            if (!cash(x)) return (null, FinalOfferResult.CantAfford);
+            why = session.PutInWriting(x);
+            if (why == FinalOfferResult.Lodged) return (x, why);
+            if (why is FinalOfferResult.NoOffer or FinalOfferResult.CantAfford) return (null, why);
         }
-        return null;
+        return (null, why);
     }
 
     private static (bool Champ, bool Top2) Matters(World world, Promotion org, Fighter f)
