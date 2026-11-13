@@ -102,14 +102,22 @@ public static class DealWindow
             {
                 c.WindowWarned = true;
                 if (c.Promotion == world.PlayerPromotion)
+                {
+                    // A rival's offer still standing decides where he goes at the close.
+                    string? rival = OfferMarket.LiveFor(world, f.Id) is { } offer && offer.Holder == c.Promotion
+                        ? world.Get(offer.From)?.Abbreviation : null;
+                    string after = rival is not null
+                        ? $"he signs with {rival} on the paper they put in front of him."
+                        : "he's a free agent and anyone can have him.";
                     Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
-                        TalksClosed(world, f) ? $"{f.FullName} will test the market" : $"Last week to re-sign {f.FullName}",
+                        !TalksClosed(world, f) ? $"Last week to re-sign {f.FullName}"
+                        : rival is not null ? $"{f.FullName} will sign with {rival}" : $"{f.FullName} will test the market",
                         Lifers.Gendered(f, TalksClosed(world, f)
                             ? $"{f.FullName} walked out of our talks and won't sit down again before his window closes on {end:d MMMM}. "
-                              + "Then he's a free agent and anyone can have him — us included."
-                            : $"{f.FullName}'s window closes on {end:d MMMM}. Re-sign him before then, "
-                              + "or he's a free agent and anyone can have him."),
+                              + (rival is not null ? $"Then {after}" : "Then he's a free agent and anyone can have him — us included.")
+                            : $"{f.FullName}'s window closes on {end:d MMMM}. Re-sign him before then, or {after}"),
                         aboutFighter: f.Id);
+                }
             }
         }
         ForgetColdTalks(world, date);
@@ -147,7 +155,10 @@ public static class DealWindow
         if (world.Titles.Values.Any(t => t.Promotion == c.Promotion && t.CurrentChampion == f.Id))
             body += " He keeps the belt until then; if he walks, it's vacant.";
         var bond = Lifers.BondOf(world, f);
-        bool suitor = PoachingService.HasSuitor(world, f);
+        // A rival's offer already lodged on his last fight is the concrete version of
+        // "rivals are circling": say whose paper it is and what happens at the close.
+        var offer = OfferMarket.LiveFor(world, f.Id) is { } o && o.Holder == c.Promotion ? o : null;
+        bool suitor = offer is null && PoachingService.HasSuitor(world, f);
         // A lifer who has soured (a standing grievance, or a bond already told as
         // broken / a rival already turned down on this deal) is said to be one plainly.
         bool soured = !bond.IsHolding && (bond.IsLifer || c.BondNoticeOn is not null);
@@ -159,6 +170,9 @@ public static class DealWindow
                   + (suitor ? " Rivals are circling — they'll come for him the day he's free." : "");
         else if (suitor)
             body += " Bigger promotions are watching — they'll come for him the day he's free.";
+        if (offer is not null && world.Get(offer.From) is { } rival)
+            body += $" {rival.Name} has {offer.Purse} a fight for {offer.Fights} fights on the table for him: "
+                  + $"if the window closes unsigned, that's where he goes. He won't re-sign for less than what beats it.";
         Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
             $"{f.FullName}'s deal is up — re-sign him by {end:MMM d}",
             Lifers.Gendered(f, body), aboutFighter: f.Id);

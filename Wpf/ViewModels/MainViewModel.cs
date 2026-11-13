@@ -734,6 +734,15 @@ public sealed class MainViewModel : ObservableObject
             StatusText = $"▶ Time stopped: {hit.Name} lost its main event. The briefing says who and why; book a new headliner.";
         }
 
+        // A rival's offer for one of your fighters needs an answer now (a champion or
+        // headliner, or its last week): time stops, and the briefing carries the three ways forward.
+        if (r.OfferNeedsYou is { } bid && _world.Get(bid.Fighter) is { } courted)
+        {
+            if (!BriefingOnStop) NavigateTo(Tab.Home);
+            StatusText = $"▶ Time stopped: {_world.Get(bid.From)?.Abbreviation ?? "A rival"} has made {courted.FullName} an offer. "
+                       + "Match it, sit down with him, or let him go — the briefing has all three.";
+        }
+
         // Reached one of your cards — the advance force-pauses on fight night.
         if (r.PendingPlayerEvent is { } pending)
         {
@@ -744,7 +753,7 @@ public sealed class MainViewModel : ObservableObject
 
         // Every stop gets the briefing: why it stopped, the fix, what happened, what's next.
         Briefing.AfterAdvance(_world, before, r, weeks);
-        if (r.MainEventLost is null && r.PendingPlayerEvent is null)
+        if (r.MainEventLost is null && r.PendingPlayerEvent is null && r.OfferNeedsYou is null)
         {
             string span = weeks > 1 ? "The month is up" : "The week is up";
             StatusText = Briefing.Kind == BriefingKind.Quiet

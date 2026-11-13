@@ -335,11 +335,24 @@ public sealed class MailViewModel : ObservableObject
                 due = days <= 0 ? "Due today" : days == 1 ? "Due tomorrow" : $"{days} days left";
                 note = d.Price.Amount > 0 ? $"Saying yes costs {d.Price}. Ignoring it past {d.Deadline:d MMM} counts as an answer."
                                           : $"Ignoring it past {d.Deadline:d MMM} counts as an answer.";
-                actions.Add(new LetterAction { Text = "Do it", Command = AcceptDecisionCommand, Parameter = d, IsPrimary = true });
-                actions.Add(new LetterAction { Text = "Pass", Command = DeclineDecisionCommand, Parameter = d });
+                actions.Add(new LetterAction { Text = DeskCalls.YesText(w, d, short_: true), Command = AcceptDecisionCommand, Parameter = d, IsPrimary = true });
+                actions.Add(new LetterAction { Text = DeskCalls.NoText(w, d, short_: true), Command = DeclineDecisionCommand, Parameter = d });
             }
             else if (d is { State: DecisionState.Accepted }) note = "You said yes. It's settled at the next event.";
             else note = "This call has been made.";
+        }
+        else if (about is not null && m.Subject.StartsWith($"{about.FullName} has an offer from ", StringComparison.Ordinal)
+                 && w.Decisions.FirstOrDefault(x => x.Kind == DecisionKind.RivalOffer && x.Fighter == about.Id && x.State == DecisionState.Pending) is { } rd
+                 && AcceptDecisionCommand is not null && DeclineDecisionCommand is not null)
+        {
+            // A rival's offer: the same three ways forward as the Desk (match, the table, let him go).
+            int days = rd.Deadline.DayNumber - today.DayNumber;
+            due = days <= 0 ? "Due today" : days == 1 ? "Due tomorrow" : $"{days} days left";
+            note = $"Ignoring it past {rd.Deadline:d MMM} lets him go.";
+            actions.Add(new LetterAction { Text = DeskCalls.YesText(w, rd), Command = AcceptDecisionCommand, Parameter = rd, IsPrimary = true });
+            if (NegotiateCommand is not null)
+                actions.Add(new LetterAction { Text = "Sit down with him ▸", Command = NegotiateCommand, Parameter = about.Id.Value, Decides = false });
+            actions.Add(new LetterAction { Text = DeskCalls.NoText(w, rd), Command = DeclineDecisionCommand, Parameter = rd });
         }
         else if (m.Subject.StartsWith("Sponsorship offer:", StringComparison.Ordinal) || m.Subject.StartsWith("Media offer:", StringComparison.Ordinal))
         {

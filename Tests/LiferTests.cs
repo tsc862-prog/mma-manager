@@ -454,9 +454,10 @@ public class LiferTests
         var day = world.CurrentDate;
 
         // Month 0, on his last fight: the rival calls, he says no.
-        PoachingService.WarnExpiring(world, day);
+        Assert.Null(OfferMarket.Call(world, lifer, day));   // a rival calls (past the rate gate)
         Assert.Equal(Contract.RefusalTold, lifer.Contract!.BondNoticeOn);
-        Assert.False(lifer.Contract.PoachWarned, "a refusal is not the circling warning");
+        Assert.False(lifer.Contract.PoachWarned, "a refusal is not an offer");
+        Assert.Empty(world.RivalOffers);
 
         // He sours completely — now any rival's money would move him...
         lifer.Loyalty = 0;
@@ -474,9 +475,10 @@ public class LiferTests
 
         // The window holds: nobody takes him at expiry, and no rival calls him.
         ContractLifecycle.ProcessExpiries(world, day.AddMonths(1));
-        PoachingService.WarnExpiring(world, day.AddMonths(1));
+        OfferMarket.RunWeekly(world, day.AddMonths(1));
+        Assert.Null(OfferMarket.Call(world, lifer, day.AddMonths(1)));
         Assert.Equal(world.PlayerPromotion, lifer.Contract!.Promotion);
-        Assert.DoesNotContain(world.Mail, m => m.Subject.EndsWith($"is circling {lifer.FullName}"));
+        Assert.Empty(world.RivalOffers);
     }
 
     [Fact]

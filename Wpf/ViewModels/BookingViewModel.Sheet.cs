@@ -461,8 +461,17 @@ public sealed partial class BookingViewModel
         }
         else if (x is { NeedsFight: true })
             lines.Add(new SheetLine("This booking", $"Gets him back in there after {x.ShelfDays / 30} months unused.", CardTone.Good));
-        if (c.PoachWarned)
-            lines.Add(new SheetLine("Rivals", "A bigger promotion is circling his deal (you were warned).", CardTone.Warn));
+        // PoachWarned now means a rival lodged a real offer on this deal (OfferMarket).
+        if (MmaManager.Core.Sim.Contracts.OfferMarket.LiveFor(_world!, f.Id) is { } live)
+        {
+            string rival = _world!.Get(live.From)?.Name ?? "A rival";
+            lines.Add(new SheetLine("Rivals", live.State == RivalOfferState.LetGo
+                ? $"You let him go: he signs with {rival} ({live.Purse} a fight) when this deal is up."
+                : $"{rival} has offered him {live.Purse} a fight. Match it or let him go on the Desk by {live.Deadline:d MMM}.",
+                CardTone.Warn));
+        }
+        else if (c.PoachWarned)
+            lines.Add(new SheetLine("Rivals", "A rival already made an offer on this deal; it's off the table now.", CardTone.Info));
         return lines.Select(l => l with { Text = Lifers.Gendered(f, l.Text) }).ToList();
     }
 

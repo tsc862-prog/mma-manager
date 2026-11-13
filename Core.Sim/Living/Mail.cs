@@ -60,7 +60,10 @@ public static class Mail
             // turned a rival down and still holds hears nothing here. One who has
             // since soured is circled like anyone — there is no poach at expiry
             // any more to give him a separate warning.)
-            string poaching = Contracts.PoachingService.HasSuitor(world, f)
+            // A lodged rival offer is the concrete version (Contracts.OfferMarket).
+            string poaching = Contracts.OfferMarket.LiveFor(world, f.Id) is { } offer && world.Get(offer.From) is { } rival
+                ? $" {rival.Name} has an offer in front of them ({offer.Purse} a fight) — when the deal is up, that's where they go unless we keep them."
+                : Contracts.PoachingService.HasSuitor(world, f)
                 ? " Rival promotions are already circling — lock them up before they walk."
                 : "";
             Post(world, date, MailCategory.ContractAlert, "Matchmaking",

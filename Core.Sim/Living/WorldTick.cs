@@ -32,11 +32,20 @@ public sealed class WorldTickReport
     /// </summary>
     public Event? MainEventLost { get; set; }
 
+    /// <summary>
+    /// Set when a rival's offer for one of the player's fighters needs him now: one
+    /// just made for a champion or a top-billed fighter, or a pending one entering
+    /// its final week (Contracts.OfferMarket). Offers for anyone else go to the Desk
+    /// and the inbox without stopping the clock.
+    /// </summary>
+    public RivalOffer? OfferNeedsYou { get; set; }
+
     public void Add(WorldTickReport o)
     {
         EventsRun += o.EventsRun; Fights += o.Fights; Finishes += o.Finishes;
         Injuries += o.Injuries; Healed += o.Healed; Retired += o.Retired; Washouts += o.Washouts;
         Newgens += o.Newgens; FreeAgentSignings += o.FreeAgentSignings; Cuts += o.Cuts; LocalFights += o.LocalFights;
+        OfferNeedsYou ??= o.OfferNeedsYou;
         Date = o.Date;
     }
 }
@@ -86,7 +95,8 @@ public sealed class WorldTick
                 .Select(e => (Card: e, Main: e.Card[^1].Id))
                 .ToList();
 
-            total.Add(AdvanceWeek(world, runPlayerEvents: false));
+            var week = AdvanceWeek(world, runPlayerEvents: false);
+            total.Add(week);
             var pending = !players ? null : world.Events.Values
                 .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == world.PlayerPromotion && e.Date <= world.CurrentDate)
                 .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
@@ -97,6 +107,9 @@ public sealed class WorldTick
             // withdrawal, a retirement, a fighter lost): the card needs a decision.
             var lost = mains.FirstOrDefault(m => m.Card.Status == EventStatus.Scheduled && m.Card.Card.All(f => f.Id != m.Main)).Card;
             if (lost is not null) { total.MainEventLost = lost; break; }
+
+            // ...and when a rival's offer for one of his fighters needs an answer now.
+            if (week.OfferNeedsYou is not null) break;
         }
         return total;
     }
@@ -127,6 +140,12 @@ public sealed class WorldTick
         BiddingWars.RunWeekly(world, after, rng);
 
         RunDueEvents(world, after, rng, report, runPlayerEvents);
+
+        // Rival offers for the player's fighters on their last fight: answered,
+        // timed out, or taken the day a window closes on a let-go one; and new
+        // calls (no RNG stream: keyed hash rolls). Before the windows run, so a
+        // closing window with an offer standing goes to the rival, not the market.
+        report.OfferNeedsYou = OfferMarket.RunWeekly(world, after);
 
         // The player's deals that have been fought out: windows opened, the last
         // week warned, the run-out ones closed onto the open market (no RNG).
@@ -170,11 +189,10 @@ public sealed class WorldTick
             int intake = report.Retired + report.Washouts + baseline;
             report.Newgens = NewgenService.ForWorld(world).GenerateIntake(world, intake, rng).Count;
 
-            // Bigger orgs circle the player's expiring stars (warn first), then
-            // expiring deals renew / get poached / hit the market, orgs trim the
-            // fighters they no longer want, then everyone fills their gaps.
+            // Expiring deals renew / get poached / hit the market (the player's own
+            // are courted weekly by OfferMarket instead), orgs trim the fighters
+            // they no longer want, then everyone fills their gaps.
             Lifers.RunMonthly(world, after);   // standing grievances wear lifers down (no RNG)
-            PoachingService.WarnExpiring(world, after);
             ContractLifecycle.ProcessExpiries(world, after);
             report.Cuts = RosterManagement.RunMonthly(world, after);
             report.FreeAgentSignings = FreeAgencyService.RunMonthly(world, after);
@@ -252,6 +270,10 @@ public sealed class WorldTick
         // after a card, a signing out of a bidding war).
         ForwardCalendar.Audit(world, after);
         LocalCircuit.Audit(world);
+
+        // The week has moved the world: a rival offer's Desk call shows today's match
+        // price (his last fight fought, his record, his people) — the number Match signs.
+        OfferMarket.RefreshDesk(world);
 
         return report;
     }

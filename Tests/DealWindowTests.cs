@@ -219,7 +219,7 @@ public class DealWindowTests
         DealWindow.Open(world, hired, world.CurrentDate);
 
         var month = world.CurrentDate.Month;
-        tick.AdvanceWeek(world);   // Lifers.RunMonthly, WarnExpiring, ProcessExpiries, free agency, MonthlyReview...
+        tick.AdvanceWeek(world);   // OfferMarket, Lifers.RunMonthly, ProcessExpiries, free agency, MonthlyReview...
         Assert.NotEqual(month, world.CurrentDate.Month);
 
         foreach (var f in new[] { lifer, hired })

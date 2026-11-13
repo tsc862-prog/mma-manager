@@ -510,8 +510,10 @@ public sealed class DashboardViewModel : ObservableObject
                 Due = days <= 0 ? "today" : days == 1 ? "by tomorrow" : $"{days} days left",
                 Tone = days <= 3 ? CardTone.Bad : CardTone.Warn,
                 Picture = who is null ? null : Portraits.Thumb(who, world),
-                PrimaryText = "Do it", PrimaryCommand = AcceptDecisionCommand, PrimaryParameter = d,
-                SecondaryText = "Pass", SecondaryCommand = DeclineDecisionCommand, SecondaryParameter = d,
+                PrimaryText = DeskCalls.YesText(world, d, short_: true),
+                PrimaryCommand = AcceptDecisionCommand, PrimaryParameter = d,
+                SecondaryText = DeskCalls.NoText(world, d, short_: true),
+                SecondaryCommand = DeclineDecisionCommand, SecondaryParameter = d,
             });
         }
 

@@ -28,6 +28,7 @@ internal sealed class WorldWriter
         WriteDecisions(world);
         WriteBiddingWars(world);
         WriteTalks(world);
+        WriteRivalOffers(world);
         WriteRelationships(world);
         WriteEvents(world);
     }
@@ -130,6 +131,34 @@ internal sealed class WorldWriter
             cmd.Bind("$r", t.Round);
             cmd.Bind("$s", Db.DateN(t.SouredUntil));
             cmd.Bind("$l", Db.Date(t.LastTalked));
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private void WriteRivalOffers(World w)
+    {
+        using var cmd = _c.Cmd(_tx,
+            "INSERT INTO rival_offers (ordinal, id, fighter_id, from_id, holder_id, kind, purse, win_bonus, signing_bonus, fights, exclusive, made, deadline, state, resolved) "
+            + "VALUES ($o,$id,$f,$fr,$h,$k,$p,$wb,$sb,$n,$x,$m,$d,$st,$r)");
+        for (int i = 0; i < w.RivalOffers.Count; i++)
+        {
+            var o = w.RivalOffers[i];
+            cmd.Parameters.Clear();
+            cmd.Bind("$o", i);
+            cmd.Bind("$id", o.Id);
+            cmd.Bind("$f", o.Fighter.Value);
+            cmd.Bind("$fr", o.From.Value);
+            cmd.Bind("$h", o.Holder.Value);
+            cmd.Bind("$k", o.Kind.ToString());
+            cmd.Bind("$p", Db.Cash(o.Purse));
+            cmd.Bind("$wb", Db.Cash(o.WinBonus));
+            cmd.Bind("$sb", Db.Cash(o.SigningBonus));
+            cmd.Bind("$n", o.Fights);
+            cmd.Bind("$x", o.Exclusive ? 1 : 0);
+            cmd.Bind("$m", Db.Date(o.Made));
+            cmd.Bind("$d", Db.Date(o.Deadline));
+            cmd.Bind("$st", o.State.ToString());
+            cmd.Bind("$r", Db.DateN(o.Resolved));
             cmd.ExecuteNonQuery();
         }
     }

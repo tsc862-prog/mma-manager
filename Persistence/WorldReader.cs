@@ -32,6 +32,7 @@ internal sealed class WorldReader
         ReadDecisions(world);
         ReadBiddingWars(world);
         ReadTalks(world);
+        ReadRivalOffers(world);
         ReadRelationships(world);
         ReadEvents(world);
 
@@ -489,6 +490,30 @@ internal sealed class WorldReader
                 Round = r.Int("round"),
                 SouredUntil = r.DateN("soured_until"),
                 LastTalked = r.Date("last_talked"),
+            });
+    }
+
+    private void ReadRivalOffers(World world)
+    {
+        using var cmd = _c.Cmd(null, "SELECT * FROM rival_offers ORDER BY ordinal");
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            world.RivalOffers.Add(new RivalOffer
+            {
+                Id = r.Int("id"),
+                Fighter = new FighterId(r.Int("fighter_id")),
+                From = new PromotionId(r.Int("from_id")),
+                Holder = new PromotionId(r.Int("holder_id")),
+                Kind = r.Enum<RivalOfferKind>("kind"),
+                Purse = r.Cash("purse"),
+                WinBonus = r.Cash("win_bonus"),
+                SigningBonus = r.Cash("signing_bonus"),
+                Fights = r.Int("fights"),
+                Exclusive = r.Bool("exclusive"),
+                Made = r.Date("made"),
+                Deadline = r.Date("deadline"),
+                State = r.Enum<RivalOfferState>("state"),
+                Resolved = r.DateN("resolved"),
             });
     }
 

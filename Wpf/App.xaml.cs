@@ -1126,6 +1126,42 @@ public partial class App : Application
                         Report("after the week");
                         break;
                     }
+                    case "rivaloffer":
+                    {
+                        // A founded shoestring promotion (every other org is bigger) signs the best free
+                        // agents by the scout's read, its deals are set to their last fight (harness only),
+                        // and the most popular is made the face of the company. Weeks then go by through the
+                        // real advance until a rival's offer for a top-billed fighter stops the clock.
+                        vm.StartWorld(new WorldBuilder.Options
+                        {
+                            Seed = 7,
+                            Founding = new WorldBuilder.FoundingSpec { Name = "New Wave Fighting", Abbreviation = "NWF", Region = MmaManager.Core.Model.Region.Europe },
+                        }, "You founded New Wave Fighting.");
+                        w = vm.LiveWorld!;
+                        var fw = w;
+                        foreach (var row in vm.Contracts.FreeAgents.OrderByDescending(r => FighterRow.Scouted(fw, fw.Get(r.Id)!)).ThenBy(r => r.Id.Value).Take(8).ToList())
+                        {
+                            if (vm.Contracts.FreeAgents.FirstOrDefault(r => r.Id == row.Id) is not { } fresh) continue;
+                            vm.Contracts.SelectedFreeAgent = fresh;
+                            vm.Contracts.SignAtTheirTerms();
+                        }
+                        var mine = w.RosterOf(w.PlayerPromotion).Where(f => f.Contract is not null).ToList();
+                        foreach (var f in mine) f.Contract!.FightsRemaining = 1;
+                        var face = mine.OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).First();
+                        MmaManager.Core.Sim.Org.Franchise.SetFace(w, w.Get(w.PlayerPromotion)!, face, w.CurrentDate);
+                        Console.WriteLine($"RENDERBRIEFING signed {mine.Count}, deals on their last fight; face of the company: {face.FullName}");
+                        vm.Contracts.OnChanged?.Invoke();
+                        for (int i = 0; i < 60 && vm.Briefing.Kind != BriefingKind.RivalOffer; i++)
+                        {
+                            vm.AdvanceWeekCommand.Execute(null);
+                            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+                            vm.Moments.Reset();
+                        }
+                        Report("after the weeks");
+                        if (vm.Briefing.Kind != BriefingKind.RivalOffer)
+                            throw new InvalidOperationException($"no rival offer stopped the clock ({w.RivalOffers.Count} offers made)");
+                        break;
+                    }
                     case "desk":
                         break;
                     default:

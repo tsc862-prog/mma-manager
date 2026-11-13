@@ -586,14 +586,7 @@ public sealed class PlannerViewModel : ObservableObject
         return list.OrderBy(m => m.Date).ThenBy(m => m.Tone == CardTone.Bad ? 0 : m.Tone == CardTone.Warn ? 1 : 2).ToList();
     }
 
-    private static string DecisionTitle(Decision d, Fighter? who, World w) => d.Kind switch
-    {
-        DecisionKind.TitleShotRequest => $"{who?.LastName ?? "A contender"} wants an answer on the title shot",
-        DecisionKind.SponsorShowcase => $"{(d.Sponsor.Length > 0 ? d.Sponsor : "A sponsor")} wants a showcase answer",
-        DecisionKind.VeteranCut => $"The board wants an answer on {who?.LastName ?? "a veteran"}",
-        DecisionKind.AcquisitionOffer => $"{(d.Promotion is { } p && w.Get(p) is { } org ? org.Abbreviation : "A rival")} is for sale: answer due",
-        _ => "A decision is due",
-    };
+    private static string DecisionTitle(Decision d, Fighter? who, World w) => DeskCalls.DueLine(w, d);
 
     private void BuildFlagships(World w, DateOnly today)
     {

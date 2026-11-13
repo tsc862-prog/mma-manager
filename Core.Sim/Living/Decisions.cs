@@ -21,6 +21,7 @@ public static class Decisions
         for (int i = world.Decisions.Count - 1; i >= 0; i--)
         {
             var d = world.Decisions[i];
+            if (d.Kind == DecisionKind.RivalOffer) continue;   // the offer market keeps its own calls (OfferMarket)
             if (date <= d.Deadline) continue;
             if (d.State == DecisionState.Pending && d.Kind == DecisionKind.TitleShotRequest
                 && d.Fighter is { } fid && world.Get(fid) is { } snubbed)
@@ -32,7 +33,8 @@ public static class Decisions
             world.Decisions.RemoveAt(i);
         }
 
-        if (world.Decisions.Count(d => d.State == DecisionState.Pending) >= 2) return;   // the desk holds two calls, tops
+        // The desk holds two calls, tops (a rival's offer is the fighter's call, not one of these).
+        if (world.Decisions.Count(d => d.State == DecisionState.Pending && d.Kind != DecisionKind.RivalOffer) >= 2) return;
         if (!rng.Chance(0.35)) return;
 
         int id = world.Decisions.Count == 0 ? 1 : world.Decisions.Max(d => d.Id) + 1;
@@ -136,6 +138,14 @@ public static class Decisions
                 Acquisitions.Execute(world, promo, target, date, d.Price);
                 break;
 
+            case DecisionKind.RivalOffer:
+                // MATCH: re-sign him on terms that beat the rival's (the call leaves the
+                // desk when it works; it stays when the books can't cover the bonus).
+                if (d.Fighter is { } oid && Contracts.OfferMarket.LiveFor(world, oid) is { } offer)
+                    Contracts.OfferMarket.Match(world, offer, date);
+                else world.Decisions.Remove(d);
+                break;
+
             case DecisionKind.VeteranCut when d.Fighter is { } vid && world.Get(vid) is { } vet:
                 world.Decisions.Remove(d);
                 if (vet.Contract?.Promotion != promo.Id) break;   // already gone — nobody left to cut
@@ -158,6 +168,9 @@ public static class Decisions
     /// <summary>The player says NO.</summary>
     public static void Decline(World world, Decision d, DateOnly date)
     {
+        // LET HIM GO: he signs with the rival when his deal is up (unless re-signed first).
+        if (d.Kind == DecisionKind.RivalOffer && d.Fighter is { } oid && Contracts.OfferMarket.LiveFor(world, oid) is { } offer)
+            Contracts.OfferMarket.LetGo(world, offer, date);
         if (d.Kind == DecisionKind.TitleShotRequest && d.Fighter is { } fid && world.Get(fid) is { } f)
         {
             f.Loyalty = Math.Max(0, f.Loyalty - 10);
