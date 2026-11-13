@@ -791,6 +791,41 @@
             </Style.Triggers>
         </Style>
 
+        <!-- THE BRIEFING (Views/BriefingView.xaml): why the clock stopped as one headline card
+             (the moment's poster language, smaller), then the digest and the calendar. -->
+        <Style x:Key="Text.BriefingKicker" TargetType="TextBlock" BasedOn="{StaticResource Text.MomentKicker}">
+            <Setter Property="FontSize" Value="13" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="12" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="Text.BriefingHeadline" TargetType="TextBlock" BasedOn="{StaticResource Text.Display}">
+            <Setter Property="FontSize" Value="36" />
+            <Setter Property="LineHeight" Value="40" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+            <Setter Property="Margin" Value="-1,8,0,0" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="28" />
+                    <Setter Property="LineHeight" Value="31" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="Text.BriefingLede" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="LineHeight" Value="21" />
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+            <Setter Property="Margin" Value="0,10,0,0" />
+        </Style>
+        <!-- A small "done" pill on a headline whose fix has been made. -->
+        <Style x:Key="BriefingPill" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ToneGoodDim}" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+            <Setter Property="Padding" Value="10,3,11,4" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
         <Style x:Key="Chip" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource Track}" />
             <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
@@ -870,6 +905,45 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- BriefingItemTemplate: BriefingItem — a face (or a toned line icon), a kicker, one sentence,
+             a line of detail and a link on the right. The digest and "also on your desk" both use it. -->
+        <DataTemplate x:Key="BriefingItemTemplate">
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="38" Height="38" VerticalAlignment="Top" Margin="0,1,12,0">
+                    <Ellipse x:Name="disc" Fill="{StaticResource Track}" />
+                    <controls:Icon x:Name="icon" Kind="{Binding Icon}" Width="18" Height="18" Brush="{StaticResource TextSoft}" />
+                    <Ellipse x:Name="face" Visibility="Collapsed" Stroke="{StaticResource PanelEdge}">
+                        <Ellipse.Fill><ImageBrush ImageSource="{Binding Picture}" Stretch="UniformToFill" AlignmentY="Top" /></Ellipse.Fill>
+                    </Ellipse>
+                </Grid>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="kicker" Text="{Binding Kicker}" Style="{StaticResource Text.Kicker}" FontSize="10.5" Margin="0,0,0,1" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Text}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" />
+                    <TextBlock x:Name="detail" Text="{Binding Detail}" Style="{StaticResource Text.Secondary}" Margin="0,2,0,0" />
+                </StackPanel>
+                <Button x:Name="act" Grid.Column="2" Content="{Binding ActionText}" Command="{Binding Command}"
+                        Style="{StaticResource Button.Link}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasPicture}" Value="True">
+                    <Setter TargetName="face" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="icon" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kicker}" Value=""><Setter TargetName="kicker" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasDetail}" Value="False"><Setter TargetName="detail" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasAction}" Value="False"><Setter TargetName="act" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Bad"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneBadDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneBad}" /><Setter TargetName="face" Property="Stroke" Value="{StaticResource ToneBad}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Warn"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneWarnDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneWarn}" /><Setter TargetName="face" Property="Stroke" Value="{StaticResource ToneWarn}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Good"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneGoodDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneGood}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Info"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneInfoDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneInfo}" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
 
         <!-- A borderless clickable surface (a whole card that opens something). -->
         <Style x:Key="CardButton" TargetType="Button">

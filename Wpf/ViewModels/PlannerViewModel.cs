@@ -39,6 +39,8 @@ public sealed class PlannerViewModel : ObservableObject
     public Action<EventId>? OpenMyCard { get; set; }
     /// <summary>Set by the shell: jump to another app (a <see cref="Tab"/> index).</summary>
     public Action<int>? Navigate { get; set; }
+    /// <summary>Contract talks with a fighter (parameter = fighter id): a courted free agent's offer deadline opens them.</summary>
+    public System.Windows.Input.ICommand? NegotiateCommand { get; set; }
 
     private readonly PlayerBooking _booking = new();
     private World? _world;
@@ -569,6 +571,26 @@ public sealed class PlannerViewModel : ObservableObject
             });
         }
 
+        // A rival's offer to a free agent you're courting: he signs it after the deadline unless you beat it.
+        foreach (var fo in DeskCalls.Courted(w).Where(x => inRange(x.Deadline)))
+        {
+            var who = w.Get(fo.Fighter)!;
+            list.Add(new PlannerMarker
+            {
+                Date = fo.Deadline,
+                Icon = "Money",
+                Short = $"{who.LastName} signs elsewhere",
+                Text = DeskCalls.FreeAgentDueLine(w, fo),
+                Detail = DeskCalls.FreeAgentLine(w, fo),
+                Tone = CardTone.Bad,
+                FighterId = who.Id.Value,
+                Face = new LazyFace(ready => Portraits.Thumb(who, w, ready)),
+                Open = NegotiateCommand ?? AppCommands.OpenFighter,
+                OpenParameter = who.Id.Value,
+                OpenText = NegotiateCommand is null ? "Profile" : "Sit down",
+            });
+        }
+
         // Offers on the table that lapse.
         foreach (var o in player.Offers.Where(o => inRange(o.ExpiresOn)))
             list.Add(new PlannerMarker
@@ -586,15 +608,7 @@ public sealed class PlannerViewModel : ObservableObject
         return list.OrderBy(m => m.Date).ThenBy(m => m.Tone == CardTone.Bad ? 0 : m.Tone == CardTone.Warn ? 1 : 2).ToList();
     }
 
-    private static string DecisionTitle(Decision d, Fighter? who, World w) => d.Kind switch
-    {
-        DecisionKind.TitleShotRequest => $"{who?.LastName ?? "A contender"} wants an answer on the title shot",
-        DecisionKind.SponsorShowcase => $"{(d.Sponsor.Length > 0 ? d.Sponsor : "A sponsor")} wants a showcase answer",
-        DecisionKind.VeteranCut => $"The board wants an answer on {who?.LastName ?? "a veteran"}",
-        DecisionKind.AcquisitionOffer => $"{(d.Promotion is { } p && w.Get(p) is { } org ? org.Abbreviation : "A rival")} is for sale: answer due",
-        DecisionKind.RivalOffer => $"{(d.Promotion is { } rp && w.Get(rp) is { } rival ? rival.Abbreviation : "A rival")} wants {who?.LastName ?? "one of ours"}: match or let go",
-        _ => "A decision is due",
-    };
+    private static string DecisionTitle(Decision d, Fighter? who, World w) => DeskCalls.DueLine(w, d);
 
     private void BuildFlagships(World w, DateOnly today)
     {

@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Org;
+using Lifers = MmaManager.Core.Sim.Contracts.Lifers;
 using MmaManager.Wpf.Art;
 using MmaManager.Wpf.Mvvm;
 
@@ -120,6 +121,8 @@ public sealed class MailViewModel : ObservableObject
     public ICommand? AcceptMediaCommand { get; set; }
     public ICommand? DeclineMediaCommand { get; set; }
     public ICommand? NegotiateCommand { get; set; }
+    /// <summary>Stop courting a free agent a rival has made an offer to (parameter = fighter id; asks first, refreshes).</summary>
+    public ICommand? LetCourtedGoCommand { get; set; }
     public ICommand? PromoteCommand { get; set; }
     public Action<int>? Navigate { get; set; }
     /// <summary>Run after an action that does not refresh the app by itself.</summary>
@@ -335,12 +338,43 @@ public sealed class MailViewModel : ObservableObject
                 due = days <= 0 ? "Due today" : days == 1 ? "Due tomorrow" : $"{days} days left";
                 note = d.Price.Amount > 0 ? $"Saying yes costs {d.Price}. Ignoring it past {d.Deadline:d MMM} counts as an answer."
                                           : $"Ignoring it past {d.Deadline:d MMM} counts as an answer.";
-                actions.Add(new LetterAction { Text = "Do it", Command = AcceptDecisionCommand, Parameter = d, IsPrimary = true });
-                actions.Add(new LetterAction { Text = "Pass", Command = DeclineDecisionCommand, Parameter = d });
+                actions.Add(new LetterAction { Text = DeskCalls.YesText(w, d, short_: true), Command = AcceptDecisionCommand, Parameter = d, IsPrimary = true });
+                actions.Add(new LetterAction { Text = DeskCalls.NoText(w, d, short_: true), Command = DeclineDecisionCommand, Parameter = d });
             }
             else if (d is { State: DecisionState.Accepted }) note = "You said yes. It's settled at the next event.";
             else note = "This call has been made.";
         }
+        else if (about is not null && m.Subject.StartsWith($"{about.FullName} has an offer from ", StringComparison.Ordinal)
+                 && w.Decisions.FirstOrDefault(x => x.Kind == DecisionKind.RivalOffer && x.Fighter == about.Id && x.State == DecisionState.Pending) is { } rd
+                 && AcceptDecisionCommand is not null && DeclineDecisionCommand is not null)
+        {
+            // A rival's offer: the same three ways forward as the Desk (match, the table, let him go).
+            int days = rd.Deadline.DayNumber - today.DayNumber;
+            due = days <= 0 ? "Due today" : days == 1 ? "Due tomorrow" : $"{days} days left";
+            note = Lifers.Gendered(about, $"Ignoring it past {rd.Deadline:d MMM} lets him go.");
+            actions.Add(new LetterAction { Text = DeskCalls.YesText(w, rd), Command = AcceptDecisionCommand, Parameter = rd, IsPrimary = true });
+            if (NegotiateCommand is not null)
+                actions.Add(new LetterAction { Text = DeskCalls.SitDownText(about), Command = NegotiateCommand, Parameter = about.Id.Value, Decides = false });
+            actions.Add(new LetterAction { Text = DeskCalls.NoText(w, rd), Command = DeclineDecisionCommand, Parameter = rd });
+        }
+        else if (about is not null && DeskCalls.CourtedOffer(w, about.Id) is { } fo && NegotiateCommand is not null
+                 && (m.Subject.StartsWith($"{about.FullName} has an offer from ", StringComparison.Ordinal)
+                     || m.Subject.StartsWith("Last week to beat ", StringComparison.Ordinal)
+                     || m.Subject.EndsWith($" came back for {about.FullName}", StringComparison.Ordinal)))
+        {
+            // A rival's offer to a free agent we're courting: no Desk card and no match —
+            // beat it at the table, or let him go.
+            int days = fo.Deadline.DayNumber - today.DayNumber;
+            due = days <= 0 ? "Due today" : days == 1 ? "Due tomorrow" : $"{days} days left";
+            note = Lifers.Gendered(about, $"Say nothing and he signs with {w.Get(fo.From)?.Abbreviation ?? "the rival"} after {fo.Deadline:d MMM}.");
+            actions.Add(new LetterAction { Text = DeskCalls.SitDownText(about), Command = NegotiateCommand, Parameter = about.Id.Value, IsPrimary = true });
+            if (LetCourtedGoCommand is not null)
+                actions.Add(new LetterAction { Text = DeskCalls.LetGoText(about), Command = LetCourtedGoCommand, Parameter = about.Id.Value });
+        }
+        else if (about is not null && about.Contract is null
+                 && MmaManager.Core.Sim.Contracts.OfferMarket.LiveFor(w, about.Id) is { Kind: RivalOfferKind.FreeAgent, State: RivalOfferState.LetGo } gone
+                 && gone.Holder == w.PlayerPromotion)
+            note = Lifers.Gendered(about, $"You let him go: {w.Get(gone.From)?.Abbreviation ?? "the rival"} signs him when the week turns.");
         else if (m.Subject.StartsWith("Sponsorship offer:", StringComparison.Ordinal) || m.Subject.StartsWith("Media offer:", StringComparison.Ordinal))
         {
             bool media = m.Subject.StartsWith("Media", StringComparison.Ordinal);
