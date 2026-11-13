@@ -23,6 +23,8 @@ internal static class PersistenceGraph
     {
         ["World.ArtCatalog"] = "Opaque portrait catalog attached by the app after load; null in headless runs.",
         ["FightOutcome.PlayByPlay"] = "Large prose log, dropped on purpose; only present on a freshly simulated bout.",
+        ["ContractOffer.Round"] = "A ContractOffer is saved only as a rival offer's final offer in writing, which is always round 0 (the table's round count lives in TalksMemory).",
+
     };
 
     // ---- deep comparison --------------------------------------------------

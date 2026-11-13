@@ -250,8 +250,12 @@ internal static class SaveSchema
                 from_id INTEGER NOT NULL, holder_id INTEGER NOT NULL, kind TEXT NOT NULL,
                 purse TEXT NOT NULL, win_bonus TEXT NOT NULL, signing_bonus TEXT NOT NULL,
                 fights INTEGER NOT NULL, exclusive INTEGER NOT NULL,
-                made TEXT NOT NULL, deadline TEXT NOT NULL, state TEXT NOT NULL, resolved TEXT
+                made TEXT NOT NULL, deadline TEXT NOT NULL, state TEXT NOT NULL, resolved TEXT,
+                improvements INTEGER NOT NULL,
+                final_purse TEXT, final_win_bonus TEXT, final_signing_bonus TEXT, final_fights INTEGER,
+                final_exclusive INTEGER, final_clause INTEGER, final_ppv INTEGER, final_perf TEXT
             );
+
 
             CREATE TABLE fight_stats (
                 fight_id INTEGER NOT NULL, fighter_id INTEGER NOT NULL,

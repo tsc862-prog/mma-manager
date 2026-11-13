@@ -66,6 +66,16 @@ a 10-seed × 5-yr sweep ~2–4 min (parallel), a 20-yr shoestring ~2–3 min.
   HIM GO. `DIAG rival offers` counts offers lodged per seed-year, how the script
   answered, how each ended (matched, beaten at the table, lost to the rival,
   withdrawn) and lifer refusals.
+  Since v47 the `shoesweep` script also COURTS free agents (`ShoeSweep.CourtFreeAgents`;
+  `--no-court` turns it off): each month, in up to two thin divisions, it sits down
+  with the best free agent just past its budget (ask up to 1.3x), tables the budget
+  and leaves; a month on it signs him if his number fits. While it courts him, an AI
+  promotion that would sign him lodges an offer instead (10-14 days to answer), which
+  the script answers after every week (`ShoeSweep.AnswerFreeAgentOffers`): sign him at
+  the table if his number fits the stretch, else put the rival-beating terms in writing
+  if they fit, else let him go. `DIAG free-agent offers` counts them per seed-year (and
+  all offers together, both kinds share the 5-a-year cap), the script's answers, how
+  often the rival came back, and how each ended.
 
 ## Checking modes (simulation QA)
 
