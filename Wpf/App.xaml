@@ -2009,6 +2009,8 @@
                Slip (Border), Slip.Label, Slip.Value, Slip.Note, Slip.Field (TextBox), Slip.Check
                Slip.Promise (CheckBox, fades when it can't be offered), Slip.Small (ink note under it),
                Slip.Pick (RadioButton: one number on a small paper picker)
+               SlipChipView (DataTemplate for a SlipChip: "−$5,500" green, "+$4,500" red, "no belt" grey) + TablePencilGreen
+             Rule (owner, 2026-11-15): numbers and short labels on the paper, sentences in tooltips.
                Stamp (Border) + Stamp.Text   rubber stamp on paper ("CAME BACK ONCE")
                LeanSegment (Border) + LeanSegment.Text: one third of the leaning bar, lit when its Tag is bound to true
              ===================================================================== -->
@@ -2162,6 +2164,28 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- A small chip on paper (a SlipChip): a money effect or a short reason, by Tone
+             ("Good" = cheaper for you, green pencil; "Bad" = dearer, red pencil; "Muted" = grey). -->
+        <SolidColorBrush x:Key="TablePencilGreen" Color="#2F7A4A" />
+        <DataTemplate x:Key="SlipChipView">
+            <Border x:Name="chip" CornerRadius="9" Padding="7,1,7,2" BorderThickness="1" Background="Transparent"
+                    BorderBrush="{StaticResource TableRule}">
+                <TextBlock x:Name="txt" Text="{Binding Text}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TableInkSoft}" />
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Tone}" Value="Good">
+                    <Setter TargetName="txt" Property="Foreground" Value="{StaticResource TablePencilGreen}" />
+                    <Setter TargetName="chip" Property="BorderBrush" Value="{StaticResource TablePencilGreen}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Bad">
+                    <Setter TargetName="txt" Property="Foreground" Value="{StaticResource TablePencil}" />
+                    <Setter TargetName="chip" Property="BorderBrush" Value="{StaticResource TablePencil}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasText}" Value="False">
+                    <Setter TargetName="chip" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
         <Style x:Key="Stamp" TargetType="Border">
             <Setter Property="BorderBrush" Value="{StaticResource TablePencil}" />
             <Setter Property="BorderThickness" Value="2" />
