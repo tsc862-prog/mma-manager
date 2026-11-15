@@ -53,7 +53,8 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
         else if (personal < 1m) reasons.Add(Lifers.Gendered(f, "you discovered him: he asks less from you"));
         if (!excl) reasons.Add("non-exclusive deal");
         if (clause) reasons.Add("the champion's clause adds ~8%");
-        if (distrust > 1m) reasons.Add(Lifers.Gendered(f, "you broke your word to him: he asks more"));
+        // Two different things, said apart: his own memory of a broken promise, and the public record.
+        if (distrust > 1m) reasons.AddRange(Promises.TrustReasons(f, Promises.TrustAt(world, f.Id, promo.Id, world.CurrentDate), sentences: false));
         if (floor is { } fl && floorAmt > discounted)
             reasons.Add(Lifers.Gendered(f, $"won't take less than his current {fl}"));
         return new AskingQuote(new Money(purse), exp.AskingPurse, reasons);
