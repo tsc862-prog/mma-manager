@@ -35,41 +35,42 @@ public static class Sponsorships
         OrgSize MinTier,
         decimal BaseFee,
         decimal PerPrestige,
-        Func<Promotion, DealRequirement[]> Terms);
+        Func<Promotion, DealRequirement[]> Terms,
+        Capability Era);   // the era the brand needs before it will sponsor fights at all (always there in today's mode)
 
     private static readonly Archetype[] Archetypes =
     {
         new("local business",
             new[] { "Main Street Motors", "Cornerstone Hardware", "Falcon Lager", "Golden Gate Pawn", "Riverside Tire & Auto" },
             OrgSize.City, 10_000m, 800m,
-            _ => new[] { new DealRequirement(DealRequirementKind.MinLocalFighters, 2) }),
+            _ => new[] { new DealRequirement(DealRequirementKind.MinLocalFighters, 2) }, Capability.SponsorLocal),
 
         new("supplement brand",
             new[] { "Grit Supplements", "Ironclad Nutrition", "Apex Fuel", "Warpath Whey" },
             OrgSize.City, 8_000m, 700m,
-            _ => new[] { new DealRequirement(DealRequirementKind.MinCardQuality, 42) }),
+            _ => new[] { new DealRequirement(DealRequirementKind.MinCardQuality, 42) }, Capability.SponsorSupplement),
 
         new("equipment house",
             new[] { "Titan Gloves", "Kensei Fightwear", "Vale Tudo Supply Co." },
             OrgSize.Regional, 10_000m, 800m,
-            _ => new[] { new DealRequirement(DealRequirementKind.StandardRules, 0) }),
+            _ => new[] { new DealRequirement(DealRequirementKind.StandardRules, 0) }, Capability.SponsorEquipment),
 
         new("energy drink",
             new[] { "Voltage Energy", "Overdrive", "Static Surge" },
             OrgSize.Regional, 12_000m, 900m,
             p => new[] { new DealRequirement(DealRequirementKind.MinStarPower,
-                Org.OrgSizing.DrawFloor(Org.OrgSizing.SizeOf(p))) }),
+                Org.OrgSizing.DrawFloor(Org.OrgSizing.SizeOf(p))) }, Capability.SponsorEnergyDrink),
 
         new("brewery",
             new[] { "Redline Brewing Co.", "Iron City Ales", "Halftime Lager" },
             OrgSize.Regional, 11_000m, 850m,
             p => new[] { new DealRequirement(DealRequirementKind.MinAttendance,
-                Org.OrgSizing.SizeOf(p) >= OrgSize.National ? 4_000 : 1_500) }),
+                Org.OrgSizing.SizeOf(p) >= OrgSize.National ? 4_000 : 1_500) }, Capability.SponsorBrewery),
 
         new("national brand",
             new[] { "Summit Bank", "Nova Telecom", "Redline Autos", "Frontier Insurance" },
             OrgSize.National, 40_000m, 1_500m,
-            _ => new[] { new DealRequirement(DealRequirementKind.TitleFight, 0) }),
+            _ => new[] { new DealRequirement(DealRequirementKind.TitleFight, 0) }, Capability.SponsorNational),
 
         new("global brand",
             new[] { "Meridian Airlines", "Vanta Sportswear", "Atlas Watches", "Polar Cola" },
@@ -78,8 +79,11 @@ public static class Sponsorships
             {
                 new DealRequirement(DealRequirementKind.TitleFight, 0),
                 new DealRequirement(DealRequirementKind.MinStarPower, 65),
-            }),
+            }, Capability.SponsorGlobal),
     };
+
+    /// <summary>Each archetype's era capability, in table order (the tests hold every archetype to its own Sponsor* kind).</summary>
+    internal static IReadOnlyList<Capability> ArchetypeEras => Archetypes.Select(a => a.Era).ToList();
 
     private static Money FeeFor(Archetype a, Promotion p) =>
         new(a.BaseFee + p.Prestige.Value * a.PerPrestige);
@@ -95,7 +99,7 @@ public static class Sponsorships
     {
         var size = Org.OrgSizing.SizeOf(promo);
         int fill = Math.Max(1, Slots(size) - 1);
-        var eligible = Archetypes.Where(a => size >= a.MinTier).ToList();
+        var eligible = Archetypes.Where(a => size >= a.MinTier && Living.Era.Allows(world, a.Era)).ToList();
         for (int i = 0; i < fill && eligible.Count > 0; i++)
         {
             var pick = eligible[rng.Range(0, eligible.Count - 1)];
@@ -115,15 +119,17 @@ public static class Sponsorships
     public static void SeedFounding(World world, Promotion promo, DateOnly on, SimRandom rng)
     {
         var local = Archetypes[0];
-        promo.SponsorDeals.Add(new SponsorDeal
-        {
-            Partner = local.Partners[rng.Range(0, local.Partners.Length - 1)],
-            FeePerEvent = FeeFor(local, promo),
-            EventsRemaining = 6,
-            Requirements = new(),   // the hometown backer asks nothing — they're just glad you exist
-            SignedOn = on,
-        });
-        AddOffer(promo, Archetypes[1], on, rng);
+        // Each piece only once its kind of brand will touch the sport (always, in today's mode).
+        if (Living.Era.Allows(world, local.Era))
+            promo.SponsorDeals.Add(new SponsorDeal
+            {
+                Partner = local.Partners[rng.Range(0, local.Partners.Length - 1)],
+                FeePerEvent = FeeFor(local, promo),
+                EventsRemaining = 6,
+                Requirements = new(),   // the hometown backer asks nothing — they're just glad you exist
+                SignedOn = on,
+            });
+        if (Living.Era.Allows(world, Archetypes[1].Era)) AddOffer(promo, Archetypes[1], on, rng);
     }
 
     // --- The monthly market ---------------------------------------------------
@@ -140,11 +146,14 @@ public static class Sponsorships
 
         int open = Slots(Org.OrgSizing.SizeOf(promo)) - promo.SponsorDeals.Count;
         int pending = promo.Offers.Count(o => o.Media is null);
-        if (open > 0 && pending < 2 && rng.Chance(0.35))
+        // An era with no sponsoring brands at all draws nothing (Origins only: today's
+        // mode short-circuits before the check, so its draw stays where it always was).
+        bool anyBrand = world.Mode == WorldMode.Modern || Archetypes.Any(a => Living.Era.Allows(world, a.Era));
+        if (open > 0 && pending < 2 && anyBrand && rng.Chance(0.35))
         {
             var size = Org.OrgSizing.SizeOf(promo);
             var taken = promo.SponsorDeals.Select(d => d.Partner).ToHashSet();
-            var eligible = Archetypes.Where(a => size >= a.MinTier
+            var eligible = Archetypes.Where(a => size >= a.MinTier && Living.Era.Allows(world, a.Era)
                 && a.Partners.Any(n => !taken.Contains(n))).ToList();
             if (eligible.Count > 0)
             {

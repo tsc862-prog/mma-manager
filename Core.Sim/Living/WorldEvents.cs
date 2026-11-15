@@ -18,8 +18,23 @@ namespace MmaManager.Core.Sim.Living;
 /// </summary>
 public static class WorldEvents
 {
-    // Absolute month index since the game's January 2026 epoch.
-    private static int Epoch(DateOnly d) => (d.Year - 2026) * 12 + (d.Month - 1);
+    /// <summary>
+    /// The schedule's anchor when a world has no start date of its own (a hand-built
+    /// test world): January 2026, the year the beats were authored for.
+    /// </summary>
+    private static readonly DateOnly DefaultEpoch = new(2026, 1, 1);
+
+    /// <summary>
+    /// Month index since the world began (the month of <see cref="World.StartDate"/>
+    /// is month 0), so the scheduled beats land the same distance into any world:
+    /// a 1993 start meets its first crossover in mid-1993, not mid-2026. Identical
+    /// to the old absolute index for the default January 2026 start.
+    /// </summary>
+    internal static int Epoch(World world, DateOnly d)
+    {
+        var anchor = world.StartDate == default ? DefaultEpoch : world.StartDate;
+        return (d.Year - anchor.Year) * 12 + (d.Month - anchor.Month);
+    }
 
     public static void RunMonthly(World world, DateOnly date, SimRandom rng)
     {
@@ -34,7 +49,7 @@ public static class WorldEvents
         string First, string Last, string Nick, string Backstory,
         Region Region, string Country, WeightClass WeightClass, PrimaryStyle Style, int Overall, int Popularity);
 
-    // Fires first at month 6 (mid-2026 — the authored beat to follow), then every 18 months.
+    // Fires first at month 6 (six months in — the authored beat to follow), then every 18 months.
     private const int FirstCrossoverMonth = 6;
     private const int CrossoverEveryMonths = 18;
 
@@ -65,8 +80,9 @@ public static class WorldEvents
 
     private static void MaybeCrossover(World world, DateOnly date, SimRandom rng)
     {
-        int m = Epoch(date);
+        int m = Epoch(world, date);
         if (m < FirstCrossoverMonth || (m - FirstCrossoverMonth) % CrossoverEveryMonths != 0) return;
+        if (!Era.Allows(world, Capability.Crossovers)) return;   // the sport isn't worth crossing over to yet (before any draw)
 
         int occurrence = (m - FirstCrossoverMonth) / CrossoverEveryMonths;
         var c = Crossovers[occurrence % Crossovers.Length];
@@ -171,8 +187,9 @@ public static class WorldEvents
 
     private static void MaybeNewPromotion(World world, DateOnly date, SimRandom rng)
     {
-        int m = Epoch(date);
+        int m = Epoch(world, date);
         if (m < FirstNewOrgMonth || (m - FirstNewOrgMonth) % NewOrgEveryMonths != 0) return;
+        if (!Era.Allows(world, Capability.NewPromotions)) return;   // nobody else is starting one yet (before any draw)
 
         // The market saturates on total size — but a LOCAL SCENE always exists.
         // With the ladder's doors open (v39 rate gate), the whole bottom rung can

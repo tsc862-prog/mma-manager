@@ -128,6 +128,22 @@ public sealed class WorldBuilder
         /// </summary>
         public bool GenerateHistory { get; init; } = true;
 
+        /// <summary>
+        /// How the world begins: today's mature sport (the default) or the birth of
+        /// the sport. Carried onto <see cref="World.Mode"/> before anything is
+        /// built, so the era gates apply to the build too. (Origins has no build
+        /// path of its own yet: built this way it is today's world with every
+        /// era-gated system switched off until something unlocks it.)
+        /// </summary>
+        public WorldMode Mode { get; init; } = WorldMode.Modern;
+
+        /// <summary>
+        /// Roll a backstory record for the generated talent pool (the default; the
+        /// history pass turns those tallies into real careers). Off for a world
+        /// whose sport starts on day one: every pool fighter debuts 0-0.
+        /// </summary>
+        public bool PoolWithRecord { get; init; } = true;
+
         // --- The niche profiles the designed world is built from -------------------
         // (Each org's designed headliners fit inside its niche — checked by test.)
         public static readonly WeightClass[] LighterHouse =   // the Shooto-tradition house
@@ -254,7 +270,10 @@ public sealed class WorldBuilder
     {
         var o = options ?? new Options();
         var specs = o.Promotions ?? Options.DefaultPromotions;
-        var world = new World { CurrentDate = o.StartDate, StartDate = o.StartDate, RngSeed = o.Seed, ArtCatalog = o.IdentityCatalog };
+        var world = new World { CurrentDate = o.StartDate, StartDate = o.StartDate, RngSeed = o.Seed, ArtCatalog = o.IdentityCatalog, Mode = o.Mode };
+        // No women's divisions in a world whose sport hasn't got them yet (never in today's mode).
+        if (o.IncludeWomensDivisions && !Living.Era.Allows(world, Capability.WomensDivisions))
+            o = o with { IncludeWomensDivisions = false };
         var rng = new SimRandom(SimRandom.Mix(o.Seed, 0xB00C_1234UL));
         var classes = Enum.GetValues<WeightClass>();
 
@@ -288,7 +307,8 @@ public sealed class WorldBuilder
         // sort — it enters unsigned in SeedGreenIntake below.
         int totalSigned = specs.Sum(s => s.RosterSize);
         int tierLeftovers = o.FreeAgentPool - o.GreenIntake;
-        var everyone = gen.Populate(world, Math.Max(0, totalSigned + tierLeftovers - designedFighters.Count));
+        var everyone = gen.Populate(world, Math.Max(0, totalSigned + tierLeftovers - designedFighters.Count),
+            o.PoolWithRecord ? null : new GenOptions { WithRecord = false });
 
         // Tier by weight class so each promotion fields a full, balanced roster:
         // within every division the best fighters go to the biggest promotion.
