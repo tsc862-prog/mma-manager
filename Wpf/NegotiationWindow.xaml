@@ -1,15 +1,15 @@
 <Window x:Class="MmaManager.Wpf.NegotiationWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="The Negotiating Room" Width="1060" Height="700" MinWidth="920" MinHeight="600"
+        xmlns:controls="clr-namespace:MmaManager.Wpf.Controls"
+        Title="The Table" Width="1320" Height="820" MinWidth="1120" MinHeight="700"
         WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}">
     <Window.Resources>
         <!-- A reaction bullet colored by how the term landed -->
         <Style x:Key="FeelDot" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="Text" Value="●" />
             <Setter Property="FontSize" Value="10" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Margin" Value="0,3,8,0" />
             <Setter Property="Foreground" Value="{StaticResource Positive}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Feel}" Value="Close">
@@ -25,194 +25,413 @@
     <DockPanel>
         <!-- Bottom bar: leave quietly -->
         <Border DockPanel.Dock="Bottom" Background="{StaticResource Header}" BorderBrush="{StaticResource Border}"
-                BorderThickness="0,1,0,0" Padding="12,7">
+                BorderThickness="0,1,0,0" Padding="16,8">
             <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Leave the room" IsCancel="True" MinWidth="120" />
-                <TextBlock Text="Nothing is committed until the paper is signed."
-                           Foreground="{StaticResource TextMuted}" FontSize="11.5" VerticalAlignment="Center" />
+                <Button DockPanel.Dock="Right" Content="Leave the table" IsCancel="True" Style="{StaticResource Button.Ghost}"
+                        ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Get up for now — he remembers where you left it'}" />
+                <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Nothing is committed until the paper is signed. Leave and come back: he remembers where you left it.'}"
+                           Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
             </DockPanel>
         </Border>
 
-        <Grid Margin="12">
+        <Grid Margin="16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="400" />
-                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="320" />
             </Grid.ColumnDefinitions>
 
-            <!-- ============ Left: who, the room's temperature, the transcript ============ -->
-            <Border Grid.Column="0" Style="{StaticResource Card}">
+            <!-- ============ HIM: the photo, who he is, how he's sitting ============ -->
+            <Border Grid.Column="0" Style="{StaticResource Panel}" Padding="0" ClipToBounds="True">
                 <DockPanel>
-                    <StackPanel DockPanel.Dock="Top">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Width="84" Height="84" CornerRadius="6" Background="{StaticResource SurfaceAlt}"
-                                    BorderBrush="{StaticResource BorderStrong}" BorderThickness="1" VerticalAlignment="Top">
-                                <Image Source="{Binding Portrait}" Stretch="UniformToFill" />
-                            </Border>
-                            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding Sub}" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding StanceLine}" FontStyle="Italic" Foreground="#D6DADF" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                <TextBlock Text="{Binding AskWhy}" Style="{StaticResource BondLineText}" Foreground="{StaticResource TextSecondary}" />
-                                <TextBlock Text="{Binding BondLine}" Style="{StaticResource BondLineText}" />
-                            </StackPanel>
-                        </Grid>
+                    <Grid DockPanel.Dock="Top" Height="330">
+                        <Border Background="{StaticResource SurfaceAlt}" CornerRadius="10,10,0,0" ClipToBounds="True">
+                            <Image Source="{Binding Portrait}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                        </Border>
+                        <Border VerticalAlignment="Bottom" Height="170" CornerRadius="0">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#001B2028" Offset="0" />
+                                    <GradientStop Color="#C01B2028" Offset="0.55" />
+                                    <GradientStop Color="#FF1B2028" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel VerticalAlignment="Bottom" Margin="18,0,18,10">
+                            <TextBlock Text="{Binding Occasion}" Style="{StaticResource Text.MomentKicker}" FontSize="12" />
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Title}" FontSize="26" Margin="0,2,0,0" />
+                            <TextBlock Text="{Binding Nickname}" Style="{StaticResource Text.Note}" FontStyle="Italic" Foreground="{StaticResource TextSoft}" />
+                        </StackPanel>
+                    </Grid>
 
-                        <!-- Mood + patience -->
-                        <Grid Margin="0,12,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="76" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition /><RowDefinition />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Mood" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <ProgressBar Grid.Row="0" Grid.Column="1" Value="{Binding Mood, Mode=OneWay}" Maximum="100" Height="9" Margin="0,3">
-                                <ProgressBar.Style>
-                                    <Style TargetType="ProgressBar">
-                                        <Setter Property="Foreground" Value="{StaticResource Positive}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding MoodLabel}" Value="Testy">
-                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding MoodLabel}" Value="Insulted">
-                                                <Setter Property="Foreground" Value="{StaticResource Negative}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ProgressBar.Style>
-                            </ProgressBar>
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding MoodLabel}" FontSize="11" Margin="8,0,0,0"
-                                       Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Patience" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PatienceText}" FontSize="11" VerticalAlignment="Center"
-                                       Foreground="{StaticResource Gold}" ToolTip="Rounds of goodwill left before they walk" />
-                        </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,4,18,16">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Facts}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}">
+                                            <TextBlock Text="{Binding}" Style="{StaticResource Chip.Text}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                        <TextBlock Text="THE TALKS" Style="{StaticResource SectionLabel}" Margin="0,14,0,6" />
-                    </StackPanel>
-
-                    <!-- Transcript -->
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" x:Name="TranscriptScroll">
-                        <ItemsControl ItemsSource="{Binding Transcript}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,7" FontSize="12">
-                                        <Run Text="{Binding Who, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=":  " /><Run Text="{Binding Line, Mode=OneWay}" />
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                <Setter Property="Foreground" Value="#D6DADF" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Tone}" Value="You">
-                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Tone}" Value="Good">
-                                                        <Setter Property="Foreground" Value="{StaticResource Positive}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Tone}" Value="Info">
-                                                        <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
+                            <TextBlock Text="AT THE TABLE" Style="{StaticResource Text.Kicker}" Margin="0,10,0,6" />
+                            <TextBlock Text="{Binding Stance}" Style="{StaticResource Text.Heading}" />
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource Chip}" Margin="0" VerticalAlignment="Center"
+                                        Background="{Binding MoodTone, Converter={StaticResource ToneBrush}, ConverterParameter=Dim}">
+                                    <TextBlock Style="{StaticResource Chip.Text}" FontWeight="SemiBold"
+                                               Foreground="{Binding MoodTone, Converter={StaticResource ToneBrush}}">
+                                        <Run Text="Mood: " /><Run Text="{Binding MoodLabel, Mode=OneWay}" />
                                     </TextBlock>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                </Border>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Rounds of goodwill left before he walks out'}">
+                                    <TextBlock Text="Patience" Foreground="{StaticResource TextSecondary}" FontSize="11.5" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                    <ItemsControl ItemsSource="{Binding PatienceDots}" VerticalAlignment="Center">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Ellipse x:Name="dot" Width="9" Height="9" Margin="0,0,4,0" Stroke="{StaticResource Gold}" StrokeThickness="1.3" Fill="{StaticResource Gold}" />
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding}" Value="False">
+                                                        <Setter TargetName="dot" Property="Fill" Value="Transparent" />
+                                                        <Setter TargetName="dot" Property="Stroke" Value="{StaticResource TextMuted}" />
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding BondLine}" Style="{StaticResource BondLineText}" Margin="0,10,0,0" />
+
+                            <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='WHAT DRIVES HIS NUMBER'}" Style="{StaticResource Text.Kicker}" Margin="0,14,0,4" />
+                            <ItemsControl ItemsSource="{Binding Reasons}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,0,0,5">
+                                            <TextBlock DockPanel.Dock="Left" Text="•" Foreground="{DynamicResource OrgAccent}" Margin="0,0,7,0" />
+                                            <TextBlock Text="{Binding}" Style="{StaticResource Text.Secondary}" FontSize="12" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding AskWhy}" Style="{StaticResource Text.Note}" Margin="0,4,0,0" />
+                        </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
             </Border>
 
-            <!-- ============ Right: the deal on the table ============ -->
-            <Border Grid.Column="2" Style="{StaticResource Card}">
+            <!-- ============ THE PAPERWORK: your slip, their paper ============ -->
+            <DockPanel Grid.Column="2">
+            <!-- What you can do: always in view, under the paperwork -->
+            <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource PanelEdge}" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,8,0,0">
+                    <StackPanel>
+                    <!-- What you can do -->
+                    <WrapPanel>
+                        <Button Content="Table the offer" Command="{Binding TableOfferCommand}" Style="{StaticResource Button.Primary}" Margin="0,0,8,8"
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Slide the slip across and hear his answer'}" />
+                        <Button Content="Split the difference" Command="{Binding SplitCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
+                                ToolTip="Halve the gap on every money line (doesn't table it yet)" />
+                        <Button Content="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Meet his number'}" Command="{Binding MeetTermsCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Write in his current number and table it — he signs on the spot'}" />
+                        <Button Content="{Binding PutInWritingText}" Command="{Binding PutInWritingCommand}" Style="{StaticResource Button.Soft}" Margin="0,0,8,8"
+                                Visibility="{Binding CanPutInWriting, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Lodge this slip as your final offer: he weighs it against their paper, they get one chance to come back, and you hear within the week. Asks first.'}" />
+                        <Button Content="{Binding MatchText}" Command="{Binding MatchCommand}" Style="{StaticResource Button.Soft}" Margin="0,0,8,8"
+                                Visibility="{Binding CanMatch, Converter={StaticResource BoolToVis}}" ToolTipService.ShowOnDisabled="True"
+                                ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Re-sign him now on their length and bonuses, at the purse that beats their paper by his lights. Asks first.'}" />
+                        <Button Content="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Let him go'}" Command="{Binding LetGoCommand}" Style="{StaticResource Button.Ghost}" Margin="0,0,8,8"
+                                Foreground="{StaticResource Negative}"
+                                Visibility="{Binding CanLetGo, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Answer their paper with no — asks first" />
+                        <Button Content="Walk away" Command="{Binding WalkAwayCommand}" Style="{StaticResource Button.Link}" Margin="4,0,8,8"
+                                Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"
+                                ToolTip="Leave on good terms — the door stays open" />
+                    </WrapPanel>
+                    <!-- Why "Match it" is off: the bank, in plain words -->
+                    <TextBlock Text="{Binding MatchBlocked}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneBad}" Margin="0,0,0,4" />
+                    </StackPanel>
+            </Border>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="THE PAPERWORK" Style="{StaticResource Text.Kicker}" Margin="2,0,0,10" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Your slip: what you write, his number pencilled beside it -->
+                        <Border Style="{StaticResource Slip}" Margin="0,4,0,8">
+                            <StackPanel IsEnabled="{Binding CanTalk}">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Right" Width="40" Height="40" CornerRadius="5" Background="#14171C" Margin="8,0,0,0">
+                                        <Image Source="{Binding PlayerLogo}" Stretch="Uniform" Margin="3" />
+                                    </Border>
+                                    <StackPanel>
+                                        <TextBlock Text="YOUR OFFER" Style="{StaticResource Slip.Kicker}" />
+                                        <TextBlock Text="{Binding SlipTitle}" Style="{StaticResource Slip.Title}" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <Rectangle Height="1" Fill="{StaticResource TableRule}" Margin="0,10,0,0" />
+
+                                <TextBlock Text="PURSE A FIGHT" Style="{StaticResource Slip.Label}" />
+                                <DockPanel>
+                                    <TextBlock Text="$" Style="{StaticResource Slip.Value}" VerticalAlignment="Center" Margin="0,0,4,0" Width="9" /><TextBox Width="110" Style="{StaticResource Slip.Field}" Text="{Binding OfferPurse, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" />
+                                    <TextBlock Style="{StaticResource Slip.Note}"><Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='he wants ', Mode=OneWay}" /><Run Text="{Binding HisPurse, Mode=OneWay}" /></TextBlock>
+                                </DockPanel>
+
+                                <TextBlock Text="WIN BONUS" Style="{StaticResource Slip.Label}" />
+                                <DockPanel>
+                                    <TextBlock Text="$" Style="{StaticResource Slip.Value}" VerticalAlignment="Center" Margin="0,0,4,0" Width="9" /><TextBox Width="110" Style="{StaticResource Slip.Field}" Text="{Binding OfferWinBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" />
+                                    <TextBlock Style="{StaticResource Slip.Note}"><Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='he wants ', Mode=OneWay}" /><Run Text="{Binding HisWinBonus, Mode=OneWay}" /></TextBlock>
+                                </DockPanel>
+
+                                <TextBlock Text="SIGNING BONUS" Style="{StaticResource Slip.Label}" />
+                                <DockPanel>
+                                    <TextBlock Text="$" Style="{StaticResource Slip.Value}" VerticalAlignment="Center" Margin="0,0,4,0" Width="9" /><TextBox Width="110" Style="{StaticResource Slip.Field}" Text="{Binding OfferSigningBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" />
+                                    <TextBlock Style="{StaticResource Slip.Note}" Text="{Binding HisSigning}" />
+                                </DockPanel>
+
+                                <TextBlock Text="FIGHTS" Style="{StaticResource Slip.Label}" />
+                                <DockPanel>
+                                    <TextBlock Text="" Width="13" /><TextBox Width="110" Style="{StaticResource Slip.Field}" Text="{Binding OfferFights, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource Slip.Note}" Text="{Binding HisFights}" />
+                                </DockPanel>
+
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="PERFORMANCE BONUS" Style="{StaticResource Slip.Label}"
+                                                   ToolTip="Discretionary Fight/Finish-of-the-Night money — on top of the house bonus" />
+                                        <TextBox Style="{StaticResource Slip.Field}" FontSize="14" Text="{Binding OfferPerfBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="PPV POINTS" Style="{StaticResource Slip.Label}"
+                                                   ToolTip="A slice of pay-per-view buys — worth what your pay-per-views actually take" />
+                                        <TextBox Style="{StaticResource Slip.Field}" FontSize="14" Text="{Binding OfferPpvPoints, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <WrapPanel Margin="0,12,0,0">
+                                    <CheckBox Content="Exclusive" IsChecked="{Binding OfferExclusive}" Style="{StaticResource Slip.Check}"
+                                              ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Ties him to your cards only — a non-exclusive deal runs ~20% cheaper'}" />
+                                    <CheckBox Content="Champion's clause" IsChecked="{Binding OfferChampionsClause}" Style="{StaticResource Slip.Check}"
+                                              ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='A title win auto-extends the deal — a leash he charges ~8% extra to wear'}" />
+                                </WrapPanel>
+
+                                <Rectangle Height="1" Fill="{StaticResource TableRule}" Margin="0,12,0,6" />
+                                <TextBlock Text="{Binding OfferTotalLine}" FontSize="11.5" Foreground="{StaticResource TableInkSoft}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Column="2">
+                            <!-- Their paper: the rival's letterhead, as he showed it to you -->
+                            <Border Style="{StaticResource Slip}" Background="{StaticResource TablePaperCool}" Margin="0,10,0,8"
+                                    VerticalAlignment="Top" Visibility="{Binding HasRival, Converter={StaticResource BoolToVis}}">
+                                <Border.RenderTransform>
+                                    <RotateTransform Angle="1.2" />
+                                </Border.RenderTransform>
+                                <Grid>
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Left" Width="48" Height="48" CornerRadius="5" Background="#14171C" Margin="0,0,10,0">
+                                                <Image Source="{Binding RivalLogo}" Stretch="Uniform" Margin="3" />
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding RivalName}" Style="{StaticResource Slip.Title}" />
+                                                <TextBlock Text="{Binding RivalTier}" Style="{StaticResource Slip.Kicker}" FontWeight="Normal" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding RivalKicker}" Style="{StaticResource Slip.Kicker}" Margin="0,10,0,0" />
+                                        <Rectangle Height="1" Fill="#9AA6B2" Margin="0,6,0,0" />
+
+                                        <TextBlock Text="PURSE A FIGHT" Style="{StaticResource Slip.Label}" />
+                                        <TextBlock Text="{Binding RivalPurse}" Style="{StaticResource Slip.Value}" FontSize="20" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="WIN BONUS" Style="{StaticResource Slip.Label}" />
+                                                <TextBlock Text="{Binding RivalWinBonus}" Style="{StaticResource Slip.Value}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="SIGNING BONUS" Style="{StaticResource Slip.Label}" />
+                                                <TextBlock Text="{Binding RivalSigning}" Style="{StaticResource Slip.Value}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="FIGHTS" Style="{StaticResource Slip.Label}" />
+                                        <TextBlock Text="{Binding RivalFights}" Style="{StaticResource Slip.Value}" />
+                                        <TextBlock Text="{Binding RivalExclusive}" FontSize="11.5" Foreground="{StaticResource TableInkSoft}" Margin="0,6,0,0" TextWrapping="Wrap" />
+
+                                        <Border Style="{StaticResource Stamp}" Margin="0,14,0,0" HorizontalAlignment="Stretch">
+                                            <TextBlock Text="{Binding RivalDeadline}" Style="{StaticResource Stamp.Text}" TextWrapping="Wrap" />
+                                        </Border>
+                                    </StackPanel>
+                                    <Border Style="{StaticResource Stamp}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,188,-4,0"
+                                            Visibility="{Binding RivalImproved, Converter={StaticResource BoolToVis}}">
+                                        <Border.RenderTransform><RotateTransform Angle="-9" /></Border.RenderTransform>
+                                        <TextBlock Text="RAISED ONCE · FINAL" Style="{StaticResource Stamp.Text}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- No other paper: he's only talking to you -->
+                            <Border Margin="0,4,0,8" VerticalAlignment="Top" CornerRadius="{StaticResource Radius.Card}"
+                                    BorderBrush="{StaticResource BorderStrong}" BorderThickness="1" Padding="20,22"
+                                    Background="{StaticResource PanelFill}" Visibility="{Binding NoRival, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <controls:Icon Kind="Envelope" Width="44" Height="44" HorizontalAlignment="Left" Brush="{StaticResource TextMuted}" />
+                                    <TextBlock Text="No other paper on the table" Style="{StaticResource Text.Heading}" Margin="0,12,0,0" />
+                                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0">
+                                        <Run Text="{Binding FirstName, Mode=OneWay}" /><Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter=' is only talking to you. Take too long and that can change: a promotion that wants him can put an offer in his hand while you talk, and he’ll show it to you here.', Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Text="HOW IT WORKS" Style="{StaticResource Text.Kicker}" Margin="0,16,0,4" />
+                                    <TextBlock Style="{StaticResource Text.Secondary}" FontSize="12"
+                                               Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Write your terms on the slip and table them. His number is pencilled beside each line; every round you bargain in good faith it comes down a little, and a lowball costs you his mood and patience.'}" />
+                                </StackPanel>
+                            </Border>
+                        <!-- Your final offer, in writing -->
+                        <Border Margin="0,10,0,0" CornerRadius="{StaticResource Radius.Card}" BorderBrush="{StaticResource Gold}" BorderThickness="1"
+                                Background="{StaticResource ToneWarnDim}" Padding="14,12"
+                                Visibility="{Binding HasFinal, Converter={StaticResource BoolToVis}}">
+                            <DockPanel>
+                                <controls:Icon DockPanel.Dock="Left" Kind="Document" Width="30" Height="30" Brush="{StaticResource Gold}" Margin="0,0,12,0" VerticalAlignment="Top" />
+                                <StackPanel>
+                                    <TextBlock Text="YOUR FINAL OFFER, IN WRITING" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" />
+                                    <TextBlock Text="{Binding FinalLine}" Style="{StaticResource Text.Heading}" FontSize="14" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                    <TextBlock Text="{Binding FinalNote}" Style="{StaticResource Text.Secondary}" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Which way he leans, when there's paper from a rival -->
+                    <Border Style="{StaticResource Panel}" Padding="14,12" Margin="0,8,0,0"
+                            Visibility="{Binding HasLeaning, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='WHICH WAY HE LEANS'}" Style="{StaticResource Text.Kicker}" Margin="0,0,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource LeanSegment}" Tag="{Binding LeansTheirs}" CornerRadius="11,0,0,11">
+                                    <TextBlock Style="{StaticResource LeanSegment.Text}">
+                                        <Run Text="TO " /><Run Text="{Binding RivalAbbr, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource LeanSegment}" Tag="{Binding LeansTorn}">
+                                    <TextBlock Text="TORN" Style="{StaticResource LeanSegment.Text}" />
+                                </Border>
+                                <Border Grid.Column="2" Style="{StaticResource LeanSegment}" Tag="{Binding LeansYours}" CornerRadius="0,11,11,0" Margin="0">
+                                    <TextBlock Text="TO YOU" Style="{StaticResource LeanSegment.Text}" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="{Binding LeaningWords}" Style="{StaticResource Text.Secondary}" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- The answer to the last thing you did with the paperwork -->
+                    <Border Margin="0,10,0,0" CornerRadius="{StaticResource Radius.Card}" Padding="12,9" BorderThickness="1"
+                            BorderBrush="{Binding StatusTone, Converter={StaticResource ToneBrush}}"
+                            Background="{Binding StatusTone, Converter={StaticResource ToneBrush}, ConverterParameter=Dim}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Status}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Body}" FontSize="13" />
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+            </DockPanel>
+
+            <!-- ============ THE TALK: what he says, in his own words ============ -->
+            <Border Grid.Column="4" Style="{StaticResource Panel}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
-                        <TextBlock Text="THE DEAL ON THE TABLE" Style="{StaticResource SectionLabel}" Margin="0,0,0,10" />
+                        <TextBlock Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='IN HIS OWN WORDS'}" Style="{StaticResource Text.Kicker}" />
+                        <Border BorderBrush="{DynamicResource OrgAccent}" BorderThickness="3,0,0,0" Padding="12,2,0,2" Margin="0,10,0,0">
+                            <TextBlock Text="{Binding HisLine}" Style="{StaticResource Text.Quote}" FontSize="16.5" LineHeight="24" />
+                        </Border>
 
-                        <Grid IsEnabled="{Binding CanTalk}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="130" />
-                                <ColumnDefinition Width="150" />
-                                <ColumnDefinition Width="24" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="26" />
-                                <RowDefinition /><RowDefinition /><RowDefinition />
-                                <RowDefinition /><RowDefinition /><RowDefinition />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="YOUR OFFER" FontSize="10" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Row="0" Grid.Column="3" Text="THEIR POSITION" FontSize="10" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Purse / fight  $" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OfferPurse, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" Margin="0,2" />
-                            <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding TheirPurse}" VerticalAlignment="Center" Foreground="{StaticResource Gold}" />
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Win bonus  $" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding OfferWinBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" Margin="0,2" />
-                            <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding TheirWinBonus}" VerticalAlignment="Center" Foreground="{StaticResource Gold}" />
-
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Signing bonus  $" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding OfferSigningBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" Margin="0,2" />
-                            <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding TheirSigning}" VerticalAlignment="Center" Foreground="{StaticResource Gold}" />
-
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Fights" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding OfferFights, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
-                            <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding TheirFights}" VerticalAlignment="Center" Foreground="{StaticResource Gold}" />
-
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Perf. bonus  $" VerticalAlignment="Center"
-                                       ToolTip="Discretionary Fight/Finish-of-the-Night money — counts toward the deal's worth" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding OfferPerfBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" Margin="0,2" />
-
-                            <TextBlock Grid.Row="6" Grid.Column="0" Text="PPV points" VerticalAlignment="Center"
-                                       ToolTip="A slice of pay-per-view buys — big-league money that sweetens any offer" />
-                            <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding OfferPpvPoints, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
-                        </Grid>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0" IsEnabled="{Binding CanTalk}">
-                            <CheckBox Content="Exclusive" IsChecked="{Binding OfferExclusive}" VerticalAlignment="Center"
-                                      ToolTip="Ties them to your cards only — a non-exclusive deal runs ~20% cheaper" />
-                            <CheckBox Content="Champion's clause" IsChecked="{Binding OfferChampionsClause}" VerticalAlignment="Center" Margin="16,0,0,0"
-                                      ToolTip="A title win auto-extends the deal — a leash they charge ~8% extra to wear" />
+                        <StackPanel Margin="0,14,0,0" Visibility="{Binding HasReactions, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="HOW IT LANDED" Style="{StaticResource Text.Kicker}" Margin="0,0,0,6" />
+                            <ItemsControl ItemsSource="{Binding Reactions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,0,0,5">
+                                            <TextBlock DockPanel.Dock="Left" Style="{StaticResource FeelDot}" />
+                                            <TextBlock TextWrapping="Wrap" FontSize="12">
+                                                <Run Text="{Binding Term, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" — " Foreground="{StaticResource TextMuted}" /><Run Text="{Binding Note, Mode=OneWay}" Foreground="{StaticResource TextSoft}" />
+                                            </TextBlock>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
 
-                        <TextBlock Text="{Binding OfferTotalLine}" FontSize="11.5" Foreground="{StaticResource TextSecondary}"
-                                   TextWrapping="Wrap" Margin="0,8,0,0" />
-
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Content="🤝 Table the offer" Command="{Binding TableOfferCommand}" Padding="16,4" FontWeight="Bold"
-                                    Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}" />
-                            <Button Content="Split the difference" Command="{Binding SplitCommand}" Margin="8,0,0,0"
-                                    ToolTip="Halve the gap on every money lever (doesn't table it yet)" />
-                            <Button Content="Meet their terms" Command="{Binding MeetTermsCommand}" Margin="8,0,0,0"
-                                    ToolTip="Give them their current position — closes the deal on the spot" />
-                            <Button Content="Walk away" Command="{Binding WalkAwayCommand}" Margin="8,0,0,0"
-                                    Foreground="{StaticResource Negative}"
-                                    ToolTip="Leave the table on good terms — you can reopen talks any time" />
-                        </StackPanel>
-
-                        <TextBlock Text="HOW IT LANDED" Style="{StaticResource SectionLabel}" Margin="0,16,0,6" />
+                        <TextBlock Style="{StaticResource Text.Note}" Margin="0,16,0,0" Visibility="{Binding HasHistory, Converter={StaticResource InverseBoolToVis}}"
+                                   Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Table an offer and he’ll tell you how each term lands. Every exchange is kept here.'}" />
+                        <TextBlock Text="THE TALKS SO FAR" Style="{StaticResource Text.Kicker}" Margin="0,16,0,6"
+                                   Visibility="{Binding HasHistory, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
 
-                    <!-- Per-term reactions to the last tabled offer -->
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding Reactions}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" x:Name="TranscriptScroll" Visibility="{Binding HasHistory, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding Transcript}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                        <TextBlock Style="{StaticResource FeelDot}" />
-                                        <TextBlock Text="{Binding Term}" FontWeight="SemiBold" FontSize="12" Width="120" />
-                                        <TextBlock Text="{Binding Note}" FontSize="12" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
-                                    </StackPanel>
+                                    <Border x:Name="bubble" Margin="0,0,24,7" Padding="10,7" CornerRadius="8" Background="{StaticResource CardFill}" HorizontalAlignment="Left">
+                                        <StackPanel>
+                                            <TextBlock x:Name="who" Text="{Binding Who}" FontSize="10.5" FontWeight="Bold" Foreground="{StaticResource TextSecondary}" />
+                                            <TextBlock x:Name="line" Text="{Binding Line}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextPrimary}" Margin="0,1,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Tone}" Value="You">
+                                            <Setter TargetName="bubble" Property="HorizontalAlignment" Value="Right" />
+                                            <Setter TargetName="bubble" Property="Margin" Value="24,0,0,7" />
+                                            <Setter TargetName="bubble" Property="Background" Value="{DynamicResource OrgAccentDim}" />
+                                            <Setter TargetName="line" Property="Foreground" Value="{StaticResource TextSoft}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Tone}" Value="Good">
+                                            <Setter TargetName="bubble" Property="Background" Value="{StaticResource ToneGoodDim}" />
+                                            <Setter TargetName="line" Property="Foreground" Value="{StaticResource Positive}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Tone}" Value="Info">
+                                            <Setter TargetName="bubble" Property="Background" Value="Transparent" />
+                                            <Setter TargetName="bubble" Property="Margin" Value="0,0,0,7" />
+                                            <Setter TargetName="who" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="line" Property="Foreground" Value="{StaticResource Gold}" />
+                                            <Setter TargetName="line" Property="FontStyle" Value="Italic" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
