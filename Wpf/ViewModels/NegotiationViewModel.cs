@@ -444,7 +444,7 @@ public sealed class NegotiationViewModel : ObservableObject
         if (_session.RivalOffer is not { } o) return;
         bool fa = o.Kind == RivalOfferKind.FreeAgent;
         string body = G(fa
-            ? $"You stop courting him, and {RivalAbbr} signs him on its paper at the next weekly tick."
+            ? $"You stop courting him, and {RivalAbbr} signs him on its paper when the week turns."
             : $"He fights out his deal with you. His re-sign window still opens, but the day it closes unsigned he signs with {RivalAbbr}.");
         if (Confirm is { } ask && !ask($"Let {Name} go?", body,
                 fa ? "Any offer you put in writing goes with it." : "The call on your Desk goes with it.",
