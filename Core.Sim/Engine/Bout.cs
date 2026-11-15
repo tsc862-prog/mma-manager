@@ -19,10 +19,10 @@ namespace MmaManager.Core.Sim.Engine;
 /// and happen whether or not text is on, so results are identical with text on
 /// or off (pinned by the golden-master tests).
 /// </summary>
-internal sealed class Bout
+internal sealed partial class Bout
 {
     // --- Tuning constants (the dials to turn when balancing) ----------------
-    private readonly double RoundSeconds;     // from the promotion's ruleset (300 standard)
+    private double RoundSeconds;              // from the promotion's ruleset (300 standard); an overtime period sets its own
     private const double StrikeK = 0.038;     // striking accuracy logistic slope
     private const double TakedownK = 0.045;
     private const double SubmissionK = 0.045;
@@ -89,24 +89,41 @@ internal sealed class Bout
     public Bout(Fighter red, Fighter blue, FightParams p, SimRandom rng)
     {
         _rng = rng;
-        _ss = new SimRandom(SimRandom.Mix(rng.NextULong(), 0x5709_9A6E_0003UL));
-        _rounds = Math.Max(1, p.ScheduledRounds);
-        RoundSeconds = Math.Clamp(p.RoundSeconds, 60, 600);
-        _s[0] = new Side(red, _rounds);
-        _s[1] = new Side(blue, _rounds);
+        // ONE draw seeds every keyed sub-stream: the stoppage stream (as ever) and, only when a
+        // non-modern rule set or carried condition is in play, the rules stream _rs (derived from
+        // the same draw with another salt: no extra draw from the bout stream, ever).
+        ulong subSeed = rng.NextULong();
+        _ss = new SimRandom(SimRandom.Mix(subSeed, 0x5709_9A6E_0003UL));
+        _rules = p.Rules ?? FightRules.Modern;
+        _custom = !_rules.IsModern || p.RedStart is not null || p.BlueStart is not null;
+        _size = _custom && _rules.OpenWeight;
+        _rounds = Math.Max(1, _rules.Rounds ?? p.ScheduledRounds);
+        RoundSeconds = !_custom ? Math.Clamp(p.RoundSeconds, 60, 600)
+                     : Math.Clamp(_rules.RoundMinutes is int m ? m * 60 : p.RoundSeconds, 60, MaxRoundSeconds);
+        // Room for one overtime period when the booker asked for it (custom path only; +0 otherwise).
+        _overtimeSeconds = _custom && !_rules.Judges && p.OvertimeSeconds > 0 ? Math.Clamp(p.OvertimeSeconds, 60, 600) : 0;
+        int slots = _rounds + (_overtimeSeconds > 0 ? 1 : 0);
+        _s[0] = new Side(red, slots);
+        _s[1] = new Side(blue, slots);
         _log = p.GeneratePlayByPlay ? new List<string>(64) : null;
         _textSeed = SimRandom.Mix(p.TextSeed, ((ulong)(uint)red.Id.Value << 32) | (uint)blue.Id.Value);
+        if (_custom)
+        {
+            _rs = new SimRandom(SimRandom.Mix(subSeed, 0x5709_9A6E_0004UL));
+            ApplyRules(p);
+        }
     }
 
     // --- Entry point --------------------------------------------------------
 
     public FightOutcome Run()
     {
-        if (Logging) Header($"{_s[0].F.FullName} vs {_s[1].F.FullName} — {_rounds} rounds.");
+        if (Logging) Header(_custom ? CustomIntro() : $"{_s[0].F.FullName} vs {_s[1].F.FullName} — {_rounds} rounds.");
+        if (Logging && _custom) TaleOfTheTape();
 
         for (_round = 1; _round <= _rounds && _finish is null; _round++)
         {
-            if (Logging) Header($"--- Round {_round} ---");
+            if (Logging) Header(_custom && _rounds == 1 ? SingleRoundHeader() : $"--- Round {_round} ---");
             RunRound();
             if (_finish is not null) break;
             if (Logging) BellLines();
@@ -118,6 +135,7 @@ internal sealed class Bout
             }
         }
 
+        if (_finish is null && _overtimeSeconds > 0) RunOvertime();
         return _finish is { } f ? FinishOutcome(f) : DecisionOutcome();
     }
 
@@ -129,6 +147,7 @@ internal sealed class Bout
         ResetPositionForNewRound();
         _s[0].Barrage = _s[1].Barrage = 0;
 
+        _nextCheck = MidRoundCheckEvery;
         while (_clock < RoundSeconds && _finish is null)
         {
             double dt = ExchangeDuration();
@@ -140,7 +159,7 @@ internal sealed class Bout
             {
                 _s[_top].Stats.ControlTimeSeconds += (int)dt;
                 AddScore(_top, 0.02 * dt);
-                Drain(1 - _top, 0.9 * dt / 60.0);
+                Drain(1 - _top, _size ? 0.9 * dt / 60.0 * PinnedDrain() : 0.9 * dt / 60.0);
             }
 
             if (Logging) RecoveredLines();
@@ -148,6 +167,7 @@ internal sealed class Bout
             ResolveExchange(actor);
             PassiveDrain(dt);
             TickHurt();
+            if (_custom) AfterExchangeRules();
         }
     }
 
@@ -237,6 +257,7 @@ internal sealed class Bout
         baseAct *= 0.5 + 0.5 * stamina / 100.0;
         baseAct *= 1.15 - 0.3 * (f.Tendencies.Counterfighting / 100.0);
         if (_s[i].Hurt) baseAct *= 0.5;      // a hurt fighter covers up
+        if (_size) baseAct *= Math.Exp(-SizeTerm.ActivityK * _s[i].SizeEdge);   // the smaller man is busier
         return Math.Max(0.05, baseAct);
     }
 
@@ -281,7 +302,7 @@ internal sealed class Bout
     {
         var atk = _s[a].F; var def = _s[1 - a].F;
         double p = Logistic(Eff(atk.Grappling.ClinchControl, _s[a].Stamina)
-                          - Eff(def.Grappling.TakedownDefense, _s[1 - a].Stamina), TakedownK);
+                          - Eff(def.Grappling.TakedownDefense, _s[1 - a].Stamina) + GrappleEdge(a), TakedownK);
         Drain(a, 0.6);
         if (_rng.Chance(p))
         {
@@ -337,7 +358,7 @@ internal sealed class Bout
     {
         var atk = _s[a].F; var def = _s[1 - a].F;
         double p = Logistic(Eff(atk.Grappling.ClinchControl, _s[a].Stamina)
-                          - Eff(def.Grappling.TakedownDefense, _s[1 - a].Stamina) + 6, TakedownK);
+                          - Eff(def.Grappling.TakedownDefense, _s[1 - a].Stamina) + 6 + GrappleEdge(a), TakedownK);
         Drain(a, 1.2); Drain(1 - a, 0.6);
         _s[a].Stats.TakedownsAttempted++;
         if (_rng.Chance(p))
@@ -370,7 +391,7 @@ internal sealed class Bout
     {
         var atk = _s[a].F; var def = _s[1 - a].F;
         double p = Logistic(Eff(atk.Grappling.TakedownOffense, _s[a].Stamina)
-                          - Eff(def.Grappling.TakedownDefense, _s[1 - a].Stamina), TakedownK);
+                          - Eff(def.Grappling.TakedownDefense, _s[1 - a].Stamina) + GrappleEdge(a), TakedownK);
         Drain(a, 1.6); Drain(1 - a, 0.8);
         _s[a].Stats.TakedownsAttempted++;
         bool hurt = _s[a].Hurt;
@@ -420,7 +441,7 @@ internal sealed class Bout
         if (_s[1 - a].Hurt) defense *= 0.6;      // hurt fighters get hit more
 
         _s[a].Stats.SignificantStrikesAttempted++;
-        double pLand = Logistic(accuracy - defense, StrikeK);
+        double pLand = Logistic(accuracy - defense + SpeedEdge(a), StrikeK);
         if (!_rng.Chance(pLand))
         {
             if (Logging) SayMiss(a, where);
@@ -446,9 +467,10 @@ internal sealed class Bout
         // The strike name is a draw from the bout stream, made whether or not text is on.
         string shot = StrikeName(atk, where);
         if (Logging) SayLanded(a, power, shot);
+        if (_custom && power) MaybeHurtHand(a, IsPunch(shot));
         // A power shot may open a cut (elbows and knees in the clinch most); any shot can
         // worsen an open one. Then the referee looks at a hurt fighter eating shots.
-        if (power) MaybeCut(1 - a, where == Phase.Clinch ? 2.5 : 1.0);
+        if (power) MaybeCut(1 - a, where == Phase.Clinch ? ClinchCutFactor : 1.0);
         else if (_s[1 - a].Cut > 0) MaybeCut(1 - a, 0);
         RefereeLooks(a, dmg, power, ground: false);
     }
@@ -504,15 +526,19 @@ internal sealed class Bout
     private string StrikeName(Fighter f, Phase where)
     {
         ulong u = _rng.NextULong();
-        var list = where == Phase.Clinch ? ClinchStrikes : PrefersPunches(f) ? Punches : Kicks;
+        var list = where == Phase.Clinch ? ClinchList : PrefersPunches(f) ? Punches : Kicks;
         return list[(int)(u % (ulong)list.Length)];
     }
 
     private string TextStrikeName(Fighter f, Phase where)
     {
-        var list = where == Phase.Clinch ? ClinchStrikes : PrefersPunches(f) ? Punches : Kicks;
+        var list = where == Phase.Clinch ? ClinchList : PrefersPunches(f) ? Punches : Kicks;
         return list[V(list.Length)];
     }
+
+    /// <summary>The clinch vocabulary: without elbows when the house rules ban them (same length,
+    /// so the one name draw indexes it the same way).</summary>
+    private string[] ClinchList => _custom && !_rules.Elbows ? ClinchStrikesNoElbows : ClinchStrikes;
 
     private static bool PrefersPunches(Fighter f) =>
         f.Tendencies.StrikingPreference > 55 || f.Striking.PunchPower >= f.Striking.KickPower;
@@ -520,6 +546,7 @@ internal sealed class Bout
     private static readonly string[] Punches = { "right hand", "left hook", "jab-cross", "overhand right", "uppercut", "counter left" };
     private static readonly string[] Kicks = { "head kick", "body kick", "low kick", "front kick", "spinning kick" };
     private static readonly string[] ClinchStrikes = { "knee to the body", "short elbow", "uppercut", "knee", "short hook" };
+    private static readonly string[] ClinchStrikesNoElbows = { "knee to the body", "knee to the thigh", "uppercut", "knee", "short hook" };
 
     /// <summary>
     /// A landed power shot: does it drop him? A flash knockout [ss] can come off any power
@@ -534,10 +561,13 @@ internal sealed class Bout
         var atk = _s[a].F; var def = _s[d].F;
         bool wasHurt = _s[d].Hurt;
         int power = Math.Max(atk.Striking.PunchPower, atk.Striking.KickPower);
+        // The chin the shot meets: a bigger man soaks more in an open-weight fight (exactly the
+        // rating otherwise: ChinEdge is 0.0 and int-to-double conversion is exact).
+        double chin = def.Physical.Chin + ChinEdge(d);
         double pFlash = FlashBase * _s[a].Power * _s[a].Power
-                      * Math.Exp((power - def.Physical.Chin) / FlashSpread) * (wasHurt ? 2 : 1);
+                      * Math.Exp((power - chin) / FlashSpread) * (wasHurt ? 2 : 1);
         bool flash = _ss.Chance(pFlash);
-        double margin = dmg * KdImpact + (100 - def.Physical.Chin) * KdChin - _s[d].Health * KdHealth
+        double margin = dmg * KdImpact + (100 - chin) * KdChin - _s[d].Health * KdHealth
                       + (wasHurt ? KdHurtBonus : 0) - KdOffset;
         bool kd = _rng.Chance(Logistic(margin, KdSlope));    // the bout stream's knockdown roll, as ever
         if (!kd && !flash) return false;
@@ -550,7 +580,7 @@ internal sealed class Bout
         _s[a].RoundDmg[_round - 1] += extra;
         string shot = StrikeName(atk, where);
 
-        double pOut = Logistic(dmg * OutImpact + (100 - def.Physical.Chin) * OutChin - _s[d].Health * OutHealth
+        double pOut = Logistic(dmg * OutImpact + (100 - chin) * OutChin - _s[d].Health * OutHealth
                                + (wasHurt ? 10 : 0) - OutOffset, OutSlope);
         bool outCold = flash || _s[d].Health <= 0 || _ss.Chance(pOut);
         if (outCold)
@@ -600,12 +630,14 @@ internal sealed class Bout
         double pPounce = 0.25 + atk.Tendencies.FinishInstinct / 250.0 + atk.Tendencies.Aggression / 500.0;
         if (_ss.Chance(pPounce))
         {
-            double dazed = dmg * 0.8 + (100 - def.Physical.Chin) * 0.25 + (60 - _s[d].Health) * 0.4
-                         + atk.Tendencies.FinishInstinct * 0.15 - PounceStopOffset;
+            double dazed = dmg * 0.8 + (100 - chin) * 0.25 + (60 - _s[d].Health) * 0.4
+                         + atk.Tendencies.FinishInstinct * 0.15 - PounceStopOffset - RestrictedPounce();
             if (_ss.Chance(Logistic(dazed, 0.12)))
             {
                 RecordFinish(a, FightMethod.TechnicalKnockout, "TKO: follow-up after knockdown");
-                if (Logging)
+                if (Logging && _custom && !_rules.GroundedHeadPunches)
+                    Say($"{Name(a)} swarms the fallen {Name(d)} and the referee dives in — it's over!");
+                else if (Logging)
                     switch (V(3))
                     {
                         case 0: Say($"{Name(a)} follows {Obj(d)} down with hammerfists and the referee dives in — it's over!"); break;
@@ -683,6 +715,7 @@ internal sealed class Bout
     private void MaybeCut(int d, double factor)
     {
         var s = _s[d];
+        if (_custom) factor *= Gloves.CutMul(_s[1 - d].Glove);   // bare knuckles open more cuts
         if (s.Cut == 0)
         {
             if (factor <= 0 || !_ss.Chance(CutOpen * factor)) return;
@@ -780,11 +813,15 @@ internal sealed class Bout
         var atk = _s[a].F; var def = _s[1 - a].F;
         double defense = Eff(def.Grappling.BottomGame, _s[1 - a].Stamina) * 0.6 + 20;
         double accuracy = Eff(atk.Striking.ClinchStriking, _s[a].Stamina) + (int)_ground * 6;
+        bool restricted = _custom && !_rules.GroundedHeadPunches;   // palms and body shots only
+        if (restricted) accuracy -= RestrictedGroundAccuracy;
         _s[a].Stats.SignificantStrikesAttempted++;
         Drain(a, 0.5);
         if (!_rng.Chance(Logistic(accuracy - defense, StrikeK)))
         {
-            if (Logging)
+            if (Logging && restricted)
+                Say($"{Name(a)} looks for an opening from {GroundName()} but {Name(1 - a)} smothers {Pos(a)} arms.");
+            else if (Logging)
                 switch (V(3))
                 {
                     case 0: Say($"{Name(a)} postures up but {Name(1 - a)} ties {Obj(a)} up from the bottom."); break;
@@ -797,10 +834,13 @@ internal sealed class Bout
         _s[a].Barrage = 0;
         bool heavy = _ground >= GroundPos.Mount && _rng.Chance(0.4);
         double dmg = heavy ? Math.Max(3, _rng.NextGaussian(11, 3)) * _s[a].Power : Math.Max(1, _rng.NextGaussian(4, 1.5));
+        if (restricted) dmg *= RestrictedGroundDamage;
         Hurt(1 - a, dmg);
         AddScore(a, heavy ? 2 : 1);
         _s[a].RoundDmg[_round - 1] += dmg;
-        if (Logging)
+        if (Logging && _custom && (restricted || !_rules.Elbows))
+            SayRestrictedGroundStrike(a, heavy, restricted);
+        else if (Logging)
         {
             if (heavy)
                 switch (V(3))
@@ -818,7 +858,8 @@ internal sealed class Bout
                 }
         }
 
-        if (heavy) MaybeCut(1 - a, 2.5);
+        if (_custom && heavy && !restricted) MaybeHurtHand(a, punch: true);
+        if (heavy) MaybeCut(1 - a, GroundCutFactor);
         else if (_s[1 - a].Cut > 0) MaybeCut(1 - a, 0);
         RefereeLooks(a, dmg, heavy, ground: true);
     }
@@ -827,7 +868,7 @@ internal sealed class Bout
     {
         var atk = _s[a].F; var def = _s[1 - a].F;
         double p = Logistic(Eff(atk.Grappling.TopControl, _s[a].Stamina)
-                          - Eff((def.Grappling.BottomGame + def.Grappling.Scrambling) / 2, _s[1 - a].Stamina), PassK);
+                          - Eff((def.Grappling.BottomGame + def.Grappling.Scrambling) / 2, _s[1 - a].Stamina) + GrappleEdge(a), PassK);
         Drain(a, 0.8); Drain(1 - a, 0.6);
         if (_rng.Chance(p) && _ground < GroundPos.BackControl)
         {
@@ -861,7 +902,7 @@ internal sealed class Bout
     {
         var atk = _s[a].F; var def = _s[1 - a].F;
         double p = Logistic(Eff((atk.Grappling.Scrambling + atk.Grappling.BottomGame) / 2, _s[a].Stamina)
-                          - Eff(def.Grappling.TopControl, _s[1 - a].Stamina) - 6, SweepK);
+                          - Eff(def.Grappling.TopControl, _s[1 - a].Stamina) - 6 + GrappleEdge(a), SweepK);
         Drain(a, 1.0);
         if (_rng.Chance(p))
         {
@@ -891,7 +932,7 @@ internal sealed class Bout
     {
         var atk = _s[a].F; var def = _s[1 - a].F;
         double p = Logistic(Eff(atk.Grappling.Scrambling, _s[a].Stamina)
-                          - Eff(def.Grappling.TopControl, _s[1 - a].Stamina) + 8, StandupK);
+                          - Eff(def.Grappling.TopControl, _s[1 - a].Stamina) + 8 + GrappleEdge(a), StandupK);
         Drain(a, 0.9);
         if (_rng.Chance(p))
         {
@@ -927,7 +968,7 @@ internal sealed class Bout
         double posBonus = fromTop ? (int)_ground * 4 : atk.Physical.Flexibility * SubFlex - SubBottomPenalty;
         double p = Logistic(Eff(atk.Grappling.SubmissionOffense, _s[a].Stamina) + posBonus
                           + (_s[1 - a].Hurt ? SubHurtBonus : 0)
-                          - Eff(def.Grappling.SubmissionDefense, _s[1 - a].Stamina) - SubOffset, 0.055);
+                          - Eff(def.Grappling.SubmissionDefense, _s[1 - a].Stamina) - SubOffset - SubSizeEdge(1 - a), 0.055);
         Drain(a, 1.3);
         _s[a].Stats.SubmissionAttempts++;
         AddScore(a, 1.5);
@@ -936,6 +977,7 @@ internal sealed class Bout
         string hold = HoldFor(fromTop, _ground, _rng.NextULong());
         if (_rng.Chance(p))
         {
+            if (_custom && TryRopeEscape(a, hold)) return;   // the rope breaks the hold
             RecordFinish(a, FightMethod.SubmissionTap, "SUB");
             if (Logging)
                 switch (V(2))
@@ -1005,6 +1047,7 @@ internal sealed class Bout
     private void Drain(int i, double amount)
     {
         var f = _s[i].F;
+        if (_custom) amount *= _s[i].DrainMul;   // open weight: big men gas (exactly 1 otherwise)
         // Low cardio and a reckless pace burn the tank faster.
         double resist = 0.6 + 0.5 * (f.Physical.Cardio / 100.0);
         double paceMod = 1.2 - 0.4 * (f.Tendencies.Pace / 100.0);
@@ -1071,6 +1114,7 @@ internal sealed class Bout
     {
         if (_log is null) return;
         int remaining = (int)Math.Max(0, RoundSeconds - _clock);
+        if (_custom && _rules.Enclosure != Enclosure.Cage) line = InTheRoom(line);
         _log.Add($"R{_round} {remaining / 60}:{remaining % 60:00} — {line}");
     }
 
@@ -1116,9 +1160,11 @@ internal sealed class Bout
     private List<RoundScore> BuildRoundScores(int completedRounds)
     {
         var scores = new List<RoundScore>(completedRounds);
+        if (_custom && !_rules.Judges) return scores;   // nobody was scoring
         for (int r = 0; r < completedRounds; r++)
         {
             var (ra, rb) = ScoreRound(r, _s[0].RoundPts[r], _s[1].RoundPts[r]);
+            if (_custom) { ra -= _s[0].Deduct[r]; rb -= _s[1].Deduct[r]; }
             scores.Add(new RoundScore(ra, rb));
         }
         return scores;
@@ -1145,6 +1191,7 @@ internal sealed class Bout
     private FightOutcome DecisionOutcome()
     {
         // The loop leaves _round one past the last round; the decision belongs to the last.
+        if (_custom && !_rules.Judges) return TimeLimitDraw();
         _round = _rounds;
 
         // Three judges independently score every round (see ScoreRound: 10-9, 10-8 only
@@ -1164,6 +1211,7 @@ internal sealed class Bout
                 double a = _s[0].RoundPts[r] + _rng.NextGaussian(0, 1.2);
                 double b = _s[1].RoundPts[r] + _rng.NextGaussian(0, 1.2);
                 var (ra, rb) = ScoreRound(r, a, b);
+                if (_custom) { ra -= _s[0].Deduct[r]; rb -= _s[1].Deduct[r]; }   // rope escapes past the allowance
                 judgeRed[j, r] = ra; judgeBlue[j, r] = rb;
                 totA += ra; totB += rb;
             }
@@ -1283,8 +1331,23 @@ internal sealed class Bout
             return f.Sex == Sex.Female ? w * WomensPower : w;
         }
 
-        /// <summary>Strike-damage multiplier (see <see cref="DivisionPower"/>).</summary>
-        public readonly double Power;
+        /// <summary>Strike-damage multiplier (see <see cref="DivisionPower"/>). Exactly that on today's
+        /// rules; under an Origins rule set it also carries the size term, the gloves and a hurt hand.</summary>
+        public double Power;
+
+        // --- Origins rules (used only on the custom path; see Bout.Rules.cs) ---
+        /// <summary>ln(my weight / his weight): 0 at equal size, positive for the bigger man.</summary>
+        public double SizeEdge;
+        /// <summary>Gas-tank drain multiplier (size); 1 otherwise.</summary>
+        public double DrainMul = 1;
+        public GloveType Glove = GloveType.Modern;
+        /// <summary>1 = a whole hand; a damaged hand multiplies <see cref="Power"/> down (carried on a tournament night).</summary>
+        public double HandPower = 1;
+        public double WeightKg;
+        public int RopeEscapesUsed;
+        /// <summary>Points taken off this fighter's card per round (rope escapes past the allowance).</summary>
+        public int[] Deduct = Array.Empty<int>();
+        public bool GassedSaid;
         /// <summary>Damage taken while hurt or worn without answering back: the referee's count.</summary>
         public double Barrage;
         /// <summary>0 = no cut; 1+ = open, higher is worse (the doctor looks at 3+).</summary>
