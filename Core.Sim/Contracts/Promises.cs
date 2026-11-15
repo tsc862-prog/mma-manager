@@ -340,14 +340,22 @@ public static class Promises
     }
 
     /// <summary>The promise in a phrase ("a title shot", "3 fights in a year", "a fight at home in Brazil").</summary>
-    public static string What(World world, Promise p) => What(world, p.Kind, p.Fights, world.Get(p.Fighter));
+    public static string What(World world, Promise p) => What(world, p.Kind, p.Fights, world.Get(p.Fighter), world.Get(p.Promotion));
 
-    private static string What(World world, PromiseKind kind, int fights, Fighter? f) => kind switch
+    private static string What(World world, PromiseKind kind, int fights, Fighter? f, Promotion? promo = null) => kind switch
     {
         PromiseKind.Activity => $"{fights} fights in a year",
         PromiseKind.HomeShow => f is not null && world.Get(f.Country) is { } c ? $"a fight at home in {Geography.CountryNames.InSentence(c)}" : "a fight at home",
+        _ when IsBracketHouse(promo) => "a place in the next tournament",
         _ => "a title shot",
     };
+
+    /// <summary>
+    /// A one-night tournament house (Origins): its belt is won only by winning a whole bracket, so a
+    /// "title shot" there means a place in the bracket. Entering one keeps the promise; it is priced as
+    /// a title shot is. (Never true in today's mode.)
+    /// </summary>
+    internal static bool IsBracketHouse(Promotion? promo) => promo?.Rules.ShowFormat == ShowFormat.OneNightTournament;
 
     /// <summary>The note on a promise broken because its deadline passed (any other break: he left without it).</summary>
     internal const string DeadlinePassedNote = "the deadline passed";
@@ -571,7 +579,8 @@ public static class Promises
 
     private static bool Qualifies(World world, Promise p, Fighter f, Event ev, Fight x) => p.Kind switch
     {
-        PromiseKind.TitleShot => x.IsTitleFight && (p.Title is null || x.Title == p.Title),   // a shot at the promised belt
+        // A shot at the promised belt; at a bracket house, a place in a bracket (its bouts are never title fights).
+        PromiseKind.TitleShot => ev.Format == EventFormat.Tournament || (x.IsTitleFight && (p.Title is null || x.Title == p.Title)),
         PromiseKind.HomeShow => Geography.WorldMap.CityOf(world, ev) is { } c && world.Get(c)?.Country == f.Country,
         _ => true,
     };
@@ -630,6 +639,7 @@ public static class Promises
         string left = days >= 45 ? $"{(days + 15) / 30} months left" : days >= 14 ? $"{days / 7} weeks left" : $"{days} days left";
         string fix = p.Kind switch
         {
+            PromiseKind.TitleShot when IsBracketHouse(promo) => "Put a tournament on the books: a man promised a place gets into the bracket first",
             PromiseKind.TitleShot => "Book him a title fight",
             PromiseKind.HomeShow => "Book him on a card in his home country",
             _ => $"Book him — he has {Fought(world, p, f)} of the {p.Fights} fights",
@@ -705,7 +715,7 @@ public static class Promises
             PromiseKind.HomeShow => HomePull(world, promo, f, exp),
             _ => ActivityPull(world, f, fights),
         };
-        string thing = What(world, kind, fights, f);
+        string thing = What(world, kind, fights, f, promo);
         if (firstPerson)
             return pull >= 0.55 ? $"{thing} matters a lot to me" : pull >= 0.25 ? $"I'd like {thing}" : $"{thing} doesn't mean much to me";
         return Lifers.Gendered(f, pull >= 0.55 ? $"{thing} matters a lot to him"

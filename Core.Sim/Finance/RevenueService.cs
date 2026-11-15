@@ -26,7 +26,10 @@ public static class RevenueService
         Sponsorships.SeedFounding(world, promo, on, rng);
 
     /// <summary>Mail-order money a month per prestige point in an Origins world (today's is 1,500).</summary>
-    public const decimal OriginsMerchPerPrestige = 500m;
+    public const decimal OriginsMerchPerPrestige = 150m;
+
+    /// <summary>The merch table's take per head at an Origins night (today's is 6).</summary>
+    public const decimal OriginsMerchPerHead = 1m;
 
     /// <summary>The monthly commercial tick for every live promotion.</summary>
     public static void CollectMonthly(World world, DateOnly date)
@@ -62,6 +65,8 @@ public static class RevenueService
         int attendance = ev.Financials?.Attendance ?? 0;
         if (attendance > 0)
             Ledger.Income(promo, ev.Date, FinanceCategory.Merchandise,
-                new Money(attendance * (6m + promo.Prestige.Value * 0.08m)), $"{ev.Name} — merch table");
+                new Money(attendance * (world.Mode == WorldMode.Origins
+                    ? OriginsMerchPerHead + promo.Prestige.Value * 0.05m   // 1993: a T-shirt table and a few programmes
+                    : 6m + promo.Prestige.Value * 0.08m)), $"{ev.Name} — merch table");
     }
 }

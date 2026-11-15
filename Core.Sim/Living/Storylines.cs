@@ -269,7 +269,11 @@ public static class Storylines
         var valuation = new FighterValuation();
         var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList()
             .Where(c => !ai || valuation.Evaluate(world, c).AskingPurse.Amount * 1.25m <= cap);
-        return roster.Concat(market)
+        // (Today's mode keeps its order - true ability, a known fog leak left alone because changing it moves
+        // every tuned seed. An Origins world orders by what the house's scouts think.)
+        return world.Mode == WorldMode.Origins
+            ? roster.Concat(market).OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value)
+            : roster.Concat(market)
             .OrderByDescending(c => Ability.FighterAbility.CurrentAbility(c));
     }
 
@@ -420,7 +424,10 @@ public static class Storylines
         // The house bonus everyone on the card is playing for — and, on top of
         // it, the performance bonus written into his deal, if his deal is with
         // this promotion (the contract lever is extra money, never a pay cut).
-        var house = new Money(Math.Max(2_000m, promo.Prestige.Value * 200m));
+        // (1993, Origins: a few hundred dollars in an envelope. Today's: 2,000 or 200 a prestige point.)
+        var house = world.Mode == WorldMode.Origins
+            ? new Money(Math.Max(Contracts.Negotiator.OriginsPurseFloor, promo.Prestige.Value * 50m))
+            : new Money(Math.Max(2_000m, promo.Prestige.Value * 200m));
         Finance.Ledger.Expense(promo, date, FinanceCategory.Other, house, $"{award} — {f.FullName}");
         if (f.Contract is { PerformanceBonus.Amount: > 0 } c && c.Promotion == promo.Id)
             Finance.Ledger.Expense(promo, date, FinanceCategory.FighterPurse, c.PerformanceBonus,

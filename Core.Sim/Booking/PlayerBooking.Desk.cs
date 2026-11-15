@@ -893,6 +893,7 @@ public sealed partial class PlayerBooking
         error = null;
         if (ev.Promotion != world.PlayerPromotion) { error = "That isn't your card."; return false; }
         if (ev.Status != EventStatus.Scheduled) { error = "That card is no longer open for booking."; return false; }
+        if (IsBracket(ev, out error)) return false;   // (never in today's mode)
         return true;
     }
 }

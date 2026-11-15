@@ -56,7 +56,7 @@ public sealed class TournamentService
     {
         if (size < 2 || (size & (size - 1)) != 0) return null;   // must be a power of two
         if (world.Get(promoId) is not { } promo) return null;
-        if (Field(world, promo, size, date, wc) is not { } field) return null;
+        if (Field(world, promo, size, date, wc, except: null) is not { } field) return null;
 
         var venue = Geography.WorldMap.PickVenue(world, promo);
         string label = wc is { } c0 ? FriendlyClass(c0) : "Open";
@@ -85,21 +85,35 @@ public sealed class TournamentService
     {
         if (size < 2 || (size & (size - 1)) != 0) return null;
         if (world.Get(ev.Promotion) is not { } promo) return null;
-        if (Field(world, promo, size, ev.Date, wc) is not { } field) return null;
+        if (Field(world, promo, size, ev.Date, wc, except: ev.Id) is not { } field) return null;
         return Run(world, promo, ev, field.Seeded, field.Alternate, prize, wc, rules);
     }
 
-    /// <summary>The field, seeded by what the promotion THINKS of each man, and the alternate; null when it can't be filled.</summary>
-    private static (List<Fighter> Seeded, Fighter? Alternate)? Field(World world, Promotion promo, int size, DateOnly date, WeightClass? wc)
+    /// <summary>
+    /// The field, seeded by what the promotion THINKS of each man, and the alternate; null when it can't be
+    /// filled. Only men the house could book that night (<see cref="OriginsShows.CanBook"/>: fit, a fight left on
+    /// the deal, not in a re-sign window) and who aren't booked on another scheduled card. A man the house has
+    /// promised a place in the bracket (an open title-shot promise) gets in ahead of the order; seeding is
+    /// still by the scouts' read.
+    /// </summary>
+    private static (List<Fighter> Seeded, Fighter? Alternate)? Field(World world, Promotion promo, int size, DateOnly date,
+        WeightClass? wc, EventId? except)
     {
-        var seeded = world.RosterOf(promo.Id)
-            .Where(f => (wc is { } w ? f.WeightClass == w : f.Sex == Sex.Male) && f.IsMatchReady(date))
-            .OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
-            .ThenBy(f => f.Id.Value)
-            .Take(size + 1)
+        var committed = new HashSet<FighterId>();
+        foreach (var e in world.Events.Values)
+            if (e.Status == EventStatus.Scheduled && e.Id != except && !LocalCircuit.IsLocalCard(e))
+                foreach (var f in e.Card) { committed.Add(f.RedCorner); committed.Add(f.BlueCorner); }
+        var pool = world.RosterOf(promo.Id)
+            .Where(f => (wc is { } w ? f.WeightClass == w : f.Sex == Sex.Male)
+                        && OriginsShows.CanBook(world, promo, f, date) && !committed.Contains(f.Id))
+            .Select(f => (F: f, Read: Scouting.ScoutingService.PerceivedAbility(world, promo, f),
+                          Promised: world.Promises.Any(p => p.Live && p.Fighter == f.Id && p.Promotion == promo.Id && p.Kind == PromiseKind.TitleShot)))
             .ToList();
-        if (seeded.Count < size) return null;
-        return (seeded.Take(size).ToList(), seeded.Count > size ? seeded[size] : null);
+        var chosen = pool.OrderByDescending(x => x.Promised).ThenByDescending(x => x.Read).ThenBy(x => x.F.Id.Value)
+            .Take(size + 1).ToList();
+        if (chosen.Count < size) return null;
+        var field = chosen.Take(size).OrderByDescending(x => x.Read).ThenBy(x => x.F.Id.Value).Select(x => x.F).ToList();
+        return (field, chosen.Count > size ? chosen[size].F : null);
     }
 
     private OneNightResult Run(World world, Promotion promo, Event ev, List<Fighter> field, Fighter? alternate, Money prize,

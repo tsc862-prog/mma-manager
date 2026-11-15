@@ -267,6 +267,7 @@ internal sealed class WorldReader
                     WonOn = r.Date("won_on"),
                     LostOn = r.DateN("lost_on"),
                     Defenses = r.Int("defenses"),
+                    Vacated = r.Bool("vacated"),
                 });
             }
         }

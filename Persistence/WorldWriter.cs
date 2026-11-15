@@ -784,7 +784,7 @@ internal sealed class WorldWriter
         using var title = _c.Cmd(_tx,
             "INSERT INTO titles (id, ordinal, promotion_id, weight_class, name, current_champion, prestige) VALUES ($id,$ord,$p,$w,$n,$c,$pr)");
         using var reign = _c.Cmd(_tx,
-            "INSERT INTO title_reigns (title_id, ordinal, champion, won_on, lost_on, defenses) VALUES ($t,$o,$c,$won,$lost,$d)");
+            "INSERT INTO title_reigns (title_id, ordinal, champion, won_on, lost_on, defenses, vacated) VALUES ($t,$o,$c,$won,$lost,$d,$vac)");
 
         int titleOrd = 0;
         foreach (var t in w.Titles.Values)
@@ -809,6 +809,7 @@ internal sealed class WorldWriter
                 reign.Bind("$won", Db.Date(reg.WonOn));
                 reign.Bind("$lost", Db.DateN(reg.LostOn));
                 reign.Bind("$d", reg.Defenses);
+                reign.Bind("$vac", reg.Vacated ? 1 : 0);
                 reign.ExecuteNonQuery();
             }
         }

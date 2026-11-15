@@ -108,10 +108,9 @@ public static class OriginsTalent
 
     /// <summary>
     /// One specialist, added to the world as a free agent (0-0: his sport starts today). Country, age and
-    /// level come from <paramref name="rng"/> (an Origins-only stream); the art is a hash of the id.
+    /// level are the caller's (rolled on an Origins-only stream); the art and the size are hashes of the id.
     /// </summary>
-    public static Fighter Create(World world, FighterGenerator gen, DateOnly on, SimRandom rng, string countryCode,
-        int age, int overall)
+    public static Fighter Create(World world, FighterGenerator gen, DateOnly on, string countryCode, int age, int overall)
     {
         var id = world.NewFighterId();
         var discipline = DisciplineFor(world, id, countryCode);
@@ -175,7 +174,7 @@ public static class OriginsTalent
             string country = PoolCountries[rng.Next(0, PoolCountries.Length)];
             int age = rng.Range(21, 35);
             int overall = rng.GaussianInt(50, 8, 32, 70);
-            made.Add(Create(world, gen, on, rng, country, age, overall));
+            made.Add(Create(world, gen, on, country, age, overall));
         }
         return made;
     }
@@ -188,7 +187,7 @@ public static class OriginsTalent
     /// that has shrunk below <see cref="TargetActives"/> (men also leave by routes the month doesn't count)
     /// draws a few more, up to four, from the gyms. Phase 3's scenes will grow the target.
     /// </summary>
-    public static int MonthlyIntake(int leavers, int actives, int unsigned) =>
+    public static int MonthlyIntake(int leavers, int actives) =>
         leavers + Math.Clamp((TargetActives - actives) / 6, 0, 4);
 
     /// <summary>
@@ -210,7 +209,7 @@ public static class OriginsTalent
         for (int i = 0; i < count; i++)
         {
             string country = scenes[rng.Next(0, scenes.Count)];
-            var f = Create(world, gen, date, rng, country, rng.Range(19, 26), rng.GaussianInt(42, 8, 26, 64));
+            var f = Create(world, gen, date, country, rng.Range(19, 26), rng.GaussianInt(42, 8, 26, 64));
             FindGym(world, f);
             made.Add(f);
         }

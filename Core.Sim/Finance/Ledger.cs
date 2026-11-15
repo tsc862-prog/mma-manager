@@ -36,10 +36,10 @@ public static class Ledger
     public const decimal RetainerPerSpot = 200m;
 
     /// <summary>An Origins house's monthly base outlay (today's City base is 8,000).</summary>
-    public const decimal OriginsBaseOverhead = 3_000m;
+    public const decimal OriginsBaseOverhead = 1_500m;
 
     /// <summary>An Origins house's monthly outlay per prestige point (today's is 2,000).</summary>
-    public const decimal OriginsOverheadPerPrestige = 400m;
+    public const decimal OriginsOverheadPerPrestige = 300m;
 
     /// <summary>Monthly retainer per exclusive fighter ABOVE the target — the anti-hoarding tax.</summary>
     public const decimal HoardingRetainerPerSpot = 3_000m;

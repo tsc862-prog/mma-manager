@@ -73,6 +73,7 @@ public sealed partial class PlayerBooking
     public bool AddBout(World world, Event ev, FighterId red, FighterId blue, int rounds, bool titleFight, out string? error)
     {
         error = null;
+        if (IsBracket(ev, out error)) return false;
         var r = world.Get(red);
         var b = world.Get(blue);
         if (r is null || b is null) { error = "Fighter not found."; return false; }
@@ -119,6 +120,14 @@ public sealed partial class PlayerBooking
         return true;
     }
 
+    /// <summary>A one-night tournament (Origins) has no card to book by hand: its bracket is drawn on the night.</summary>
+    internal static bool IsBracket(Event ev, out string? error)
+    {
+        error = ev.Format == EventFormat.Tournament
+            ? "A tournament night has no card to book: the bracket is drawn from your roster on the night." : null;
+        return error is not null;
+    }
+
     /// <summary>Does the player's house fight at open weight (an Origins house rule; never in today's mode)?</summary>
     private static bool OpenWeight(World world) => world.Get(world.PlayerPromotion)?.Rules.Fight?.OpenWeight == true;
 
@@ -130,6 +139,7 @@ public sealed partial class PlayerBooking
     public bool AddLocalBout(World world, Event ev, FighterId red, PrimaryStyle style, int rounds, out string? error)
     {
         error = null;
+        if (IsBracket(ev, out error)) return false;
         var promo = world.Get(world.PlayerPromotion);
         var r = world.Get(red);
         if (promo is null || r is null) { error = "Fighter not found."; return false; }

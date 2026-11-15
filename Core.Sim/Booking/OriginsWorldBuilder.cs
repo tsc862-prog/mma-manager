@@ -43,7 +43,7 @@ public static class OriginsWorldBuilder
     /// <summary>The house's nights and its bracket purse, by abbreviation (authored rule sets say the size).</summary>
     private static readonly Dictionary<string, (ShowFormat Format, decimal Prize)> Formats = new(StringComparer.Ordinal)
     {
-        ["CRU"] = (ShowFormat.OneNightTournament, 50_000m),   // the winner's cheque is the whole pitch
+        ["CRU"] = (ShowFormat.OneNightTournament, 30_000m),   // the winner's cheque is the whole pitch (a 1993 gate can pay this much)
         ["SFA"] = (ShowFormat.Card, 0m),
         ["DLB"] = (ShowFormat.GymChallenge, 0m),
     };
@@ -133,6 +133,12 @@ public static class OriginsWorldBuilder
         {
             if (row.Fighter.Org is not { } org || promos.FirstOrDefault(p => p.Abbreviation == org) is not { } house) continue;
             f.Contract = PromotionSetup.SignContract(world, house, start, f, rng);
+            // (Today's signing rounds to $500 steps; a 1993 purse is never nothing.)
+            if (f.Contract.PursePerFight.Amount < Contracts.Negotiator.OriginsPurseFloor)
+            {
+                f.Contract.PursePerFight = new Money(Contracts.Negotiator.OriginsPurseFloor);
+                f.Contract.WinBonus = new Money(Contracts.Negotiator.OriginsPurseFloor / 2);
+            }
             f.Loyalty = Math.Clamp(30 + (row.Fighter.Age - 24) * 2, 22, 58);
         }
 

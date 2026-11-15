@@ -309,4 +309,11 @@ public sealed class TitleReign
     public required DateOnly WonOn { get; init; }
     public DateOnly? LostOn { get; set; }                // null => current reign
     public int Defenses { get; set; }
+
+    /// <summary>
+    /// The reign ended without a defeat: the belt was vacated (he retired or left) or, at a one-night
+    /// tournament house, a bracket he was not in crowned somebody else. Set by the Origins paths only;
+    /// today's mode never reads or sets it.
+    /// </summary>
+    public bool Vacated { get; set; }
 }

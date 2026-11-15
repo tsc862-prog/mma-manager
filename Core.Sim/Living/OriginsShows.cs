@@ -38,8 +38,8 @@ public static class OriginsShows
     public static int CadenceWeeks(Promotion p) => p.Rules.ShowFormat switch
     {
         ShowFormat.OneNightTournament => 13,   // a bracket a season: eight men need the months between
-        ShowFormat.GymChallenge => 6,          // the garage runs whenever two gyms have an argument
-        _ => 8,                                // the ring every other month
+        ShowFormat.GymChallenge => 8,          // the garage runs whenever two gyms have an argument (about every two months)
+        _ => 10,                               // the ring five times a year
     };
 
     /// <summary>How many bouts a night of single bouts carries.</summary>
@@ -109,7 +109,7 @@ public static class OriginsShows
         {
             int size = Math.Max(2, promo.Rules.TournamentSize);
             // Only a house that could field the bracket today puts one on the books.
-            if (Bookable(world, promo, when, new HashSet<FighterId>()).Count < size) return null;
+            if (Bookable(world, promo, when, ForwardCalendar.Committed(world)).Count < size) return null;
             ev = NewTournament(world, promo, when, $"{promo.Name} {number}");
         }
         else
@@ -176,7 +176,8 @@ public static class OriginsShows
             Region = venue is not null && world.Get(venue.City) is { } c ? c.Region : promo.BaseRegion,
             Venue = venue?.Name,
             VenueId = venue?.Id,
-            Tier = EventTier.SuperCard,
+            // A 1993 bracket is an ordinary night at the box office: no super-card pricing, no TV production.
+            Tier = EventTier.FightNight,
             Status = EventStatus.Scheduled,
             Format = EventFormat.Tournament,
         };
@@ -188,11 +189,26 @@ public static class OriginsShows
     /// The player books his house's next bracket (an Origins house whose nights are tournaments). Null when
     /// the house does not run brackets, the date is not ahead, or another night of his is already on it.
     /// </summary>
-    public static Event? ScheduleTournament(World world, PromotionId promoId, DateOnly date, string? name = null)
+    public static Event? ScheduleTournament(World world, PromotionId promoId, DateOnly date, string? name = null) =>
+        ScheduleTournament(world, promoId, date, out _, name);
+
+    /// <summary>
+    /// As above, with the reason a night was refused, in words the screen can show: not a bracket house,
+    /// a date not ahead, a night already on that date, or not enough men to fill the bracket (the same
+    /// check the AI makes before it announces one).
+    /// </summary>
+    public static Event? ScheduleTournament(World world, PromotionId promoId, DateOnly date, out string? reason, string? name = null)
     {
-        if (world.Get(promoId) is not { Defunct: false } promo || promo.Rules.ShowFormat != ShowFormat.OneNightTournament) return null;
-        if (date <= world.CurrentDate) return null;
-        if (world.Events.Values.Any(e => e.Promotion == promoId && e.Date == date && e.Status == EventStatus.Scheduled)) return null;
+        reason = null;
+        if (world.Get(promoId) is not { Defunct: false } promo) { reason = "That promotion isn't running."; return null; }
+        if (promo.Rules.ShowFormat != ShowFormat.OneNightTournament) { reason = $"{promo.Abbreviation} doesn't run one-night tournaments."; return null; }
+        if (date <= world.CurrentDate) { reason = "Pick a date that hasn't happened yet."; return null; }
+        if (world.Events.Values.Any(e => e.Promotion == promoId && e.Date == date && e.Status == EventStatus.Scheduled))
+        { reason = "There's already a night on the books that day."; return null; }
+        int size = Math.Max(2, promo.Rules.TournamentSize);
+        int fit = Bookable(world, promo, date, ForwardCalendar.Committed(world)).Count;
+        if (fit < size)
+        { reason = $"You can field {fit} of the {size} men a bracket needs on that date. Sign more, or pick a later night."; return null; }
         int number = world.Events.Values.Count(e => e.Promotion == promoId && e.Status != EventStatus.Cancelled) + 1;
         return NewTournament(world, promo, date, name ?? $"{promo.Name} {number}");
     }
@@ -244,13 +260,26 @@ public static class OriginsShows
         RankingService.Remove(division, champion.Id);
         if (previous is { } old && world.Get(old) is { } oldChamp)
         {
-            News.TitleChanged(world, title, champion, oldChamp, ev.Date);
+            bool inField = ev.Card.Any(f => f.RedCorner == old || f.BlueCorner == old);
+            if (inField) News.TitleChanged(world, title, champion, oldChamp, ev.Date);
+            else
+            {
+                // The bracket winner IS the champion, but nobody beat the holder: say so honestly.
+                if (reign is not null) reign.Vacated = true;
+                News.Post(world, ev.Date, NewsCategory.TitleChange, NotInFieldHeadline(champion, ev, title, oldChamp),
+                    $"{oldChamp.FullName} held the belt going in and was not in the field; the night's winner takes it.",
+                    promo.Id, champion.Id);
+            }
             if (oldChamp.Contract?.Promotion == promo.Id && oldChamp.Status == FighterStatus.Active)
                 RankingService.EnterAtTop(division, old);
         }
         else News.TitleClaimed(world, title, champion, ev.Date);
         Mail.TitleWon(world, title, champion, ev.Date);
     }
+
+    /// <summary>"X wins the {night} and the tournament championship; {holder} was not in the field".</summary>
+    public static string NotInFieldHeadline(Fighter winner, Event ev, Title title, Fighter holder) =>
+        $"{winner.FullName} wins the {ev.Name} and the {title.Name}; {holder.FullName} was not in the field";
 
     // --- Cards of single bouts and challenge nights --------------------------------
 
@@ -349,10 +378,16 @@ public static class OriginsShows
 
     /// <summary>The house's men who can be booked for the date: signed, active, ready, deal not spent, not committed elsewhere.</summary>
     private static List<Fighter> Bookable(World world, Promotion promo, DateOnly date, HashSet<FighterId> taken) =>
-        world.RosterOf(promo.Id)
-            .Where(f => f.Status == FighterStatus.Active && f.IsMatchReady(date) && !taken.Contains(f.Id)
-                        && f.Contract is not { FightsRemaining: <= 0 })
-            .ToList();
+        world.RosterOf(promo.Id).Where(f => !taken.Contains(f.Id) && CanBook(world, promo, f, date)).ToList();
+
+    /// <summary>
+    /// The one bookability rule every Origins night uses (cards, challenge nights and the bracket's field):
+    /// signed here, active, fit on the night, a fight left on his deal and not in the player's re-sign window.
+    /// Commitments to other scheduled cards are the caller's (a set, or <see cref="ForwardCalendar.CommittedTo"/>).
+    /// </summary>
+    public static bool CanBook(World world, Promotion promo, Fighter f, DateOnly date) =>
+        f.Contract?.Promotion == promo.Id && f.Status == FighterStatus.Active && f.IsMatchReady(date)
+        && f.Contract is not { FightsRemaining: <= 0 } && !Contracts.DealWindow.OutOfDeal(world, f);
 
     /// <summary>Two men who have met are not matched again inside this many days.</summary>
     public const int RematchDays = 150;
@@ -400,7 +435,8 @@ public static class OriginsShows
             if (world.Get(ev.Promotion) is not { Defunct: false } promo) continue;
             int need = CardBouts(promo) - ev.Card.Count;
             if (need <= 0) continue;
-            var extra = SuggestCard(world, promo.Id, ev.Date, need).Where(m => !m.IsTitle).Take(need).ToList();
+            // (Ask for one more: a belt the suggestion would put on the line takes a slot we don't use.)
+            var extra = SuggestCard(world, promo.Id, ev.Date, need + 1).Where(m => !m.IsTitle).Take(need).ToList();
             if (extra.Count == 0) continue;
             ev.Card.InsertRange(0, extra.Select(m => new Fight
             {

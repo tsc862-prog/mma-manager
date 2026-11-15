@@ -9,23 +9,29 @@ namespace LongSim;
 
 /// <summary>
 /// <c>origins &lt;seeds&gt; &lt;years&gt;</c>: the 1993 world (Origins mode) run headless. For each seed it runs
-/// two worlds: AI-run (nobody's house is the player's: all three are run by the AI) and a scripted
-/// player running one of the three (seed % 3) through the sim APIs. Prints a per-year summary, the
-/// invariant checks for systems that must not exist yet, and a HEALTH line for a young world:
+/// two worlds, each TWICE (determinism): AI-run (all three houses are the AI's) and a scripted player
+/// running one of the three (seed % 3) through the sim APIs. Prints a per-year summary, the invariant
+/// checks for systems that must not exist yet, and a HEALTH line for a young world:
 /// <list type="bullet">
 /// <item>no exception;</item>
-/// <item>the sport does not die: all three houses alive and still running nights in the last year
-/// (or: which folded, when, and on what balance);</item>
-/// <item>rosters are replenished: every live house can still field its night (a bracket plus an
-/// alternate; six men for a card) and new men turned pro every year;</item>
-/// <item>money neither explodes nor collapses: every live house ends between a quarter of its starting
-/// balance and ten times it plus a million;</item>
-/// <item>determinism: the AI world run twice gives an identical summary.</item>
+/// <item>the sport does not die: no house folds, and every house keeps near its cadence: from the
+/// second year on, each year at least <see cref="CadenceShare"/> of the nights its cadence allows;</item>
+/// <item>the sport keeps its size: ACTIVE men between <see cref="MinActives"/> and <see cref="MaxActives"/>
+/// at every year-end, and new men turned pro;</item>
+/// <item>rosters are replenished: every live house ends holding <c>OriginsShows.MinRoster</c>;</item>
+/// <item>money holds: every house ends between <see cref="MoneyFloor"/>x and <see cref="MoneyCeiling"/>x its
+/// opening balance;</item>
+/// <item>determinism: the same seed twice gives an identical world digest (<c>Check.WorldGraph.Digest</c>,
+/// every saved field), for the AI world and the scripted one.</item>
 /// </list>
 /// Exit code 1 when any seed fails its health line or breaks an invariant.
 /// </summary>
 public static class OriginsMode
 {
+    public const int MinActives = 80, MaxActives = 160;
+    public const double CadenceShare = 0.6;
+    public const decimal MoneyFloor = 0.4m, MoneyCeiling = 2.5m;
+
     public static int Run(string[] args)
     {
         int seeds = args.Length > 1 ? int.Parse(args[1]) : 3;
@@ -35,21 +41,22 @@ public static class OriginsMode
         for (int s = 1; s <= seeds; s++)
         {
             ulong seed = (ulong)s;
-            var ai = RunOne(seed, years, player: null);
-            var again = RunOne(seed, years, player: null);
-            bool deterministic = ai.Summary == again.Summary;
             int playerIndex = (int)(seed % 3);
+            var ai = RunOne(seed, years, player: null);
+            bool aiSame = ai.Digest == RunOne(seed, years, player: null).Digest;
             var scripted = RunOne(seed, years, player: playerIndex);
+            bool scriptedSame = scripted.Digest == RunOne(seed, years, player: playerIndex).Digest;
 
             Console.WriteLine($"===== origins seed {seed}, {years} years: AI-run =====");
             Console.Write(ai.Summary);
-            Console.WriteLine(ai.Health(deterministic));
+            Console.WriteLine(ai.Health(aiSame));
             Console.WriteLine($"===== origins seed {seed}, {years} years: scripted player runs {scripted.PlayerAbbr} =====");
             Console.Write(scripted.Summary);
-            Console.WriteLine(scripted.Health(deterministic: null));
+            Console.WriteLine(scripted.Health(scriptedSame));
             Console.WriteLine();
-            if (!ai.Healthy(deterministic) || !scripted.Healthy(null)) failures++;
-            totals.Add($"seed {seed}: AI {(ai.Healthy(deterministic) ? "HEALTHY" : "UNHEALTHY")}, scripted ({scripted.PlayerAbbr}) {(scripted.Healthy(null) ? "HEALTHY" : "UNHEALTHY")}");
+            if (!ai.Healthy(aiSame) || !scripted.Healthy(scriptedSame)) failures++;
+            totals.Add($"seed {seed}: AI {(ai.Healthy(aiSame) ? "HEALTHY" : "UNHEALTHY")}, scripted ({scripted.PlayerAbbr}) {(scripted.Healthy(scriptedSame) ? "HEALTHY" : "UNHEALTHY")}"
+                       + $"  banks AI {ai.Banks}  scripted {scripted.Banks}");
         }
         Console.WriteLine("===== origins: all seeds =====");
         foreach (var t in totals) Console.WriteLine(t);
@@ -60,16 +67,18 @@ public static class OriginsMode
     private sealed class Outcome
     {
         public string Summary = "";
+        public string Digest = "";
+        public string Banks = "";
         public string? PlayerAbbr;
         public string? Exception;
         public List<string> Violations = new();
         public List<string> Folds = new();
         public List<string> Problems = new();
 
-        public bool Healthy(bool? deterministic) =>
-            Exception is null && Violations.Count == 0 && Folds.Count == 0 && Problems.Count == 0 && deterministic != false;
+        public bool Healthy(bool deterministic) =>
+            Exception is null && Violations.Count == 0 && Folds.Count == 0 && Problems.Count == 0 && deterministic;
 
-        public string Health(bool? deterministic)
+        public string Health(bool deterministic)
         {
             var parts = new List<string>
             {
@@ -77,8 +86,8 @@ public static class OriginsMode
                 Folds.Count == 0 ? "the sport lives (all three houses running)" : "FOLDED: " + string.Join("; ", Folds),
                 Violations.Count == 0 ? "no forbidden systems" : "FORBIDDEN: " + string.Join("; ", Violations.Distinct().Take(6)),
             };
-            parts.AddRange(Problems);
-            if (deterministic is { } d) parts.Add(d ? "deterministic (same seed twice, identical)" : "NOT DETERMINISTIC");
+            parts.AddRange(Problems.Distinct().Take(8));
+            parts.Add(deterministic ? "deterministic (same seed twice, identical world digest)" : "NOT DETERMINISTIC");
             return $"HEALTH {(Healthy(deterministic) ? "OK" : "FAIL")}: " + string.Join(" | ", parts);
         }
     }
@@ -125,6 +134,16 @@ public static class OriginsMode
                 } while (world.CurrentDate.Year == year);
                 Check(world, o);
                 YearLines(world, year, sb, newgens, retired, washouts);
+
+                int actives = world.Fighters.Values.Count(f => f.Status == FighterStatus.Active);
+                if (actives < MinActives || actives > MaxActives) o.Problems.Add($"{year}: {actives} active men (band {MinActives}-{MaxActives})");
+                if (y == 0) continue;   // the first year carries each house's opening offset
+                foreach (var p in world.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value))
+                {
+                    int nights = world.Events.Values.Count(e => e.Promotion == p.Id && e.Status == EventStatus.Completed && e.Date.Year == year);
+                    int due = (int)Math.Floor(52.0 / OriginsShows.CadenceWeeks(p) * CadenceShare);
+                    if (nights < due) o.Problems.Add($"{p.Abbreviation} ran {nights} nights in {year} (cadence floor {due})");
+                }
             }
         }
         catch (Exception ex)
@@ -132,26 +151,27 @@ public static class OriginsMode
             o.Exception = $"{ex.GetType().Name} on {world.CurrentDate:yyyy-MM-dd}: {ex.Message} @ {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}";
         }
 
-        // Health.
-        int lastYear = world.StartDate.Year + years - 1;
+        // Health at the end.
+        var banks = new List<string>();
         foreach (var p in world.Promotions.Values.OrderBy(p => p.Id.Value))
         {
+            decimal s0 = start.GetValueOrDefault(p.Id);
+            banks.Add($"{p.Abbreviation} {s0 / 1000m:0}k->{p.Balance.Amount / 1000m:0}k");
             if (p.Defunct)
             {
                 o.Folds.Add($"{p.Abbreviation} folded (last night {LastNight(world, p):yyyy-MM-dd}, balance {p.Balance.Amount:N0})");
                 continue;
             }
-            int nightsLastYear = world.Events.Values.Count(e => e.Promotion == p.Id && e.Status == EventStatus.Completed && e.Date.Year == lastYear);
-            if (nightsLastYear == 0) o.Problems.Add($"{p.Abbreviation} ran no night in {lastYear}");
-            int need = p.Rules.ShowFormat == ShowFormat.OneNightTournament ? Math.Max(2, p.Rules.TournamentSize) + 1 : 6;
+            int need = OriginsShows.MinRoster(p);
             int roster = world.RosterOf(p.Id).Count(f => f.Status == FighterStatus.Active);
             if (roster < need) o.Problems.Add($"{p.Abbreviation} roster {roster} < {need}");
-            decimal s0 = start.GetValueOrDefault(p.Id);
-            if (p.Balance.Amount < s0 * 0.25m) o.Problems.Add($"{p.Abbreviation} money collapsing ({s0:N0} -> {p.Balance.Amount:N0})");
-            if (p.Balance.Amount > s0 * 10m + 1_000_000m) o.Problems.Add($"{p.Abbreviation} money exploding ({s0:N0} -> {p.Balance.Amount:N0})");
+            if (p.Balance.Amount < s0 * MoneyFloor) o.Problems.Add($"{p.Abbreviation} money collapsing ({s0:N0} -> {p.Balance.Amount:N0})");
+            if (p.Balance.Amount > s0 * MoneyCeiling) o.Problems.Add($"{p.Abbreviation} money ballooning ({s0:N0} -> {p.Balance.Amount:N0})");
         }
         if (world.Fighters.Count <= fightersAtStart) o.Problems.Add("no new men turned pro");
+        o.Banks = string.Join(", ", banks);
         o.Summary = sb.ToString();
+        o.Digest = LongSim.Check.WorldGraph.Digest(world, canonical: false);
         return o;
     }
 
@@ -192,7 +212,7 @@ public static class OriginsMode
                           $"nights {done.Count}{(tournaments > 0 ? $" ({tournaments} brackets)" : "")}{(cancelled > 0 ? $" +{cancelled} off" : "")}  bouts {bouts.Count,3}  " +
                           $"finish {pct(finishes),3:0}% draw {pct(draws),3:0}% dec {pct(decisions),3:0}%  " +
                           (title is null ? "no belt" : brackets > 0 ? $"new champs {crowned} no-champ nights {noChampion} holder {champ}" : $"new champs {crowned} holder {champ}") +
-                          $"  roster {roster}");
+                          $"  roster {roster}  avg house {(done.Count == 0 ? 0 : done.Average(e => e.Financials?.Attendance ?? 0)):0}/{(done.Select(e => e.VenueId).FirstOrDefault() is { } v && world.Get(v) is { } room ? room.Capacity : 0)}");
             var money = p.Ledger.Where(l => l.Date.Year == year)
                 .GroupBy(l => l.Category).Select(g => (Cat: g.Key, Sum: g.Sum(l => l.Amount.Amount)))
                 .Where(x => x.Sum != 0).OrderByDescending(x => Math.Abs(x.Sum)).ThenBy(x => x.Cat);
@@ -282,6 +302,7 @@ public static class OriginsMode
                 {
                     Fighter = pick.F.Id, Promotion = promo.Id, PursePerFight = pick.Exp.AskingPurse,
                     WinBonus = pick.Exp.AskingWinBonus, Fights = pick.Exp.DesiredFights,
+                    Exclusive = Negotiator.WantsExclusivity(promo),   // as the AI signs: a small house buys a slice
                 }, today);
             }
         }

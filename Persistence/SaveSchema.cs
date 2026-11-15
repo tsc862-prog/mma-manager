@@ -115,7 +115,7 @@ internal static class SaveSchema
 
             CREATE TABLE title_reigns (
                 title_id INTEGER NOT NULL, ordinal INTEGER NOT NULL, champion INTEGER NOT NULL,
-                won_on TEXT NOT NULL, lost_on TEXT, defenses INTEGER NOT NULL
+                won_on TEXT NOT NULL, lost_on TEXT, defenses INTEGER NOT NULL, vacated INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE fighters (
