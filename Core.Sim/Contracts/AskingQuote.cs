@@ -35,12 +35,17 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
         decimal grateful = Negotiator.GratitudeFactor(f, promo.Id);
         decimal personal = Negotiator.TableDiscount(world, f, promo.Id);
         // The same factor and rounding as NegotiationSession.DemandPurse at its opening position.
+        decimal distrust = Promises.Distrust(world, f.Id, promo.Id, world.CurrentDate)
+                         * Promises.Wariness(world, promo.Id, world.CurrentDate);
         decimal factor = (excl ? 1m : Negotiator.NonExclusiveMoneyFactor)
                        * (clause ? Negotiator.ChampionsClausePremium : 1m)
-                       * personal;
+                       * personal * distrust;
         decimal discounted = NegotiationSession.UpTo500(exp.AskingPurse.Amount * factor);
         var floor = Negotiator.LivePurseFloor(f, promo.Id);
-        decimal purse = Math.Max(floor?.Amount ?? 0m, discounted);
+        // A leash term costs even when his live deal floors the number (as at the table).
+        decimal floorAmt = floor?.Amount ?? 0m;
+        if (clause && floorAmt > 0m) floorAmt = NegotiationSession.UpTo500(floorAmt * Negotiator.ChampionsClausePremium);
+        decimal purse = Math.Max(floorAmt, discounted);
 
         var reasons = new List<string>();
         // The one discount that applies (they don't stack): name that one.
@@ -48,7 +53,8 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
         else if (personal < 1m) reasons.Add(Lifers.Gendered(f, "you discovered him: he asks less from you"));
         if (!excl) reasons.Add("non-exclusive deal");
         if (clause) reasons.Add("the champion's clause adds ~8%");
-        if (floor is { } fl && fl.Amount > discounted)
+        if (distrust > 1m) reasons.Add(Lifers.Gendered(f, "you broke your word to him: he asks more"));
+        if (floor is { } fl && floorAmt > discounted)
             reasons.Add(Lifers.Gendered(f, $"won't take less than his current {fl}"));
         return new AskingQuote(new Money(purse), exp.AskingPurse, reasons);
     }

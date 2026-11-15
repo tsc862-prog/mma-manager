@@ -101,7 +101,7 @@ public class NegotiationRoomTests
         var a = OpenTalks(seed: 7);
         var b = OpenTalks(seed: 7);
         Assert.Equal(a.Session.OpeningLine, b.Session.OpeningLine);
-        Assert.Equal(a.Session.AgentStance, b.Session.AgentStance);
+        Assert.Equal(a.Session.Stance, b.Session.Stance);
 
         var bidA = a.Session.TheirTermsAsOffer(true, false);
         bidA.PursePerFight = new Money(bidA.PursePerFight.Amount * 0.8m);

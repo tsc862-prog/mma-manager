@@ -66,6 +66,26 @@ public sealed class ContractOffer
     public bool Exclusive { get; set; } = true;
     public bool ChampionsClause { get; set; }
 
+    // --- Promises with teeth and the matching right (contracts stage 9; player-rules promotions only) ---
+
+    /// <summary>A promise of this many fights in the year (Core.Sim Contracts.Promises); 0 = none.</summary>
+    public int PromiseFights { get; set; }
+
+    /// <summary>A promise of a fight on a card in his home country inside the year.</summary>
+    public bool PromiseHomeShow { get; set; }
+
+    /// <summary>A promise of a title fight inside the year.</summary>
+    public bool PromiseTitleShot { get; set; }
+
+    /// <summary>
+    /// The right to match a rival's end-of-deal offer and keep him on the rival's terms
+    /// exactly (Core.Sim Contracts.OfferMarket.MatchTerms). He charges a premium to grant it.
+    /// </summary>
+    public bool MatchingRight { get; set; }
+
+    /// <summary>Whether the slip carries any promise.</summary>
+    public bool HasPromises => PromiseFights > 0 || PromiseHomeShow || PromiseTitleShot;
+
     /// <summary>0 = opening offer; increments each counter.</summary>
     public int Round { get; set; }
 
@@ -84,6 +104,7 @@ public sealed class ContractOffer
         PpvPoints = PpvPoints,
         PerformanceBonus = PerformanceBonus,
         Guaranteed = true,
+        MatchingRight = MatchingRight,
     };
 }
 
