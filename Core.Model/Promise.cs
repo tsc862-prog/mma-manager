@@ -47,6 +47,9 @@ public sealed class Promise
     /// <summary>For <see cref="PromiseKind.Activity"/>: how many fights he was promised (else 0).</summary>
     public int Fights { get; init; }
 
+    /// <summary>For <see cref="PromiseKind.TitleShot"/>: the belt promised (his division's, when it was made); else null.</summary>
+    public TitleId? Title { get; init; }
+
     public required DateOnly Made { get; init; }
 
     /// <summary>Kept by this day (moved on only while he is injured and can't fight).</summary>
@@ -57,8 +60,14 @@ public sealed class Promise
     /// <summary>The day it was kept, broken or fell away; null while open.</summary>
     public DateOnly? Resolved { get; set; }
 
-    /// <summary>The owner has been warned that time is running out on it (sent once).</summary>
+    /// <summary>The owner has been warned that the deadline is near (sent once per deadline: a moved deadline is warned again).</summary>
     public bool Warned { get; set; }
+
+    /// <summary>
+    /// When the owner was last warned that his deal is down to its last fight with this promise
+    /// unkept; a deal signed after that day (a re-signing carries the promise on) is warned again.
+    /// </summary>
+    public DateOnly? LastFightWarnedOn { get; set; }
 
     /// <summary>How it ended, in plain words ("the deadline passed", "he was released"); empty while open.</summary>
     public string Note { get; set; } = "";

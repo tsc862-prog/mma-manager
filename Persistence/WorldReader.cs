@@ -549,6 +549,8 @@ internal sealed class WorldReader
                 Resolved = r.DateN("resolved"),
                 Warned = r.Bool("warned"),
                 Note = r.Str("note"),
+                Title = r.IntN("title_id") is { } tid ? new TitleId(tid) : null,
+                LastFightWarnedOn = r.DateN("last_fight_warned_on"),
             });
     }
 

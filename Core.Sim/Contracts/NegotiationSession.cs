@@ -75,6 +75,7 @@ public sealed class NegotiationSession
     private RivalOffer? _offer;               // the live rival offer the table reads (set by Resume)
     private decimal? _rivalScore;             // the rival's paper by his lights (OfferMarket.Score): a deal here must be worth at least this
     private readonly decimal _distrust;       // this promotion broke its word to him: his number is higher (Promises.Distrust; else 1)
+    private readonly decimal _wary;           // it broke its word to someone this year, in public: everyone asks a little more (Promises.Wariness; else 1)
 
     public NegotiationSession(World world, Fighter fighter, Promotion promo, ContractExpectations exp)
     {
@@ -90,6 +91,7 @@ public sealed class NegotiationSession
         _home = Negotiator.TableDiscount(world, fighter, promo.Id);
         _liveFloor = Negotiator.LivePurseFloor(fighter, promo.Id);
         _distrust = Promises.Distrust(world, fighter.Id, promo.Id, world.CurrentDate);
+        _wary = Promises.Wariness(world, promo.Id, world.CurrentDate);
 
         AgentToughness = FighterValuation.AgentToughness(fighter);
         _concessionRate = 0.45 - AgentToughness * 0.002;   // 0.25 (hard-nosed) .. 0.45 (easygoing)
@@ -283,7 +285,7 @@ public sealed class NegotiationSession
         (s.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor)
         * (s.Clause ? Negotiator.ChampionsClausePremium : 1m)
         * (s.Match ? Negotiator.MatchingRightPremium : 1m)
-        * _home * _distrust * PromiseFactor(s);
+        * _home * _distrust * _wary * PromiseFactor(s);
 
     // What the promises on the slip take off his number: the same appeal the Negotiator
     // reads (Promises.AppealOf), turned into money the way the floor is (a quarter of it).
@@ -306,8 +308,12 @@ public sealed class NegotiationSession
 
     private Money DemandPurse(Slip s)
     {
-        decimal p = Math.Max(Math.Max(_liveFloor?.Amount ?? 0m, _rivalFloor?.Amount ?? 0m),
-            UpTo500(_exp.AskingPurse.Amount * Factor(s) * (decimal)_demandFrac));
+        // The leash terms (champion's clause, matching right) cost even when a floor — his live
+        // deal, a rival's match price — sets his number: the premium goes on top of the floor too.
+        decimal leash = (s.Clause ? Negotiator.ChampionsClausePremium : 1m) * (s.Match ? Negotiator.MatchingRightPremium : 1m);
+        decimal floor = Math.Max(_liveFloor?.Amount ?? 0m, _rivalFloor?.Amount ?? 0m);
+        if (leash > 1m && floor > 0m) floor = UpTo500(floor * leash);
+        decimal p = Math.Max(floor, UpTo500(_exp.AskingPurse.Amount * Factor(s) * (decimal)_demandFrac));
         return new(_rivalScore is { } target ? BeatRival(p, target, s) : p);
     }
 
@@ -317,7 +323,8 @@ public sealed class NegotiationSession
     // purse: one closed-form step, then the rounding is checked.)
     private decimal BeatRival(decimal purse, decimal target, Slip terms)
     {
-        decimal ScoreAt(decimal p) => OfferMarket.Score(_world, _fighter, AtPurse(p, terms), _exp);
+        // Weighed as a deal he'd sign against the rival: less the price of any leash on it (FinalScore).
+        decimal ScoreAt(decimal p) => OfferMarket.FinalScore(_world, _fighter, AtPurse(p, terms), _exp);
         decimal s = ScoreAt(purse);
         if (s >= target) return purse;
         decimal per500 = ScoreAt(purse + 500m) - s;
@@ -416,7 +423,7 @@ public sealed class NegotiationSession
         // whole deal must be worth more to him than theirs (a thin win bonus, a short
         // signing bonus or a different length can't undercut it).
         bool beatsRival = (_rivalFloor is not { } rf || offer.PursePerFight.Amount >= rf.Amount)
-                          && (_rivalScore is not { } rs || OfferMarket.Score(_world, _fighter, offer, _exp) >= rs);
+                          && (_rivalScore is not { } rs || OfferMarket.FinalScore(_world, _fighter, offer, _exp) >= rs);
         bool guaranteedOk = GuaranteedOk(offer);
         var reactions = React(offer);
 
@@ -522,6 +529,8 @@ public sealed class NegotiationSession
                 : $"{_rivalName} has real paper on the table: a deal here must be worth more to him than theirs.");
         if (_distrust > 1m)
             reasons.Add(Lifers.Gendered(_fighter, "You broke your word to him: he asks more, has less patience, and won't count a promise from you."));
+        if (_wary > 1m)
+            reasons.Add($"Word gets around: {_promo.Abbreviation} broke a promise this past year, so fighters ask a little more of it and count its promises for less.");
         // His number can sit under the rival's purse and still beat it by his lights: say why, in words.
         if (_offer is { } paper && _world.Get(paper.From) is { } from
             && TheirTermsAsOffer(onSlip) is var mine && mine.PursePerFight.Amount < paper.Purse.Amount)

@@ -673,7 +673,7 @@ public class FreeAgentOfferTests
     [Fact]
     public void EveryLineAtTheTable_IsHisOwn_FirstPerson_NoAgentNoWe()
     {
-        var bad = new System.Text.RegularExpressions.Regex(@"\b(we|We|we're|We're|our|us)\b|his people|her people|agent|representation");
+        var bad = new System.Text.RegularExpressions.Regex(@"\b(we|We|we're|We're|our|us|he|He|his|His|him|Him|she|She|her|Her|he's|He's|she's|She's)\b|agent|representation");
         int lines = 0;
         foreach (ulong seed in new ulong[] { 48, 7 })
         {
@@ -692,7 +692,7 @@ public class FreeAgentOfferTests
                     var o = s.TheirTermsAsOffer(new ContractOffer
                     {
                         Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, MatchingRight = frac > 0.9,
-                        PromiseTitleShot = true, PromiseHomeShow = frac < 0.9, PromiseFights = 2,
+                        PromiseTitleShot = true, PromiseHomeShow = frac < 0.9, PromiseFights = frac == 0.5 ? 5 : 2,
                     });
                     o.PursePerFight = new Money(Math.Round(o.PursePerFight.Amount * (decimal)frac / 500m) * 500m);
                     o.Fights += frac == 0.97 ? 2 : 0;
@@ -711,6 +711,36 @@ public class FreeAgentOfferTests
                 }
         }
         Assert.True(lines > 100, $"only {lines} lines heard");
+    }
+
+    [Fact]
+    public void AMatchingRightOrAClause_CostsEvenWhenTheRivalsPaperFloorsHisNumber()
+    {
+        int checkedN = 0;
+        foreach (ulong seed in new ulong[] { 48, 7, 11 })
+        {
+            var (world, offers) = CourtedMarket(seed);
+            var promo = world.Get(world.PlayerPromotion)!;
+            bool excl = Negotiator.WantsExclusivity(promo);
+            foreach (var o in offers)
+            {
+                var f = world.Get(o.Fighter)!;
+                var exp = new FighterValuation().Evaluate(world, f);
+                var s = NegotiationSession.Resume(world, f, promo, exp);
+                var plainSlip = new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl };
+                decimal plain = s.DemandPurse(plainSlip).Amount;
+                decimal noRival = new NegotiationSession(world, f, promo, exp).DemandPurse(plainSlip).Amount;
+                if (plain <= noRival) continue;   // only where the rival's paper sets his number
+                Assert.True(s.DemandPurse(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, MatchingRight = true }).Amount > plain);
+                Assert.True(s.DemandPurse(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, ChampionsClause = true }).Amount > plain);
+                // Meeting his number with the right on it still beats the rival by his lights, less the right's price.
+                var mine = s.TheirTermsAsOffer(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, MatchingRight = true });
+                Assert.True(OfferMarket.FinalScore(world, f, mine, exp) >= OfferMarket.Score(world, f, OfferMarket.AsContractOffer(o), exp));
+                checkedN++;
+            }
+        }
+        _out.WriteLine($"free agents whose number the rival's paper set above his ask: {checkedN}");
+        Assert.True(checkedN > 0, "precondition: a rival floor above his ask in three seeds");
     }
 
     [Fact]

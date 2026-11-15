@@ -164,7 +164,7 @@ public static class Lifers
         GrievanceKind.PassedOver => "book him the title shot",
         GrievanceKind.Benched => "put him on a card",
         GrievanceKind.Underpaid => "re-sign him on a raise",
-        GrievanceKind.BrokenPromise => "make him a promise and keep it — or give it a year",
+        GrievanceKind.BrokenPromise => "nothing quick: it fades after a year",
         _ => "get him a win",
     });
 

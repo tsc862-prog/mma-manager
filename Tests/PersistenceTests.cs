@@ -66,7 +66,7 @@ public class PersistenceTests
             // A promise written into a deal (contracts stage 9), resolved, with a note.
             world.Promises.Add(new Promise
             {
-                Id = 1, Fighter = world.Fighters.Keys.Skip(5).First(), Promotion = world.Promotions.Keys.First(),
+                Id = world.NewPromiseId(), Fighter = world.Fighters.Keys.Skip(5).First(), Promotion = world.Promotions.Keys.First(),
                 Kind = PromiseKind.TitleShot, Fights = 2, Made = world.CurrentDate.AddDays(-40),
                 Deadline = world.CurrentDate.AddDays(325), State = PromiseState.Broken,
                 Resolved = world.CurrentDate.AddDays(-2), Warned = true, Note = "the deadline passed",

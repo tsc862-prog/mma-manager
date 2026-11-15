@@ -184,8 +184,8 @@ internal sealed class WorldWriter
     private void WritePromises(World w)
     {
         using var cmd = _c.Cmd(_tx,
-            "INSERT INTO promises (ordinal, id, fighter_id, promotion_id, kind, fights, made, deadline, state, resolved, warned, note) "
-            + "VALUES ($o,$id,$f,$p,$k,$n,$m,$d,$st,$r,$w,$no)");
+            "INSERT INTO promises (ordinal, id, fighter_id, promotion_id, kind, fights, made, deadline, state, resolved, warned, note, title_id, last_fight_warned_on) "
+            + "VALUES ($o,$id,$f,$p,$k,$n,$m,$d,$st,$r,$w,$no,$t,$lf)");
         for (int i = 0; i < w.Promises.Count; i++)
         {
             var p = w.Promises[i];
@@ -202,6 +202,8 @@ internal sealed class WorldWriter
             cmd.Bind("$r", Db.DateN(p.Resolved));
             cmd.Bind("$w", p.Warned ? 1 : 0);
             cmd.Bind("$no", p.Note);
+            cmd.Bind("$t", Db.IdN(p.Title?.Value));
+            cmd.Bind("$lf", Db.DateN(p.LastFightWarnedOn));
             cmd.ExecuteNonQuery();
         }
     }

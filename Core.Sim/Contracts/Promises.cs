@@ -76,6 +76,22 @@ public static class Promises
     /// <summary>Resolved promises stay on the books this long, then are dropped.</summary>
     public const int KeepResolvedDays = 1095;
 
+    /// <summary>
+    /// How long a deal is expected to run per fight on it: a promise's deadline is capped at
+    /// the deal's expected end (fights × this, at most <see cref="DeadlineDays"/>), so a short
+    /// deal can't carry a promise past the day he is free to walk.
+    /// </summary>
+    public const int DaysPerFight = 120;
+
+    /// <summary>A broken promise is public for this long: every fighter is warier of that promotion's word (<see cref="Wariness"/>).</summary>
+    public const int PublicDays = 365;
+
+    /// <summary>At a promotion that broke a promise in public, everyone asks this much more per break (at most <see cref="MaxPublicBreaks"/> count).</summary>
+    public const decimal WarinessPerBreak = 0.03m;
+
+    /// <summary>The most public breaks that count against a promotion's table and its promises.</summary>
+    public const int MaxPublicBreaks = 3;
+
     // What each promise can be worth inside Appeal (each pull is 0..1 before its weight).
     private const double TitleWeight = 0.40, HomeWeight = 0.25, ActivityWeight = 0.20;
 
@@ -91,6 +107,8 @@ public static class Promises
     {
         if (!o.HasPromises || world.Get(o.Promotion) is not { } promo) return 0.0;
         if (BrokenBy(world, f.Id, o.Promotion, world.CurrentDate) > 0) return 0.0;
+        // Word gets around: each promise the promotion broke (to anyone) this past year halves what its word is worth.
+        double scale = Math.Pow(0.5, Math.Min(MaxPublicBreaks, PublicBreaks(world, o.Promotion, world.CurrentDate)));
         double a = 0.0;
         if (o.PromiseTitleShot && Refusal(world, promo, f, PromiseKind.TitleShot, 0, int.MaxValue) is null)
             a += TitleWeight * TitlePull(world, promo, f, exp);
@@ -98,7 +116,7 @@ public static class Promises
             a += HomeWeight * HomePull(world, promo, f, exp);
         if (o.PromiseFights > 0 && Refusal(world, promo, f, PromiseKind.Activity, o.PromiseFights, int.MaxValue) is null)
             a += ActivityWeight * ActivityPull(world, f, o.PromiseFights);
-        return a;
+        return a * scale;
     }
 
     // A title shot means most to a contender who wants a belt: his place in this promotion's
@@ -161,22 +179,22 @@ public static class Promises
     {
         if (!DealWindow.PlayerRules(world, promo.Id)) return "Only your own promotion's deals carry promises.";
         if (world.Promises.Any(p => p.Live && p.Fighter == f.Id && p.Promotion == promo.Id && p.Kind == kind))
-            return Lifers.Gendered(f, "You already promised him that, and it still stands.");
+            return "You already gave me that promise, and it still stands.";
         switch (kind)
         {
             case PromiseKind.Activity:
-                if (fights < MinActivity || fights > MaxActivity) return $"An activity promise is {MinActivity} to {MaxActivity} fights in the year.";
-                if (fights > dealFights) return "You can't promise more fights than the deal holds.";
+                if (fights < MinActivity || fights > MaxActivity) return $"Promise me {MinActivity} to {MaxActivity} fights in the year, not that.";
+                if (fights > dealFights) return "You can't promise me more fights than the deal holds.";
                 return null;
             case PromiseKind.HomeShow:
-                if (world.Get(f.Country) is not { } country) return Lifers.Gendered(f, "There's nowhere on file he calls home.");
+                if (world.Get(f.Country) is not { } country) return "There's nowhere on file as my home to promise me.";
                 bool reachable = world.Venues.Values.Any(v => world.Get(v.City)?.Country == f.Country && OrgReach.CanBookIn(world, promo, v.City));
-                return reachable ? null : $"You can't stage a card in {country.Name}: it's beyond {promo.Abbreviation}'s reach.";
+                return reachable ? null : $"You can't put on a card in {country.Name} — it's beyond {promo.Abbreviation}'s reach.";
             default:
                 var div = promo.Divisions.FirstOrDefault(d => d.Matches(f));
-                if (div is null) return Lifers.Gendered(f, $"{promo.Abbreviation} doesn't run his division.");
-                if (div.Title is not { } tid || world.Get(tid) is not { } title) return Lifers.Gendered(f, $"There's no belt in his division at {promo.Abbreviation} to fight for.");
-                if (title.CurrentChampion == f.Id) return Lifers.Gendered(f, "He's the champion already.");
+                if (div is null) return $"{promo.Abbreviation} doesn't run my division.";
+                if (div.Title is not { } tid || world.Get(tid) is not { } title) return $"There's no belt in my division at {promo.Abbreviation} to fight for.";
+                if (title.CurrentChampion == f.Id) return "I'm the champion already.";
                 return null;
         }
     }
@@ -212,6 +230,25 @@ public static class Promises
     public static decimal Distrust(World world, FighterId fighter, PromotionId promo, DateOnly date) =>
         1m + DistrustPerBreak * Math.Min(2, BrokenBy(world, fighter, promo, date));
 
+    /// <summary>Promises this promotion broke (to anyone) in the <see cref="PublicDays"/> days to <paramref name="date"/>: the public record.</summary>
+    public static int PublicBreaks(World world, PromotionId promo, DateOnly date)
+    {
+        if (world.Promises.Count == 0) return 0;
+        int n = 0;
+        foreach (var p in world.Promises)
+            if (p.State == PromiseState.Broken && p.Promotion == promo && p.Resolved is { } r && date.DayNumber - r.DayNumber < PublicDays)
+                n++;
+        return n;
+    }
+
+    /// <summary>
+    /// What every fighter asks more at a promotion that broke a promise in public this past year:
+    /// <see cref="WarinessPerBreak"/> a break, at most <see cref="MaxPublicBreaks"/>. 1 when there
+    /// are none (every AI table).
+    /// </summary>
+    public static decimal Wariness(World world, PromotionId promo, DateOnly date) =>
+        1m + WarinessPerBreak * Math.Min(MaxPublicBreaks, PublicBreaks(world, promo, date));
+
     /// <summary>
     /// The broken promise that stands as a grievance against the promotion he is signed to:
     /// broken in the last <see cref="GrievanceDays"/> days, and no promise of theirs kept for
@@ -229,7 +266,8 @@ public static class Promises
                 && (broken is null || r >= broken.Resolved!.Value)) broken = p;
             else if (p.State == PromiseState.Kept && (keptSince is null || r > keptSince)) keptSince = r;
         }
-        return broken is not null && (keptSince is not { } k || k < broken.Resolved!.Value) ? broken : null;
+        // Only a promise kept strictly AFTER the break mends it (one kept the same day doesn't).
+        return broken is not null && (keptSince is not { } k || k <= broken.Resolved!.Value) ? broken : null;
     }
 
     /// <summary>The promise in a phrase ("a title shot", "3 fights in a year", "a fight at home in Brazil").</summary>
@@ -259,9 +297,10 @@ public static class Promises
             if (Refusal(world, promo, f, kind, fights, o.Fights) is not null) return;
             var p = new Promise
             {
-                Id = world.Promises.Count == 0 ? 1 : world.Promises.Max(x => x.Id) + 1,
+                Id = world.NewPromiseId(),
                 Fighter = f.Id, Promotion = promo.Id, Kind = kind, Fights = kind == PromiseKind.Activity ? fights : 0,
-                Made = date, Deadline = date.AddDays(DeadlineDays),
+                Title = kind == PromiseKind.TitleShot ? promo.Divisions.FirstOrDefault(d => d.Matches(f))?.Title : null,
+                Made = date, Deadline = date.AddDays(DeadlineFor(o.Fights)),
             };
             world.Promises.Add(p);
             made.Add(p);
@@ -277,6 +316,9 @@ public static class Promises
                 + $"Keep it and he'll remember; break it and he'll remember that too — and so will the next table."),
             aboutFighter: f.Id);
     }
+
+    /// <summary>Days a promise made on a deal of this many fights runs: the deal's expected end, at most a year.</summary>
+    public static int DeadlineFor(int dealFights) => Math.Min(DeadlineDays, Math.Max(1, dealFights) * DaysPerFight);
 
     // --- The monthly test ------------------------------------------------------------------
 
@@ -307,15 +349,20 @@ public static class Promises
 
         // Hurt at the deadline: the clock stops until he can fight again.
         if (date > p.Deadline && f.CurrentInjury is { } inj && inj.ExpectedReturn.AddDays(GraceDays) > p.Deadline)
+        {
             p.Deadline = inj.ExpectedReturn.AddDays(GraceDays);
+            p.Warned = false;   // a new deadline is warned again
+        }
 
         if (date > p.Deadline && (date > p.Deadline.AddDays(GraceDays) || !Honouring(world, p, f)))
         {
             Break(world, p, f, promo, date, "the deadline passed");
             return;
         }
-        if (!p.Warned && (p.Deadline.DayNumber - date.DayNumber <= WarnDays || f.Contract is { FightsRemaining: <= 1 }))
-            Warn(world, p, f, promo, date);
+        bool nearDeadline = !p.Warned && p.Deadline.DayNumber - date.DayNumber <= WarnDays;
+        bool lastFight = f.Contract is { FightsRemaining: <= 1 } deal
+                         && (p.LastFightWarnedOn is not { } w || w < deal.SignedOn);   // once per deal
+        if (nearDeadline || lastFight) Warn(world, p, f, promo, date, nearDeadline, lastFight);
     }
 
     /// <summary>
@@ -332,6 +379,7 @@ public static class Promises
             if (world.Get(from) is not { } promo) { Resolve(p, PromiseState.Void, date, "the promotion closed"); continue; }
             if (Met(world, p, f)) { Resolve(p, PromiseState.Kept, date, "kept before he left"); continue; }
             Resolve(p, PromiseState.Broken, date, Lifers.Gendered(f, $"he left before it was kept ({door})"));
+            Publicize(world, p, f, promo, date);
             if (from == world.PlayerPromotion)
                 Living.Mail.Post(world, date, MailCategory.BoardNote, Living.Mail.Owner(world),
                     $"{f.FullName} left with our promise unkept",
@@ -353,9 +401,8 @@ public static class Promises
     // deadline and its grace)?
     private static bool Met(World world, Promise p, Fighter f)
     {
-        if (p.Kind == PromiseKind.TitleShot
-            && world.Titles.Values.Any(t => t.Promotion == p.Promotion && t.CurrentChampion == f.Id))
-            return true;
+        if (p.Kind == PromiseKind.TitleShot && p.Title is { } promised && world.Get(promised)?.CurrentChampion == f.Id)
+            return true;   // he holds the promised belt
         var until = p.Deadline.AddDays(GraceDays);
         int fought = 0;
         foreach (var ev in world.Events.Values)
@@ -395,7 +442,7 @@ public static class Promises
 
     private static bool Qualifies(World world, Promise p, Fighter f, Event ev, Fight x) => p.Kind switch
     {
-        PromiseKind.TitleShot => x.IsTitleFight,
+        PromiseKind.TitleShot => x.IsTitleFight && (p.Title is null || x.Title == p.Title),   // a shot at the promised belt
         PromiseKind.HomeShow => Geography.WorldMap.CityOf(world, ev) is { } c && world.Get(c)?.Country == f.Country,
         _ => true,
     };
@@ -424,24 +471,29 @@ public static class Promises
         Resolve(p, PromiseState.Broken, date, note);
         f.Loyalty = Math.Max(0, f.Loyalty - BrokenLoyalty);
         string what = What(world, p);
-        if (Notable(world, f))
-            Living.News.Post(world, date, NewsCategory.Milestone,
-                $"{f.FullName} says {promo.Abbreviation} broke its word",
-                Lifers.Gendered(f, $"{f.FullName} was promised {what} when he signed with {promo.Name}. It never came."),
-                promo.Id, f.Id);
+        Publicize(world, p, f, promo, date);
         if (promo.Id == world.PlayerPromotion)
             Living.Mail.Post(world, date, MailCategory.BoardNote, Living.Mail.Owner(world),
                 $"We broke our word to {f.FullName}",
                 Lifers.Gendered(f, $"We promised {f.FullName} {what} by {p.Deadline:d MMMM yyyy}, and it never came. "
                     + $"He's taken it hard: his loyalty is down, and for the next year it's a grievance he holds against us "
-                    + $"(a promise kept would help mend it). The next time we sit down with him he'll ask more, have less patience, "
-                    + $"and won't take our word for anything for two years."),
+                    + $"(re-signing him at the table with a new promise, and keeping it, would mend it). The next time we sit down with him "
+                    + $"he'll ask more, have less patience, and won't take our word for anything for two years. And it's public: "
+                    + $"for a year every fighter at our table asks a little more and counts our promises for less."),
                 aboutFighter: f.Id);
     }
 
-    private static void Warn(World world, Promise p, Fighter f, Promotion promo, DateOnly date)
+    // A broken promise is public (player-rules promotions only make promises): the news says so.
+    private static void Publicize(World world, Promise p, Fighter f, Promotion promo, DateOnly date) =>
+        Living.News.Post(world, date, NewsCategory.Milestone,
+            $"{f.FullName} says {promo.Abbreviation} broke its word",
+            Lifers.Gendered(f, $"{f.FullName} was promised {What(world, p)} when he signed with {promo.Name}. It never came."),
+            promo.Id, f.Id);
+
+    private static void Warn(World world, Promise p, Fighter f, Promotion promo, DateOnly date, bool nearDeadline, bool lastFight)
     {
-        p.Warned = true;
+        if (nearDeadline) p.Warned = true;
+        if (lastFight) p.LastFightWarnedOn = date;
         if (promo.Id != world.PlayerPromotion) return;
         int days = Math.Max(0, p.Deadline.DayNumber - date.DayNumber);
         string left = days >= 45 ? $"{(days + 15) / 30} months left" : days >= 14 ? $"{days / 7} weeks left" : $"{days} days left";
@@ -451,9 +503,9 @@ public static class Promises
             PromiseKind.HomeShow => "Book him on a card in his home country",
             _ => $"Book him — he has {Fought(world, p, f)} of the {p.Fights} fights",
         };
-        bool lastFight = f.Contract is { FightsRemaining: <= 1 };
         Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
-            $"We promised {f.FullName} {What(world, p)}: {left}",
+            nearDeadline ? $"We promised {f.FullName} {What(world, p)}: {left}"
+                : Lifers.Gendered(f, $"Last fight on {f.FullName}'s deal: we promised him {What(world, p)}"),
             Lifers.Gendered(f, $"We promised {f.FullName} {What(world, p)} by {p.Deadline:d MMMM yyyy}, and {left}. "
                 + $"{fix} (a fight booked before the deadline counts if the card is within {GraceDays} days of it)."
                 + (lastFight ? " His deal is down to its last fight: if he leaves us without it, the promise is broken." : "")
@@ -473,10 +525,6 @@ public static class Promises
         }
         return n;
     }
-
-    private static bool Notable(World world, Fighter f) =>
-        f.Designed || f.Intangibles.Popularity.Value >= 45
-        || world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
 
     // --- The read model -------------------------------------------------------------------
 

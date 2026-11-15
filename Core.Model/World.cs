@@ -104,7 +104,7 @@ public sealed class World
     // --- Id generation ------------------------------------------------------
     // Kept private so ids can only come from here. After loading a save, call
     // SyncIdCounters() so freshly generated ids never collide with saved ones.
-    private int _nextFighter, _nextPromotion, _nextTitle, _nextEvent, _nextFight, _nextCountry, _nextCity, _nextVenue, _nextCamp;
+    private int _nextFighter, _nextPromotion, _nextTitle, _nextEvent, _nextFight, _nextCountry, _nextCity, _nextVenue, _nextCamp, _nextPromise;
 
     public FighterId NewFighterId()     => new(++_nextFighter);
     public PromotionId NewPromotionId() => new(++_nextPromotion);
@@ -115,6 +115,9 @@ public sealed class World
     public CityId NewCityId()           => new(++_nextCity);
     public VenueId NewVenueId()         => new(++_nextVenue);
     public CampId NewCampId()           => new(++_nextCamp);
+
+    /// <summary>A fresh promise id (never reused, even after old promises are dropped: the counter is saved).</summary>
+    public int NewPromiseId()           => ++_nextPromise;
 
     /// <summary>
     /// Reset id counters to the highest id currently in use. The save reader calls
@@ -130,6 +133,7 @@ public sealed class World
         _nextCity      = Cities.Keys.Select(k => k.Value).DefaultIfEmpty(0).Max();
         _nextVenue     = Venues.Keys.Select(k => k.Value).DefaultIfEmpty(0).Max();
         _nextCamp      = Camps.Keys.Select(k => k.Value).DefaultIfEmpty(0).Max();
+        _nextPromise   = Promises.Select(p => p.Id).DefaultIfEmpty(0).Max();
 
         int maxFight = Events.Values
             .SelectMany(e => e.Card)
@@ -148,7 +152,7 @@ public sealed class World
     {
         ["fighter"] = _nextFighter, ["promotion"] = _nextPromotion, ["title"] = _nextTitle,
         ["event"] = _nextEvent, ["fight"] = _nextFight, ["country"] = _nextCountry,
-        ["city"] = _nextCity, ["venue"] = _nextVenue, ["camp"] = _nextCamp,
+        ["city"] = _nextCity, ["venue"] = _nextVenue, ["camp"] = _nextCamp, ["promise"] = _nextPromise,
     };
 
     /// <summary>Restore saved counters after <see cref="SyncIdCounters"/>; never lowers one below what is in use.</summary>
@@ -164,6 +168,7 @@ public sealed class World
         _nextCity = Pick("city", _nextCity);
         _nextVenue = Pick("venue", _nextVenue);
         _nextCamp = Pick("camp", _nextCamp);
+        _nextPromise = Pick("promise", _nextPromise);
     }
 
     // --- Convenience lookups ------------------------------------------------

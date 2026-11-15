@@ -260,7 +260,8 @@ internal static class SaveSchema
             CREATE TABLE promises (
                 ordinal INTEGER NOT NULL, id INTEGER NOT NULL, fighter_id INTEGER NOT NULL, promotion_id INTEGER NOT NULL,
                 kind TEXT NOT NULL, fights INTEGER NOT NULL, made TEXT NOT NULL, deadline TEXT NOT NULL,
-                state TEXT NOT NULL, resolved TEXT, warned INTEGER NOT NULL, note TEXT NOT NULL DEFAULT ''
+                state TEXT NOT NULL, resolved TEXT, warned INTEGER NOT NULL, note TEXT NOT NULL DEFAULT '',
+                title_id INTEGER, last_fight_warned_on TEXT
             );
 
 

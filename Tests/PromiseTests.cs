@@ -112,7 +112,8 @@ public class PromiseTests
         ContractLifecycle.Sign(world, f, deal, world.CurrentDate);
         var p = Assert.Single(world.Promises);
         Assert.Equal(PromiseKind.TitleShot, p.Kind);
-        Assert.Equal(world.CurrentDate.AddDays(Promises.DeadlineDays), p.Deadline);
+        Assert.Equal(world.CurrentDate.AddDays(Promises.DeadlineFor(deal.Fights)), p.Deadline);
+        Assert.Equal(div.Title, p.Title);
         Assert.Contains(world.Mail.Skip(mail), m => m.Subject == $"{f.FullName} will hold us to it");
         Assert.Single(Promises.For(world, f.Id));
     }
@@ -198,16 +199,111 @@ public class PromiseTests
         var withPromise = new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = Excl(promo), PromiseFights = 2 };
         Assert.Equal(s.DemandPurse(plain), s.DemandPurse(withPromise));
 
-        // A later promise kept mends the grievance.
+        // It is public: the news says so, and every fighter at our table is warier for a year.
+        Assert.Contains(world.News, n => n.Headline == $"{f.FullName} says {promo.Abbreviation} broke its word");
+        Assert.Equal(1m + Promises.WarinessPerBreak, Promises.Wariness(world, promo.Id, world.CurrentDate));
+        Assert.Equal(1m, Promises.Wariness(world, promo.Id, world.CurrentDate.AddDays(Promises.PublicDays + 1)));
+
+        // A promise kept the SAME day doesn't mend the grievance; one kept later does.
         var kept = new Promise
         {
-            Id = 99, Fighter = f.Id, Promotion = promo.Id, Kind = PromiseKind.Activity, Fights = 2,
+            Id = world.NewPromiseId(), Fighter = f.Id, Promotion = promo.Id, Kind = PromiseKind.Activity, Fights = 2,
             Made = world.CurrentDate, Deadline = world.CurrentDate.AddDays(365),
-            State = PromiseState.Kept, Resolved = world.CurrentDate.AddDays(1),
+            State = PromiseState.Kept, Resolved = p.Resolved,
         };
         world.Promises.Add(kept);
+        Assert.NotNull(Promises.Grievance(world, f, promo.Id, world.CurrentDate.AddDays(2)));
+        kept.Resolved = p.Resolved!.Value.AddDays(1);
         Assert.Null(Promises.Grievance(world, f, promo.Id, world.CurrentDate.AddDays(2)));
     }
+
+    [Fact]
+    public void ABrokenPromise_MakesEveryFightersPromisesFromThatPromotionWorthLess()
+    {
+        var (world, f, p) = Promised(PromiseKind.Activity, fights: 2);
+        var promo = Player(world);
+        var other = world.FreeAgents().Where(x => x.Status == FighterStatus.Active && !x.LocalTalent && promo.Divisions.Any(d => d.Matches(x)))
+            .OrderBy(x => x.Id.Value).First();
+        var exp = Exp(world, other);
+        var slip = new ContractOffer { Fighter = other.Id, Promotion = promo.Id, Fights = 4, PromiseFights = 3 };
+        double before = Promises.AppealOf(world, other, slip, exp);
+        decimal askBefore = new NegotiationSession(world, other, promo, exp).DemandPurse(Excl(promo), false).Amount;
+        Assert.True(before > 0);
+
+        ContractLifecycle.Release(world, f);   // he walks with it unkept: broken, and public
+        Assert.Equal(PromiseState.Broken, p.State);
+        Assert.Contains(world.News, n => n.Headline == $"{f.FullName} says {promo.Abbreviation} broke its word");
+        Assert.Equal(before * 0.5, Promises.AppealOf(world, other, slip, exp), 9);
+        Assert.True(new NegotiationSession(world, other, promo, exp).DemandPurse(Excl(promo), false).Amount >= askBefore);
+    }
+
+    [Fact]
+    public void APromisesDeadline_IsCappedAtTheDealsExpectedEnd()
+    {
+        Assert.Equal(Promises.DaysPerFight, Promises.DeadlineFor(1));
+        Assert.Equal(2 * Promises.DaysPerFight, Promises.DeadlineFor(2));
+        Assert.Equal(Promises.DeadlineDays, Promises.DeadlineFor(4));
+        var (world, f, p) = Promised(PromiseKind.TitleShot, dealFights: 2);
+        Assert.Equal(p.Made.AddDays(2 * Promises.DaysPerFight), p.Deadline);
+    }
+
+    // --- Warnings: the last fight of a deal, and the deadline, each warned in their own right ---
+
+    [Fact]
+    public void OnATwoFightDeal_TheLastFightWarning_DoesNotUseUpTheDeadlineWarning()
+    {
+        var (world, f, p) = Promised(PromiseKind.TitleShot, dealFights: 2);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.Null(p.LastFightWarnedOn);
+        Assert.False(p.Warned);
+
+        f.Contract!.FightsRemaining = 1;   // one fought
+        world.CurrentDate = world.CurrentDate.AddDays(30);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.Equal(world.CurrentDate, p.LastFightWarnedOn);
+        Assert.False(p.Warned);
+        int warnings = WarningsFor(world, f);
+        Promises.RunMonthly(world, world.CurrentDate.AddDays(1));
+        Assert.Equal(warnings, WarningsFor(world, f));   // once per deal
+
+        // Re-signed: the promise carries over, and a new deal's last fight is warned again.
+        world.CurrentDate = world.CurrentDate.AddDays(5);
+        var c = f.Contract;
+        ContractLifecycle.Sign(world, f, new ContractOffer
+        {
+            Fighter = f.Id, Promotion = c.Promotion, PursePerFight = c.PursePerFight, WinBonus = c.WinBonus, Fights = 4, Exclusive = c.IsExclusive,
+        }, world.CurrentDate);
+        Assert.True(p.Live);
+
+        // The deadline still gets its own warning.
+        world.CurrentDate = p.Deadline.AddDays(-30);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.True(p.Warned);
+        Assert.Equal(warnings + 1, WarningsFor(world, f));
+
+        foreach (var m in world.Mail) m.Read = true;   // (an unread identical letter isn't sent twice)
+        f.Contract!.FightsRemaining = 1;
+        Promises.RunMonthly(world, world.CurrentDate.AddDays(1));
+        Assert.Equal(warnings + 2, WarningsFor(world, f));   // the new deal's last fight
+    }
+
+    [Fact]
+    public void OnAOneFightDeal_BothWarningsCome()
+    {
+        var (world, f, p) = Promised(PromiseKind.TitleShot, dealFights: 1);
+        Assert.Equal(p.Made.AddDays(Promises.DaysPerFight), p.Deadline);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.NotNull(p.LastFightWarnedOn);
+        Assert.False(p.Warned);
+        world.CurrentDate = p.Deadline.AddDays(-20);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.True(p.Warned);
+        Assert.Equal(2, WarningsFor(world, f));
+    }
+
+    private static int WarningsFor(World world, Fighter f) =>
+        world.Mail.Count(m => m.AboutFighter == f.Id
+            && (m.Subject.StartsWith($"We promised {f.FullName}") || m.Subject.StartsWith($"Last fight on {f.FullName}'s deal")));
 
     [Fact]
     public void ATitleFightBookedBeforeTheDeadline_KeepsThePromiseOpenThroughTheGrace()
@@ -238,9 +334,81 @@ public class PromiseTests
             Severity = InjurySeverity.Moderate, Description = "broken hand",
             OccurredOn = deadline.AddDays(-30), ExpectedReturn = deadline.AddDays(40),
         };
+        p.Warned = true;   // (the old deadline was warned)
         Promises.RunMonthly(world, world.CurrentDate);
         Assert.True(p.Live);
         Assert.Equal(deadline.AddDays(40 + Promises.GraceDays), p.Deadline);
+        Assert.False(p.Warned, "a moved deadline is warned again");
+        f.CurrentInjury = null;
+        world.CurrentDate = p.Deadline.AddDays(-30);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.True(p.Warned);
+    }
+
+    [Fact]
+    public void ATitleShotPromise_IsKeptOnlyByThePromisedBelt()
+    {
+        var (world, f, p) = Promised(PromiseKind.TitleShot);
+        var promo = Player(world);
+        var otherDiv = promo.Divisions.First(d => !d.Matches(f));
+        var otherBelt = Belt(world, promo, otherDiv);
+        otherBelt.CurrentChampion = f.Id;   // a belt elsewhere is not the shot he was promised
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.True(p.Live);
+        otherBelt.CurrentChampion = null;
+
+        // A title fight for another belt doesn't keep it either.
+        world.CurrentDate = world.CurrentDate.AddDays(7);
+        var ev = Book(world, f, world.CurrentDate, title: true);
+        ev.Card[0].Title = otherBelt.Id;
+        ev.Status = EventStatus.Completed;
+        foreach (var x in ev.Card) x.Outcome = Win(x);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.True(p.Live);
+
+        // Holding the promised belt does.
+        world.Get(p.Title!.Value)!.CurrentChampion = f.Id;
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.Equal(PromiseState.Kept, p.State);
+    }
+
+    [Fact]
+    public void PromiseIds_AreNeverReused_AfterOldOnesAreDropped()
+    {
+        var (world, f, p) = Promised(PromiseKind.Activity, fights: 2);
+        int first = p.Id;
+        Lifecycle.Retire(world, f, world.CurrentDate);   // void
+        Promises.RunMonthly(world, world.CurrentDate.AddDays(Promises.KeepResolvedDays + 1));
+        Assert.Empty(world.Promises);
+        var g = HireOne(world);
+        var c = g.Contract!;
+        ContractLifecycle.Sign(world, g, new ContractOffer
+        {
+            Fighter = g.Id, Promotion = c.Promotion, PursePerFight = c.PursePerFight, Fights = 4, Exclusive = c.IsExclusive, PromiseFights = 2,
+        }, world.CurrentDate);
+        Assert.True(Assert.Single(world.Promises).Id > first);
+        Assert.True(world.IdCounters["promise"] > first);
+    }
+
+    // --- Leash terms always cost ----------------------------------------------------------------
+
+    [Fact]
+    public void AMatchingRightOrAClause_CostsEvenWhenHisLiveDealFloorsTheNumber()
+    {
+        var world = FoundedWorld(48);
+        var promo = Player(world);
+        var f = HireOne(world);
+        var exp = Exp(world, f);
+        f.Contract!.PursePerFight = new Money(exp.AskingPurse.Amount * 2m);   // a live purse far above his ask
+        var s = new NegotiationSession(world, f, promo, exp);
+        bool excl = Excl(promo);
+        var plain = s.DemandPurse(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl }).Amount;
+        Assert.Equal(f.Contract.PursePerFight.Amount, plain);   // the floor sets it
+        Assert.True(s.DemandPurse(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, MatchingRight = true }).Amount > plain);
+        Assert.True(s.DemandPurse(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, ChampionsClause = true }).Amount > plain);
+        Assert.True(s.View(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl }).MatchingRightCost.Amount > 0);
+        // The quoted ask agrees with the room on a clause.
+        Assert.Equal(s.DemandPurse(excl, true), AskingQuote.For(world, promo, f, exp, excl, clause: true).Purse);
     }
 
     // --- Lifecycle edges -----------------------------------------------------------------------
@@ -409,7 +577,7 @@ public class PromiseTests
 
     // A fighter of the player's from his home country (so a home show can be kept), signed
     // on a 4-fight deal carrying one promise, made today.
-    private static (World World, Fighter F, Promise P) Promised(PromiseKind kind, int fights = 0)
+    private static (World World, Fighter F, Promise P) Promised(PromiseKind kind, int fights = 0, int dealFights = 4)
     {
         var world = FoundedWorld(48);
         var promo = Player(world);
@@ -419,7 +587,7 @@ public class PromiseTests
         var c = f.Contract!;
         ContractLifecycle.Sign(world, f, new ContractOffer
         {
-            Fighter = f.Id, Promotion = promo.Id, PursePerFight = c.PursePerFight, WinBonus = c.WinBonus, Fights = 4,
+            Fighter = f.Id, Promotion = promo.Id, PursePerFight = c.PursePerFight, WinBonus = c.WinBonus, Fights = dealFights,
             Exclusive = c.IsExclusive,
             PromiseTitleShot = kind == PromiseKind.TitleShot, PromiseHomeShow = kind == PromiseKind.HomeShow,
             PromiseFights = kind == PromiseKind.Activity ? fights : 0,
