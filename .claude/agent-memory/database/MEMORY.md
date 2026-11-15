@@ -1,0 +1,1 @@
+- [Origins day-one canon](origins-day-one-canon.md) — 1993 content: 3 promos, 43 pioneers, voices; rules and feuds
