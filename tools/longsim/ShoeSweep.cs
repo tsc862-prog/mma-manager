@@ -70,7 +70,8 @@ public static class ShoeSweep
         public int FaWonPurseN, FaWonByFinal, FaRivalFolded, FaLostAfterFinal, FaFinalOffTerms, FaFinalTooDear, FaFinalNoCash;
         // Promises and matching rights (contracts stage 9): what the script wrote into renewals, and how each ended.
         public int PromTitle, PromActivity, PromKept, PromBroken, PromVoid, RightsBought, RightMatches;
-        public decimal PromPurseOffSum, RightMatchPurseSum, RightRivalPurseSum;
+        public decimal PromPurseOffSum, RightMatchPurseSum, RightRivalPurseSum, RightPremiumSum;
+        public int PromNoDiscount, PromAtWaryTable;
         public void Add(Diag o)
         {
             foreach (var fl in typeof(Diag).GetFields())
@@ -122,9 +123,9 @@ public static class ShoeSweep
         Console.WriteLine($"  DIAG free-agent finals: lodged {d.FaFinalsLodged} (none fit: too dear {d.FaFinalTooDear}, no real deal in budget {d.FaFinalOffTerms}, bank {d.FaFinalNoCash}) · rival raised {d.FaImproved} · rival folded {d.FaRivalFolded} · won by a final {d.FaWonByFinal} · lost after a final {d.FaLostAfterFinal}");
 
         if (Promising)
-            Console.WriteLine($"  DIAG promises: made {d.PromTitle + d.PromActivity} (title shot {d.PromTitle}, activity {d.PromActivity}; mean purse off {(d.PromTitle + d.PromActivity == 0 ? 0 : d.PromPurseOffSum / (d.PromTitle + d.PromActivity)):0})"
+            Console.WriteLine($"  DIAG promises: made {d.PromTitle + d.PromActivity} (title shot {d.PromTitle}, activity {d.PromActivity}; the promise alone took a mean {(d.PromTitle + d.PromActivity == 0 ? 0 : d.PromPurseOffSum / (d.PromTitle + d.PromActivity)):0} off his number, nothing after $500 rounding {d.PromNoDiscount}, at a table warier from a public break {d.PromAtWaryTable})"
                 + $" · kept {d.PromKept} · broken {d.PromBroken} · void {d.PromVoid}"
-                + $" · matching rights bought {d.RightsBought}, used {d.RightMatches} (mean match purse {(d.RightMatches == 0 ? 0 : d.RightMatchPurseSum / d.RightMatches):0} vs rival {(d.RightMatches == 0 ? 0 : d.RightRivalPurseSum / d.RightMatches):0})");
+                + $" · matching rights bought {d.RightsBought} (mean premium {(d.RightsBought == 0 ? 0 : d.RightPremiumSum / d.RightsBought):0}), used {d.RightMatches} (mean match purse {(d.RightMatches == 0 ? 0 : d.RightMatchPurseSum / d.RightMatches):0} vs rival {(d.RightMatches == 0 ? 0 : d.RightRivalPurseSum / d.RightMatches):0})");
         Console.WriteLine($"  DIAG belts: champions renewed by the AI {d.ChampAiRenewals} (below his ask {d.ChampAiRenewBelowAsk}) · all AI renewals below his ask {d.AiRenewBelowAsk}/{d.AiRenewals}"
             + $" · champions who left {d.ChampLeft} · belts filled {(d.BeltChecks == 0 ? 0 : 100.0 * d.BeltHeldChecks / d.BeltChecks):0.0}% of monthly checks · title fights {d.TitleFights} on {d.Cards} cards");
         foreach (var r in all.Where(r => r.Seed is 3 or 5))
@@ -215,7 +216,9 @@ public static class ShoeSweep
             // Promises (contracts stage 9; off with --no-promises): about half the renewals (a hash
             // of the fighter and the day) carry one — a title shot to a top-2 contender, else two
             // fights in the year — and a man who matters gets a matching right written in.
-            decimal unpromised = offer.PursePerFight.Amount;
+            // DIAG, measured as the slip is drawn up, both sides at the same table (so any public
+            // wariness scales both): what the promise alone takes off, and what the right alone adds.
+            decimal promiseOff = 0m, rightPremium = 0m;
             if (Promising && ((uint)f.Id.Value * 2654435761u ^ (uint)world.CurrentDate.DayNumber * 40503u) % 2u == 0u)
             {
                 var (champ, top2) = Matters(world, org, f);
@@ -223,7 +226,18 @@ public static class ShoeSweep
                 if (top2 && Promises.Refusal(world, org, f, PromiseKind.TitleShot, 0, exp.DesiredFights) is null) slip.PromiseTitleShot = true;
                 else if (Promises.Refusal(world, org, f, PromiseKind.Activity, 2, exp.DesiredFights) is null) slip.PromiseFights = 2;
                 slip.MatchingRight = champ || top2 || f.Intangibles.Popularity.Value >= 40;
-                if (slip.HasPromises || slip.MatchingRight) offer = session.TheirTermsAsOffer(slip);
+                if (slip.HasPromises || slip.MatchingRight)
+                {
+                    var promisesOnly = new ContractOffer
+                    {
+                        Fighter = f.Id, Promotion = org.Id, Exclusive = slip.Exclusive,
+                        PromiseTitleShot = slip.PromiseTitleShot, PromiseFights = slip.PromiseFights,
+                    };
+                    var plainSlip = new ContractOffer { Fighter = f.Id, Promotion = org.Id, Exclusive = slip.Exclusive };
+                    promiseOff = session.DemandPurse(plainSlip).Amount - session.DemandPurse(promisesOnly).Amount;
+                    rightPremium = session.DemandPurse(slip).Amount - session.DemandPurse(promisesOnly).Amount;
+                    offer = session.TheirTermsAsOffer(slip);
+                }
             }
             decimal budget = Math.Max(maxAsk, f.Contract.PursePerFight.Amount * 1.5m);
             if (KeepToCap) budget = Math.Max(budget, Negotiator.PurseCap(world, org));
@@ -259,8 +273,13 @@ public static class ShoeSweep
             {
                 if (offer.PromiseTitleShot) diag.PromTitle++;
                 if (offer.PromiseFights > 0) diag.PromActivity++;
-                if (offer.HasPromises) diag.PromPurseOffSum += unpromised - offer.PursePerFight.Amount;
-                if (offer.MatchingRight) diag.RightsBought++;
+                if (offer.HasPromises)
+                {
+                    diag.PromPurseOffSum += promiseOff;
+                    if (promiseOff <= 0m) diag.PromNoDiscount++;
+                    if (Promises.Wariness(world, org.Id, world.CurrentDate) > 1m) diag.PromAtWaryTable++;
+                }
+                if (offer.MatchingRight) { diag.RightsBought++; diag.RightPremiumSum += rightPremium; }
             }
             ContractLifecycle.Sign(world, f, offer, world.CurrentDate);
             n++;

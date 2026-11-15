@@ -118,6 +118,38 @@ public class PromiseTests
         Assert.Single(Promises.For(world, f.Id));
     }
 
+    [Fact]
+    public void APromise_NeverRaisesHisNumber()
+    {
+        var world = FoundedWorld(48);
+        var promo = Player(world);
+        bool excl = Excl(promo);
+        foreach (var div in promo.Divisions) Belt(world, promo, div);
+        int lower = 0, same = 0;
+        var people = world.FreeAgents().Where(x => x.Status == FighterStatus.Active && !x.LocalTalent && promo.Divisions.Any(d => d.Matches(x)))
+            .OrderBy(x => x.Id.Value).Take(60).ToList();
+        foreach (var f in people)
+        {
+            var exp = Exp(world, f);
+            var s = new NegotiationSession(world, f, promo, exp);
+            decimal plain = s.DemandPurse(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl }).Amount;
+            foreach (var slip in new[]
+            {
+                new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, PromiseTitleShot = true },
+                new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, PromiseFights = 2 },
+                new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, PromiseFights = 4 },
+            })
+            {
+                decimal promised = s.DemandPurse(slip).Amount;
+                Assert.True(promised <= plain, $"{f.FullName}: a promise raised his number {plain} -> {promised}");
+                if (promised < plain) lower++; else same++;
+            }
+        }
+        _out.WriteLine($"promises priced on {people.Count} free agents: lowered his number {lower} times, no change after the $500 step {same}");
+        // Most free agents are small purses: a 1-3% promise discount often disappears in his $500 step.
+        Assert.True(lower > 0, "some promises must be worth money");
+    }
+
     // --- The monthly test --------------------------------------------------------------------
 
     [Fact]
