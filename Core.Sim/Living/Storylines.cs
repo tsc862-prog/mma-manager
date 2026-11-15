@@ -579,6 +579,7 @@ public static class Storylines
     /// </summary>
     public static void MaybeSuperfight(World world, DateOnly date, SimRandom rng)
     {
+        if (!Era.Allows(world, Capability.Superfights)) return;   // before the draw: today's mode draws exactly as it did
         if (!rng.Chance(0.05)) return;   // a couple of attempts a year, world-wide
 
         foreach (var promo in world.Promotions.Values

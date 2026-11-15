@@ -26,7 +26,17 @@ internal static class SaveSchema
                 rng_seed TEXT NOT NULL,
                 player_promotion INTEGER,
                 owner_notes TEXT NOT NULL DEFAULT '',
-                last_acquisition TEXT
+                last_acquisition TEXT,
+                mode TEXT NOT NULL DEFAULT 'Modern'
+            );
+
+            CREATE TABLE era_chapters (
+                ordinal INTEGER NOT NULL, key TEXT NOT NULL, fired_on TEXT NOT NULL,
+                promotion_id INTEGER, fighter_id INTEGER, note TEXT
+            );
+
+            CREATE TABLE era_unlocks (
+                ordinal INTEGER NOT NULL, capability TEXT NOT NULL
             );
 
             CREATE TABLE id_counters (

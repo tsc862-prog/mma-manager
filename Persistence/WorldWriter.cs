@@ -22,6 +22,7 @@ internal sealed class WorldWriter
         WriteNews(world);
         WriteMail(world);
         WriteShortlist(world);
+        WriteEra(world);
         WriteOrg(world);
         WriteRivalries(world);
         WriteGlobalRankings(world);
@@ -408,7 +409,7 @@ internal sealed class WorldWriter
     private void WriteMeta(World w)
     {
         using var cmd = _c.Cmd(_tx,
-            "INSERT INTO meta (save_version, current_date, start_date, rng_seed, player_promotion, owner_notes, last_acquisition) VALUES ($v,$d,$sd,$s,$p,$n,$la)");
+            "INSERT INTO meta (save_version, current_date, start_date, rng_seed, player_promotion, owner_notes, last_acquisition, mode) VALUES ($v,$d,$sd,$s,$p,$n,$la,$mo)");
         cmd.Bind("$v", World.LatestSaveVersion);
         cmd.Bind("$d", Db.Date(w.CurrentDate));
         cmd.Bind("$sd", Db.Date(w.StartDate));
@@ -416,7 +417,38 @@ internal sealed class WorldWriter
         cmd.Bind("$p", w.PlayerPromotion.Value == 0 ? DBNull.Value : w.PlayerPromotion.Value);
         cmd.Bind("$n", w.OwnerNotes);
         cmd.Bind("$la", Db.DateN(w.LastAcquisitionOn));
+        cmd.Bind("$mo", w.Mode.ToString());
         cmd.ExecuteNonQuery();
+    }
+
+    // The sport's own history (Origins): fired chapters in firing order, unlocked
+    // capabilities by their stable id. Both empty in today's mode.
+    private void WriteEra(World w)
+    {
+        using var ch = _c.Cmd(_tx,
+            "INSERT INTO era_chapters (ordinal, key, fired_on, promotion_id, fighter_id, note) VALUES ($o,$k,$d,$p,$f,$n)");
+        for (int i = 0; i < w.Era.Chapters.Count; i++)
+        {
+            var c = w.Era.Chapters[i];
+            ch.Parameters.Clear();
+            ch.Bind("$o", i);
+            ch.Bind("$k", c.Key);
+            ch.Bind("$d", Db.Date(c.FiredOn));
+            ch.Bind("$p", Db.IdN(c.Promotion?.Value));
+            ch.Bind("$f", Db.IdN(c.Fighter?.Value));
+            ch.Bind("$n", Db.Text(c.Note));
+            ch.ExecuteNonQuery();
+        }
+
+        using var un = _c.Cmd(_tx, "INSERT INTO era_unlocks (ordinal, capability) VALUES ($o,$c)");
+        int ordinal = 0;
+        foreach (var id in w.Era.Unlocked)
+        {
+            un.Parameters.Clear();
+            un.Bind("$o", ordinal++);
+            un.Bind("$c", id);
+            un.ExecuteNonQuery();
+        }
     }
 
     private void WriteShortlist(World w)
