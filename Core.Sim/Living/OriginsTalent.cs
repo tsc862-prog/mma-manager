@@ -180,12 +180,16 @@ public static class OriginsTalent
         return made;
     }
 
+    /// <summary>The size of the sport the intake keeps up (about the day-one world: three houses and their market).</summary>
+    public const int TargetActives = 110;
+
     /// <summary>
-    /// How many new men turn pro this month in an Origins world: those who left are replaced, plus one more
-    /// while the open market is thin (a third of the sport unsigned is plenty for three promotions).
+    /// How many new men turn pro this month in an Origins world: those who left are replaced, and a sport
+    /// that has shrunk below <see cref="TargetActives"/> (men also leave by routes the month doesn't count)
+    /// draws a few more, up to four, from the gyms. Phase 3's scenes will grow the target.
     /// </summary>
     public static int MonthlyIntake(int leavers, int actives, int unsigned) =>
-        leavers + (unsigned > actives / 3 ? 0 : 1);
+        leavers + Math.Clamp((TargetActives - actives) / 6, 0, 4);
 
     /// <summary>
     /// The month's intake of new men in an Origins world: young specialists from the countries that HAVE a
