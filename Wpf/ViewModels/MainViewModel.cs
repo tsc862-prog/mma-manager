@@ -93,6 +93,7 @@ public sealed class MainViewModel : ObservableObject
         RetainFighterCommand = new RelayCommand(RetainSelected, () => CanRetainSelected);
         NegotiateFighterCommand = new RelayCommand<int>(NegotiateFighter);
         LetCourtedGoCommand = new RelayCommand<int>(LetCourtedGo);
+        BookFighterCommand = new RelayCommand<int>(BookFighter);
         ToggleMarketingCommand = new RelayCommand(ToggleMarketingSelected, () => SelectedIsMine);
         ToggleCampStipendCommand = new RelayCommand(ToggleCampStipendSelected, () => SelectedIsMine);
         MakeFaceCommand = new RelayCommand(MakeFaceSelected, () => SelectedIsMine);
@@ -123,6 +124,7 @@ public sealed class MainViewModel : ObservableObject
         AppCommands.ToggleShortlist = ToggleShortlistCommand;
         AppCommands.OpenOrg = OpenOrgCommand;
         AppCommands.OpenEvent = OpenEventCommand;
+        AppCommands.BookFighter = BookFighterCommand;             // "Book him": a promise to keep, a letter
         News.OpenFighterCommand = OpenFighterCommand;             // follow a story to its people
         News.OpenOrgCommand = OpenOrgCommand;
         News.OpenEventCommand = OpenEventCommand;
@@ -344,6 +346,70 @@ public sealed class MainViewModel : ObservableObject
         {
             StatusText = $"Can't open talks with {f.FullName}: under contract with {theirs.Abbreviation}. Wait for the deal to run out, then bid.";
         }
+    }
+
+    /// <summary>"Book him" (parameter = fighter id): the Card Desk with him in the first corner.</summary>
+    public ICommand BookFighterCommand { get; }
+
+    /// <summary>
+    /// "Book him": open the Card Desk on the next card of yours he can make (for a promised
+    /// fight at home, the soonest card in his country first), with him in the first corner
+    /// and the finder looking for his opponent. No card on the calendar: the Planner, and why.
+    /// </summary>
+    private void BookFighter(int fighterId)
+    {
+        if (_world is null || _world.Get(new FighterId(fighterId)) is not { } f) return;
+        var w = _world;
+        string name = $"{f.FirstName} {f.LastName}";
+        // His deal is fought out: nobody can book him until he re-signs. The table, and why.
+        if (DeskCalls.FoughtOut(w, f))
+        {
+            NegotiateFighter(fighterId);
+            StatusText = DeskCalls.FoughtOutLine(f);
+            return;
+        }
+        // Cards still open for bouts: from tomorrow (fight night's card is already being run).
+        var cards = w.Events.Values
+            .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == w.PlayerPromotion && e.Date > w.CurrentDate)
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value).ToList();
+        bool OnIt(Event e) => e.Card.Any(x => x.RedCorner == f.Id || x.BlueCorner == f.Id);
+        bool CanMake(Event e) => !OnIt(e) && ForwardCalendar.WhyUnavailable(w, e, f.Id) is null;
+        bool AtHome(Event e) => MmaManager.Core.Sim.Geography.WorldMap.CityOf(w, e) is { } c && w.Get(c)?.Country == f.Country;
+        bool wantsHome = DeskCalls.OpenPromises(w).Any(x => x.Fighter.Id == f.Id && x.Status.Kind == PromiseKind.HomeShow);
+        var pick = (wantsHome ? cards.FirstOrDefault(e => CanMake(e) && AtHome(e)) : null)
+                   ?? cards.FirstOrDefault(CanMake);
+        if (pick is null)
+        {
+            // No card can take him: the Planner, with the real reason (the sim's own availability rule).
+            string why = cards.Count == 0
+                ? $"There's no card of yours on the calendar to book {name} on. Plan one, then book him."
+                : cards.All(OnIt)
+                    ? $"{name} is already booked on every card you have. Plan another to give him one more fight."
+                    : cards.First(e => !OnIt(e)) is var first && ForwardCalendar.WhyUnavailable(w, first, f.Id) is { } off
+                        ? $"{name} {off} for {first.Name} ({first.Date:d MMM})" + (cards.Count(e => !OnIt(e)) > 1 ? ", or any later card of yours." : ".")
+                          + " Plan a card he can make."
+                        : $"No card of yours can take {name}. Plan one he can make.";
+            NavigateTo(Tab.Planner);
+            StatusText = Lifers.Gendered(f, why);
+            return;
+        }
+        // The player is part-way through a pairing on the desk: ask before putting him in its place.
+        if (Booking.IsMidPairing(f.Id) && !HeadlessAutoBoot
+            && !MessageWindow.Ask(Lifers.Gendered(f, $"Put {name} in the first corner?"),
+                $"You're in the middle of building a bout on the card desk ({Booking.PairingLine}).",
+                Lifers.Gendered(f, $"Booking {name} drops that pairing; nothing on the card itself changes until you add a bout."),
+                Lifers.Gendered(f, "Book him"), keep: "Keep my pairing"))
+        {
+            NavigateTo(Tab.BookEvent);
+            return;
+        }
+        Booking.SelectEvent(pick.Id);
+        Booking.FindOpponentFor(f.Id);
+        NavigateTo(Tab.BookEvent);
+        StatusText = Booking.SelectedRed?.Id == f.Id
+            ? Lifers.Gendered(f, $"Booking {name} on {pick.Name} ({pick.Date:d MMM}): pick his opponent."
+                + (wantsHome && !AtHome(pick) ? " None of your cards is in his home country yet: plan one there to keep that promise." : ""))
+            : Lifers.Gendered(f, $"{name} couldn't be put on {pick.Name}: {Booking.Status}");
     }
 
     /// <summary>

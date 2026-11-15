@@ -1008,7 +1008,10 @@ public partial class App : Application
         }
 
         // THE TABLE (the negotiation window) in one of its states:
-        // `MmaManager.Wpf --rendertable <none|talked|endofdeal|broke|freeagent|letgo|lodged|cameback|notenough> [--afc] <path>`.
+        // `MmaManager.Wpf --rendertable <none|talked|endofdeal|broke|freeagent|letgo|lodged|cameback|notenough|promises|wary> [--afc] <path>`.
+        // promises: an AFC contender who wants a belt, re-signing, with a title shot and a matching right
+        // on the slip (then his number is met and signed, and the signing line printed); wary: the same
+        // with a promise to someone else broken in public a month ago.
         // A newly founded shoestring promotion (seed 7) unless --afc (the quick-start AFC career).
         // Rival offers are planted by hand (harness only): the biggest other promotion puts
         // paper in front of the top free agent (freeagent, lodged, cameback, notenough) or the
@@ -1025,7 +1028,9 @@ public partial class App : Application
                 string scenario = e.Args[at + 1];
                 var win = new MainWindow();
                 var vm = (MainViewModel)win.DataContext;
-                if (!e.Args.Contains("--afc"))
+                // (promises / wary sit down with an AFC contender: a promotion with belts to promise a shot at.)
+                bool promising = scenario is "promises" or "wary";
+                if (!e.Args.Contains("--afc") && !promising)
                     vm.StartWorld(new WorldBuilder.Options
                     {
                         Seed = 7,
@@ -1037,6 +1042,83 @@ public partial class App : Application
                 var w = vm.LiveWorld!;
                 var mine = w.Get(w.PlayerPromotion)!;
                 var valuation = new MmaManager.Core.Sim.Contracts.FighterValuation();
+
+                if (promising)
+                {
+                    // Re-signing talks with a contender (ranked #2-#4 in a division with a reigning
+                    // champion) who wants a belt most, by his own priorities.
+                    var who2 = mine.Divisions.Where(d => d.Title is { } t && w.Get(t)?.CurrentChampion is not null)
+                        .SelectMany(d => d.Rankings.Skip(1).Take(3))
+                        .Select(id => w.Get(id)).OfType<MmaManager.Core.Model.Fighter>()
+                        .Where(f => f.Contract?.Promotion == mine.Id && f.Status == MmaManager.Core.Model.FighterStatus.Active)
+                        .OrderByDescending(f => valuation.Evaluate(w, f).Priorities.TitleOpportunity).ThenBy(f => f.Id.Value).First();
+                    if (scenario == "wary")
+                    {
+                        // Harness only: a promise to someone else broken a month ago, in public.
+                        var other = w.RosterOf(mine.Id).First(f => f.Id != who2.Id && f.Status == MmaManager.Core.Model.FighterStatus.Active);
+                        w.Promises.Add(new MmaManager.Core.Model.Promise
+                        {
+                            Id = w.NewPromiseId(), Fighter = other.Id, Promotion = mine.Id, Kind = MmaManager.Core.Model.PromiseKind.Activity, Fights = 3,
+                            Made = w.CurrentDate.AddDays(-400), Deadline = w.CurrentDate.AddDays(-90),
+                            State = MmaManager.Core.Model.PromiseState.Broken, Resolved = w.CurrentDate.AddDays(-30), Note = "the deadline passed",
+                        });
+                    }
+                    var pExp = valuation.Evaluate(w, who2);
+                    var pSession = MmaManager.Core.Sim.Contracts.NegotiationSession.Resume(w, who2, mine, pExp);
+                    var pVm = new NegotiationViewModel(w, who2, mine, pExp, pSession, renewal: true);
+                    string before = pVm.HisPurse;
+                    string statedTitle = pVm.TitlePromise.Effect;
+                    pVm.TitlePromise.IsOn = true;
+                    string withShot = pVm.HisPurse;
+                    string statedRight = pVm.MatchingRightEffect;
+                    pVm.OfferMatchingRight = true;
+                    // Check: the stated discount and cost are exactly how far his number moves.
+                    decimal Amt(string s) => decimal.Parse(s.TrimStart('$').Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture);
+                    Console.WriteLine($"RENDERTABLE   check: title stated '{statedTitle}', moved {Amt(before) - Amt(withShot):N0}; right stated '{statedRight}', moved {Amt(pVm.HisPurse) - Amt(withShot):N0}");
+                    Console.WriteLine($"RENDERTABLE {scenario}: {who2.FullName} (title priority {pExp.Priorities.TitleOpportunity}); his purse {before} -> {withShot} with a title shot -> {pVm.HisPurse} with a matching right too");
+                    Console.WriteLine($"RENDERTABLE   title: {pVm.TitlePromise.Allowed} | {pVm.TitlePromise.Note} | {pVm.TitlePromise.Effect}");
+                    Console.WriteLine($"RENDERTABLE   home:  {pVm.HomePromise.Allowed} | {pVm.HomePromise.Note} | {pVm.HomePromise.Effect}");
+                    Console.WriteLine($"RENDERTABLE   fights:{pVm.ActivityPromise.Allowed} | {pVm.ActivityPromise.Note} | {pVm.ActivityPromise.Effect} | picks {string.Join(",", pVm.ActivityPromise.Picks.Select(pk => $"{pk.Fights}{(pk.IsChecked ? "*" : "")}{(pk.Allowed ? "" : "x")}"))}");
+                    Console.WriteLine($"RENDERTABLE   right: {pVm.MatchingRightEffect} | held '{pVm.MatchingRightHeld}' | wary '{pVm.WaryLine}' | stance '{pVm.Stance}'");
+                    RenderRoom(pVm, who2.FullName);
+                    if (scenario == "promises")
+                    {
+                        // Meet his number with the promise on the slip, and sign it as the Contracts desk does
+                        // (a fresh view model: the drawn window still listens to the first one).
+                        var sVm = new NegotiationViewModel(w, who2, mine, pExp,
+                            MmaManager.Core.Sim.Contracts.NegotiationSession.Resume(w, who2, mine, pExp), renewal: true);
+                        sVm.TitlePromise.IsOn = true;
+                        sVm.OfferMatchingRight = true;
+                        sVm.MeetTermsCommand.Execute(null);
+                        if (sVm.SignedOffer is { } deal)
+                        {
+                            MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(w, who2, deal, w.CurrentDate);
+                            Console.WriteLine($"RENDERTABLE   signed: '{ContractsViewModel.PromisedAtSigning(w, who2, deal).Trim()}'");
+                        }
+                        else Console.WriteLine($"RENDERTABLE   not signed: {sVm.HisLine}");
+                    }
+                    Environment.Exit(0);
+                    return;
+                }
+
+                // The window drawn off-screen at its own size, written to the last argument.
+                void RenderRoom(NegotiationViewModel rvm, string name)
+                {
+                    var rw = new NegotiationWindow { DataContext = rvm };
+                    var rr = (FrameworkElement)rw.Content;
+                    rw.Content = null;
+                    var rs = new Size(rw.Width, rw.Height);
+                    var rh = new System.Windows.Controls.Border { Background = (Brush)Current.Resources["Bg"] ?? Brushes.Black, Child = rr, DataContext = rvm };
+                    rh.Measure(rs); rh.Arrange(new Rect(rs)); rh.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                    rh.Measure(rs); rh.Arrange(new Rect(rs)); rh.UpdateLayout();
+                    var rb = new RenderTargetBitmap((int)rs.Width, (int)rs.Height, 96, 96, PixelFormats.Pbgra32);
+                    rb.Render(rh);
+                    var re = new PngBitmapEncoder(); re.Frames.Add(BitmapFrame.Create(rb));
+                    using (var fs = File.Create(e.Args[^1])) re.Save(fs);
+                    Console.WriteLine($"RENDERTABLE {scenario} OK -> {Path.GetFullPath(e.Args[^1])}: {name}");
+                    rw.Close();
+                }
 
                 bool endOfDeal = scenario is "endofdeal" or "broke";
                 var freeAgents = w.Fighters.Values.Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is null && !f.LocalTalent)
@@ -1122,6 +1204,176 @@ public partial class App : Application
                 roomWin.Close();
             }
             catch (Exception ex) { Console.WriteLine("RENDERTABLE FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
+        // PROMISES around the app: `MmaManager.Wpf --renderpromises <profile|briefing|home|planner> W H <path>`.
+        // The quick-start AFC career with promises planted by hand (harness only): one of your
+        // fighters was promised 3 fights in a year, due in 45 days with nothing booked (at risk),
+        // and had a fight at home kept for him last year; another was promised a title shot whose
+        // deadline is long gone. Then the real advance: week by week until the monthly test breaks
+        // the old one. profile = his profile; home = Home's "Needs you"; planner = the Planner;
+        // briefing = the briefing after the first week (the promise headlined) and, written beside
+        // it as <path>-broken.png, the briefing the week the other promise broke. Every promise
+        // letter in the inbox is printed with its buttons.
+        if (e.Args.Contains("--renderpromises"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--renderpromises");
+                string scenario = e.Args[at + 1];
+                int W = int.Parse(e.Args[at + 2]), H = int.Parse(e.Args[at + 3]);
+                string p = e.Args[^1];
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                vm.BriefingOnStop = true;
+                var root = (FrameworkElement)win.Content;
+                var size = new Size(W, H);
+                void Layout()
+                {
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                }
+                void Shot(string path)
+                {
+                    Layout();
+                    var settle = System.Diagnostics.Stopwatch.StartNew();
+                    while (Portraits.PendingThumbs > 0 && settle.ElapsedMilliseconds < 15000)
+                    {
+                        System.Threading.Thread.Sleep(2);
+                        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => { }));
+                    }
+                    Layout();
+                    var rtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
+                    rtb.Render(root);
+                    var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                    using (var fs = File.Create(path)) enc.Save(fs);
+                    Console.WriteLine("RENDERPROMISES OK -> " + Path.GetFullPath(path));
+                }
+                Layout();
+                var w = vm.LiveWorld!;
+                var mine = w.Get(w.PlayerPromotion)!;
+                var today = w.CurrentDate;
+                bool Booked(MmaManager.Core.Model.Fighter f) => w.Events.Values.Any(ev => ev.Status == MmaManager.Core.Model.EventStatus.Scheduled
+                    && ev.Card.Any(x => x.RedCorner == f.Id || x.BlueCorner == f.Id));
+                bool Champ(MmaManager.Core.Model.Fighter f) => w.Titles.Values.Any(t => t.CurrentChampion == f.Id);
+                var pool = w.RosterOf(mine.Id).Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is { FightsRemaining: >= 3 }
+                                                          && !Booked(f) && !Champ(f) && !f.LocalTalent)
+                    .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).ToList();
+                var x = pool[0];
+                var y = pool.Skip(1).First(f => mine.Divisions.Any(d => d.Matches(f) && d.Title is not null && !d.Rankings.Take(10).Contains(f.Id)));
+                var yTitle = mine.Divisions.First(d => d.Matches(y)).Title;
+                w.Promises.Add(new MmaManager.Core.Model.Promise
+                {
+                    Id = w.NewPromiseId(), Fighter = x.Id, Promotion = mine.Id, Kind = MmaManager.Core.Model.PromiseKind.HomeShow,
+                    Made = today.AddDays(-700), Deadline = today.AddDays(-335),
+                    State = MmaManager.Core.Model.PromiseState.Kept, Resolved = today.AddDays(-400), Note = "kept",
+                });
+                w.Promises.Add(new MmaManager.Core.Model.Promise
+                {
+                    Id = w.NewPromiseId(), Fighter = x.Id, Promotion = mine.Id, Kind = MmaManager.Core.Model.PromiseKind.Activity, Fights = 3,
+                    Made = today.AddDays(-320), Deadline = today.AddDays(45),
+                });
+                // The one that breaks: its deadline just passed with nothing booked (it breaks when the month turns).
+                MmaManager.Core.Model.Promise? broken = null;
+                void PlantBreak()
+                {
+                    broken = new MmaManager.Core.Model.Promise
+                    {
+                        Id = w.NewPromiseId(), Fighter = y.Id, Promotion = mine.Id, Kind = MmaManager.Core.Model.PromiseKind.TitleShot, Title = yTitle,
+                        Made = w.CurrentDate.AddDays(-370), Deadline = w.CurrentDate.AddDays(-5), Warned = true,
+                    };
+                    w.Promises.Add(broken);
+                }
+                if (scenario != "briefing") PlantBreak();
+                Console.WriteLine($"RENDERPROMISES at risk: {x.FullName}; to break: {y.FullName}; {today:d MMM yyyy}");
+                vm.Contracts.OnChanged?.Invoke();   // the app-wide refresh
+
+                void Week()
+                {
+                    vm.AdvanceWeekCommand.Execute(null);
+                    if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+                    vm.Moments.Reset();
+                    Console.WriteLine($"RENDERPROMISES week to {w.CurrentDate:d MMM}: briefing {vm.Briefing.Kind} | {vm.Briefing.Headline} | {y.FullName}'s promise {broken?.State.ToString() ?? "not made yet"}");
+                }
+                void Letters()
+                {
+                    vm.Mail.Attach(w);
+                    foreach (var l in vm.Mail.Letters.Where(l => l.FighterId == x.Id.Value || l.FighterId == y.Id.Value))
+                        Console.WriteLine($"RENDERPROMISES letter '{l.Subject}': [{string.Join(" | ", l.Actions.Select(a => (a.IsPrimary ? "*" : "") + a.Text))}] {l.ActionNote}");
+                }
+
+                switch (scenario)
+                {
+                    case "briefing":
+                        Week();
+                        vm.Desktop.Open("briefing");
+                        Console.WriteLine($"RENDERPROMISES briefing: {vm.Briefing.Kicker} | {vm.Briefing.Headline} | {vm.Briefing.Lede}");
+                        Console.WriteLine($"RENDERPROMISES actions: {string.Join(" | ", vm.Briefing.Actions.Select(a => (a.IsPrimary ? "*" : "") + a.Text))}");
+                        Shot(p);
+                        PlantBreak();
+                        for (int i = 0; i < 6 && broken!.State == MmaManager.Core.Model.PromiseState.Open; i++) Week();
+                        vm.Desktop.Open("briefing");
+                        Console.WriteLine($"RENDERPROMISES digest: {string.Join(" / ", vm.Briefing.DigestShown.Select(i => $"[{i.Kicker}] {i.Text} — {i.Detail}"))}");
+                        Console.WriteLine($"RENDERPROMISES waiting: {string.Join(" / ", vm.Briefing.Waiting.Select(i => $"{i.Text} ({i.Detail}) {i.ActionText}"))}");
+                        Shot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-broken.png"));
+                        Letters();
+                        break;
+                    case "profile":
+                    case "home":
+                    case "planner":
+                        // profile: stop the week before the old promise breaks (both open, the old one overdue);
+                        // home / planner: a couple of weeks on.
+                        if (scenario != "profile") { Week(); Week(); }
+                        foreach (var d in vm.Desktop.Windows.ToList()) vm.Desktop.Close(d);
+                        if (scenario == "profile") vm.OpenFighter(x.Id.Value);
+                        else vm.Desktop.Open(scenario);
+                        Shot(p);
+                        Letters();
+                        if (scenario == "profile")
+                        {
+                            // "Book him": with no card, the Planner and why; with a card planned, the card desk with
+                            // him in the first corner (drawn beside the profile as <path>-bookhim.png).
+                            AppCommandsBook(x.Id.Value);
+                            Console.WriteLine($"RENDERPROMISES book him (no card) -> windows [{string.Join(", ", vm.Desktop.Windows.Select(d => d.Spec.Id))}]; strip: {vm.StatusText}");
+                            vm.Booking.NewEventDate = w.CurrentDate.ToDateTime(TimeOnly.MinValue).AddDays(24);
+                            vm.Booking.NewEventCommand.Execute(null);
+                            vm.Contracts.OnChanged?.Invoke();
+                            foreach (var d in vm.Desktop.Windows.ToList()) vm.Desktop.Close(d);
+                            AppCommandsBook(x.Id.Value);
+                            Console.WriteLine($"RENDERPROMISES book him -> windows [{string.Join(", ", vm.Desktop.Windows.Select(d => d.Spec.Id))}], red corner {vm.Booking.SelectedRed?.Id.Value.ToString() ?? "none"}, card {vm.Booking.SelectedEvent?.Model.Name ?? "none"}; strip: {vm.StatusText}");
+                            Shot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-bookhim.png"));
+                        }
+                        break;
+                    case "foughtout":
+                    {
+                        // His deal is fought out (harness only: no fights left) with the promise still live:
+                        // a week on, his re-sign window is open. Home shows "Talk terms" (and why), the
+                        // profile too (<path>-profile.png); "Book him" from anywhere opens the table instead.
+                        x.Contract!.FightsRemaining = 0;
+                        Week();
+                        foreach (var d in vm.Desktop.Windows.ToList()) vm.Desktop.Close(d);
+                        vm.Desktop.Open("home");
+                        var row = vm.Dashboard.NeedsYou.FirstOrDefault(a => a.Title.StartsWith($"You promised {x.FirstName} {x.LastName}", StringComparison.Ordinal));
+                        Console.WriteLine($"RENDERPROMISES home row: {row?.Title} | {row?.Detail} | [{row?.PrimaryText} | {row?.SecondaryText}]");
+                        Shot(p);
+                        foreach (var d in vm.Desktop.Windows.ToList()) vm.Desktop.Close(d);
+                        vm.OpenFighter(x.Id.Value);
+                        Shot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-profile.png"));
+                        Letters();
+                        AppCommandsBook(x.Id.Value);
+                        Console.WriteLine($"RENDERPROMISES book him (fought out) -> windows [{string.Join(", ", vm.Desktop.Windows.Select(d => d.Spec.Id))}]; strip: {vm.StatusText}");
+                        break;
+                    }
+                    default:
+                        throw new ArgumentException("unknown scenario " + scenario);
+                }
+                static void AppCommandsBook(int id) => MmaManager.Wpf.Mvvm.AppCommands.BookFighter.Execute(id);
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERPROMISES FAIL: " + ex); Environment.Exit(1); }
             Environment.Exit(0);
             return;
         }
