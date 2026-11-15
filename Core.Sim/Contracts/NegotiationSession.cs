@@ -39,13 +39,26 @@ public sealed record RivalSlip(
 /// promises already on the books for him (<see cref="Promises"/>), whether the deal he is on
 /// carries a matching right (<see cref="MatchingRightHeld"/>), and what granting one on this
 /// slip adds to his purse (<see cref="MatchingRightCost"/>).
+/// <para>Each option's <see cref="PromiseOption.PurseOff"/> and <see cref="MatchingRightCost"/> are
+/// MARGINAL to the slip as it stands: exactly how far <see cref="Position"/>'s purse moves when
+/// that one term is toggled and everything else on the slip stays put (an activity option is
+/// priced against no activity promise).</para>
+/// <para>What broken promises cost here, kept apart: the public record
+/// (<see cref="PublicBreaks"/> this past year, <see cref="WarinessPercent"/>% on everyone's number)
+/// and his own memory (<see cref="BrokenToHim"/>, <see cref="DistrustPercent"/>% on his), with
+/// both said in one ready line (<see cref="TrustNote"/>, null when neither applies).</para>
 /// </summary>
 public sealed record NegotiationView(
     FighterId Fighter, string Name, string Stance, string OpeningLine, string Mood, int Patience, int Round,
     TalkOutcome Outcome, bool Resumed, ContractOffer Position, IReadOnlyList<string> Reasons,
     RivalSlip? Rival, Leaning? Leaning, ContractOffer? Final, TalkResponse? Last,
     IReadOnlyList<PromiseOption> PromiseOptions, IReadOnlyList<PromiseStatus> Promises,
-    bool MatchingRightHeld, Money MatchingRightCost, BargainingStyle Style);
+    bool MatchingRightHeld, Money MatchingRightCost, BargainingStyle Style,
+    int PublicBreaks, int WarinessPercent, int BrokenToHim, int DistrustPercent, string? TrustNote,
+    PromiseRefusal? FinalRefusal);
+
+/// <summary>A promise the sim won't take on a slip: which one, and why, in his words.</summary>
+public sealed record PromiseRefusal(PromiseKind Kind, string Why);
 
 /// <summary>
 /// A sit-down with a fighter's agent: stateful, multi-round talks. The agent
@@ -473,6 +486,13 @@ public sealed class NegotiationSession
 
     // --- A rival's paper on the table (OfferMarket) ----------------------------------
 
+    /// <summary>
+    /// When the last <see cref="PutInWriting"/> came back <see cref="FinalOfferResult.OffTerms"/> because a
+    /// promise on it can't be made (or partly because of one): which promise, and why in his words.
+    /// Null otherwise (and reset by every PutInWriting). Also on <see cref="NegotiationView.FinalRefusal"/>.
+    /// </summary>
+    public PromiseRefusal? LastRefusal { get; private set; }
+
     /// <summary>The live rival offer this table reads (its holder or courting side is this promotion), if any.</summary>
     public RivalOffer? RivalOffer => _offer;
 
@@ -487,9 +507,11 @@ public sealed class NegotiationSession
     /// </summary>
     public FinalOfferResult PutInWriting(ContractOffer offer)
     {
+        LastRefusal = null;
         if (Outcome != TalkOutcome.Open || _offer is not { Kind: RivalOfferKind.FreeAgent }) return FinalOfferResult.NoOffer;
-        if (Math.Abs(offer.Fights - _exp.DesiredFights) > 1 || !SigningOk(offer) || !GuaranteedOk(offer)
-            || Promises.FirstRefusal(_world, _promo, _fighter, offer) is not null)
+        if (Promises.FirstRefusal(_world, _promo, _fighter, offer) is { } no)
+            LastRefusal = new PromiseRefusal(no.Kind, no.Why);
+        if (Math.Abs(offer.Fights - _exp.DesiredFights) > 1 || !SigningOk(offer) || !GuaranteedOk(offer) || LastRefusal is not null)
             return FinalOfferResult.OffTerms;
         var result = OfferMarket.LodgeFinal(_world, _fighter, _promo, offer);
         if (result == FinalOfferResult.Lodged) Round++;
@@ -503,7 +525,7 @@ public sealed class NegotiationSession
     /// only — never the rival's read of him, its walk-away number, nor anyone's ability.
     /// </summary>
     public NegotiationView View(bool exclusive, bool clause) =>
-        View(new ContractOffer { Fighter = _fighter.Id, Promotion = _promo.Id, Exclusive = exclusive, ChampionsClause = clause });
+        View(new ContractOffer { Fighter = _fighter.Id, Promotion = _promo.Id, Exclusive = exclusive, ChampionsClause = clause, Fights = _exp.DesiredFights });
 
     /// <summary>
     /// <see cref="View(bool, bool)"/> on the terms of this slip: its exclusivity, leash terms
@@ -527,10 +549,10 @@ public sealed class NegotiationSession
             reasons.Add(OfferMarket.HasMatchingRight(_world, _offer)
                 ? $"{_rivalName} has real paper on the table, but we hold a matching right: matching their terms exactly is enough."
                 : $"{_rivalName} has real paper on the table: a deal here must be worth more to him than theirs.");
-        if (_distrust > 1m)
-            reasons.Add(Lifers.Gendered(_fighter, "You broke your word to him: he asks more, has less patience, and won't count a promise from you."));
-        if (_wary > 1m)
-            reasons.Add($"Word gets around: {_promo.Abbreviation} broke a promise this past year, so fighters ask a little more of it and count its promises for less.");
+        // Broken promises: his own memory and the public record, each in its own words.
+        var trust = Promises.TrustAt(_world, _fighter.Id, _promo.Id, _world.CurrentDate);
+        var trustLines = Promises.TrustReasons(_fighter, trust, sentences: true);
+        reasons.AddRange(trustLines);
         // His number can sit under the rival's purse and still beat it by his lights: say why, in words.
         if (_offer is { } paper && _world.Get(paper.From) is { } from
             && TheirTermsAsOffer(onSlip) is var mine && mine.PursePerFight.Amount < paper.Purse.Amount)
@@ -556,13 +578,16 @@ public sealed class NegotiationSession
                 Math.Max(0, o.Deadline.DayNumber - _world.CurrentDate.DayNumber), o.Improvements > 0);
             lean = OfferMarket.LeaningOf(_world, o);
         }
-        // The promises the owner could add (each priced against this slip without it), and the matching right.
+        // The promises the owner could add, and the matching right: each priced MARGINALLY, as the
+        // exact difference between his number (DemandPurse, the figure Position shows, $500 step
+        // and all) on this slip without that one term and with it, everything else left as it is.
         var options = new List<PromiseOption>();
         void Option(PromiseKind kind, int fights, Slip with, Slip without)
         {
             var probe = new ContractOffer
             {
-                Fighter = _fighter.Id, Promotion = _promo.Id, Fights = _exp.DesiredFights,
+                // Judged against the slip's own length, as Table and PutInWriting judge it.
+                Fighter = _fighter.Id, Promotion = _promo.Id, Fights = terms.Fights,
                 PromiseFights = kind == PromiseKind.Activity ? fights : 0,
                 PromiseHomeShow = kind == PromiseKind.HomeShow, PromiseTitleShot = kind == PromiseKind.TitleShot,
             };
@@ -584,7 +609,9 @@ public sealed class NegotiationSession
             _fighter.Id, _fighter.FullName, Stance, OpeningLine, MoodLabel, Patience, Round, Outcome, Resumed,
             TheirTermsAsOffer(onSlip), reasons, slip, lean, _offer?.Final, Last,
             options, Promises.For(_world, _fighter.Id),
-            _fighter.Contract is { MatchingRight: true } held && held.Promotion == _promo.Id, rightCost, Style);
+            _fighter.Contract is { MatchingRight: true } held && held.Promotion == _promo.Id, rightCost, Style,
+            trust.PublicBreaks, trust.WarinessPercent, trust.BrokenToHim, trust.DistrustPercent,
+            trustLines.Count > 0 ? string.Join(" ", trustLines) : null, LastRefusal);
     }
 
     private static string OfferTerms(RivalOffer o) =>

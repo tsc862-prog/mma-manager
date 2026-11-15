@@ -480,11 +480,33 @@ public class FreeAgentOfferTests
         tooShort.Fights = exp.DesiredFights + 3;
         Assert.Equal(FinalOfferResult.OffTerms, room.PutInWriting(tooShort));
 
+        Assert.Null(room.LastRefusal);   // off terms for its length, not for a promise
+
+        // A promise the sim won't take: off terms, and the room says which and why.
+        var promised = room.TheirTermsAsOffer(new ContractOffer
+        {
+            Fighter = f.Id, Promotion = promo.Id, Exclusive = Negotiator.WantsExclusivity(promo), PromiseFights = 3,
+        });
+        promised.Fights = 2;   // more fights promised than the deal holds
+        if (Math.Abs(promised.Fights - exp.DesiredFights) <= 1)
+        {
+            Assert.Equal(FinalOfferResult.OffTerms, room.PutInWriting(promised));
+            Assert.Equal(PromiseKind.Activity, room.LastRefusal?.Kind);
+            Assert.False(string.IsNullOrEmpty(room.LastRefusal!.Why));
+            Assert.Equal(room.LastRefusal, room.View(promised).FinalRefusal);
+        }
+        promised.Fights = exp.DesiredFights;
+        promised.PromiseFights = 5;   // outside 2-4: refused whatever the length
+        Assert.Equal(FinalOfferResult.OffTerms, room.PutInWriting(promised));
+        Assert.Equal(PromiseKind.Activity, room.LastRefusal?.Kind);
+        Assert.Null(o.Final);
+
         var good = room.TheirTermsAsOffer(Negotiator.WantsExclusivity(promo), false);
         promo.Balance = new Money(good.SigningBonus.Amount - 1m);
         if (good.SigningBonus.Amount > 0) Assert.Equal(FinalOfferResult.CantAfford, room.PutInWriting(good));
         promo.Balance = new Money(5_000_000m);
         Assert.Equal(FinalOfferResult.Lodged, room.PutInWriting(good));
+        Assert.Null(room.LastRefusal);
         Assert.NotNull(room.View(Negotiator.WantsExclusivity(promo), false).Final);
     }
 
