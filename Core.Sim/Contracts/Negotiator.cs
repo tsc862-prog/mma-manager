@@ -16,6 +16,17 @@ public sealed class Negotiator
     public const decimal ChampionsClausePremium = 1.08m;    // a champion's clause is a leash they charge to wear
 
     /// <summary>
+    /// What he charges to grant the holder a matching right (contracts stage 9): the right to
+    /// keep him by matching a rival's end-of-deal paper exactly, whatever the bigger stage's
+    /// pull (<see cref="OfferMarket.MatchTerms"/>). Priced like the champion's clause, a little lower.
+    /// </summary>
+    public const decimal MatchingRightPremium = 1.05m;
+
+    /// <summary>The premium his price carries for the leash terms on this slip (champion's clause, matching right).</summary>
+    public static decimal LeashFactor(ContractOffer o) =>
+        (o.ChampionsClause ? ChampionsClausePremium : 1m) * (o.MatchingRight ? MatchingRightPremium : 1m);
+
+    /// <summary>
     /// The most PPV points one deal can carry. A point is 1% of the promotion's
     /// pay-per-view take on a card he fights on (paid at settlement, see
     /// <see cref="Booking.Financials"/>); ten is a superstar's cut.
@@ -59,7 +70,7 @@ public sealed class Negotiator
         // gave them the shot (everyone else pays the hometown-hype price), and
         // a LIFER takes less to stay where he belongs (see Lifers).
         decimal factor = (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
-                       * (offer.ChampionsClause ? ChampionsClausePremium : 1m)
+                       * LeashFactor(offer)
                        * TableDiscount(world, f, offer.Promotion);
         decimal asked = AskMoney(exp) * factor;
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
@@ -376,11 +387,17 @@ public sealed class Negotiator
     public static decimal AskMoney(ContractExpectations e) =>
         e.AskingPurse.Amount + 0.5m * e.AskingWinBonus.Amount;
 
-    /// <summary>How much the fighter likes this org regardless of money (title path, loyalty, home, bonds), 0..1.</summary>
+    /// <summary>
+    /// How much the fighter likes this org regardless of money (title path, loyalty, home,
+    /// bonds), 0..1 — plus what any promises on the slip are worth to him
+    /// (<see cref="Promises.AppealOf"/>: nothing on a slip without promises, which is every AI offer).
+    /// </summary>
     public static double Appeal(World world, Fighter f, ContractOffer offer, ContractExpectations exp)
     {
         var p = AppealOf(world, f, offer.Promotion, exp);
-        return Math.Clamp(p.Title * 0.45 + p.Loyalty * 0.3 + p.Home * 0.15 + p.Bonds * 0.1, 0, 1);
+        double a = p.Title * 0.45 + p.Loyalty * 0.3 + p.Home * 0.15 + p.Bonds * 0.1;
+        if (offer.HasPromises) a += Promises.AppealOf(world, f, offer, exp);
+        return Math.Clamp(a, 0, 1);
     }
 
     /// <summary>
@@ -423,7 +440,7 @@ public sealed class Negotiator
             : offer.SigningBonus.Amount;
 
         decimal targetMoney = (decimal)threshold * AskMoney(exp) * (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
-                            * (offer.ChampionsClause ? ChampionsClausePremium : 1m);
+                            * LeashFactor(offer);
         decimal signingPerFight = fights > 0 ? signing / fights : signing;
         decimal purse = targetMoney - 0.5m * winBonus - signingPerFight - UpsideValue(world, offer);
         purse = Math.Max(exp.AskingPurse.Amount * 0.6m, RoundTo(purse, 500m));
@@ -440,6 +457,8 @@ public sealed class Negotiator
             PerformanceBonus = offer.PerformanceBonus,
             Exclusive = offer.Exclusive,
             ChampionsClause = offer.ChampionsClause,
+            PromiseFights = offer.PromiseFights, PromiseHomeShow = offer.PromiseHomeShow,
+            PromiseTitleShot = offer.PromiseTitleShot, MatchingRight = offer.MatchingRight,
             Round = offer.Round + 1,
         };
     }

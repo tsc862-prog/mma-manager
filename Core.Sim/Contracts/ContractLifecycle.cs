@@ -74,6 +74,9 @@ public static class ContractLifecycle
                 $"{world.Get(offer.Promotion)?.Name ?? "a rival"} signed him away", offer.Promotion, hisChoice: true);
         f.Contract = offer.ToContract(on);
         f.Contract.PpvPoints = Math.Clamp(offer.PpvPoints, 0, Negotiator.MaxPpvPoints);
+        // Promises and the matching right are the player's deal rules only (contracts stage 9).
+        if (offer.MatchingRight && !DealWindow.PlayerRules(world, offer.Promotion)) f.Contract.MatchingRight = false;
+        Promises.OnSigned(world, f, offer, on);   // (a no-op for a slip without promises)
         if (f.Contract.IsExclusive) Living.LocalCircuit.YieldTo(world, new[] { f.Id });   // his promotion's fights only, from today
         BiddingWars.OnSigned(world, f, offer.Promotion, on);   // a signature ends any public war over them
         OfferMarket.OnSigned(world, f, offer.Promotion, on);   // ...and settles any rival's offer for him
@@ -137,6 +140,7 @@ public static class ContractLifecycle
     {
         if (world.Get(from) is not { } promo) return;
         OfferMarket.OnLeaving(world, f, from, date);   // a rival's offer for him dies with the deal, now
+        Promises.OnLeaving(world, f, from, door ?? $"he left {promo.Abbreviation}", date);   // ...and an unkept promise is broken
         Lifers.OnLeaving(world, f, promo, door ?? $"he left {promo.Abbreviation}", date, to, hisChoice);
         foreach (var d in promo.Divisions) d.Rankings.Remove(f.Id);
         // A camp stipend is the paying org's promise; it doesn't follow him out

@@ -192,6 +192,7 @@ public sealed class WorldTick
             // Expiring deals renew / get poached / hit the market (the player's own
             // are courted weekly by OfferMarket instead), orgs trim the fighters
             // they no longer want, then everyone fills their gaps.
+            Promises.RunMonthly(world, after);  // promises made at the table: kept, broken, warned (no RNG; none in an AI world)
             Lifers.RunMonthly(world, after);   // standing grievances wear lifers down (no RNG)
             ContractLifecycle.ProcessExpiries(world, after);
             report.Cuts = RosterManagement.RunMonthly(world, after);

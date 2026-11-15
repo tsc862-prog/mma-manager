@@ -13,7 +13,7 @@ public sealed class World
     /// shape. Development rule: saves are never migrated — the reader refuses any
     /// other version and the player starts a new world (see PROJECT.md).
     /// </summary>
-    public const int LatestSaveVersion = 51;   // v51: per-promotion fight rules (OrgRules.Fight: ten fr_ columns on promotions, all NULL = today's rules); v50 is reserved for contracts stage 9; v49: world mode + era state (World.Mode, World.Era: fired chapters, unlocked capabilities); v48 is reserved for contracts stage 9; v47: free-agent rival offers (RivalOffer.Improvements + the owner's final offer, RivalOffer.Final; Purse/WinBonus/SigningBonus settable); v46: rival offers (World.RivalOffers, DecisionKind.RivalOffer); v45: deals end (Contract.WindowEndsOn/WindowWarned) + World.Talks (talks remembered); v44: Contract.BondNoticeOn (lifer stories told once); v43: safe save (entity ordinals keep dictionary order, round scores + poach warning + cross-org rankings persisted, loyalty/marketing_push NOT NULL); v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
+    public const int LatestSaveVersion = 51;   // v51: per-promotion fight rules (OrgRules.Fight: ten fr_ columns on promotions, all NULL = today's rules); v50: promises with teeth (World.Promises) + matching rights (Contract.MatchingRight; ContractOffer promise/matching terms on a final offer); v49: world mode + era state (World.Mode, World.Era: fired chapters, unlocked capabilities); (v48 was never shipped); v47: free-agent rival offers (RivalOffer.Improvements + the owner's final offer, RivalOffer.Final; Purse/WinBonus/SigningBonus settable); v46: rival offers (World.RivalOffers, DecisionKind.RivalOffer); v45: deals end (Contract.WindowEndsOn/WindowWarned) + World.Talks (talks remembered); v44: Contract.BondNoticeOn (lifer stories told once); v43: safe save (entity ordinals keep dictionary order, round scores + poach warning + cross-org rankings persisted, loyalty/marketing_push NOT NULL); v42: temperament & voice (disposition + ego/professionalism/temper/ambition, named staff, org owners); v41: fog-of-war pricing (discovered_by); v40: big-money era
 
     /// <summary>The version a loaded save was written at (always <see cref="LatestSaveVersion"/> — older saves are refused on load).</summary>
     public int SaveVersion { get; init; } = LatestSaveVersion;
@@ -91,6 +91,9 @@ public sealed class World
     /// <summary>Rival promotions' offers for the player's fighters, id order; resolved ones are kept a year (see Contracts.OfferMarket).</summary>
     public List<RivalOffer> RivalOffers { get; init; } = new();
 
+    /// <summary>Promises player-rules promotions wrote into fighters' deals, id order; resolved ones are kept three years (see Contracts.Promises).</summary>
+    public List<Promise> Promises { get; init; } = new();
+
     /// <summary>When the last org acquisition closed — buyouts are rare, seismic events (see Living.Acquisitions).</summary>
     public DateOnly? LastAcquisitionOn { get; set; }
 
@@ -110,7 +113,7 @@ public sealed class World
     // --- Id generation ------------------------------------------------------
     // Kept private so ids can only come from here. After loading a save, call
     // SyncIdCounters() so freshly generated ids never collide with saved ones.
-    private int _nextFighter, _nextPromotion, _nextTitle, _nextEvent, _nextFight, _nextCountry, _nextCity, _nextVenue, _nextCamp;
+    private int _nextFighter, _nextPromotion, _nextTitle, _nextEvent, _nextFight, _nextCountry, _nextCity, _nextVenue, _nextCamp, _nextPromise;
 
     public FighterId NewFighterId()     => new(++_nextFighter);
     public PromotionId NewPromotionId() => new(++_nextPromotion);
@@ -121,6 +124,9 @@ public sealed class World
     public CityId NewCityId()           => new(++_nextCity);
     public VenueId NewVenueId()         => new(++_nextVenue);
     public CampId NewCampId()           => new(++_nextCamp);
+
+    /// <summary>A fresh promise id (never reused, even after old promises are dropped: the counter is saved).</summary>
+    public int NewPromiseId()           => ++_nextPromise;
 
     /// <summary>
     /// Reset id counters to the highest id currently in use. The save reader calls
@@ -136,6 +142,7 @@ public sealed class World
         _nextCity      = Cities.Keys.Select(k => k.Value).DefaultIfEmpty(0).Max();
         _nextVenue     = Venues.Keys.Select(k => k.Value).DefaultIfEmpty(0).Max();
         _nextCamp      = Camps.Keys.Select(k => k.Value).DefaultIfEmpty(0).Max();
+        _nextPromise   = Promises.Select(p => p.Id).DefaultIfEmpty(0).Max();
 
         int maxFight = Events.Values
             .SelectMany(e => e.Card)
@@ -154,7 +161,7 @@ public sealed class World
     {
         ["fighter"] = _nextFighter, ["promotion"] = _nextPromotion, ["title"] = _nextTitle,
         ["event"] = _nextEvent, ["fight"] = _nextFight, ["country"] = _nextCountry,
-        ["city"] = _nextCity, ["venue"] = _nextVenue, ["camp"] = _nextCamp,
+        ["city"] = _nextCity, ["venue"] = _nextVenue, ["camp"] = _nextCamp, ["promise"] = _nextPromise,
     };
 
     /// <summary>Restore saved counters after <see cref="SyncIdCounters"/>; never lowers one below what is in use.</summary>
@@ -170,6 +177,7 @@ public sealed class World
         _nextCity = Pick("city", _nextCity);
         _nextVenue = Pick("venue", _nextVenue);
         _nextCamp = Pick("camp", _nextCamp);
+        _nextPromise = Pick("promise", _nextPromise);
     }
 
     // --- Convenience lookups ------------------------------------------------
