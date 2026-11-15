@@ -211,7 +211,7 @@ public sealed class OrgRules
     /// <summary>
     /// The early-era house rules the engine obeys (one long round, no judges, bare hands, rope
     /// escapes, open weight). Null = today's sport (<see cref="FightRules.Modern"/>), which is every
-    /// promotion in today's mode. NOT YET SAVED: the persistence owner adds it.
+    /// promotion in today's mode.
     /// </summary>
     public FightRules? Fight { get; set; }
 }

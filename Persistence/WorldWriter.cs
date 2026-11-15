@@ -578,7 +578,7 @@ internal sealed class WorldWriter
     private void WritePromotions(World w)
     {
         using var promo = _c.Cmd(_tx,
-            "INSERT INTO promotions (id, ordinal, name, abbreviation, base_region, is_player, balance, prestige, reputation, defunct, home_city, round_minutes, standard_rounds, title_rounds, fotn_bonus, prestige_hundredths, milestones, marketing_budget, tier_clearance, promotion_offered, eligible_since, sponsored_camp, face_fighter, lore, stream_name, stream_launched, stream_subs, courted_by, last_cleared_tier, last_cleared_on, owner_name, owner_note, founded_year) VALUES ($id,$ord,$n,$a,$r,$p,$b,$pr,$rep,$def,$hc,$rm,$sr,$tr,$fotn,$ph,$ms,$mb,$tc,$po,$es,$sc,$ff,$lore,$stn,$stl,$sts,$cb,$lct,$lco,$own,$ownn,$fy)");
+            "INSERT INTO promotions (id, ordinal, name, abbreviation, base_region, is_player, balance, prestige, reputation, defunct, home_city, round_minutes, standard_rounds, title_rounds, fotn_bonus, prestige_hundredths, milestones, marketing_budget, tier_clearance, promotion_offered, eligible_since, sponsored_camp, face_fighter, lore, stream_name, stream_launched, stream_subs, courted_by, last_cleared_tier, last_cleared_on, owner_name, owner_note, founded_year, fr_gloves, fr_rounds, fr_round_minutes, fr_judges, fr_head_punches, fr_kicks, fr_elbows, fr_rope_escapes, fr_open_weight, fr_enclosure) VALUES ($id,$ord,$n,$a,$r,$p,$b,$pr,$rep,$def,$hc,$rm,$sr,$tr,$fotn,$ph,$ms,$mb,$tc,$po,$es,$sc,$ff,$lore,$stn,$stl,$sts,$cb,$lct,$lco,$own,$ownn,$fy,$frg,$frr,$frm,$frj,$frh,$frk,$fre,$frp,$frw,$frc)");
         using var pop = _c.Cmd(_tx,
             "INSERT INTO promotion_city_pop (promotion_id, city_id, rating) VALUES ($p,$r,$v)");
         using var div = _c.Cmd(_tx,
@@ -625,6 +625,18 @@ internal sealed class WorldWriter
             promo.Bind("$own", Db.Text(p.OwnerName));
             promo.Bind("$ownn", Db.Text(p.OwnerNote));
             promo.Bind("$fy", p.FoundedYear);
+            // Fight rules: null (today's sport) = every fr_ column NULL; fr_gloves is the presence marker.
+            var fr = p.Rules.Fight;
+            promo.Bind("$frg", fr?.Gloves.ToString());
+            promo.Bind("$frr", fr?.Rounds);
+            promo.Bind("$frm", fr?.RoundMinutes);
+            promo.Bind("$frj", fr is null ? null : fr.Judges ? 1 : 0);
+            promo.Bind("$frh", fr is null ? null : fr.GroundedHeadPunches ? 1 : 0);
+            promo.Bind("$frk", fr is null ? null : fr.GroundedKicks ? 1 : 0);
+            promo.Bind("$fre", fr is null ? null : fr.Elbows ? 1 : 0);
+            promo.Bind("$frp", fr?.RopeEscapes);
+            promo.Bind("$frw", fr is null ? null : fr.OpenWeight ? 1 : 0);
+            promo.Bind("$frc", fr?.Enclosure.ToString());
             promo.Bind("$stn", Db.Text(p.Stream?.Name));
             promo.Bind("$stl", Db.DateN(p.Stream?.LaunchedOn));
             promo.Bind("$sts", p.Stream?.Subscribers ?? 0);

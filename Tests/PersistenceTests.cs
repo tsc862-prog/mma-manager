@@ -1,6 +1,8 @@
 using Microsoft.Data.Sqlite;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Booking;
+using MmaManager.Core.Sim.Engine;
+using MmaManager.Core.Sim.Generation.Origins;
 using MmaManager.Core.Sim.Living;
 using MmaManager.Persistence;
 
@@ -72,6 +74,16 @@ public class PersistenceTests
                 Note = "Lightweight",
             });
             world.Era.Unlocked.Add(Capability.Class(WeightClass.Lightweight).Id);
+
+            // Origins fight rules on two promotions: one with every flag at its non-default value, one
+            // with judges and every legal strike on (so each column holds a non-zero value somewhere).
+            var promos = world.Promotions.Values.OrderBy(p => p.Id.Value).ToList();
+            promos[0].Rules.Fight = new FightRules
+            {
+                Rounds = 1, RoundMinutes = 20, Judges = false, Gloves = GloveType.Bare, GroundedHeadPunches = false,
+                GroundedKicks = false, Elbows = false, RopeEscapes = 3, OpenWeight = true, Enclosure = Enclosure.OpenFloor,
+            };
+            promos[1].Rules.Fight = new FightRules { Gloves = GloveType.Optional, Enclosure = Enclosure.Ring, RopeEscapes = 2 };
 
             PersistenceGraph.FillUnpopulated(world);
         }
@@ -498,6 +510,50 @@ public class PersistenceTests
         var diffs = PersistenceGraph.Diff(straight, resumed, max: 60);
         Assert.True(diffs.Count == 0,
             "A world saved mid free-agent offer diverged from the same world run straight through:\n" + PersistenceGraph.Describe(diffs));
+    }
+
+    [Fact]
+    public void FightRules_RoundTrip_NullAndEveryAuthoredOriginsRuleSet()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 7 });
+        var promos = world.Promotions.Values.OrderBy(p => p.Id.Value).ToList();
+        Assert.True(promos.Count >= 5);
+        Assert.All(promos, p => Assert.Null(p.Rules.Fight));          // today's mode: null everywhere
+
+        var authored = OriginsPromotions.All.Select(o => o.ToFightRules()).ToList();
+        Assert.Equal(3, authored.Count);
+        for (int i = 0; i < 3; i++) promos[i].Rules.Fight = authored[i];
+        promos[3].Rules.Fight = FightRules.Modern;                    // explicit modern is not null
+        // promos[4] stays null
+
+        var loaded = RoundTrip(world);
+        for (int i = 0; i < 3; i++)
+            Assert.Equal(authored[i], loaded.Promotions[promos[i].Id].Rules.Fight);   // record equality: every field
+        Assert.Equal(FightRules.Modern, loaded.Promotions[promos[3].Id].Rules.Fight);
+        Assert.NotNull(loaded.Promotions[promos[3].Id].Rules.Fight);
+        Assert.Null(loaded.Promotions[promos[4].Id].Rules.Fight);
+        // Nullable round fields: the authored sets carry values, the modern one carries none.
+        Assert.Null(loaded.Promotions[promos[3].Id].Rules.Fight!.Rounds);
+        Assert.NotNull(loaded.Promotions[promos[0].Id].Rules.Fight!.RoundMinutes);
+        AssertSame(world, loaded);
+    }
+
+    [Fact]
+    public void EmptyRoundScores_ComeBackEmptyNotNull()
+    {
+        // A no-judges draw at the time limit records "scores: none" (empty list), which is not "not recorded" (null).
+        var world = BuildSeasoned();
+        var fights = world.Events.Values.SelectMany(e => e.Card).Where(f => f.Outcome is not null).Take(2).ToList();
+        Assert.Equal(2, fights.Count);
+        fights[0].Outcome!.RoundScores = new List<RoundScore>();
+        fights[1].Outcome!.RoundScores = null;
+
+        var loaded = RoundTrip(world);
+        var all = loaded.Events.Values.SelectMany(e => e.Card).ToDictionary(f => f.Id);
+        var empty = all[fights[0].Id].Outcome!.RoundScores;
+        Assert.NotNull(empty);
+        Assert.Empty(empty!);
+        Assert.Null(all[fights[1].Id].Outcome!.RoundScores);
     }
 
     private static World RoundTrip(World w)

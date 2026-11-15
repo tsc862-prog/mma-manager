@@ -61,7 +61,9 @@ internal static class SaveSchema
                 stream_name TEXT, stream_launched TEXT, stream_subs INTEGER NOT NULL DEFAULT 0,
                 courted_by TEXT NOT NULL DEFAULT '',
                 last_cleared_tier TEXT, last_cleared_on TEXT,
-                owner_name TEXT, owner_note TEXT, founded_year INTEGER NOT NULL DEFAULT 0
+                owner_name TEXT, owner_note TEXT, founded_year INTEGER NOT NULL DEFAULT 0,
+                fr_gloves TEXT, fr_rounds INTEGER, fr_round_minutes INTEGER, fr_judges INTEGER, fr_head_punches INTEGER,
+                fr_kicks INTEGER, fr_elbows INTEGER, fr_rope_escapes INTEGER, fr_open_weight INTEGER, fr_enclosure TEXT
             );
 
             CREATE TABLE promotion_city_pop (

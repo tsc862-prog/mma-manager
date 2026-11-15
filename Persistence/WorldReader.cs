@@ -308,6 +308,20 @@ internal sealed class WorldReader
                 promo.OwnerName = r.StrN("owner_name");
                 promo.OwnerNote = r.StrN("owner_note");
                 promo.FoundedYear = r.Int("founded_year");
+                if (r.StrN("fr_gloves") is { } frGloves)
+                    promo.Rules.Fight = new FightRules
+                    {
+                        Gloves = System.Enum.Parse<GloveType>(frGloves),
+                        Rounds = r.IntN("fr_rounds"),
+                        RoundMinutes = r.IntN("fr_round_minutes"),
+                        Judges = r.Bool("fr_judges"),
+                        GroundedHeadPunches = r.Bool("fr_head_punches"),
+                        GroundedKicks = r.Bool("fr_kicks"),
+                        Elbows = r.Bool("fr_elbows"),
+                        RopeEscapes = r.Int("fr_rope_escapes"),
+                        OpenWeight = r.Bool("fr_open_weight"),
+                        Enclosure = r.Enum<Enclosure>("fr_enclosure"),
+                    };
                 foreach (var partner in r.Str("courted_by").Split('|', StringSplitOptions.RemoveEmptyEntries))
                     promo.CourtedBy.Add(partner);
                 if (r.StrN("stream_name") is { } streamName)
