@@ -1,0 +1,227 @@
+<UserControl x:Class="MmaManager.Wpf.Views.BriefingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
+             x:Name="Root">
+    <!-- THE MONDAY BRIEFING: why the clock stopped (one headline card with the people or the
+         poster it is about, and the button that goes to the fix), what else happened since the
+         last stop (a few lines with faces; everything is one toggle away), and what is next.
+         DataContext = MainViewModel (the shell); the screen reads Briefing. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}"
+                  DataContext="{Binding Briefing}" controls:Adaptive.CompactBelowHeight="760">
+        <StackPanel Margin="{StaticResource Space.Screen}" MaxWidth="1500">
+
+            <!-- ===== Why the clock stopped ===== -->
+            <Border Style="{StaticResource MomentCard}" MinHeight="300">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="270" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- A fighter standing in the org's light ... -->
+                    <Grid x:Name="Standing" ClipToBounds="True">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ArtIsFramed}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Rectangle Fill="{DynamicResource OrgAccent}" Opacity="0.5" IsHitTestVisible="False">
+                            <Rectangle.OpacityMask>
+                                <RadialGradientBrush Center="0.5,0.45" GradientOrigin="0.5,0.45" RadiusX="0.65" RadiusY="0.55">
+                                    <GradientStop Color="#A0000000" Offset="0" />
+                                    <GradientStop Color="#30000000" Offset="0.55" />
+                                    <GradientStop Color="#00000000" Offset="1" />
+                                </RadialGradientBrush>
+                            </Rectangle.OpacityMask>
+                        </Rectangle>
+                        <Image Source="{Binding Art}" Stretch="Uniform" VerticalAlignment="Bottom" HorizontalAlignment="Center" MaxHeight="340"
+                               Margin="14,18,6,0" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <Rectangle Height="60" VerticalAlignment="Bottom" IsHitTestVisible="False">
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#0013161B" Offset="0" />
+                                    <GradientStop Color="#E013161B" Offset="1" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                    </Grid>
+                    <!-- ... or a poster / a logo, framed -->
+                    <Border x:Name="Framed" Width="200" MaxHeight="280" Margin="26,24,10,24" VerticalAlignment="Center"
+                            CornerRadius="6" ClipToBounds="True" Background="{StaticResource SurfaceSunken}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ArtIsFramed}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="22" ShadowDepth="6" Opacity="0.55" />
+                        </Border.Effect>
+                        <Image Source="{Binding Art}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="14,26,30,24" VerticalAlignment="Center">
+                        <DockPanel>
+                            <Border x:Name="ToneDot" DockPanel.Dock="Left" Width="9" Height="9" CornerRadius="5" Margin="0,0,9,0" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource OrgAccent}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Bad"><Setter Property="Background" Value="{StaticResource ToneBad}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Warn"><Setter Property="Background" Value="{StaticResource ToneWarn}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Good"><Setter Property="Background" Value="{StaticResource ToneGood}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Info"><Setter Property="Background" Value="{StaticResource ToneInfo}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <TextBlock x:Name="KickerText" Text="{Binding Kicker}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.BriefingKicker}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Bad"><Setter Property="Foreground" Value="{StaticResource ToneBad}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Warn"><Setter Property="Foreground" Value="{StaticResource ToneWarn}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Good"><Setter Property="Foreground" Value="{StaticResource ToneGood}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding Tone}" Value="Info"><Setter Property="Foreground" Value="{StaticResource ToneInfo}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DockPanel>
+                        <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.BriefingHeadline}" />
+                        <Border Style="{StaticResource BriefingPill}" Margin="0,10,0,0"
+                                Visibility="{Binding IsResolved, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding ResolvedText}" FontWeight="SemiBold" FontSize="12.5" Foreground="{StaticResource ToneGood}" />
+                        </Border>
+                        <TextBlock Text="{Binding Lede}" Style="{StaticResource Text.BriefingLede}" />
+
+                        <!-- In their own words -->
+                        <StackPanel Margin="0,12,0,0" Visibility="{Binding HasQuote, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding Quote}" Style="{StaticResource Text.HeroQuote}" />
+                            <TextBlock Text="{Binding QuoteBy, StringFormat=— {0}}" Style="{StaticResource Text.Caption}" Margin="0,3,0,0" />
+                        </StackPanel>
+
+                        <!-- The people it is about -->
+                        <ItemsControl ItemsSource="{Binding People}" Margin="0,14,0,0" Focusable="False"
+                                      Visibility="{Binding HasPeople, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource Button.Chip}" Margin="0,0,8,6" Padding="0" ToolTip="Open the profile"
+                                            Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding FighterId}">
+                                        <StackPanel Orientation="Horizontal" Margin="-6,-1,4,0">
+                                            <ContentControl Style="{StaticResource Avatar}" Content="{Binding}" Width="30" Height="30" />
+                                            <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                                <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource TextSecondary}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- The fix -->
+                        <ItemsControl ItemsSource="{Binding Actions}" Margin="0,16,0,0" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,10,8">
+                                        <Button x:Name="primary" Content="{Binding Text}" Command="{Binding Command}" Style="{StaticResource Button.Primary}"
+                                                MinWidth="150" ToolTip="{Binding Hint}" Visibility="Collapsed" />
+                                        <Button x:Name="other" Content="{Binding Text}" Command="{Binding Command}" Style="{StaticResource Button.Ghost}"
+                                                Padding="14,7" />
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsPrimary}" Value="True">
+                                            <Setter TargetName="primary" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="other" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Hint}" Value="">
+                                            <Setter TargetName="primary" Property="ToolTip" Value="{x:Null}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ===== What else happened | What's next + the rest of the desk ===== -->
+            <Grid Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.3*" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="1*" MinWidth="330" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Panel}" VerticalAlignment="Stretch">
+                    <StackPanel>
+                        <controls:SectionHeader Title="{Binding DigestTitle}" Hint="{Binding DigestWindow}" />
+                        <ItemsControl ItemsSource="{Binding DigestShown}" ItemTemplate="{StaticResource BriefingItemTemplate}" Focusable="False" />
+                        <TextBlock Text="Nothing moved on your side of the sport. The world's news is in the News app."
+                                   Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextSecondary}"
+                                   Visibility="{Binding DigestEmpty, Converter={StaticResource BoolToVis}}" />
+                        <Button Content="{Binding EverythingText}" Command="{Binding ToggleEverythingCommand}" Style="{StaticResource Button.Link}"
+                                HorizontalAlignment="Left" Margin="46,0,0,0"
+                                Visibility="{Binding HasMoreDigest, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="2">
+                    <!-- What's next -->
+                    <Border Style="{StaticResource Panel}">
+                        <StackPanel>
+                            <controls:SectionHeader Title="What's next" />
+                            <Grid Visibility="{Binding HasNextCard, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="92" Height="124" CornerRadius="5" ClipToBounds="True" VerticalAlignment="Top" Background="{StaticResource SurfaceSunken}">
+                                    <Image Source="{Binding NextPoster}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding NextCountdown}" Style="{StaticResource Text.Display}" FontSize="34" Foreground="{DynamicResource OrgAccent}" />
+                                        <TextBlock Text="{Binding NextCountdownUnit}" Style="{StaticResource Text.Caption}" VerticalAlignment="Bottom" Margin="7,0,0,7" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding NextTitle}" Style="{StaticResource Text.Heading}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding NextWhen}" Style="{StaticResource Text.Secondary}" Margin="0,2,0,0" />
+                                    <TextBlock Text="{Binding NextDetail}" Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding NoCardLine}" Style="{StaticResource Text.Note}" FontSize="13" />
+                            <TextBlock Text="{Binding NextDeadline}" Style="{StaticResource Text.Note}" Margin="0,10,0,0" />
+                            <Button Content="{Binding NextActionText}" Command="{Binding NextCommand}" Style="{StaticResource Button.Soft}"
+                                    HorizontalAlignment="Left" Margin="0,12,0,0" Padding="14,6" FontSize="12.5" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- The rest of the desk -->
+                    <Border Style="{StaticResource Panel}" Margin="0,14,0,0" Visibility="{Binding HasWaiting, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <controls:SectionHeader Title="Also on your desk" />
+                            <ItemsControl ItemsSource="{Binding Waiting}" ItemTemplate="{StaticResource BriefingItemTemplate}" Focusable="False" />
+                        </StackPanel>
+                    </Border>
+
+                    <CheckBox Margin="4,12,0,0" Foreground="{StaticResource TextSecondary}" FontSize="12"
+                              IsChecked="{Binding DataContext.Display.BriefingOnQuietWeeks, ElementName=Root}"
+                              Content="Open the briefing on quiet weeks too (otherwise a toast offers it)" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

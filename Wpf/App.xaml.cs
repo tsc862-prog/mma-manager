@@ -972,6 +972,412 @@ public partial class App : Application
             return;
         }
 
+        // THE TABLE (the negotiation window) in one of its states:
+        // `MmaManager.Wpf --rendertable <none|talked|endofdeal|broke|freeagent|letgo|lodged|cameback|notenough> [--afc] <path>`.
+        // A newly founded shoestring promotion (seed 7) unless --afc (the quick-start AFC career).
+        // Rival offers are planted by hand (harness only): the biggest other promotion puts
+        // paper in front of the top free agent (freeagent, lodged, cameback, notenough) or the
+        // player's best-known fighter (endofdeal). lodged puts his own number in writing through
+        // the real PutInWriting; notenough writes a lowball and shows the refusal; talked tables
+        // one offer under his number with no rival, so the reactions and transcript show. broke is
+        // endofdeal with the bank overdrawn (Match it is off, and says why); letgo is a free
+        // agent's offer already let go, the week not yet turned.
+        if (e.Args.Contains("--rendertable"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--rendertable");
+                string scenario = e.Args[at + 1];
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                if (!e.Args.Contains("--afc"))
+                    vm.StartWorld(new WorldBuilder.Options
+                    {
+                        Seed = 7,
+                        Founding = new WorldBuilder.FoundingSpec
+                        {
+                            Name = "New Wave Fighting", Abbreviation = "NWF", Region = MmaManager.Core.Model.Region.Europe,
+                        },
+                    }, "You founded New Wave Fighting.");
+                var w = vm.LiveWorld!;
+                var mine = w.Get(w.PlayerPromotion)!;
+                var valuation = new MmaManager.Core.Sim.Contracts.FighterValuation();
+
+                bool endOfDeal = scenario is "endofdeal" or "broke";
+                var freeAgents = w.Fighters.Values.Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is null && !f.LocalTalent)
+                    .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).ToList();
+                var who = endOfDeal
+                    ? w.RosterOf(mine.Id).Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && f.Contract is not null && !f.LocalTalent)
+                        .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).FirstOrDefault()
+                    : freeAgents[0];
+                if (who is null)
+                {
+                    // A day-one shoestring roster is all unknowns: sign a known free agent at his
+                    // number first (harness only), so there is someone worth an offer.
+                    who = freeAgents[1];
+                    var signExp = valuation.Evaluate(w, who);
+                    var terms = new MmaManager.Core.Sim.Contracts.NegotiationSession(w, who, mine, signExp)
+                        .TheirTermsAsOffer(MmaManager.Core.Sim.Contracts.Negotiator.WantsExclusivity(mine), clause: false);
+                    MmaManager.Core.Sim.Contracts.ContractLifecycle.Sign(w, who, terms, w.CurrentDate);
+                }
+                var exp = valuation.Evaluate(w, who);
+
+                if (scenario is "endofdeal" or "broke" or "freeagent" or "letgo" or "lodged" or "cameback" or "notenough")
+                {
+                    var rival = w.Promotions.Values.Where(p => p.Id != mine.Id && !p.Defunct)
+                        .OrderByDescending(p => p.Prestige).ThenBy(p => p.Id.Value).First();
+                    decimal purse = Math.Ceiling(exp.AskingPurse.Amount * 1.12m / 500m) * 500m;
+                    var offer = new MmaManager.Core.Model.RivalOffer
+                    {
+                        Id = w.RivalOffers.Count == 0 ? 1 : w.RivalOffers.Max(o => o.Id) + 1,
+                        Fighter = who.Id, From = rival.Id, Holder = mine.Id,
+                        Kind = endOfDeal ? MmaManager.Core.Model.RivalOfferKind.EndOfDeal : MmaManager.Core.Model.RivalOfferKind.FreeAgent,
+                        Purse = new MmaManager.Core.Model.Money(purse),
+                        WinBonus = new MmaManager.Core.Model.Money(Math.Ceiling(purse * 0.5m / 500m) * 500m),
+                        SigningBonus = new MmaManager.Core.Model.Money(endOfDeal ? 0m : Math.Ceiling(purse * 0.25m / 500m) * 500m),
+                        Fights = exp.DesiredFights, Exclusive = true,
+                        Made = w.CurrentDate.AddDays(-3), Deadline = w.CurrentDate.AddDays(endOfDeal ? 18 : 9),
+                    };
+                    if (scenario == "cameback")
+                    {
+                        offer.Purse = new MmaManager.Core.Model.Money(purse + 2_000m);
+                        offer.Improvements = 1;
+                        offer.Deadline = w.CurrentDate.AddDays(7);
+                    }
+                    w.RivalOffers.Add(offer);
+                    if (scenario == "letgo") MmaManager.Core.Sim.Contracts.OfferMarket.LetGo(w, offer, w.CurrentDate);
+                    if (scenario == "broke") mine.Balance = new MmaManager.Core.Model.Money(-50_000m);
+                }
+
+                var session = MmaManager.Core.Sim.Contracts.NegotiationSession.Resume(w, who, mine, exp);
+                var roomVm = new NegotiationViewModel(w, who, mine, exp, session, renewal: who.Contract?.Promotion == mine.Id);
+                if (scenario is "lodged" or "notenough" or "talked")
+                {
+                    var his = session.View(roomVm.OfferExclusive, false).Position;
+                    decimal k = scenario == "lodged" ? 1m : 0.8m;
+                    roomVm.OfferPurse = Math.Ceiling(his.PursePerFight.Amount * k / 500m) * 500m;
+                    roomVm.OfferWinBonus = his.WinBonus.Amount;
+                    roomVm.OfferSigningBonus = his.SigningBonus.Amount;
+                    roomVm.OfferFights = his.Fights;
+                    if (scenario == "talked") roomVm.TableOfferCommand.Execute(null);
+                    else roomVm.PutInWritingCommand.Execute(null);
+                }
+
+                var roomWin = new NegotiationWindow { DataContext = roomVm };
+                var roomRoot = (FrameworkElement)roomWin.Content;
+                roomWin.Content = null;
+                var roomSize = new Size(roomWin.Width, roomWin.Height);
+                var host = new System.Windows.Controls.Border
+                {
+                    Background = (Brush)Current.Resources["Bg"] ?? Brushes.Black,
+                    Child = roomRoot, DataContext = roomVm,
+                };
+                host.Measure(roomSize); host.Arrange(new Rect(roomSize)); host.UpdateLayout();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                    System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                host.Measure(roomSize); host.Arrange(new Rect(roomSize)); host.UpdateLayout();
+                var bmp = new RenderTargetBitmap((int)roomSize.Width, (int)roomSize.Height, 96, 96, PixelFormats.Pbgra32);
+                bmp.Render(host);
+                var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp));
+                string p = e.Args[^1];
+                using (var fs = File.Create(p)) enc.Save(fs);
+                Console.WriteLine($"RENDERTABLE {scenario} OK -> {Path.GetFullPath(p)}: {who.FullName} ({mine.Abbreviation}); "
+                                  + $"his purse {roomVm.HisPurse}; rival {(roomVm.HasRival ? roomVm.RivalAbbr + " " + roomVm.RivalPurse : "none")}; "
+                                  + $"leaning {roomVm.LeaningWords}; status '{roomVm.Status}'; final '{roomVm.FinalLine}'");
+                roomWin.Close();
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERTABLE FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
+        // THE BRIEFING over the desk after the clock stops: `MmaManager.Wpf --renderbriefing
+        // <scenario> <W> <H> <path>`. Scenarios, each reached through the real advance:
+        //   hole       a card of yours five weeks out loses an undercard bout (a booked fighter
+        //              is hurt past the date; the weekly audit pulls the bout and mails you);
+        //   main       the same, but the main event: the advance itself stops for it;
+        //   decision   months go by until a call lands on The Desk;
+        //   expiring   weeks go by until a deal on its last fight is headlined (if none comes,
+        //              one fighter's deal is set to its last fight first);
+        //   quiet      weeks go by until nothing new needs you (the plain weekly digest);
+        //   fightnight a card of yours is booked five days out and the week runs into it;
+        //   card       that card is then simmed (any Moment is carried on from first);
+        //   freeagentoffer  a founded promotion courts the free agents; a rival's offer to one of
+        //              them reaches its last week and stops the clock (sit down / let go);
+        //   desk      nothing advanced: the briefing opened by hand on day one.
+        if (e.Args.Contains("--renderbriefing"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--renderbriefing");
+                string scenario = e.Args[at + 1];
+                int W = int.Parse(e.Args[at + 2]), H = int.Parse(e.Args[at + 3]);
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                vm.BriefingOnStop = true;
+                var root = (FrameworkElement)win.Content;
+                var size = new Size(W, H);
+                void Layout()
+                {
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                    root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
+                }
+                Layout();   // the desk learns its size, so the briefing can centre on it
+                var w = vm.LiveWorld!;
+
+                // Book a card of yours `days` out the way a player does: one bout per division, top two.
+                MmaManager.Core.Model.Event BookCard(int days)
+                {
+                    var bk = vm.Booking;
+                    bk.NewEventDate = w.CurrentDate.ToDateTime(TimeOnly.MinValue).AddDays(days);
+                    bk.NewEventCommand.Execute(null);
+                    foreach (var div in bk.Divisions.ToList())
+                    {
+                        bk.SelectedDivision = div;
+                        if (bk.RedOptions.Count > 0)
+                        {
+                            bk.SelectedRed = bk.RedOptions[0];
+                            if (bk.BlueOptions.Count > 0) { bk.SelectedBlue = bk.BlueOptions[0]; bk.AddBoutCommand.Execute(null); }
+                        }
+                    }
+                    vm.Contracts.OnChanged?.Invoke();
+                    var ev = w.Events.Values.Where(x => x.Promotion == w.PlayerPromotion && x.Status == MmaManager.Core.Model.EventStatus.Scheduled)
+                        .OrderByDescending(x => x.Id.Value).First();
+                    Console.WriteLine($"RENDERBRIEFING booked {ev.Name} on {ev.Date:d MMM yyyy}: {ev.Card.Count} bouts");
+                    return ev;
+                }
+                // Hurt one corner of a booked bout past the card's date (harness only).
+                void Hurt(MmaManager.Core.Model.Event ev, MmaManager.Core.Model.Fight bout)
+                {
+                    var f = w.Get(bout.RedCorner)!;
+                    var back = ev.Date.AddDays(40);
+                    f.CurrentInjury = new MmaManager.Core.Model.Injury
+                    {
+                        Severity = MmaManager.Core.Model.InjurySeverity.Moderate, Description = "broken hand",
+                        OccurredOn = w.CurrentDate, ExpectedReturn = back,
+                    };
+                    f.Status = MmaManager.Core.Model.FighterStatus.Injured;
+                    f.ReadyToFightOn = back;
+                    Console.WriteLine($"RENDERBRIEFING hurt {f.FullName} (booked on {ev.Name})");
+                }
+                void Report(string what) =>
+                    Console.WriteLine($"RENDERBRIEFING {what}: {vm.Briefing.Kind} | {vm.Briefing.Kicker} | {vm.Briefing.Headline} | {w.CurrentDate:d MMM yyyy}");
+
+                switch (scenario)
+                {
+                    case "hole":
+                    case "main":
+                    {
+                        var ev = BookCard(35);
+                        if (ev.Card.Count < 2) throw new InvalidOperationException("the card needs two bouts");
+                        Hurt(ev, scenario == "main" ? ev.Card[^1] : ev.Card[0]);
+                        vm.AdvanceWeekCommand.Execute(null);
+                        Report("after the week");
+                        break;
+                    }
+                    case "decision":
+                        for (int i = 0; i < 30 && vm.Briefing.Kind != BriefingKind.Decision; i++)
+                        {
+                            vm.AdvanceMonthCommand.Execute(null);
+                            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+                            vm.Moments.Reset();
+                            Report($"month {i + 1}");
+                        }
+                        break;
+                    case "expiring":
+                        for (int i = 0; i < 6 && vm.Briefing.Kind != BriefingKind.ExpiringDeal; i++)
+                        {
+                            if (i == 3 && w.RosterOf(w.PlayerPromotion).OrderBy(f => f.Id.Value)
+                                    .FirstOrDefault(f => f.Contract is { FightsRemaining: > 1 }) is { } pick)
+                            {
+                                pick.Contract!.FightsRemaining = 1;
+                                Console.WriteLine($"RENDERBRIEFING set {pick.FullName}'s deal to its last fight");
+                            }
+                            vm.AdvanceWeekCommand.Execute(null);
+                            Report($"week {i + 1}");
+                        }
+                        break;
+                    case "quiet":
+                        for (int i = 0; i < 40 && vm.Briefing.Kind != BriefingKind.Quiet; i++)
+                        {
+                            vm.AdvanceWeekCommand.Execute(null);
+                            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+                            vm.Moments.Reset();
+                            Report($"week {i + 1}");
+                        }
+                        break;
+                    case "fightnight":
+                    case "card":
+                    {
+                        BookCard(5);
+                        vm.AdvanceWeekCommand.Execute(null);
+                        Report("after the week");
+                        if (scenario == "card")
+                        {
+                            vm.SimTonightCommand.Execute(null);
+                            if (vm.Moments.IsShowing)
+                            {
+                                Console.WriteLine($"RENDERBRIEFING a moment came first: {vm.Moments.Current?.Headline} {vm.Moments.Current?.Name}; carrying on");
+                                vm.Moments.DismissCommand.Execute(null);
+                            }
+                            Report("after the card");
+                        }
+                        break;
+                    }
+                    case "window":
+                    case "lastweek":
+                    {
+                        // Harness only: your best-known champion fights out his deal (no fights left).
+                        // "window" lets the weekly pass open his 30-day re-sign window; "lastweek"
+                        // starts him twelve days from its end, so the week lands him in its last week.
+                        var champ = w.Titles.Values.Where(t => t.Promotion == w.PlayerPromotion && t.CurrentChampion is not null)
+                            .Select(t => w.Get(t.CurrentChampion!.Value)).OfType<MmaManager.Core.Model.Fighter>()
+                            .Where(f => f.Contract?.Promotion == w.PlayerPromotion)
+                            .OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).First();
+                        champ.Contract!.FightsRemaining = 0;
+                        if (scenario == "lastweek")
+                        {
+                            champ.Contract.WindowEndsOn = w.CurrentDate.AddDays(12);
+                            champ.Contract.WindowWarned = false;
+                        }
+                        Console.WriteLine($"RENDERBRIEFING {champ.FullName}'s deal is fought out ({scenario})");
+                        vm.AdvanceWeekCommand.Execute(null);
+                        Report("after the week");
+                        break;
+                    }
+                    case "rivaloffer":
+                    {
+                        // A founded shoestring promotion (every other org is bigger) signs the best free
+                        // agents by the scout's read, its deals are set to their last fight (harness only),
+                        // and the most popular is made the face of the company. Weeks then go by through the
+                        // real advance until a rival's offer for a top-billed fighter stops the clock.
+                        vm.StartWorld(new WorldBuilder.Options
+                        {
+                            Seed = 7,
+                            Founding = new WorldBuilder.FoundingSpec { Name = "New Wave Fighting", Abbreviation = "NWF", Region = MmaManager.Core.Model.Region.Europe },
+                        }, "You founded New Wave Fighting.");
+                        w = vm.LiveWorld!;
+                        var fw = w;
+                        foreach (var row in vm.Contracts.FreeAgents.OrderByDescending(r => FighterRow.Scouted(fw, fw.Get(r.Id)!)).ThenBy(r => r.Id.Value).Take(8).ToList())
+                        {
+                            if (vm.Contracts.FreeAgents.FirstOrDefault(r => r.Id == row.Id) is not { } fresh) continue;
+                            vm.Contracts.SelectedFreeAgent = fresh;
+                            vm.Contracts.SignAtTheirTerms();
+                        }
+                        var mine = w.RosterOf(w.PlayerPromotion).Where(f => f.Contract is not null).ToList();
+                        foreach (var f in mine) f.Contract!.FightsRemaining = 1;
+                        var face = mine.OrderByDescending(f => f.Intangibles.Popularity.Value).ThenBy(f => f.Id.Value).First();
+                        MmaManager.Core.Sim.Org.Franchise.SetFace(w, w.Get(w.PlayerPromotion)!, face, w.CurrentDate);
+                        Console.WriteLine($"RENDERBRIEFING signed {mine.Count}, deals on their last fight; face of the company: {face.FullName}");
+                        vm.Contracts.OnChanged?.Invoke();
+                        for (int i = 0; i < 60 && vm.Briefing.Kind != BriefingKind.RivalOffer; i++)
+                        {
+                            vm.AdvanceWeekCommand.Execute(null);
+                            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+                            vm.Moments.Reset();
+                        }
+                        Report("after the weeks");
+                        if (vm.Briefing.Kind != BriefingKind.RivalOffer)
+                            throw new InvalidOperationException($"no rival offer stopped the clock ({w.RivalOffers.Count} offers made)");
+                        break;
+                    }
+                    case "freeagentoffer":
+                    {
+                        // A founded shoestring promotion has open talks with every free agent on the
+                        // market (harness only: the talks are written straight into World.Talks and kept
+                        // fresh each week). Weeks go by through the real advance until a rival that would
+                        // have signed one lodges an offer instead and its last week stops the clock.
+                        vm.StartWorld(new WorldBuilder.Options
+                        {
+                            Seed = 7,
+                            Founding = new WorldBuilder.FoundingSpec { Name = "New Wave Fighting", Abbreviation = "NWF", Region = MmaManager.Core.Model.Region.Europe },
+                        }, "You founded New Wave Fighting.");
+                        w = vm.LiveWorld!;
+                        void Court()
+                        {
+                            foreach (var fa in w.FreeAgents().Where(x => x.Status == MmaManager.Core.Model.FighterStatus.Active && !x.LocalTalent).OrderBy(x => x.Id.Value).ToList())
+                            {
+                                var t = w.Talks.FirstOrDefault(x => x.Fighter == fa.Id && x.Promotion == w.PlayerPromotion);
+                                if (t is null) w.Talks.Add(new MmaManager.Core.Model.TalksMemory { Fighter = fa.Id, Promotion = w.PlayerPromotion, Round = 1, Mood = 60, Patience = 2, LastTalked = w.CurrentDate });
+                                else if (t.SouredUntil is null) t.LastTalked = w.CurrentDate;
+                            }
+                        }
+                        // (The week it lands it headlines; the stop comes in its last week.)
+                        bool Stopped() => vm.Briefing.Kind == BriefingKind.RivalOffer
+                                          && vm.Briefing.Kicker.StartsWith("TIME STOPPED", StringComparison.Ordinal)
+                                          && DeskCalls.Courted(w).Any(o => o.Fighter.Value == vm.Briefing.StopFighterId);
+                        for (int i = 0; i < 26 && !Stopped(); i++)
+                        {
+                            Court();
+                            vm.AdvanceWeekCommand.Execute(null);
+                            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+                            vm.Moments.Reset();
+                            Report($"week {i + 1} ({w.RivalOffers.Count(o => o.Kind == MmaManager.Core.Model.RivalOfferKind.FreeAgent)} free-agent offers)");
+                        }
+                        if (!Stopped())
+                            throw new InvalidOperationException($"no free-agent offer stopped the clock ({w.RivalOffers.Count} offers made)");
+                        break;
+                    }
+                    case "desk":
+                        break;
+                    default:
+                        throw new ArgumentException("unknown scenario " + scenario);
+                }
+                vm.Desktop.Open("briefing");
+                Layout();
+                var settle = System.Diagnostics.Stopwatch.StartNew();
+                while (Portraits.PendingThumbs > 0 && settle.ElapsedMilliseconds < 15000)
+                {
+                    System.Threading.Thread.Sleep(2);
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => { }));
+                }
+                Layout();
+                var b = vm.Briefing;
+                Report("drawn");
+                Console.WriteLine($"RENDERBRIEFING lede: {b.Lede}");
+                Console.WriteLine($"RENDERBRIEFING people: {string.Join(", ", b.People.Select(p => $"{p.Name} ({p.Detail})"))}");
+                Console.WriteLine($"RENDERBRIEFING actions: {string.Join(" | ", b.Actions.Select(a => (a.IsPrimary ? "*" : "") + a.Text))}");
+                Console.WriteLine($"RENDERBRIEFING digest ({b.DigestWindow}): {string.Join(" / ", b.DigestShown.Select(i => i.Text))}{(b.HasMoreDigest ? " ..." : "")}");
+                Console.WriteLine($"RENDERBRIEFING waiting: {string.Join(" / ", b.Waiting.Select(i => i.Text))}");
+                Console.WriteLine($"RENDERBRIEFING next: {b.NextTitle} {b.NextCountdown} {b.NextCountdownUnit} | {b.NextDetail} | {b.NextDeadline}{b.NoCardLine}");
+                Console.WriteLine($"RENDERBRIEFING strip: {vm.StatusText}");
+
+                var rtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(root);
+                var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                string p = e.Args[^1];
+                using (var fs = File.Create(p)) enc.Save(fs);
+                Console.WriteLine("RENDERBRIEFING OK -> " + Path.GetFullPath(p));
+
+                if (scenario == "freeagentoffer")
+                {
+                    // Press the two doors: "Sit down" must land on free-agent talks (not a re-sign
+                    // window), and "Let him go" must hand him to the rival when the week turns.
+                    var courted = w.Get(new MmaManager.Core.Model.FighterId(b.StopFighterId))!;
+                    b.Actions.First(a => a.Text.StartsWith("Sit down", StringComparison.Ordinal)).Command.Execute(null);
+                    Console.WriteLine($"RENDERBRIEFING sit down -> windows [{string.Join(", ", vm.Desktop.Windows.Select(x => x.Spec.Id))}], target {vm.Contracts.TargetName} | {vm.Contracts.TargetSub} | own={vm.Contracts.IsOwnFighter}");
+                    vm.Desktop.Open("briefing");
+                    vm.Briefing.Actions.First(a => a.Text.StartsWith("Let ", StringComparison.Ordinal)).Command.Execute(null);
+                    Layout();
+                    Report("let go");
+                    Console.WriteLine($"RENDERBRIEFING strip: {vm.StatusText}");
+                    var rtb2 = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
+                    rtb2.Render(root);
+                    var enc2 = new PngBitmapEncoder(); enc2.Frames.Add(BitmapFrame.Create(rtb2));
+                    string p2 = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-letgo.png");
+                    using (var fs2 = File.Create(p2)) enc2.Save(fs2);
+                    Console.WriteLine("RENDERBRIEFING OK -> " + p2);
+                    vm.AdvanceWeekCommand.Execute(null);
+                    Console.WriteLine($"RENDERBRIEFING a week on: {courted.FullName} is with {(courted.Contract is { } cc ? w.Get(cc.Promotion)?.Abbreviation : "nobody")}");
+                }
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERBRIEFING FAIL: " + ex); Environment.Exit(1); }
+            Environment.Exit(0);
+            return;
+        }
+
         // One app on the desktop at a real screen size, maximised or floating at its
         // default window size: `MmaManager.Wpf --renderapp <appId> <W> <H> [--founded]
         // [--floating] [--months N] [--card] [--cards N] [--table] <path>` (the Planner adds
@@ -1214,7 +1620,7 @@ public partial class App : Application
                         string roomPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(e.Args[^1]))!,
                             Path.GetFileNameWithoutExtension(e.Args[^1]) + "-room.png");
                         using (var fs = File.Create(roomPath)) roomEnc.Save(fs);
-                        Console.WriteLine($"RENDERAPP room -> {roomPath}: their purse {roomVm.TheirPurse}; {roomVm.AskWhy}");
+                        Console.WriteLine($"RENDERAPP room -> {roomPath}: his purse {roomVm.HisPurse}; {roomVm.AskWhy}");
                         roomWin.Close();
                     }
                 }

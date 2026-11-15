@@ -190,8 +190,8 @@
                     <Button Content="🤝 Negotiate contract" Command="{Binding NegotiateCommand}" Padding="16,7" FontWeight="Bold"
                             FontSize="13" HorizontalAlignment="Left"
                             Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}"
-                            ToolTip="Sit down with their agent — multi-round talks over every lever of the deal" />
-                    <TextBlock Text="Opens the negotiating room: their agent quotes a position, you table offers, and the number moves — or the talks die."
+                            ToolTip="Sit down with the fighter — multi-round talks over every term of the deal" />
+                    <TextBlock Text="Opens the table: the fighter names a number, you table offers, and the number moves — or the fighter walks out."
                                FontSize="11" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0" />
 
                     <!-- The room's answer -->
