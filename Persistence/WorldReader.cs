@@ -97,7 +97,15 @@ internal sealed class WorldReader
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
-                world.Era.Unlocked.Add(r.Str("capability"));
+            {
+                // An id this build can't read is a broken or foreign save, not something to
+                // drop quietly: re-locking a capability would rewrite the world's history.
+                string id = r.Str("capability");
+                if (!Capability.TryParse(id, out var capability))
+                    throw new InvalidDataException(
+                        $"This save unlocks an era capability this build doesn't know (\"{id}\"); it cannot be loaded.");
+                world.Era.Unlocked.Add(capability.Id);
+            }
         }
     }
 

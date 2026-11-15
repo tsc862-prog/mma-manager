@@ -190,6 +190,145 @@ public class EraTests
         Assert.Contains(promo.Divisions, d => d.WeightClass == WeightClass.Strawweight && d.Sex == Sex.Female && d.Title == title!.Id);
     }
 
+    [Fact]
+    public void OriginsWorld_ALockedClassGetsNoDivisionByAnyPath()
+    {
+        var world = Build(WorldMode.Origins, seed: 5);
+        // The build itself opened no division the sport hasn't got (none are unlocked).
+        Assert.All(world.Promotions.Values, p => Assert.Empty(p.Divisions));
+
+        // Startups allowed, every men's class but lightweight split out.
+        Era.Unlock(world, Capability.NewPromotions);
+        foreach (var wc in Enum.GetValues<WeightClass>().Where(c => c != WeightClass.Lightweight))
+            Era.Unlock(world, Capability.Class(wc));
+
+        int before = world.Promotions.Count;
+        var rng = new SimRandom(77);
+        for (int m = 14; m <= 14 + 12 * 6; m += 12)   // seven startup windows
+            WorldEvents.RunMonthly(world, world.StartDate.AddMonths(m), rng);
+
+        // Whatever launched, nothing anywhere runs a lightweight division or belt.
+        Assert.All(world.Promotions.Values, p =>
+            Assert.DoesNotContain(p.Divisions, d => d.WeightClass == WeightClass.Lightweight));
+        Assert.DoesNotContain(world.Titles.Values, t => t.WeightClass == WeightClass.Lightweight);
+        Assert.True(world.Promotions.Count > before, "no startup launched: the startup path went untested");
+
+        // The vacant-belt path (a founding) skips it too, and still opens the unlocked ones.
+        var promo = world.Promotions.Values.OrderBy(p => p.Id.Value).First();
+        PromotionSetup.ConfigureVacantDivisions(world, promo,
+            new[] { WeightClass.Lightweight, WeightClass.Welterweight });
+        Assert.DoesNotContain(promo.Divisions, d => d.WeightClass == WeightClass.Lightweight);
+        Assert.Contains(promo.Divisions, d => d.WeightClass == WeightClass.Welterweight && d.Title is not null);
+        // ...and women's vacant belts wait for women's MMA.
+        PromotionSetup.ConfigureVacantDivisions(world, promo, new[] { WeightClass.Welterweight }, Sex.Female);
+        Assert.DoesNotContain(promo.Divisions, d => d.Sex == Sex.Female);
+    }
+
+    [Fact]
+    public void CommissionTitle_ReturnsAnExistingBeltWhateverTheEraSays()
+    {
+        var world = Build(WorldMode.Origins, seed: 6);
+        var promo = world.Promotions.Values.OrderBy(p => p.Id.Value).First();
+        promo.Balance = new Money(1_000_000m);
+        var cap = Capability.Class(WeightClass.Middleweight);
+        Era.Unlock(world, cap);
+        var belt = PromotionSetup.CommissionTitle(world, promo, WeightClass.Middleweight, Sex.Male, world.CurrentDate);
+        Assert.NotNull(belt);
+
+        world.Era.Unlocked.Remove(cap.Id);   // the era no longer offers the class...
+        decimal bank = promo.Balance.Amount;
+        var again = PromotionSetup.CommissionTitle(world, promo, WeightClass.Middleweight, Sex.Male, world.CurrentDate);
+        Assert.Equal(belt!.Id, again?.Id);   // ...but the belt that exists is still the belt
+        Assert.Equal(bank, promo.Balance.Amount);
+        Assert.Single(promo.Divisions, d => d.WeightClass == WeightClass.Middleweight && d.Sex == Sex.Male);
+    }
+
+    [Fact]
+    public void OriginsWorld_NoBrands_SponsorMarketDrawsNothing()
+    {
+        var world = Build(WorldMode.Origins, seed: 8);
+        var promo = world.Promotions.Values.OrderBy(p => p.Id.Value).First();
+        Assert.Empty(promo.SponsorDeals);   // open slots, nothing pending: the roll would happen in today's mode
+        Assert.False(Draws(r => Sponsorships.RunMonthly(world, promo, world.CurrentDate, r)));
+
+        // Today's mode keeps its roll exactly where it was.
+        var modern = Build(WorldMode.Modern, seed: 8);
+        var mp = modern.Promotions.Values.OrderBy(p => p.Id.Value).Last();
+        mp.SponsorDeals.Clear();
+        mp.Offers.Clear();
+        Assert.True(Draws(r => Sponsorships.RunMonthly(modern, mp, modern.CurrentDate, r)));
+
+        // One brand back in the era and the market rolls again.
+        Era.Unlock(world, Capability.SponsorLocal);
+        Assert.True(Draws(r => Sponsorships.RunMonthly(world, promo, world.CurrentDate, r)));
+    }
+
+    [Fact]
+    public void CountryKeys_AreNormalisedHoweverTheyAreMade()
+    {
+        Assert.Equal(Capability.Scene("BRA"), new Capability(CapabilityKind.CountryScene, "bra"));
+        Assert.True(Capability.TryParse("CountryScene:bra", out var parsed));
+        Assert.Equal(Capability.Scene("BRA"), parsed);
+        Assert.Equal("CountryScene:BRA", parsed.Id);
+        Assert.Equal(new Capability(CapabilityKind.Crossovers), new Capability(CapabilityKind.Crossovers, ""));
+
+        var world = new World { Mode = WorldMode.Origins };
+        Era.Unlock(world, new Capability(CapabilityKind.CountryScene, "jpn"));
+        Assert.True(Era.AllowsScene(world, "JPN"));
+        Assert.True(Era.AllowsScene(world, "jpn"));
+    }
+
+    [Theory]
+    [InlineData("NoSuchThing")]
+    [InlineData("WeightClass")]                // a keyed kind without its key
+    [InlineData("CountryScene:")]
+    [InlineData("Crossovers:x")]               // a plain kind with a key
+    [InlineData("WeightClass:Openweight")]     // not a WeightClass member
+    [InlineData("WeightClass:4")]
+    [InlineData("3")]
+    [InlineData("")]
+    public void TryParse_RejectsWhatThisBuildCannotRead(string id) =>
+        Assert.False(Capability.TryParse(id, out _));
+
+    [Fact]
+    public void EveryMediaKindAndSponsorArchetype_HasItsOwnCapability()
+    {
+        // Capability.Media throws on an unmapped kind: this fails CI, not an Origins game.
+        var media = Enum.GetValues<MediaKind>().Select(Capability.Media).ToList();
+        Assert.Equal(media.Count, media.Distinct().Count());
+        foreach (var kind in Enum.GetValues<MediaKind>())
+            Assert.Equal(kind.ToString(), Capability.Media(kind).Kind.ToString());
+
+        var sponsorKinds = Enum.GetValues<CapabilityKind>().Where(k => k.ToString().StartsWith("Sponsor")).ToList();
+        var eras = Sponsorships.ArchetypeEras;
+        Assert.Equal(eras.Count, eras.Distinct().Count());   // one capability per archetype
+        Assert.All(eras, e => Assert.Contains(e.Kind, sponsorKinds));
+        Assert.Equal(sponsorKinds.OrderBy(k => k), eras.Select(e => e.Kind).OrderBy(k => k));
+    }
+
+    [Fact]
+    public void ASaveWithAnUnknownCapability_RefusesToLoad()
+    {
+        var world = Build(WorldMode.Origins, seed: 9);
+        Era.Unlock(world, Capability.Crossovers);
+        string path = Path.Combine(Path.GetTempPath(), $"mma_era_bad_{Guid.NewGuid():N}.db");
+        try
+        {
+            SaveGame.Save(world, path);
+            using (var c = new Microsoft.Data.Sqlite.SqliteConnection(
+                       new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString()))
+            {
+                c.Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "INSERT INTO era_unlocks (ordinal, capability) VALUES (99, 'Teleporters')";
+                cmd.ExecuteNonQuery();
+            }
+            var ex = Assert.Throws<InvalidDataException>(() => SaveGame.Load(path));
+            Assert.Contains("Teleporters", ex.Message);
+        }
+        finally { File.Delete(path); }
+    }
+
     // ---- the schedule runs from the start date ---------------------------------
 
     /// <summary>The months (since the start) on which the scheduled beats drew from the stream.</summary>

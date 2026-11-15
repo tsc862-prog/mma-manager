@@ -30,6 +30,8 @@ public static class PromotionSetup
     {
         foreach (var wc in classes)
         {
+            // A class the sport hasn't split out yet gets no division (never skips in today's mode; no draws here).
+            if (!Living.Era.AllowsDivision(world, wc, sex)) continue;
             var division = new Division { WeightClass = wc, Sex = sex };
             promo.Divisions.Add(division);
 
@@ -72,6 +74,7 @@ public static class PromotionSetup
     {
         foreach (var wc in classes)
         {
+            if (!Living.Era.AllowsDivision(world, wc, sex)) continue;   // not in the sport yet (never in today's mode)
             var division = new Division { WeightClass = wc, Sex = sex };
             promo.Divisions.Add(division);
 
@@ -105,14 +108,15 @@ public static class PromotionSetup
     /// </summary>
     public static Title? CommissionTitle(World world, Promotion promo, WeightClass wc, Sex sex, DateOnly on)
     {
-        if (!CanCommission(world, wc, sex)) return null;
         var division = promo.Divisions.FirstOrDefault(d => d.WeightClass == wc && d.Sex == sex);
+        // A belt that already exists is returned whatever the era says (the two never disagree).
+        if (division?.Title is { } existing && world.Get(existing) is { } already) return already;
+        if (!CanCommission(world, wc, sex)) return null;
         if (division is null)
         {
             division = new Division { WeightClass = wc, Sex = sex };
             promo.Divisions.Add(division);
         }
-        if (division.Title is { } existing && world.Get(existing) is { } already) return already;
 
         var title = new Title
         {

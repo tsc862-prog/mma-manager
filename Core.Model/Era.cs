@@ -13,6 +13,10 @@ public enum WorldMode { Modern, Origins }
 /// <see cref="WeightClass"/> and <see cref="CountryScene"/> carry a key (the class
 /// name, the country's atlas code) in <see cref="Capability.Key"/>.
 /// Saved by NAME (<see cref="Capability.Id"/>): never rename a member.
+/// SAVE-STABLE: the names of these members, the <see cref="Core.Model.WeightClass"/>
+/// member names used as weight-class keys, and the atlas country codes used as scene
+/// keys are all written into saves. Renaming any of them makes old saves refuse to
+/// load (the reader rejects an unknown id rather than silently re-locking it).
 /// </summary>
 public enum CapabilityKind
 {
@@ -42,13 +46,21 @@ public enum CapabilityKind
 /// </summary>
 public readonly record struct Capability(CapabilityKind Kind, string? Key = null)
 {
+    /// <summary>The key, normalised however it was given: empty is no key, country codes are upper case.</summary>
+    public string? Key { get; } = Normalise(Kind, Key);
+
+    private static string? Normalise(CapabilityKind kind, string? key) =>
+        string.IsNullOrEmpty(key) ? null
+        : kind == CapabilityKind.CountryScene ? key.ToUpperInvariant()
+        : key;
+
     /// <summary>The stable saved form: the kind's name, then ":key" for the keyed kinds.</summary>
     public string Id => string.IsNullOrEmpty(Key) ? Kind.ToString() : $"{Kind}:{Key}";
 
     public override string ToString() => Id;
 
     public static Capability Class(WeightClass wc) => new(CapabilityKind.WeightClass, wc.ToString());
-    public static Capability Scene(string countryCode) => new(CapabilityKind.CountryScene, countryCode.ToUpperInvariant());
+    public static Capability Scene(string countryCode) => new(CapabilityKind.CountryScene, countryCode);
 
     public static Capability Media(MediaKind kind) => kind switch
     {
@@ -61,17 +73,26 @@ public readonly record struct Capability(CapabilityKind Kind, string? Key = null
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
-    /// <summary>Read a saved <see cref="Id"/> back; false for a name this build doesn't know.</summary>
+    /// <summary>
+    /// Read a saved <see cref="Id"/> back; false for a kind this build doesn't know,
+    /// a keyed kind without its key (or a plain kind with one), or a weight-class key
+    /// that isn't a <see cref="Core.Model.WeightClass"/> member name.
+    /// </summary>
     public static bool TryParse(string id, out Capability capability)
     {
+        capability = default;
         int colon = id.IndexOf(':');
         string kind = colon < 0 ? id : id[..colon];
-        if (!Enum.TryParse<CapabilityKind>(kind, ignoreCase: false, out var k) || !Enum.IsDefined(k))
-        {
-            capability = default;
+        string? key = colon < 0 ? null : id[(colon + 1)..];
+        if (kind.Length == 0 || !char.IsLetter(kind[0])
+            || !Enum.TryParse<CapabilityKind>(kind, ignoreCase: false, out var k) || !Enum.IsDefined(k))
             return false;
-        }
-        capability = new Capability(k, colon < 0 ? null : id[(colon + 1)..]);
+        bool keyed = k is CapabilityKind.WeightClass or CapabilityKind.CountryScene;
+        if (keyed != !string.IsNullOrEmpty(key)) return false;
+        if (k == CapabilityKind.WeightClass
+            && (!Enum.TryParse<WeightClass>(key, ignoreCase: false, out var wc) || !Enum.IsDefined(wc) || wc.ToString() != key))
+            return false;
+        capability = new Capability(k, key);
         return true;
     }
 

@@ -82,6 +82,9 @@ public static class Sponsorships
             }, Capability.SponsorGlobal),
     };
 
+    /// <summary>Each archetype's era capability, in table order (the tests hold every archetype to its own Sponsor* kind).</summary>
+    internal static IReadOnlyList<Capability> ArchetypeEras => Archetypes.Select(a => a.Era).ToList();
+
     private static Money FeeFor(Archetype a, Promotion p) =>
         new(a.BaseFee + p.Prestige.Value * a.PerPrestige);
 
@@ -143,7 +146,10 @@ public static class Sponsorships
 
         int open = Slots(Org.OrgSizing.SizeOf(promo)) - promo.SponsorDeals.Count;
         int pending = promo.Offers.Count(o => o.Media is null);
-        if (open > 0 && pending < 2 && rng.Chance(0.35))
+        // An era with no sponsoring brands at all draws nothing (Origins only: today's
+        // mode short-circuits before the check, so its draw stays where it always was).
+        bool anyBrand = world.Mode == WorldMode.Modern || Archetypes.Any(a => Living.Era.Allows(world, a.Era));
+        if (open > 0 && pending < 2 && anyBrand && rng.Chance(0.35))
         {
             var size = Org.OrgSizing.SizeOf(promo);
             var taken = promo.SponsorDeals.Select(d => d.Partner).ToHashSet();
