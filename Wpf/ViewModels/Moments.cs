@@ -230,7 +230,7 @@ public sealed class TitleMoment : MomentViewModel
     private static bool IsDecision(FightMethod m) =>
         m is FightMethod.UnanimousDecision or FightMethod.SplitDecision or FightMethod.MajorityDecision;
 
-    private static string MethodText(FightMethod m) => m switch
+    internal static string MethodText(FightMethod m) => m switch
     {
         FightMethod.Knockout => "KO",
         FightMethod.TechnicalKnockout => "TKO",
@@ -333,5 +333,31 @@ public sealed class MomentsViewModel : ObservableObject
         return Current is not null;
     }
 
-    public void Dismiss() => Current = null;
+    public void Dismiss()
+    {
+        Current = null;
+        // Whatever was waiting behind the moment (the briefing) comes up now.
+        var then = _then;
+        _then = null;
+        then?.Invoke();
+    }
+
+    private Action? _then;
+
+    /// <summary>
+    /// Run <paramref name="next"/> once the moment is carried on from — at once if
+    /// none is showing. The Moment always shows first; the briefing follows it.
+    /// </summary>
+    public void Then(Action next)
+    {
+        if (IsShowing) _then = next;
+        else next();
+    }
+
+    /// <summary>Take the moment down without running what was waiting behind it (a new career, a load).</summary>
+    public void Reset()
+    {
+        _then = null;
+        Current = null;
+    }
 }
