@@ -38,6 +38,8 @@
         <mvvm:InverseBoolToVisibility x:Key="InverseBoolToVis" />
         <!-- CardTone -> Tone{Good,Warn,Bad,Info} brush; ConverterParameter=Dim for the background shade. -->
         <mvvm:ToneBrush x:Key="ToneBrush" />
+        <!-- bool (is she a woman) -> the ConverterParameter text with he/his/him turned to she/her. -->
+        <mvvm:Pronouns x:Key="Pronouns" />
 
         <!-- ================= Text ================= -->
         <Style TargetType="TextBlock">
@@ -791,6 +793,41 @@
             </Style.Triggers>
         </Style>
 
+        <!-- THE BRIEFING (Views/BriefingView.xaml): why the clock stopped as one headline card
+             (the moment's poster language, smaller), then the digest and the calendar. -->
+        <Style x:Key="Text.BriefingKicker" TargetType="TextBlock" BasedOn="{StaticResource Text.MomentKicker}">
+            <Setter Property="FontSize" Value="13" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="12" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="Text.BriefingHeadline" TargetType="TextBlock" BasedOn="{StaticResource Text.Display}">
+            <Setter Property="FontSize" Value="36" />
+            <Setter Property="LineHeight" Value="40" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+            <Setter Property="Margin" Value="-1,8,0,0" />
+            <Style.Triggers>
+                <Trigger Property="controls:Adaptive.IsCompact" Value="True">
+                    <Setter Property="FontSize" Value="28" />
+                    <Setter Property="LineHeight" Value="31" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="Text.BriefingLede" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="LineHeight" Value="21" />
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+            <Setter Property="Margin" Value="0,10,0,0" />
+        </Style>
+        <!-- A small "done" pill on a headline whose fix has been made. -->
+        <Style x:Key="BriefingPill" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ToneGoodDim}" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
+            <Setter Property="Padding" Value="10,3,11,4" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
         <Style x:Key="Chip" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource Track}" />
             <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}" />
@@ -870,6 +907,45 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- BriefingItemTemplate: BriefingItem — a face (or a toned line icon), a kicker, one sentence,
+             a line of detail and a link on the right. The digest and "also on your desk" both use it. -->
+        <DataTemplate x:Key="BriefingItemTemplate">
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="38" Height="38" VerticalAlignment="Top" Margin="0,1,12,0">
+                    <Ellipse x:Name="disc" Fill="{StaticResource Track}" />
+                    <controls:Icon x:Name="icon" Kind="{Binding Icon}" Width="18" Height="18" Brush="{StaticResource TextSoft}" />
+                    <Ellipse x:Name="face" Visibility="Collapsed" Stroke="{StaticResource PanelEdge}">
+                        <Ellipse.Fill><ImageBrush ImageSource="{Binding Picture}" Stretch="UniformToFill" AlignmentY="Top" /></Ellipse.Fill>
+                    </Ellipse>
+                </Grid>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="kicker" Text="{Binding Kicker}" Style="{StaticResource Text.Kicker}" FontSize="10.5" Margin="0,0,0,1" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Text}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" />
+                    <TextBlock x:Name="detail" Text="{Binding Detail}" Style="{StaticResource Text.Secondary}" Margin="0,2,0,0" />
+                </StackPanel>
+                <Button x:Name="act" Grid.Column="2" Content="{Binding ActionText}" Command="{Binding Command}"
+                        Style="{StaticResource Button.Link}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasPicture}" Value="True">
+                    <Setter TargetName="face" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="icon" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kicker}" Value=""><Setter TargetName="kicker" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasDetail}" Value="False"><Setter TargetName="detail" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasAction}" Value="False"><Setter TargetName="act" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Bad"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneBadDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneBad}" /><Setter TargetName="face" Property="Stroke" Value="{StaticResource ToneBad}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Warn"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneWarnDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneWarn}" /><Setter TargetName="face" Property="Stroke" Value="{StaticResource ToneWarn}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Good"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneGoodDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneGood}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Info"><Setter TargetName="disc" Property="Fill" Value="{StaticResource ToneInfoDim}" /><Setter TargetName="icon" Property="Brush" Value="{StaticResource ToneInfo}" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
 
         <!-- A borderless clickable surface (a whole card that opens something). -->
         <Style x:Key="CardButton" TargetType="Button">
@@ -1904,6 +1980,149 @@
                     <Setter Property="Text" Value="⚠" />
                     <Setter Property="Foreground" Value="{StaticResource Negative}" />
                     <Setter Property="Margin" Value="0,0,8,0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ================= THE TABLE (NegotiationWindow) =================
+             Talks are promoter and fighter: his photo on the left, the paperwork in the
+             middle (your slip, the rival's paper beside it), what he says on the right.
+             Paper is the one light surface in the app: a physical object on a dark table.
+               TablePaper / TablePaperCool   your slip (warm) / a rival's letterhead (cool)
+               TableInk / TableInkSoft       typed text on paper / its labels
+               TablePencil                   his number, pencilled in your slip's margin
+               Slip (Border), Slip.Label, Slip.Value, Slip.Note, Slip.Field (TextBox), Slip.Check
+               Stamp (Border) + Stamp.Text   rubber stamp on paper ("CAME BACK ONCE")
+               LeanSegment (Border) + LeanSegment.Text: one third of the leaning bar, lit when its Tag is bound to true
+             ===================================================================== -->
+        <SolidColorBrush x:Key="TablePaper" Color="#ECE5D3" />
+        <SolidColorBrush x:Key="TablePaperCool" Color="#DCE2E8" />
+        <SolidColorBrush x:Key="TableInk" Color="#1D2127" />
+        <SolidColorBrush x:Key="TableInkSoft" Color="#5E5A50" />
+        <SolidColorBrush x:Key="TableRule" Color="#B3AA96" />
+        <SolidColorBrush x:Key="TablePencil" Color="#A8423B" />
+
+        <Style x:Key="Slip" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource TablePaper}" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="18,16,18,14" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Direction="270" Opacity="0.55" Color="Black" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Slip.Kicker" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInkSoft}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Title" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Label" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInkSoft}" />
+            <Setter Property="Margin" Value="0,8,0,1" />
+        </Style>
+        <Style x:Key="Slip.Value" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Note" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontStyle" Value="Italic" />
+            <Setter Property="Foreground" Value="{StaticResource TablePencil}" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="Margin" Value="10,0,0,3" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Slip.Field" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TableInk}" />
+            <Setter Property="SelectionBrush" Value="#C9A54A" />
+            <Setter Property="Background" Value="#F6F1E4" />
+            <Setter Property="BorderBrush" Value="{StaticResource TableRule}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1.5" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="2,2,0,0">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource TableInk}" />
+                                <Setter TargetName="b" Property="Background" Value="#FBF8F0" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="b" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Slip.Check" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TableInk}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+            <!-- (the app's implicit TextBlock style is light-on-dark: give the label paper ink) -->
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#1D2127" FontSize="12" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Stamp" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource TablePencil}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="Opacity" Value="0.85" />
+        </Style>
+        <Style x:Key="Stamp.Text" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource TablePencil}" />
+        </Style>
+        <Style x:Key="LeanSegment" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Track}" />
+            <Setter Property="Padding" Value="0,5" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource OrgAccent}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="LeanSegment.Text" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                    <Setter Property="Foreground" Value="#15181D" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
