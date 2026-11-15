@@ -156,7 +156,8 @@ public sealed class NegotiationViewModel : ObservableObject
         _view = session.View(exclusive, false);
 
         // The promises he could be given (each one re-quotes his number when toggled).
-        string home = world.Get(fighter.Country)?.Name is { Length: > 0 } c ? $"A fight at home in {c}" : "A fight at home";
+        // (Where "home" is comes from the sim's own words, in the note under the toggle.)
+        const string home = "A fight at home";
         TitlePromise = new SlipPromise(PromiseKind.TitleShot, "A title shot", RefreshTable);
         HomePromise = new SlipPromise(PromiseKind.HomeShow, home, RefreshTable);
         ActivityPromise = new SlipPromise(PromiseKind.Activity, "Fights in the year", RefreshTable);
@@ -220,14 +221,13 @@ public sealed class NegotiationViewModel : ObservableObject
         .Select(i => i < Math.Max(0, _view.Patience)).ToList();
     /// <summary>What drives his number, in words (from the session).</summary>
     /// <remarks>
-    /// A broken promise's cost is said once, on the slip (<see cref="WaryLine"/>), so the session's
-    /// own lines for it are left out here. They are recognised by their opening words until the
-    /// view carries them as values (contracts/promise-words).
+    /// A broken promise's cost is said once, on the slip (<see cref="WaryLine"/>, the view's
+    /// <see cref="NegotiationView.TrustNote"/>), beside the promises it devalues; the session's
+    /// reasons that make up that note are left out here so it never reads twice.
     /// </remarks>
-    public IReadOnlyList<string> Reasons => _view.Reasons
-        .Where(r => !r.StartsWith("Word gets around:", StringComparison.Ordinal)
-                    && !r.StartsWith("You broke your word to ", StringComparison.Ordinal))
-        .ToList();
+    public IReadOnlyList<string> Reasons => _view.TrustNote is { Length: > 0 } note
+        ? _view.Reasons.Where(r => !note.Contains(r, StringComparison.Ordinal)).ToList()
+        : _view.Reasons;
 
     private string _askWhy = "";
     /// <summary>Why his opening number on these terms isn't the market rate ("" when it is).</summary>
@@ -294,22 +294,10 @@ public sealed class NegotiationViewModel : ObservableObject
         : "";
 
     /// <summary>
-    /// One line when a broken promise is costing you at this table: he remembers yours to him,
-    /// or word is out that you broke one this past year (both read off the sim, never worked out here).
+    /// One line when a broken promise is costing you at this table (he remembers yours to him,
+    /// and/or word is out that you broke one this year): the view's ready <see cref="NegotiationView.TrustNote"/>.
     /// </summary>
-    public string WaryLine
-    {
-        get
-        {
-            var today = _world.CurrentDate;
-            var lines = new List<string>();
-            if (Promises.BrokenBy(_world, _fighter.Id, _promoId, today) > 0)
-                lines.Add(G("You broke your word to him: a promise from you counts for nothing with him for now."));
-            if (Promises.Wariness(_world, _promoId, today) > 1m)
-                lines.Add("Word is out that you broke a promise this past year: every fighter asks a little more at your table and counts your promises for less.");
-            return string.Join(" ", lines);
-        }
-    }
+    public string WaryLine => _view.TrustNote ?? "";
     public bool HasWaryLine => WaryLine.Length > 0;
 
     /// <summary>Promises already on the books for him (open ones), in a line ("" when none).</summary>
@@ -331,7 +319,12 @@ public sealed class NegotiationViewModel : ObservableObject
         PromiseFights = PromisedFights, PromiseHomeShow = HomePromise.IsOn, PromiseTitleShot = TitlePromise.IsOn,
     };
 
-    // Each promise's words and price, from the session's options on this slip.
+    // What the slip promises, for telling whether RefreshPromises changed it.
+    private (int Fights, bool Home, bool Title) PromiseKey() => (PromisedFights, HomePromise.IsOn, TitlePromise.IsOn);
+
+    // Each promise's words and price, from the session's options on this slip. It may quietly
+    // change the slip (a refused promise comes off, the activity pick moves to one he'd take):
+    // RefreshTable then rebuilds the view, so his number and the stated discounts describe one slip.
     private void RefreshPromises()
     {
         var opts = _view.PromiseOptions;
@@ -510,7 +503,7 @@ public sealed class NegotiationViewModel : ObservableObject
     {
         var parts = new List<string>();
         if (o.PromiseTitleShot) parts.Add("a title shot");
-        if (o.PromiseHomeShow) parts.Add(HomePromise.Label.Replace("A fight", "a fight"));
+        if (o.PromiseHomeShow) parts.Add("a fight at home");
         if (o.PromiseFights > 0) parts.Add($"{o.PromiseFights} fights in the year");
         return parts.Count switch
         {
@@ -611,10 +604,10 @@ public sealed class NegotiationViewModel : ObservableObject
             case FinalOfferResult.CantAfford:
                 Say($"The books can't cover the {offer.SigningBonus} signing bonus you wrote down. Nothing was lodged.", CardTone.Bad);
                 break;
-            case FinalOfferResult.OffTerms
-                when _world.Get(_promoId) is { } promo && Promises.FirstRefusal(_world, promo, _fighter, offer) is { } refused:
+            case FinalOfferResult.OffTerms when _session.LastRefusal is { } refused:
                 // The real reason is a promise he won't take on this slip: say which, in his words.
-                Say($"He won't sign it with that promise in it: “{refused.Why}” Take it off the slip, or change the deal. Nothing was lodged.", CardTone.Warn);
+                Say($"He won't take {refused.Kind switch { PromiseKind.TitleShot => "the title-shot promise", PromiseKind.HomeShow => "the home-show promise", _ => "the activity promise" }}: "
+                    + $"“{refused.Why}” Take it off the slip, or change the deal. Nothing was lodged.", CardTone.Warn);
                 break;
             case FinalOfferResult.OffTerms:
                 Say($"That isn't a deal he'd sign at any money: he wants {_view.Position.Fights} fights (give or take one)"
@@ -698,11 +691,21 @@ public sealed class NegotiationViewModel : ObservableObject
     {
         // (Called by the promise toggles too, which exist only once the constructor has made them.)
         if (TitlePromise is null) return;
-        _view = _session.View(SlipTerms());
-        RefreshPromises();
+        // Price the slip; if reading the options changed it (a refused promise came off, the activity
+        // pick moved), price it again, so his number and every stated discount describe the same slip.
+        for (int pass = 0; pass < 3; pass++)
+        {
+            var key = PromiseKey();
+            _view = _session.View(SlipTerms());
+            RefreshPromises();
+            if (PromiseKey() == key) break;
+        }
         var q = AskingQuote.For(_world, _world.Get(_promoId)!, _fighter, _exp,
             OfferExclusive, OfferChampionsClause);
-        AskWhy = q.Reasons.Count == 0 ? "" : $"Opened at {q.Purse} a fight: {q.Why} (market rate {q.MarketRate}).";
+        // The trust clauses are already said on the slip (TrustNote): the opening line keeps the rest.
+        var trustClauses = Promises.TrustReasons(_fighter, Promises.TrustAt(_world, _fighter.Id, _promoId, _world.CurrentDate), sentences: false);
+        var why = q.Reasons.Where(r => !trustClauses.Contains(r)).ToList();
+        AskWhy = why.Count == 0 ? "" : $"Opened at {q.Purse} a fight: {string.Join("; ", why)} (market rate {q.MarketRate}).";
         foreach (var p in ViewProperties) OnPropertyChanged(p);
         RefreshTotals();
     }

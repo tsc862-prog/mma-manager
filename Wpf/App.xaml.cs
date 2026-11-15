@@ -1032,9 +1032,14 @@ public partial class App : Application
                     var pSession = MmaManager.Core.Sim.Contracts.NegotiationSession.Resume(w, who2, mine, pExp);
                     var pVm = new NegotiationViewModel(w, who2, mine, pExp, pSession, renewal: true);
                     string before = pVm.HisPurse;
+                    string statedTitle = pVm.TitlePromise.Effect;
                     pVm.TitlePromise.IsOn = true;
                     string withShot = pVm.HisPurse;
+                    string statedRight = pVm.MatchingRightEffect;
                     pVm.OfferMatchingRight = true;
+                    // Check: the stated discount and cost are exactly how far his number moves.
+                    decimal Amt(string s) => decimal.Parse(s.TrimStart('$').Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture);
+                    Console.WriteLine($"RENDERTABLE   check: title stated '{statedTitle}', moved {Amt(before) - Amt(withShot):N0}; right stated '{statedRight}', moved {Amt(pVm.HisPurse) - Amt(withShot):N0}");
                     Console.WriteLine($"RENDERTABLE {scenario}: {who2.FullName} (title priority {pExp.Priorities.TitleOpportunity}); his purse {before} -> {withShot} with a title shot -> {pVm.HisPurse} with a matching right too");
                     Console.WriteLine($"RENDERTABLE   title: {pVm.TitlePromise.Allowed} | {pVm.TitlePromise.Note} | {pVm.TitlePromise.Effect}");
                     Console.WriteLine($"RENDERTABLE   home:  {pVm.HomePromise.Allowed} | {pVm.HomePromise.Note} | {pVm.HomePromise.Effect}");

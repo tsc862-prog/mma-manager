@@ -1455,8 +1455,9 @@ public sealed class BriefingViewModel : ObservableObject
                 {
                     Icon = "Warning", Picture = Portraits.Thumb(f, w), Weight = 92, Kicker = "A PROMISE BROKEN",
                     Text = $"{f.FirstName} {f.LastName} says {player.Abbreviation} broke its word",
-                    Detail = Lifers.Gendered(f, $"You promised him {what} by {p.Deadline:d MMM}. "
-                        + "He's taken it hard, it's in the news, and for a year every fighter at your table asks a little more."),
+                    // His words (the sim's BrokenLine, the same line his letter and the news carry), then the cost.
+                    Detail = (Promises.BrokenLine(w, p) is { Length: > 0 } said ? $"“{said}” " : Lifers.Gendered(f, $"You promised him {what} by {p.Deadline:d MMM}. "))
+                        + "It's in the news, and for a year every fighter at your table asks a little more.",
                     Tone = CardTone.Bad,
                     ActionText = "Profile ▸", Command = Do(() => OpenFighter?.Invoke(id)),
                 });
