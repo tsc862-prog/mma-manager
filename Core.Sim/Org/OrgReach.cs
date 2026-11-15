@@ -16,6 +16,8 @@ public static class OrgReach
     public static bool CanBookIn(World world, Promotion promo, CityId cityId)
     {
         if (world.Get(cityId) is not { } city) return false;
+        // A country with no scene yet hosts no shows (Origins; always allowed in today's mode).
+        if (!Living.Era.AllowsSceneIn(world, cityId)) return false;
         var size = OrgSizing.SizeOf(promo);
         if (size == OrgSize.International) return true;
         if (city.Region != promo.BaseRegion) return false;

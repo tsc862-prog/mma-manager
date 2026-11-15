@@ -44,6 +44,8 @@ public static class LocalCircuit
     /// <summary>Stage this month's club cards (they run on their dates). Returns the bouts staged.</summary>
     public static int RunMonthly(World world, DateOnly date, SimRandom rng)
     {
+        // 1993 has no club scene: the three promotions are the sport (Origins; nothing is drawn).
+        if (world.Mode == WorldMode.Origins) return 0;
         // Anyone who fought recently, or has a booking coming, isn't idle —
         // and local cards themselves now count, so the circuit self-paces.
         var busy = new HashSet<FighterId>();

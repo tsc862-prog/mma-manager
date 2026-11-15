@@ -25,6 +25,9 @@ public static class RevenueService
     public static void SeedFounding(World world, Promotion promo, DateOnly on, SimRandom rng) =>
         Sponsorships.SeedFounding(world, promo, on, rng);
 
+    /// <summary>Mail-order money a month per prestige point in an Origins world (today's is 1,500).</summary>
+    public const decimal OriginsMerchPerPrestige = 500m;
+
     /// <summary>The monthly commercial tick for every live promotion.</summary>
     public static void CollectMonthly(World world, DateOnly date)
     {
@@ -40,8 +43,10 @@ public static class RevenueService
             // ALIVE — prestige sets the ceiling, recent shows set how much of it
             // actually sells. No cards in four months = nothing to wear.
             double activity = Math.Min(1.0, MediaService.EventsInWindow(world, promo, 120) / 3.0);
+            // (1993, Origins: a few tapes through the post and a T-shirt table; no television to sell anything.)
+            decimal perPoint = world.Mode == WorldMode.Origins ? OriginsMerchPerPrestige : 1_500m;
             Ledger.Income(promo, date, FinanceCategory.Merchandise,
-                new Money(promo.Prestige.Value * 1_500m * (decimal)activity), "Merchandise (mail order)");
+                new Money(promo.Prestige.Value * perPoint * (decimal)activity), "Merchandise (mail order)");
         }
     }
 

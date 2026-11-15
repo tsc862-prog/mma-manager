@@ -90,6 +90,9 @@ public sealed class FighterValuation
             else if (a.Title.EndsWith("— bronze")) medal = Math.Max(medal, 4_000m);
         }
         purse += medal;
+        // A sport that has just been born (Origins) pays what its houses can pay: no man asks more than the
+        // richest house in the sport could put up for one purse. (Today's market has no such ceiling.)
+        if (world.Mode == WorldMode.Origins) purse = Math.Min(purse, OriginsMarketCeiling(world));
         purse = Math.Max(1_500m, RoundTo(purse, 500m));
 
         var askingPurse = new Money(purse);
@@ -119,6 +122,15 @@ public sealed class FighterValuation
     /// and 53% read 58+ against 33% and 48% who were truly 60+.
     /// </summary>
     public const int StarLevel = 74;
+
+    /// <summary>The most any live house in an Origins world can pay a man a fight (its purse cap).</summary>
+    public static decimal OriginsMarketCeiling(World world)
+    {
+        decimal best = 0m;
+        foreach (var p in world.Promotions.Values)
+            if (!p.Defunct) best = Math.Max(best, Negotiator.PurseCap(world, p));
+        return best;
+    }
 
     /// <summary>
     /// The discovered local's open-market floor, from the accolade the town saw:

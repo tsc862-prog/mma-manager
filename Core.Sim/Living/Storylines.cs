@@ -168,6 +168,7 @@ public static class Storylines
             RedCorner = fight.RedCorner == outId ? sub.Id : fight.RedCorner,
             BlueCorner = fight.BlueCorner == outId ? sub.Id : fight.BlueCorner,
             WeightClass = fight.WeightClass,
+            OpenWeight = fight.OpenWeight,
             ScheduledRounds = fight.ScheduledRounds,
             IsTitleFight = beltStaysOn,
             Title = beltStaysOn ? fight.Title : null,
@@ -319,6 +320,7 @@ public static class Storylines
         foreach (var fight in ev.Card)
         {
             if (fight.WeightMissBy is not null) continue;
+            if (fight.OpenWeight) continue;   // open weight has no scale to miss (Origins; never in today's mode)
             // WHO blows the limit is a matter of character, not a coin toss: the
             // pro who lives in the gym makes weight, the one who doesn't, doesn't.
             // Aggregate stays near the old flat 4% per bout — it's redistributed

@@ -612,13 +612,13 @@ internal sealed class WorldWriter
     private void WritePromotions(World w)
     {
         using var promo = _c.Cmd(_tx,
-            "INSERT INTO promotions (id, ordinal, name, abbreviation, base_region, is_player, balance, prestige, reputation, defunct, home_city, round_minutes, standard_rounds, title_rounds, fotn_bonus, prestige_hundredths, milestones, marketing_budget, tier_clearance, promotion_offered, eligible_since, sponsored_camp, face_fighter, lore, stream_name, stream_launched, stream_subs, courted_by, last_cleared_tier, last_cleared_on, owner_name, owner_note, founded_year, fr_gloves, fr_rounds, fr_round_minutes, fr_judges, fr_head_punches, fr_kicks, fr_elbows, fr_rope_escapes, fr_open_weight, fr_enclosure) VALUES ($id,$ord,$n,$a,$r,$p,$b,$pr,$rep,$def,$hc,$rm,$sr,$tr,$fotn,$ph,$ms,$mb,$tc,$po,$es,$sc,$ff,$lore,$stn,$stl,$sts,$cb,$lct,$lco,$own,$ownn,$fy,$frg,$frr,$frm,$frj,$frh,$frk,$fre,$frp,$frw,$frc)");
+            "INSERT INTO promotions (id, ordinal, name, abbreviation, base_region, is_player, balance, prestige, reputation, defunct, home_city, round_minutes, standard_rounds, title_rounds, fotn_bonus, prestige_hundredths, milestones, marketing_budget, tier_clearance, promotion_offered, eligible_since, sponsored_camp, face_fighter, lore, stream_name, stream_launched, stream_subs, courted_by, last_cleared_tier, last_cleared_on, owner_name, owner_note, founded_year, fr_gloves, fr_rounds, fr_round_minutes, fr_judges, fr_head_punches, fr_kicks, fr_elbows, fr_rope_escapes, fr_open_weight, fr_enclosure, show_format, tournament_size, tournament_prize) VALUES ($id,$ord,$n,$a,$r,$p,$b,$pr,$rep,$def,$hc,$rm,$sr,$tr,$fotn,$ph,$ms,$mb,$tc,$po,$es,$sc,$ff,$lore,$stn,$stl,$sts,$cb,$lct,$lco,$own,$ownn,$fy,$frg,$frr,$frm,$frj,$frh,$frk,$fre,$frp,$frw,$frc,$sfmt,$tsz,$tpz)");
         using var pop = _c.Cmd(_tx,
             "INSERT INTO promotion_city_pop (promotion_id, city_id, rating) VALUES ($p,$r,$v)");
         using var div = _c.Cmd(_tx,
-            "INSERT INTO divisions (promotion_id, ordinal, weight_class, title_id, sex) VALUES ($p,$o,$w,$t,$sx)");
+            "INSERT INTO divisions (promotion_id, ordinal, weight_class, title_id, sex, open) VALUES ($p,$o,$w,$t,$sx,$op)");
         using var rank = _c.Cmd(_tx,
-            "INSERT INTO division_rankings (promotion_id, weight_class, sex, position, fighter_id) VALUES ($p,$w,$sx,$pos,$f)");
+            "INSERT INTO division_rankings (promotion_id, weight_class, sex, position, fighter_id, open) VALUES ($p,$w,$sx,$pos,$f,$op)");
         using var ledger = _c.Cmd(_tx,
             "INSERT INTO ledger_entries (promotion_id, ordinal, date, category, amount, description) VALUES ($p,$o,$d,$c,$a,$desc)");
         using var sponsor = _c.Cmd(_tx,
@@ -671,6 +671,9 @@ internal sealed class WorldWriter
             promo.Bind("$frp", fr?.RopeEscapes);
             promo.Bind("$frw", fr is null ? null : fr.OpenWeight ? 1 : 0);
             promo.Bind("$frc", fr?.Enclosure.ToString());
+            promo.Bind("$sfmt", p.Rules.ShowFormat.ToString());
+            promo.Bind("$tsz", p.Rules.TournamentSize);
+            promo.Bind("$tpz", Db.Cash(p.Rules.TournamentPrize));
             promo.Bind("$stn", Db.Text(p.Stream?.Name));
             promo.Bind("$stl", Db.DateN(p.Stream?.LaunchedOn));
             promo.Bind("$sts", p.Stream?.Subscribers ?? 0);
@@ -697,6 +700,7 @@ internal sealed class WorldWriter
                 div.Bind("$w", d.WeightClass.ToString());
                 div.Bind("$t", Db.IdN(d.Title?.Value));
                 div.Bind("$sx", d.Sex.ToString());
+                div.Bind("$op", d.Open ? 1 : 0);
                 div.ExecuteNonQuery();
 
                 for (int pos = 0; pos < d.Rankings.Count; pos++)
@@ -707,6 +711,7 @@ internal sealed class WorldWriter
                     rank.Bind("$sx", d.Sex.ToString());
                     rank.Bind("$pos", pos);
                     rank.Bind("$f", d.Rankings[pos].Value);
+                    rank.Bind("$op", d.Open ? 1 : 0);
                     rank.ExecuteNonQuery();
                 }
             }
@@ -814,14 +819,14 @@ internal sealed class WorldWriter
         using var ev = _c.Cmd(_tx,
             """
             INSERT INTO events (id, ordinal, promotion_id, name, date, venue, venue_id, region, tier, status,
-                fin_present, attendance, gate, ppv_buys, ppv_rev, production, payroll, main_card, hype_bonus)
-            VALUES ($id,$ord,$p,$n,$d,$v,$vid,$r,$tier,$s,$fp,$at,$g,$pb,$pr,$pc,$pay,$mc,$hb)
+                fin_present, attendance, gate, ppv_buys, ppv_rev, production, payroll, main_card, hype_bonus, format)
+            VALUES ($id,$ord,$p,$n,$d,$v,$vid,$r,$tier,$s,$fp,$at,$g,$pb,$pr,$pc,$pay,$mc,$hb,$fmt)
             """);
         using var fight = _c.Cmd(_tx,
             """
             INSERT INTO fights (id, event_id, ordinal, red, blue, weight_class, scheduled_rounds,
-                is_title, title_id, catchweight, weight_miss, overturned, out_present, winner, loser, method, end_round, end_time, round_scores)
-            VALUES ($id,$e,$o,$red,$blue,$w,$sr,$it,$t,$cw,$wm,$ot,$op,$win,$lose,$m,$er,$et,$rs)
+                is_title, title_id, catchweight, weight_miss, overturned, out_present, winner, loser, method, end_round, end_time, round_scores, open_weight)
+            VALUES ($id,$e,$o,$red,$blue,$w,$sr,$it,$t,$cw,$wm,$ot,$op,$win,$lose,$m,$er,$et,$rs,$ow)
             """);
         using var stat = _c.Cmd(_tx,
             """
@@ -845,6 +850,7 @@ internal sealed class WorldWriter
             ev.Bind("$s", e.Status.ToString());
             ev.Bind("$mc", e.MainCardFights);
             ev.Bind("$hb", e.HypeBonus);
+            ev.Bind("$fmt", e.Format.ToString());
             if (e.Financials is { } fin)
             {
                 ev.Bind("$fp", 1);
@@ -878,6 +884,7 @@ internal sealed class WorldWriter
                 fight.Bind("$cw", f.CatchweightLbs is { } cw ? cw : DBNull.Value);
                 fight.Bind("$wm", Db.IdN(f.WeightMissBy?.Value));
                 fight.Bind("$ot", f.OverturnedNc ? 1 : 0);
+                fight.Bind("$ow", f.OpenWeight ? 1 : 0);
                 if (f.Outcome is { } o)
                 {
                     fight.Bind("$op", 1);

@@ -35,6 +35,12 @@ public static class Ledger
     /// (Was 500 at 4-8/division; at the doubled division depth that "pittance" became a mid-tier org killer.)</summary>
     public const decimal RetainerPerSpot = 200m;
 
+    /// <summary>An Origins house's monthly base outlay (today's City base is 8,000).</summary>
+    public const decimal OriginsBaseOverhead = 3_000m;
+
+    /// <summary>An Origins house's monthly outlay per prestige point (today's is 2,000).</summary>
+    public const decimal OriginsOverheadPerPrestige = 400m;
+
     /// <summary>Monthly retainer per exclusive fighter ABOVE the target — the anti-hoarding tax.</summary>
     public const decimal HoardingRetainerPerSpot = 3_000m;
 
@@ -76,7 +82,10 @@ public static class Ledger
             // its back office inside the base outlay above rather than line by
             // line, so billing them again would double-charge every promotion in
             // the world and fold the small halls inside a year.
-            decimal cost = baseCost + promo.Prestige.Value * 2_000m + retainer
+            // The first promotions (Origins) are a rented office, a phone and a van: the same shape at a
+            // 1993 scale, or three houses with no television fold before their second year.
+            if (world.Mode == WorldMode.Origins) baseCost = OriginsBaseOverhead;
+            decimal cost = baseCost + promo.Prestige.Value * (world.Mode == WorldMode.Origins ? OriginsOverheadPerPrestige : 2_000m) + retainer
                          + (promo.IsPlayerControlled ? Org.StaffService.MonthlySalaries(promo).Amount : 0m);
             Expense(promo, date, FinanceCategory.Overhead, new Money(cost), "Monthly operating costs");
         }

@@ -287,7 +287,7 @@ public sealed class Negotiator
         var venue = Geography.WorldMap.PickVenue(world, promo);
         if (venue is not null) attendance = Math.Min(attendance, venue.Capacity);
 
-        decimal gate = attendance * (55m + prestige * 1.4m);
+        decimal gate = attendance * (Booking.Financials.TicketBaseOf(world) + prestige * 1.4m);
         decimal production = 10_000m + attendance * 12m + (venue?.Rent.Amount ?? 0m);
         // A full card is ~16 purses + 8 win bonuses at 0.75 → ~22 purse-units.
         return Math.Max(2_000m, Math.Round((gate - production) * 0.9m / 22m / 500m) * 500m);

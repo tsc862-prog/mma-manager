@@ -76,9 +76,12 @@ public static class FreeAgencyService
 
             // A promotion only fills its divisions as deep as its TIER can pay for —
             // a lean roster at the small halls, real depth only at the top.
+            // (An Origins house runs ONE open division and every night needs its whole field: its floor is
+            // what its own night takes. Today's mode keeps the old four.)
+            int minBodies = world.Mode == WorldMode.Origins ? Living.OriginsShows.MinRoster(promo) : MinToRunDivision;
             int target = distress > 0
-                ? MinToRunDivision
-                : Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo));
+                ? minBodies
+                : Math.Max(minBodies, Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo)));
             foreach (var div in promo.Divisions)
             {
                 // (A free agent this org has lodged an offer for — one the player is
@@ -119,7 +122,7 @@ public static class FreeAgencyService
                         && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
                     // A big org won't roster a journeyman — unless the division is
                     // so thin it needs bodies just to put on a card.
-                    if (Have() >= MinToRunDivision && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
+                    if (Have() >= minBodies && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
 
                     var exp = Valuation.Evaluate(world, fa);
                     if (exp.AskingPurse.Amount > purseCeiling) continue;   // out of a distressed budget

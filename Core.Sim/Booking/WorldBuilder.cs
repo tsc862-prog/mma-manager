@@ -130,12 +130,31 @@ public sealed class WorldBuilder
 
         /// <summary>
         /// How the world begins: today's mature sport (the default) or the birth of
-        /// the sport. Carried onto <see cref="World.Mode"/> before anything is
-        /// built, so the era gates apply to the build too. (Origins has no build
-        /// path of its own yet: built this way it is today's world with every
-        /// era-gated system switched off until something unlocks it.)
+        /// the sport. <see cref="WorldMode.Origins"/> takes its own build path
+        /// (<see cref="OriginsWorldBuilder"/>: 1 January 1993, three tiny promotions,
+        /// the pioneers, no history); of the other options it reads only
+        /// <see cref="Seed"/>, <see cref="StartDate"/>, <see cref="PlayerPromotionIndex"/>,
+        /// <see cref="Founding"/> (null = the player runs one of the three),
+        /// <see cref="IdentityCatalog"/> and <see cref="RankingsDepth"/>.
         /// </summary>
         public WorldMode Mode { get; init; } = WorldMode.Modern;
+
+        /// <summary>
+        /// An Origins start: 1 January 1993, the player running one of the three
+        /// day-one promotions (0 = Crucible Challenge, 1 = Shinken Fighting
+        /// Association, 2 = Duelo Livre).
+        /// </summary>
+        public static Options Origins(ulong seed, int playerIndex = 0) => new()
+        {
+            Mode = WorldMode.Origins,
+            Seed = seed,
+            StartDate = OriginsWorldBuilder.StartDate,
+            PlayerPromotionIndex = playerIndex,
+            UseDesignedRoster = false,
+            GenerateHistory = false,
+            PoolWithRecord = false,
+            IncludeWomensDivisions = false,
+        };
 
         /// <summary>
         /// Roll a backstory record for the generated talent pool (the default; the
@@ -143,6 +162,12 @@ public sealed class WorldBuilder
         /// whose sport starts on day one: every pool fighter debuts 0-0.
         /// </summary>
         public bool PoolWithRecord { get; init; } = true;
+
+        /// <summary>
+        /// Tests of the era gates only: build TODAY's world shape with <see cref="Mode"/> set and nothing
+        /// unlocked (the phase-0 seam tests), instead of the Origins world.
+        /// </summary>
+        internal bool GatedModernShape { get; init; }
 
         // --- The niche profiles the designed world is built from -------------------
         // (Each org's designed headliners fit inside its niche — checked by test.)
@@ -269,6 +294,8 @@ public sealed class WorldBuilder
     public World Build(Options? options = null)
     {
         var o = options ?? new Options();
+        // The birth of the sport is its own world (nothing below runs for it).
+        if (o.Mode == WorldMode.Origins && !o.GatedModernShape) return OriginsWorldBuilder.Build(o);
         var specs = o.Promotions ?? Options.DefaultPromotions;
         var world = new World { CurrentDate = o.StartDate, StartDate = o.StartDate, RngSeed = o.Seed, ArtCatalog = o.IdentityCatalog, Mode = o.Mode };
         // No women's divisions in a world whose sport hasn't got them yet (never in today's mode).

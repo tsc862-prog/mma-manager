@@ -18,6 +18,8 @@ public class EraTests
         new WorldBuilder().Build(new WorldBuilder.Options
         {
             Seed = seed, Mode = mode, StartDate = start ?? new WorldBuilder.Options().StartDate,
+            // These are tests of the gates on today's world shape; the real 1993 world is OriginsWorldTests'.
+            GatedModernShape = mode == WorldMode.Origins,
         });
 
     /// <summary>Every capability the enum can express, keyed kinds with a sample key.</summary>

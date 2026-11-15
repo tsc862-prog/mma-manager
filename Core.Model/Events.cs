@@ -40,6 +40,22 @@ public sealed class Event
     /// 0 = no tour or a flat one. Persisted.
     /// </summary>
     public double HypeBonus { get; set; }
+
+    /// <summary>
+    /// What kind of night this is. <see cref="EventFormat.Tournament"/> (Origins) is a one-night
+    /// bracket: announced with an empty card, its field is drawn and its bouts are fought on the night
+    /// (the card fills as the bracket runs). Every card in today's mode is <see cref="EventFormat.Card"/>.
+    /// </summary>
+    public EventFormat Format { get; set; } = EventFormat.Card;
+}
+
+/// <summary>What kind of night an <see cref="Event"/> is.</summary>
+public enum EventFormat
+{
+    /// <summary>A booked card of bouts (today's sport).</summary>
+    Card,
+    /// <summary>A one-night bracket, drawn and fought on the night.</summary>
+    Tournament,
 }
 
 /// <summary>
@@ -58,6 +74,12 @@ public sealed class Fight
     public bool IsTitleFight { get; set; }
     public TitleId? Title { get; set; }
     public int? CatchweightLbs { get; set; }             // non-null => catchweight bout
+
+    /// <summary>
+    /// Fought at open weight (Origins): no limit, no weigh-in, any man against any man. The bout's
+    /// <see cref="WeightClass"/> is then only a filing key; label it "Open". Never set in today's mode.
+    /// </summary>
+    public bool OpenWeight { get; set; }
 
     /// <summary>Who blew the scale at the weigh-in (fined; a title leaves the line — or the champ's waist — over it).</summary>
     public FighterId? WeightMissBy { get; set; }

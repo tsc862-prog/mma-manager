@@ -12,6 +12,12 @@ namespace MmaManager.Core.Sim.Booking;
 public static class Financials
 {
     private const decimal TicketBase = 55m;
+
+    /// <summary>The base ticket in an Origins world (today's is 55).</summary>
+    public const decimal OriginsTicketBase = 25m;
+
+    /// <summary>The world's base ticket price (today's 55; an Origins world's 25: a sport nobody has heard of).</summary>
+    public static decimal TicketBaseOf(World world) => world.Mode == WorldMode.Origins ? OriginsTicketBase : TicketBase;
     private const decimal PpvPrice = 45m;
 
     /// <summary>
@@ -157,7 +163,8 @@ public static class Financials
         decimal gateMult = ev.Tier switch { EventTier.Ppv => 1.3m, EventTier.SuperCard => 1.6m, _ => 1.0m };
         decimal prodMult = ev.Tier switch { EventTier.Ppv => 1.4m, EventTier.SuperCard => 1.8m, _ => 1.0m };
 
-        decimal ticketPrice = TicketBase + prestige * 1.4m;
+        // 1993's seats (Origins) are a sport nobody has heard of in a hall that holds a few thousand.
+        decimal ticketPrice = TicketBaseOf(world) + prestige * 1.4m;
         var gate = new Money(attendance * ticketPrice * gateMult);
 
         long ppvBuys = 0;

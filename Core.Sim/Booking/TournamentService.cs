@@ -56,16 +56,7 @@ public sealed class TournamentService
     {
         if (size < 2 || (size & (size - 1)) != 0) return null;   // must be a power of two
         if (world.Get(promoId) is not { } promo) return null;
-        rules ??= promo.Rules.Fight ?? FightRules.Modern;
-
-        var seeded = world.RosterOf(promoId)
-            .Where(f => (wc is { } w ? f.WeightClass == w : f.Sex == Sex.Male) && f.IsMatchReady(date))
-            .OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
-            .ThenBy(f => f.Id.Value)
-            .Take(size + 1)
-            .ToList();
-        if (seeded.Count < size) return null;
-        Fighter? alternate = seeded.Count > size ? seeded[size] : null;
+        if (Field(world, promo, size, date, wc) is not { } field) return null;
 
         var venue = Geography.WorldMap.PickVenue(world, promo);
         string label = wc is { } c0 ? FriendlyClass(c0) : "Open";
@@ -82,9 +73,43 @@ public sealed class TournamentService
             Status = EventStatus.Scheduled,
         };
         world.Events[ev.Id] = ev;
+        return Run(world, promo, ev, field.Seeded, field.Alternate, prize, wc, rules);
+    }
 
+    /// <summary>
+    /// Run a bracket into a night already on the calendar (an Origins tournament night: announced with an
+    /// empty card, drawn and fought on its date). Same rules as the overload above; the event's own date
+    /// and venue are kept. Null, and the event untouched, when the field can't be filled.
+    /// </summary>
+    public OneNightResult? RunOneNight(World world, Event ev, int size, Money prize, WeightClass? wc, FightRules? rules)
+    {
+        if (size < 2 || (size & (size - 1)) != 0) return null;
+        if (world.Get(ev.Promotion) is not { } promo) return null;
+        if (Field(world, promo, size, ev.Date, wc) is not { } field) return null;
+        return Run(world, promo, ev, field.Seeded, field.Alternate, prize, wc, rules);
+    }
+
+    /// <summary>The field, seeded by what the promotion THINKS of each man, and the alternate; null when it can't be filled.</summary>
+    private static (List<Fighter> Seeded, Fighter? Alternate)? Field(World world, Promotion promo, int size, DateOnly date, WeightClass? wc)
+    {
+        var seeded = world.RosterOf(promo.Id)
+            .Where(f => (wc is { } w ? f.WeightClass == w : f.Sex == Sex.Male) && f.IsMatchReady(date))
+            .OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
+            .ThenBy(f => f.Id.Value)
+            .Take(size + 1)
+            .ToList();
+        if (seeded.Count < size) return null;
+        return (seeded.Take(size).ToList(), seeded.Count > size ? seeded[size] : null);
+    }
+
+    private OneNightResult Run(World world, Promotion promo, Event ev, List<Fighter> field, Fighter? alternate, Money prize,
+        WeightClass? wc, FightRules? rules)
+    {
+        rules ??= promo.Rules.Fight ?? FightRules.Modern;
+        var promoId = promo.Id;
+        var date = ev.Date;
         int roundSeconds = (rules.RoundMinutes ?? promo.Rules.RoundMinutes) * 60;
-        var night = OneNightBracket.Run(seeded.Take(size).ToList(), alternate, rules, roundSeconds,
+        var night = OneNightBracket.Run(field, alternate, rules, roundSeconds,
             (red, blue, p) =>
             {
                 var fight = new Fight
@@ -92,7 +117,9 @@ public sealed class TournamentService
                     Id = world.NewFightId(),
                     RedCorner = red.Id,
                     BlueCorner = blue.Id,
-                    WeightClass = wc ?? red.WeightClass,   // open weight has no class of its own yet
+                    // Open weight is filed under the open division's nominal class and labelled as such.
+                    WeightClass = wc ?? Division.OpenClass,
+                    OpenWeight = wc is null,
                     ScheduledRounds = p.ScheduledRounds,
                 };
                 LocalCircuit.YieldTo(world, new[] { fight.RedCorner, fight.BlueCorner });
