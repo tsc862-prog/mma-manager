@@ -31,6 +31,26 @@ static class FightLabMode
             return;
         }
 
+        if (args.Length > 1 && args[1] == "origins")
+        {
+            // fightlab origins [fightsPerCell] [seed]: size x skill table, house-rule mixes, the eight-man night.
+            int per = args.Length > 2 ? int.Parse(args[2]) : 400;
+            ulong os = args.Length > 3 ? ulong.Parse(args[3]) : 2026;
+            var t = Stopwatch.StartNew();
+            Console.Write(FightLab.OriginsReport(per, os));
+            Console.WriteLine($"[fightlab origins {per}/cell seed {os}: {t.Elapsed.TotalSeconds:0.0} s]");
+            return;
+        }
+
+        if (args.Length > 1 && args[1] == "originspbp")
+        {
+            // fightlab originspbp [promo 0-2] [pairIndex]: one pioneer bout under a founding promotion's rules, with text.
+            int pi = args.Length > 2 ? int.Parse(args[2]) : 0;
+            int k = args.Length > 3 ? int.Parse(args[3]) : 0;
+            foreach (var line in FightLab.OriginsSample(pi, k)) Console.WriteLine(line);
+            return;
+        }
+
         if (args.Length > 1 && args[1] == "pbp")
         {
             // fightlab pbp [count] [seed]: print sample play-by-plays (alternating men's/women's, 3/5 rounds).

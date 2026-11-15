@@ -37,13 +37,18 @@ public class SpecialEventTests
             .First();
         int newsBefore = world.News.Count;
 
-        var ev = new TournamentService().RunOneNight(world, promo.Id, wc, size: 8, world.CurrentDate, new Money(200_000m));
+        var result = new TournamentService().RunOneNight(world, promo.Id, size: 8, world.CurrentDate, new Money(200_000m), wc, rules: null);
 
-        Assert.NotNull(ev);
-        Assert.Equal(EventTier.SuperCard, ev!.Tier);
-        Assert.Equal(7, ev.Card.Count);                 // 8-fighter single elim = 4 + 2 + 1
+        Assert.NotNull(result);
+        var ev = result!.Event;
+        Assert.Equal(EventTier.SuperCard, ev.Tier);
+        // 8-fighter single elim = 4 + 2 + 1 slots; a walkover (a withdrawal with no alternate left) fights no bout.
+        Assert.Equal(7, result.Night.Bouts.Count);
+        Assert.Equal(7 - result.Night.Bouts.Count(b => b.Outcome is null), ev.Card.Count);
         Assert.All(ev.Card, f => Assert.NotNull(f.Outcome));
         Assert.True(world.News.Count > newsBefore);
-        Assert.Contains(world.News, n => n.Headline.Contains("Grand Prix"));
+        // A champion is crowned, or the night says plainly that it has none.
+        Assert.Contains(world.News, n => n.Headline.Contains("Grand Prix")
+            && (result.Champion is not null ? n.Headline.Contains("wins") : n.Headline.Contains("No winner") || n.Headline.Contains("without a champion")));
     }
 }
