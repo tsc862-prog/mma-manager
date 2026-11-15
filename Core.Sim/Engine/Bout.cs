@@ -22,7 +22,7 @@ namespace MmaManager.Core.Sim.Engine;
 internal sealed partial class Bout
 {
     // --- Tuning constants (the dials to turn when balancing) ----------------
-    private readonly double RoundSeconds;     // from the promotion's ruleset (300 standard)
+    private double RoundSeconds;              // from the promotion's ruleset (300 standard); an overtime period sets its own
     private const double StrikeK = 0.038;     // striking accuracy logistic slope
     private const double TakedownK = 0.045;
     private const double SubmissionK = 0.045;
@@ -100,8 +100,11 @@ internal sealed partial class Bout
         _rounds = Math.Max(1, _rules.Rounds ?? p.ScheduledRounds);
         RoundSeconds = !_custom ? Math.Clamp(p.RoundSeconds, 60, 600)
                      : Math.Clamp(_rules.RoundMinutes is int m ? m * 60 : p.RoundSeconds, 60, MaxRoundSeconds);
-        _s[0] = new Side(red, _rounds);
-        _s[1] = new Side(blue, _rounds);
+        // Room for one overtime period when the booker asked for it (custom path only; +0 otherwise).
+        _overtimeSeconds = _custom && !_rules.Judges && p.OvertimeSeconds > 0 ? Math.Clamp(p.OvertimeSeconds, 60, 600) : 0;
+        int slots = _rounds + (_overtimeSeconds > 0 ? 1 : 0);
+        _s[0] = new Side(red, slots);
+        _s[1] = new Side(blue, slots);
         _log = p.GeneratePlayByPlay ? new List<string>(64) : null;
         _textSeed = SimRandom.Mix(p.TextSeed, ((ulong)(uint)red.Id.Value << 32) | (uint)blue.Id.Value);
         if (_custom)
@@ -120,7 +123,7 @@ internal sealed partial class Bout
 
         for (_round = 1; _round <= _rounds && _finish is null; _round++)
         {
-            if (Logging) Header(_custom && _rounds == 1 ? $"--- One round, {(int)RoundSeconds / 60} minutes on the clock ---" : $"--- Round {_round} ---");
+            if (Logging) Header(_custom && _rounds == 1 ? SingleRoundHeader() : $"--- Round {_round} ---");
             RunRound();
             if (_finish is not null) break;
             if (Logging) BellLines();
@@ -132,6 +135,7 @@ internal sealed partial class Bout
             }
         }
 
+        if (_finish is null && _overtimeSeconds > 0) RunOvertime();
         return _finish is { } f ? FinishOutcome(f) : DecisionOutcome();
     }
 
@@ -463,7 +467,7 @@ internal sealed partial class Bout
         // The strike name is a draw from the bout stream, made whether or not text is on.
         string shot = StrikeName(atk, where);
         if (Logging) SayLanded(a, power, shot);
-        if (_custom && power) MaybeHurtHand(a, where == Phase.Clinch || PrefersPunches(atk));
+        if (_custom && power) MaybeHurtHand(a, IsPunch(shot));
         // A power shot may open a cut (elbows and knees in the clinch most); any shot can
         // worsen an open one. Then the referee looks at a hurt fighter eating shots.
         if (power) MaybeCut(1 - a, where == Phase.Clinch ? ClinchCutFactor : 1.0);
@@ -627,7 +631,7 @@ internal sealed partial class Bout
         if (_ss.Chance(pPounce))
         {
             double dazed = dmg * 0.8 + (100 - chin) * 0.25 + (60 - _s[d].Health) * 0.4
-                         + atk.Tendencies.FinishInstinct * 0.15 - PounceStopOffset;
+                         + atk.Tendencies.FinishInstinct * 0.15 - PounceStopOffset - RestrictedPounce();
             if (_ss.Chance(Logistic(dazed, 0.12)))
             {
                 RecordFinish(a, FightMethod.TechnicalKnockout, "TKO: follow-up after knockdown");
@@ -1110,6 +1114,7 @@ internal sealed partial class Bout
     {
         if (_log is null) return;
         int remaining = (int)Math.Max(0, RoundSeconds - _clock);
+        if (_custom && _rules.Enclosure != Enclosure.Cage) line = InTheRoom(line);
         _log.Add($"R{_round} {remaining / 60}:{remaining % 60:00} — {line}");
     }
 
@@ -1186,8 +1191,8 @@ internal sealed partial class Bout
     private FightOutcome DecisionOutcome()
     {
         // The loop leaves _round one past the last round; the decision belongs to the last.
-        _round = _rounds;
         if (_custom && !_rules.Judges) return TimeLimitDraw();
+        _round = _rounds;
 
         // Three judges independently score every round (see ScoreRound: 10-9, 10-8 only
         // for dominance, 10-10 almost never), with a little per-judge noise so close

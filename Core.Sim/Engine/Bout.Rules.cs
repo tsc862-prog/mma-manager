@@ -34,6 +34,11 @@ internal sealed partial class Bout
     /// <summary>The rules stream: every new roll on the custom path (hand injuries, rope reach, mid-round checks).</summary>
     private readonly SimRandom? _rs;
     private double _nextCheck;
+    /// <summary>One overtime period's length (a no-judges bout the booker wants decided); 0 = none.</summary>
+    private readonly int _overtimeSeconds;
+    private bool _overtimeRan;
+    /// <summary>No closed fists on the ground: the follow-up after a knockdown rarely finishes it.</summary>
+    private const double RestrictedPounceOffset = 18;
 
     // --- Set-up -------------------------------------------------------------
 
@@ -42,10 +47,13 @@ internal sealed partial class Bout
         for (int i = 0; i < 2; i++)
         {
             var s = _s[i];
-            s.Deduct = new int[_rounds];
+            s.Deduct = new int[s.RoundPts.Length];
             s.Glove = Gloves.For(_rules.Gloves, s.F);
-            s.Power *= Gloves.DamageMul(s.Glove);
             s.WeightKg = SizeTerm.WeightKg(s.F);
+            // Open weight: size comes from natural weight ONLY - the weight-class power term is
+            // replaced (not stacked) by a power curve on the man's own kg.
+            if (_size) s.Power = SizeTerm.OpenPower(s.F, s.WeightKg);
+            s.Power *= Gloves.DamageMul(s.Glove);
         }
         if (_size)
         {
@@ -53,7 +61,7 @@ internal sealed partial class Bout
             {
                 var me = _s[i]; var him = _s[1 - i];
                 me.SizeEdge = SizeTerm.Edge(me.WeightKg, him.WeightKg);
-                me.Power *= Math.Exp(SizeTerm.PowerK * me.SizeEdge);
+                me.Power *= Math.Exp(SizeTerm.PowerRelK * me.SizeEdge);
                 me.DrainMul = Math.Exp(SizeTerm.GasRelK * me.SizeEdge) * SizeTerm.HeavyGas(me.WeightKg);
             }
         }
@@ -90,6 +98,11 @@ internal sealed partial class Bout
     private double SubSizeEdge(int d) => _size ? SizeTerm.SubPts * _s[d].SizeEdge : 0.0;
     /// <summary>Carrying a bigger man's weight on the bottom drains more.</summary>
     private double PinnedDrain() => Math.Exp(SizeTerm.PinnedK * _s[_top].SizeEdge);
+
+    private double RestrictedPounce() => _custom && !_rules.GroundedHeadPunches ? RestrictedPounceOffset : 0.0;
+
+    /// <summary>A landed shot thrown with the hand (not a kick, knee or elbow): only these hurt the hand.</summary>
+    internal static bool IsPunch(string shot) => Array.IndexOf(Punches, shot) >= 0 || shot is "uppercut" or "short hook";
 
     private double ClinchCutFactor => _custom && !_rules.Elbows ? 1.5 : 2.5;
     private double GroundCutFactor => !_custom ? 2.5
@@ -182,16 +195,67 @@ internal sealed partial class Bout
     /// <summary>The limit, unfinished, with nobody scoring: a draw. No judges' draws are made.</summary>
     private FightOutcome TimeLimitDraw()
     {
-        FinishDetail = "Draw: time limit, no judges";
+        _round = _overtimeRan ? _rounds + 1 : _rounds;
+        FinishDetail = _overtimeRan ? "Draw: time limit after overtime, no judges" : "Draw: time limit, no judges";
         if (Logging)
         {
             _clock = RoundSeconds;
-            Say(_rounds == 1
-                ? $"Time! {Minutes(RoundSeconds)} and nobody could finish it. There are no judges here: the bout is a draw."
+            Say(_overtimeRan ? "Time again! Overtime could not separate them either: the bout is a draw."
+                : _rounds == 1 ? $"Time! {Minutes(RoundSeconds)} and nobody could finish it. There are no judges here: the bout is a draw."
                 : "The final bell. There are no judges here, so the bout is declared a draw.");
         }
-        return Decision(null, null, FightMethod.Draw, (int)RoundSeconds, new List<RoundScore>());
+        return new FightOutcome
+        {
+            Winner = null, Loser = null, Method = FightMethod.Draw,
+            EndRound = _round, EndTimeSeconds = (int)RoundSeconds,
+            Stats = BuildStats(), PlayByPlay = _log, RoundScores = new List<RoundScore>(),
+        };
     }
+
+    /// <summary>
+    /// One overtime period after a no-judges draw at the limit (the booker's call: a tournament
+    /// final). No rest: the fighters go straight on, same rules, as round <c>rounds + 1</c>.
+    /// </summary>
+    private void RunOvertime()
+    {
+        _overtimeRan = true;
+        if (Logging)
+        {
+            _clock = RoundSeconds;
+            Say("Time! Nobody could finish it, and a final needs a winner: they will fight on.");
+        }
+        _round = _rounds + 1;
+        RoundSeconds = _overtimeSeconds;
+        if (Logging) Header($"--- Round {_round}: overtime, {Words((int)Math.Round(RoundSeconds / 60))} minutes ---");
+        RunRound();
+    }
+
+    /// <summary>The single long round's header. Only the round number is a digit: the broadcast
+    /// window reads every digit in a "---" line as the round number.</summary>
+    private string SingleRoundHeader() => $"--- Round 1: a single {Words((int)Math.Round(RoundSeconds / 60))}-minute round ---";
+
+    /// <summary>The cage words in the stock lines, put into this room (a roped ring, or an open floor).</summary>
+    private string InTheRoom(string line)
+    {
+        bool ring = _rules.Enclosure == Enclosure.Ring;
+        return line
+            .Replace("ties up against the cage", ring ? "ties up against the ropes" : "ties up in close")
+            .Replace("takedown against the fence", ring ? "takedown against the ropes" : "takedown from the clinch")
+            .Replace("defends the takedown against the cage", ring ? "defends the takedown against the ropes" : "defends the takedown in the clinch")
+            .Replace("takedown attempt along the fence", ring ? "takedown attempt along the ropes" : "takedown attempt in the clinch")
+            .Replace(" on the fence with a flurry", ring ? " on the ropes with a flurry" : " with a flurry")
+            .Replace("wall-walks back up", ring ? "climbs back up using the ropes" : "scrambles back to the feet")
+            .Replace("looks for a wall-walk", ring ? "reaches for the ropes to climb up" : "looks for a way back up");
+    }
+
+    private static readonly string[] Ones =
+        { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+          "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen" };
+    private static readonly string[] Tens = { "", "", "twenty", "thirty", "forty", "fifty", "sixty" };
+
+    /// <summary>A number in words, 0-60 (larger falls back to "many").</summary>
+    internal static string Words(int n) =>
+        n < 0 || n > 60 ? "many" : n < 20 ? Ones[n] : n % 10 == 0 ? Tens[n / 10] : $"{Tens[n / 10]}-{Ones[n % 10]}";
 
     // --- Text -----------------------------------------------------------------
 
@@ -209,6 +273,8 @@ internal sealed partial class Bout
                 GloveType.ThinOpenFinger => "thin open-fingered gloves",
                 _ => "gloves optional",
             });
+        if (_rules.Enclosure == Enclosure.Ring) parts.Add("a roped ring");
+        else if (_rules.Enclosure == Enclosure.OpenFloor) parts.Add("an open floor");
         if (_rules.RopeEscapes > 0) parts.Add($"{_rules.RopeEscapes} rope escapes each");
         if (_rules.OpenWeight) parts.Add("no weight limit");
         return $"{_s[0].F.FullName} vs {_s[1].F.FullName} — {string.Join(", ", parts)}.";
@@ -263,8 +329,19 @@ internal sealed partial class Bout
 /// </summary>
 public static class SizeTerm
 {
-    /// <summary>Strike damage (and, squared, flash-KO odds): Power x exp(PowerK x s). 110 v 62: x1.33 / x0.75.</summary>
-    public const double PowerK = 1.0;
+    /// <summary>
+    /// Strike power in open weight comes from natural weight only (the weight-class table is not used):
+    /// <list type="bullet">
+    /// <item>Absolute, from the man's own kg: (kg / <see cref="PowerRefKg"/>) ^ PowerAbsK (x the women's
+    /// factor). 0.4 is the smooth version of today's division table (54 kg 0.89, 73 kg 1.00, 108 kg 1.17),
+    /// so two big men finish each other as heavyweights do and two small men as flyweights do.</item>
+    /// <item>Relative, the mismatch: x exp(PowerRelK x s). 110 v 62: x1.77 / x0.56.</item>
+    /// </list>
+    /// Flash-KO odds use Power squared.
+    /// </summary>
+    public const double PowerAbsK = 0.4, PowerRelK = 0.7;
+    public const double PowerRefKg = 73, PowerMinKg = 45, PowerMaxKg = 200;
+    public const double WomensPower = 0.88;
     /// <summary>Chin points per unit of s: the bigger man absorbs more. 110 v 62: +-8.</summary>
     public const double ChinPts = 30;
     /// <summary>Grappling points per unit of s on takedowns, clinch, passes, sweeps and getting up. 110 v 62: +-16.</summary>
@@ -287,6 +364,13 @@ public static class SizeTerm
 
     public static double Edge(double myKg, double hisKg) =>
         myKg == hisKg ? 0.0 : Math.Clamp(Math.Log(myKg / hisKg), -MaxEdge, MaxEdge);
+
+    public static double OpenPower(Fighter f, double kg) =>
+        (f.Sex == Sex.Female ? WomensPower : 1.0) * Math.Pow(Math.Clamp(kg, PowerMinKg, PowerMaxKg) / PowerRefKg, PowerAbsK);
+
+    /// <summary>The nearest weight class to a natural weight (how a builder labels an open-weight man).</summary>
+    public static WeightClass NearestClass(double kg) =>
+        Enum.GetValues<WeightClass>().OrderBy(w => Math.Abs(ClassMidKg(w) - kg)).First();
 
     public static double HeavyGas(double kg) => kg <= HeavyGasFromKg ? 1.0 : 1 + HeavyGasSlope * (kg / HeavyGasFromKg - 1);
 

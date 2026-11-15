@@ -13,6 +13,17 @@ public enum GloveType
     Optional,
 }
 
+/// <summary>Where the fight happens: it only changes the words ("against the ropes", "the fence").</summary>
+public enum Enclosure
+{
+    /// <summary>A fenced cage (today's sport).</summary>
+    Cage,
+    /// <summary>A roped ring.</summary>
+    Ring,
+    /// <summary>An open floor with the crowd around it (no fence, no ropes).</summary>
+    OpenFloor,
+}
+
 /// <summary>
 /// The rules a bout is fought under. The default (<see cref="Modern"/>) is today's sport exactly:
 /// the booked rounds, three judges, modern gloves, everything legal on the ground, no rope
@@ -55,6 +66,9 @@ public sealed record FightRules
 
     /// <summary>No weight classes: size matters in the cage (the engine's size term is on).</summary>
     public bool OpenWeight { get; init; }
+
+    /// <summary>Cage, ring or open floor (text only).</summary>
+    public Enclosure Enclosure { get; init; } = Enclosure.Cage;
 
     /// <summary>Today's rules.</summary>
     public static FightRules Modern { get; } = new();

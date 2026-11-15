@@ -20,9 +20,9 @@ public class OriginsEngineTests
     /// </summary>
     private const string TextGoldenMain = "65b8adb69e8d5ab5";
 
-    private static FightRules Crucible => OriginsPromotions.All[0].Rules.ToFightRules();
-    private static FightRules Shinken => OriginsPromotions.All[1].Rules.ToFightRules();
-    private static FightRules Duelo => OriginsPromotions.All[2].Rules.ToFightRules();
+    private static FightRules Crucible => OriginsPromotions.All[0].ToFightRules();
+    private static FightRules Shinken => OriginsPromotions.All[1].ToFightRules();
+    private static FightRules Duelo => OriginsPromotions.All[2].ToFightRules();
 
     // ------------------------------------------------------------ default path identity
 
@@ -44,10 +44,12 @@ public class OriginsEngineTests
     public void SizeTerm_IsExactlyNeutralAtEqualSize()
     {
         Assert.Equal(0.0, SizeTerm.Edge(80, 80));
-        // Open weight switched on, every other rule modern, both men the same natural weight (under the
-        // heavy-gas line): every result, statline and card must equal the modern bout's exactly.
+        // Open weight switched on, every other rule modern, both men the same size: every relative size
+        // effect is exactly neutral. Open weight's power comes from natural weight, not the class; at the
+        // lightweight middle (73 kg, the class fallback) the curve gives exactly the lightweight's 1.00,
+        // so every result, statline and card must equal the modern bout's exactly.
         var pool = FightLab.GoldenFighters(60);
-        foreach (var f in pool) f.NaturalWeightLbs = 170;
+        foreach (var f in pool) { f.NaturalWeightLbs = 0; f.WeightClass = WeightClass.Lightweight; }
         var engine = new FightEngine();
         var open = new FightRules { OpenWeight = true };
         for (int i = 0; i < 300; i++)
@@ -286,8 +288,8 @@ public class OriginsEngineTests
     [Fact]
     public void BracketOrder_SeedsOneAgainstEight()
     {
-        Assert.Equal(new[] { 0, 7, 3, 4, 1, 6, 2, 5 }, TournamentService.BracketOrder(8));
-        Assert.Equal(new[] { 0, 3, 1, 2 }, TournamentService.BracketOrder(4));
+        Assert.Equal(new[] { 0, 7, 3, 4, 1, 6, 2, 5 }, OneNightBracket.Order(8));
+        Assert.Equal(new[] { 0, 3, 1, 2 }, OneNightBracket.Order(4));
     }
 
     [Fact]
@@ -298,23 +300,217 @@ public class OriginsEngineTests
             var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 9 });
             var promo = world.Promotions.Values.OrderByDescending(p => p.Prestige.Value).First();
             promo.Rules.Fight = Crucible;
-            var ev = new TournamentService().RunOneNight(world, promo.Id, 8, world.CurrentDate, new Money(50_000m), wc: null, rules: null);
-            Assert.NotNull(ev);
-            Assert.InRange(ev!.Card.Count, 4, 7);
-            Assert.Equal(4, ev.Card.Take(4).Count());
+            var result = new TournamentService().RunOneNight(world, promo.Id, 8, world.CurrentDate, new Money(50_000m), wc: null, rules: null);
+            Assert.NotNull(result);
+            var ev = result!.Event;
+            // The real invariant: one card bout per fought slot; a walkover adds none.
+            Assert.Equal(result.Night.BoutsFought, ev.Card.Count);
+            Assert.Equal(7, result.Night.Bouts.Count);
             foreach (var f in ev.Card)
             {
                 Assert.NotNull(f.Outcome);
                 Assert.Equal(1, f.ScheduledRounds);
                 Assert.NotEqual(FightMethod.UnanimousDecision, f.Outcome!.Method);   // no judges here
-                Assert.True(f.Outcome.EndRound == 1 && f.Outcome.EndTimeSeconds <= 1200);
+                Assert.True(f.Outcome.EndRound <= 2 && f.Outcome.EndTimeSeconds <= 1200);   // round 2 = the final's overtime
             }
-            // Eight different men open the night, from more than one weight class.
+            // A champion, or a night that says it has none.
+            Assert.True(result.Champion is not null || world.News.Any(n => n.Headline.Contains(ev.Name) && n.Headline.Contains("No winner") || n.Headline.Contains("without a champion")));
             var opening = ev.Card.Take(4).SelectMany(f => new[] { f.RedCorner, f.BlueCorner }).ToList();
             Assert.Equal(8, opening.Distinct().Count());
-            return string.Join("|", ev.Card.Select(f => $"{f.RedCorner.Value}-{f.BlueCorner.Value}:{f.Outcome!.Winner?.Value}:{f.Outcome.Method}:{f.Outcome.EndTimeSeconds}"));
+            return string.Join("|", ev.Card.Select(f => $"{f.RedCorner.Value}-{f.BlueCorner.Value}:{f.Outcome!.Winner?.Value}:{f.Outcome.Method}:{f.Outcome.EndTimeSeconds}"))
+                   + $"#{result.Champion?.Id.Value}";
         }
         Assert.Equal(Run(), Run());
+    }
+
+    // --- the bracket's rules, scripted (no engine: every outcome is chosen) --------------------------
+
+    private static List<Fighter> Field(int n) => Enumerable.Range(1, n).Select(i => new Fighter
+    {
+        Id = new FighterId(i), FirstName = "Seed", LastName = $"{i}", BirthDate = new DateOnly(1965, 1, 1),
+    }).ToList();
+
+    private static BracketBoutResult Result(Fighter red, Fighter blue, Fighter? winner, BoutCondition? redEnd = null, BoutCondition? blueEnd = null) =>
+        new(new FightOutcome
+        {
+            Winner = winner?.Id, Loser = winner is null ? null : (winner == red ? blue.Id : red.Id),
+            Method = winner is null ? FightMethod.Draw : FightMethod.SubmissionTap, EndRound = 1, EndTimeSeconds = 120,
+        }, redEnd ?? new BoutCondition(90, 80, 0, 1), blueEnd ?? new BoutCondition(90, 80, 0, 1));
+
+    [Fact]
+    public void Bracket_FinalDrawnAtTheLimit_GoesToOvertime_ThenHasNoChampion()
+    {
+        var field = Field(8);
+        var noJudges = Crucible with { OpenWeight = false };
+        var overtimeAsked = new List<int>();
+        var night = OneNightBracket.Run(field, null, noJudges, 1200, (r, b, p) =>
+        {
+            overtimeAsked.Add(p.OvertimeSeconds);
+            return Result(r, b, overtimeAsked.Count == 7 ? null : r);   // the seventh bout is the final: level
+        });
+        Assert.Equal(new[] { 0, 0, 0, 0, 0, 0, OneNightBracket.FinalOvertimeSeconds }, overtimeAsked);
+        Assert.Null(night.Champion);
+        Assert.True(night.FinalDrawn);
+        Assert.Equal(BracketAdvance.NobodyAdvanced, night.Bouts[^1].How);
+    }
+
+    [Fact]
+    public void FinalOvertime_IsFoughtByTheEngine_AsRoundTwo()
+    {
+        var pool = FightLab.GoldenFighters(80);
+        var engine = new FightEngine();
+        var noJudges = new FightRules { Rounds = 1, RoundMinutes = 20, Judges = false };
+        int checkedBouts = 0;
+        for (int i = 0; i < 200 && checkedBouts < 5; i++)
+        {
+            var red = pool[i % 80]; var blue = pool[(i * 11 + 3) % 80];
+            if (red == blue) continue;
+            ulong seed = SimRandom.Mix(91, (ulong)i);
+            var plain = engine.Simulate(red, blue, new FightParams { Rules = noJudges }, seed);
+            if (plain.Method != FightMethod.Draw) continue;
+            var ot = engine.Simulate(red, blue, new FightParams { Rules = noJudges, OvertimeSeconds = 300 }, seed);
+            Assert.Equal(2, ot.EndRound);
+            Assert.True(ot.EndTimeSeconds <= 300);
+            Assert.Contains(ot.PlayByPlay!, l => l.StartsWith("--- Round 2: overtime"));
+            // Up to the end of regulation the two bouts are the same bout.
+            Assert.Equal(plain.PlayByPlay!.Where(l => l.StartsWith("R1 ") && !l.Contains("Time!")),
+                         ot.PlayByPlay!.Where(l => l.StartsWith("R1 ") && !l.Contains("Time!")));
+            checkedBouts++;
+        }
+        Assert.True(checkedBouts > 0);
+    }
+
+    [Fact]
+    public void Bracket_BothSemiWinnersWithdraw_WithNoAlternate_NoChampion()
+    {
+        var field = Field(8);
+        int bout = 0;
+        var spent = new BoutCondition(5, 5, 0, 1);
+        var night = OneNightBracket.Run(field, null, Crucible, 1200, (r, b, p) =>
+        {
+            bout++;
+            return bout is 5 or 6 ? Result(r, b, r, redEnd: spent) : Result(r, b, r);   // both semi winners spent
+        });
+        Assert.Null(night.Champion);
+        Assert.False(night.FinalDrawn);
+        Assert.Equal(6, night.BoutsFought);
+        Assert.Equal(2, night.Bouts.Count(x => x.Withdrew is not null));
+        Assert.Equal(BracketAdvance.NobodyAdvanced, night.Bouts[^1].How);
+        Assert.Null(night.Bouts[^1].Fight);
+    }
+
+    [Fact]
+    public void Bracket_AWithdrawnWinner_IsReplacedByTheAlternate_Once()
+    {
+        var field = Field(8);
+        var alternate = Field(9)[8];
+        int bout = 0;
+        var spent = new BoutCondition(5, 5, 0, 1);
+        var night = OneNightBracket.Run(field, alternate, Crucible, 1200, (r, b, p) =>
+        {
+            bout++;
+            return bout is 1 or 2 ? Result(r, b, r, redEnd: spent) : Result(r, b, r);
+        });
+        Assert.Equal(BracketAdvance.AlternateForWithdrawal, night.Bouts[0].How);
+        Assert.Equal(alternate.Id, night.Bouts[0].Advanced);
+        Assert.Equal(BracketAdvance.NobodyAdvanced, night.Bouts[1].How);       // the alternate is used up
+        Assert.Equal(BracketAdvance.Walkover, night.Bouts[4].How);             // the alternate walks into the final
+        Assert.Equal(alternate.Id, night.Champion?.Id);                        // and (red) wins it
+    }
+
+    [Fact]
+    public void Bracket_JudgedDraw_AdvancesTheBetterOriginalSeed_NotTheRedCorner()
+    {
+        var field = Field(8);
+        var judged = Shinken with { OpenWeight = false };
+        int bout = 0;
+        var night = OneNightBracket.Run(field, null, judged, 300, (r, b, p) =>
+        {
+            bout++;
+            return bout switch
+            {
+                1 => Result(r, b, b),       // 1 v 8: seed 8 (blue) upsets seed 1
+                2 => Result(r, b, r),       // 4 v 5: seed 4
+                5 => Result(r, b, null),    // semi: seed 8 is now RED against seed 4 - a judged draw
+                _ => Result(r, b, r),
+            };
+        });
+        var semi = night.Bouts[4];
+        Assert.Equal(new FighterId(8), semi.Red);
+        Assert.Equal(new FighterId(4), semi.Blue);
+        Assert.Equal(BracketAdvance.JudgedDrawBetterSeed, semi.How);
+        Assert.Equal(new FighterId(4), semi.Advanced);
+    }
+
+    [Fact]
+    public void RingAndOpenFloor_ChangeTheWords_NotTheFight()
+    {
+        var pool = FightLab.GoldenFighters(40);
+        var engine = new FightEngine();
+        var cage = new FightRules { Judges = true, Gloves = GloveType.Bare };   // custom, cage
+        var ring = cage with { Enclosure = Enclosure.Ring };
+        var floor = cage with { Enclosure = Enclosure.OpenFloor };
+        var cageWords = new Regex(@"\bcage\b|\bfence\b|wall-walk");
+        bool sawRopes = false;
+        for (int i = 0; i < 120; i++)
+        {
+            var red = pool[i % 40]; var blue = pool[(i * 7 + 5) % 40];
+            if (red == blue) continue;
+            ulong seed = SimRandom.Mix(13, (ulong)i);
+            var c = engine.Simulate(red, blue, new FightParams { Rules = cage }, seed);
+            var r = engine.Simulate(red, blue, new FightParams { Rules = ring }, seed);
+            var f = engine.Simulate(red, blue, new FightParams { Rules = floor }, seed);
+            Assert.Equal(Fingerprint(c, red, blue), Fingerprint(r, red, blue));
+            Assert.Equal(Fingerprint(c, red, blue), Fingerprint(f, red, blue));
+            Assert.DoesNotContain(r.PlayByPlay!, l => cageWords.IsMatch(l));
+            Assert.DoesNotContain(f.PlayByPlay!, l => cageWords.IsMatch(l) || l.Contains("ropes"));
+            sawRopes |= r.PlayByPlay!.Any(l => l.Contains("ropes"));
+        }
+        Assert.True(sawRopes);
+    }
+
+    [Fact]
+    public void RoundHeaders_CarryOnlyTheRoundNumberAsDigits()
+    {
+        // The broadcast window reads every digit in a "---" line as the round number.
+        var pool = FightLab.GoldenFighters(10);
+        var o = new FightEngine().Simulate(pool[0], pool[1], new FightParams { Rules = Duelo }, 3UL);
+        var header = o.PlayByPlay!.First(l => l.StartsWith("---"));
+        Assert.Equal("1", new string(header.Where(char.IsAsciiDigit).ToArray()));
+        Assert.Contains("thirty", header);
+    }
+
+    [Fact]
+    public void OnlyPunchesHurtTheHand()
+    {
+        Assert.True(Bout.IsPunch("uppercut"));
+        Assert.True(Bout.IsPunch("short hook"));
+        Assert.True(Bout.IsPunch("overhand right"));
+        Assert.False(Bout.IsPunch("knee to the body"));
+        Assert.False(Bout.IsPunch("short elbow"));
+        Assert.False(Bout.IsPunch("knee"));
+        Assert.False(Bout.IsPunch("head kick"));
+    }
+
+    [Fact]
+    public void NoClosedFistsOnTheGround_MakesTheFollowUpTkoRarer()
+    {
+        var pool = FightLab.GoldenFighters(80);
+        var engine = new FightEngine();
+        var open = new FightRules { Gloves = GloveType.Bare };
+        var palms = open with { GroundedHeadPunches = false };
+        int followOpen = 0, followPalms = 0;
+        for (int i = 0; i < 3000; i++)
+        {
+            var red = pool[i % 80]; var blue = pool[(i * 11 + 3) % 80];
+            if (red == blue) continue;
+            ulong seed = SimRandom.Mix(17, (ulong)i);
+            engine.Simulate(red, blue, new FightParams { Rules = open, GeneratePlayByPlay = false }, seed, out var a, out _, out _);
+            engine.Simulate(red, blue, new FightParams { Rules = palms, GeneratePlayByPlay = false }, seed, out var b, out _, out _);
+            if (a == "TKO: follow-up after knockdown") followOpen++;
+            if (b == "TKO: follow-up after knockdown") followPalms++;
+        }
+        Assert.True(followPalms < followOpen * 0.6, $"follow-up TKOs: fists {followOpen}, palms {followPalms}");
     }
 
     // ------------------------------------------------------------ helpers

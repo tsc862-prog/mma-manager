@@ -41,6 +41,13 @@ public sealed record FightParams
     /// <summary>The blue corner's condition at the opening bell (see <see cref="RedStart"/>).</summary>
     public BoutCondition? BlueStart { get; init; }
 
+    /// <summary>
+    /// Under a no-judges rule set only: a bout still level at the limit gets ONE overtime period of
+    /// this many seconds (no rest, same rules); a draw after it stands. 0 = none (the default; a
+    /// tournament final asks for 300). Ignored with judges or on today's rules.
+    /// </summary>
+    public int OvertimeSeconds { get; init; }
+
     public static FightParams ThreeRound { get; } = new() { ScheduledRounds = 3 };
     public static FightParams FiveRound { get; } = new() { ScheduledRounds = 5 };
     public static FightParams FastThreeRound { get; } = new() { ScheduledRounds = 3, GeneratePlayByPlay = false };

@@ -41,6 +41,24 @@ public static class OriginsRules
             GroundedKicks = !Bans("kick", "grounded"),
             RopeEscapes = Math.Max(0, r.RopeEscapesAllowed),
             OpenWeight = r.OpenWeight,
+            // The rule set alone knows a ring only by its ropes; the promotion overload reads the venue too.
+            Enclosure = r.RopeEscapesAllowed > 0 || Says(r.Format, "ring") ? Enclosure.Ring : Enclosure.Cage,
         };
     }
+
+    /// <summary>
+    /// A founding promotion's rules, with the enclosure read from its authored format and home venue:
+    /// a roped ring (format or rope escapes), a fence (the venue lore says so: a cage), else an open
+    /// floor (the Duelo's parking garage).
+    /// </summary>
+    public static FightRules ToFightRules(this OriginsPromotionSpec spec)
+    {
+        var rules = spec.Rules.ToFightRules();
+        var room = rules.Enclosure == Enclosure.Ring ? Enclosure.Ring
+                 : Says(spec.HomeVenueLore, "fence") || Says(spec.HomeVenueLore, "cage") ? Enclosure.Cage
+                 : Enclosure.OpenFloor;
+        return rules with { Enclosure = room };
+    }
+
+    private static bool Says(string text, string word) => text.Contains(word, StringComparison.OrdinalIgnoreCase);
 }

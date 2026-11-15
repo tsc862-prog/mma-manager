@@ -20,7 +20,7 @@ namespace MmaManager.Core.Sim.Engine;
 public static partial class FightLab
 {
     /// <summary>The Crucible's rules: one 20-minute round, no judges, gloves optional, open weight.</summary>
-    public static FightRules CrucibleRules => OriginsPromotions.All[0].Rules.ToFightRules();
+    public static FightRules CrucibleRules => OriginsPromotions.All[0].ToFightRules();
 
     public sealed record SizeCell(double SmallKg, double BigKg, int SkillGap, int Fights, double SmallWinPct, double DrawPct, double FinishPct, double AvgMinutes)
     {
@@ -62,6 +62,9 @@ public static partial class FightLab
                     foreach (var at in Attributes) at.Set(small, at.Get(small) + gap);
                     small.NaturalWeightLbs = (int)Math.Round(smallKg * 2.20462);
                     large.NaturalWeightLbs = (int)Math.Round(big * 2.20462);
+                    // Labelled as a builder would label them: the nearest class to their kg.
+                    small.WeightClass = SizeTerm.NearestClass(smallKg);
+                    large.WeightClass = SizeTerm.NearestClass(big);
                     bool smallRed = (i & 1) == 0;
                     var o = smallRed
                         ? engine.Simulate(small, large, p, SimRandom.Mix(seed ^ 0x517E, (ulong)i))
@@ -121,11 +124,10 @@ public static partial class FightLab
     public sealed record BracketRow(string Name, int Kg, string Discipline, int Overall, int Titles, double TitlePct);
 
     /// <summary>
-    /// An eight-man one-night bracket of the given pioneers (seeded by overall: 1v8, 4v5, 2v7, 3v6),
-    /// run <paramref name="nights"/> times. Condition carries between bouts exactly as
-    /// <c>TournamentService.RunOneNight</c> carries it: the winner rests (<see cref="BoutCondition.AfterRest"/>);
-    /// a winner unfit to go on is replaced by the alternate (the first man not in the eight), else
-    /// his next opponent walks over; a draw with no judges eliminates both.
+    /// An eight-man one-night bracket of the given pioneers (seeded by overall), run
+    /// <paramref name="nights"/> times through <see cref="OneNightBracket.Run"/> - the same function the
+    /// booker (<c>TournamentService.RunOneNight</c>) runs, so the lab cannot drift from it. The ninth man
+    /// is the alternate.
     /// </summary>
     public static List<BracketRow> Bracket(FightRules rules, IReadOnlyList<OriginsPioneer>? field = null, int nights = 1000, ulong seed = 2026)
     {
@@ -141,7 +143,7 @@ public static partial class FightLab
             entrants.Add(f);
         }
         var seeded = entrants.OrderByDescending(f => OverallOf(f, pool)).ToList();
-        var eight = new[] { 0, 7, 3, 4, 1, 6, 2, 5 }.Where(i => i < seeded.Count).Select(i => seeded[i]).ToList();
+        var eight = seeded.Take(8).ToList();
         var alternate = seeded.Count > 8 ? seeded[8] : null;
         var titles = new Dictionary<FighterId, int>();
         var engine = new FightEngine();
@@ -157,44 +159,16 @@ public static partial class FightLab
             .OrderByDescending(r => r.Titles).ToList();
     }
 
-    /// <summary>One bracket night in the lab (the same carry and withdrawal rules as the booker's).</summary>
+    /// <summary>One bracket night in the lab: the booker's bracket, with bare lab bouts.</summary>
     private static Fighter? OneNight(FightEngine engine, List<Fighter> eight, Fighter? alternate, FightRules rules, ulong seed)
     {
-        var cond = new Dictionary<FighterId, BoutCondition>();
-        var minutes = new Dictionary<FighterId, double>();
-        var round = eight.Select(f => (Fighter?)f).ToList();
         int bout = 0;
-        bool altUsed = false;
-        while (round.Count > 1)
+        var night = OneNightBracket.Run(eight, alternate, rules, (rules.RoundMinutes ?? 5) * 60, (r, b, p) =>
         {
-            var next = new List<Fighter?>();
-            for (int i = 0; i + 1 < round.Count; i += 2)
-            {
-                var r = round[i]; var b = round[i + 1];
-                if (r is null || b is null) { next.Add(r ?? b); continue; }   // a walkover
-                var p = new FightParams
-                {
-                    Rules = rules, GeneratePlayByPlay = false,
-                    RedStart = cond.GetValueOrDefault(r.Id), BlueStart = cond.GetValueOrDefault(b.Id),
-                };
-                var o = engine.Simulate(r, b, p, new SimRandom(SimRandom.Mix(seed, (ulong)bout++)), out var re, out var be);
-                double m = Seconds(o, p with { ScheduledRounds = rules.Rounds ?? 3 }) / 60;
-                minutes[r.Id] = minutes.GetValueOrDefault(r.Id) + m;
-                minutes[b.Id] = minutes.GetValueOrDefault(b.Id) + m;
-                Fighter? w = o.Winner == r.Id ? r : o.Winner == b.Id ? b : null;
-                if (w is null && rules.Judges) w = r;                        // a judged draw: the higher seed (red) goes through
-                if (w is not null)
-                {
-                    var rested = (w == r ? re : be).AfterRest(w, minutes[w.Id]);
-                    cond[w.Id] = rested;
-                    if (!rested.CanContinue) w = null;
-                }
-                if (w is null && round.Count > 2 && alternate is not null && !altUsed) { w = alternate; altUsed = true; }
-                next.Add(w);
-            }
-            round = next;
-        }
-        return round[0];
+            var o = engine.Simulate(r, b, p, new SimRandom(SimRandom.Mix(seed, (ulong)bout++)), out var re, out var be);
+            return new BracketBoutResult(o, re, be);
+        });
+        return night.Champion;
     }
 
     private static double Seconds(FightOutcome o, FightParams p)
@@ -246,7 +220,7 @@ public static partial class FightLab
         var rng = new SimRandom(SimRandom.Mix(seed, 0x5A3B_1E00UL + (ulong)k));
         int a = rng.Next(0, pool.Count), b = rng.Next(0, pool.Count - 1);
         if (b >= a) b++;
-        var rules = OriginsPromotions.All[Math.Clamp(promo, 0, OriginsPromotions.All.Count - 1)].Rules.ToFightRules();
+        var rules = OriginsPromotions.All[Math.Clamp(promo, 0, OriginsPromotions.All.Count - 1)].ToFightRules();
         var o = new FightEngine().Simulate(pool[a].F, pool[b].F, new FightParams { Rules = rules, TextSeed = (ulong)k },
             SimRandom.Mix(seed, 0x0050_0000UL + (ulong)k));
         var lines = new List<string>(o.PlayByPlay!);
@@ -292,7 +266,7 @@ public static partial class FightLab
         sb.AppendLine("rules                         finish   KO  TKO  SUB  dec draw  min  better-man wins");
         var rows = new List<MixRow> { RuleSetMix("modern 3x5 (open weight off)", null, 2000, seed) };
         foreach (var promo in OriginsPromotions.All)
-            rows.Add(RuleSetMix($"{promo.Abbreviation} {promo.Rules.Rounds}x{promo.Rules.RoundMinutes}", promo.Rules.ToFightRules(), 2000, seed));
+            rows.Add(RuleSetMix($"{promo.Abbreviation} {promo.Rules.Rounds}x{promo.Rules.RoundMinutes}", promo.ToFightRules(), 2000, seed));
         foreach (var r in rows)
             sb.AppendLine($"{r.Rules,-29}{r.FinishPct,6:0.0}{r.KoPct,5:0}{r.TkoPct,5:0}{r.SubPct,5:0}{r.DecisionPct,5:0}{r.DrawPct,5:0}{r.AvgMinutes,5:0.0}  {r.FavouriteWinPct,5:0.0}");
 

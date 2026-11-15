@@ -87,6 +87,9 @@ public sealed class EventService
         var houseRules = world.Get(ev.Promotion)?.Rules.Fight;
         foreach (var fight in ev.Card)
         {
+            // A rule set that fixes the rounds (one long round) is what the bout is fought over, so the
+            // saved fight says so too. Round length has no field on Fight: it is the rules' (else the house's) minutes.
+            if (houseRules?.Rounds is int fixedRounds) fight.ScheduledRounds = fixedRounds;
             var opts = new FightParams
             {
                 ScheduledRounds = fight.ScheduledRounds,
