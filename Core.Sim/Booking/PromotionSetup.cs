@@ -99,10 +99,13 @@ public static class PromotionSetup
     /// staffed after founding has fighters but no room of its own yet). Born
     /// with the org's prestige as its name value; the first title fight booked
     /// for it crowns the champion. Returns the existing belt if one is already
-    /// sanctioned.
+    /// sanctioned. Null when the sport has no such division yet (an Origins world
+    /// before the class is split out, or before women's MMA; never in today's mode)
+    /// — nothing is created or charged.
     /// </summary>
-    public static Title CommissionTitle(World world, Promotion promo, WeightClass wc, Sex sex, DateOnly on)
+    public static Title? CommissionTitle(World world, Promotion promo, WeightClass wc, Sex sex, DateOnly on)
     {
+        if (!CanCommission(world, wc, sex)) return null;
         var division = promo.Divisions.FirstOrDefault(d => d.WeightClass == wc && d.Sex == sex);
         if (division is null)
         {
@@ -129,6 +132,9 @@ public static class PromotionSetup
             "A new belt, vacant until somebody takes it — the first title fight crowns the champion.", promo.Id);
         return title;
     }
+
+    /// <summary>Does the sport have this division yet (always, in today's mode)? See <see cref="Living.Era.AllowsDivision"/>.</summary>
+    public static bool CanCommission(World world, WeightClass wc, Sex sex) => Living.Era.AllowsDivision(world, wc, sex);
 
     /// <summary>Belt name — women's belts read "Women's Bantamweight Championship".</summary>
     public static string TitleName(Promotion promo, WeightClass wc, Sex sex) =>

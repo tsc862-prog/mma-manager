@@ -367,7 +367,7 @@ public class BigMoneyTests
             .SelectMany(w => new[] { (w, Sex.Male), (w, Sex.Female) })
             .First(x => promo.Divisions.All(d => d.WeightClass != x.Item1 || d.Sex != x.Item2));
 
-        var title = PromotionSetup.CommissionTitle(world, promo, wc, sex, world.CurrentDate);
+        var title = PromotionSetup.CommissionTitle(world, promo, wc, sex, world.CurrentDate)!;
 
         var div = promo.Divisions.First(d => d.WeightClass == wc && d.Sex == sex);
         Assert.Equal(title.Id, div.Title);
@@ -376,7 +376,7 @@ public class BigMoneyTests
         Assert.Contains(promo.Ledger, e => e.Description.StartsWith("Commissioned the"));
 
         // Commissioning again is a no-op returning the same belt, not a duplicate.
-        Assert.Equal(title.Id, PromotionSetup.CommissionTitle(world, promo, wc, sex, world.CurrentDate).Id);
+        Assert.Equal(title.Id, PromotionSetup.CommissionTitle(world, promo, wc, sex, world.CurrentDate)!.Id);
         Assert.Single(promo.Divisions, d => d.WeightClass == wc && d.Sex == sex);
     }
 

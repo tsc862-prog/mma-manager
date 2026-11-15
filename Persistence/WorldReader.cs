@@ -26,6 +26,7 @@ internal sealed class WorldReader
         ReadNews(world);
         ReadMail(world);
         ReadShortlist(world);
+        ReadEra(world);
         ReadOrg(world);
         ReadRivalries(world);
         ReadGlobalRankings(world);
@@ -72,7 +73,32 @@ internal sealed class WorldReader
             PlayerPromotion = new PromotionId(player ?? 0),
             OwnerNotes = r.Str("owner_notes"),
             LastAcquisitionOn = r.DateN("last_acquisition"),
+            Mode = r.Enum<WorldMode>("mode"),
         };
+    }
+
+    private void ReadEra(World world)
+    {
+        using (var cmd = _c.Cmd(null, "SELECT * FROM era_chapters ORDER BY ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.Era.Chapters.Add(new ChapterRecord
+                {
+                    Key = r.Str("key"),
+                    FiredOn = r.Date("fired_on"),
+                    Promotion = r.IntN("promotion_id") is { } p ? new PromotionId(p) : null,
+                    Fighter = r.IntN("fighter_id") is { } f ? new FighterId(f) : null,
+                    Note = r.StrN("note"),
+                });
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM era_unlocks ORDER BY ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.Era.Unlocked.Add(r.Str("capability"));
+        }
     }
 
     private void ReadFighters(World world)

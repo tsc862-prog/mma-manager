@@ -91,6 +91,7 @@ public static class Acquisitions
 
     public static void RunMonthly(World world, DateOnly date, SimRandom rng)
     {
+        if (!Era.Allows(world, Capability.Acquisitions)) return;   // no market for whole companies yet (before any draw)
         if (world.LastAcquisitionOn is { } last && date.DayNumber - last.DayNumber < CooldownMonths * 30) return;
         if (!rng.Chance(0.5)) return;   // brokers work slowly — but a live seller finds a phone
 
@@ -168,6 +169,7 @@ public static class Acquisitions
     public static bool TryRescue(World world, Promotion target, DateOnly date)
     {
         if (target.Defunct || target.Id == world.PlayerPromotion) return false;
+        if (!Era.Allows(world, Capability.Acquisitions)) return false;   // no buyer for a company yet: it simply folds
         if (OrgSizing.SizeOf(target) < OrgSize.Regional) return false;
         if (world.Promotions.Values.Where(x => !x.Defunct)
                 .OrderByDescending(x => x.Prestige.Value).ThenBy(x => x.Id.Value)
