@@ -551,7 +551,9 @@ public sealed class DashboardViewModel : ObservableObject
                 Due = DeskCalls.PromiseLeft(world, ps),
                 Tone = days <= 21 ? CardTone.Bad : CardTone.Warn,
                 Picture = Portraits.Thumb(pf, world),
-                PrimaryText = DeskCalls.BookText(pf), PrimaryCommand = AppCommands.BookFighter, PrimaryParameter = pf.Id.Value,
+                // Fought out: he can't be booked until he re-signs, so the way forward is the table.
+                PrimaryText = DeskCalls.FoughtOut(world, pf) ? DeskCalls.TalkTermsText : DeskCalls.BookText(pf),
+                PrimaryCommand = DeskCalls.FoughtOut(world, pf) ? NegotiateCommand : AppCommands.BookFighter, PrimaryParameter = pf.Id.Value,
                 SecondaryText = "Profile", SecondaryCommand = OpenFighterCommand, SecondaryParameter = pf.Id.Value,
             });
         }

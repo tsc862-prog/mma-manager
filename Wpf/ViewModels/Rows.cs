@@ -139,6 +139,13 @@ public sealed class PromiseRow
     /// <summary>At risk, and yours to book: "Book him" opens the card desk with him.</summary>
     public bool CanBook { get; init; }
     public string BookText { get; init; } = "Book him ▸";
+    /// <summary>At risk, and his deal is fought out: "Talk terms" (re-sign him first) instead of "Book him".</summary>
+    public bool CanTalk { get; init; }
+    /// <summary>Why it's "Talk terms" ("" otherwise).</summary>
+    public string Why { get; init; } = "";
+    public bool HasWhy => Why.Length > 0;
+    /// <summary>For the he/she text (Pronouns converter).</summary>
+    public bool IsWoman { get; init; }
     public CardTone Tone { get; init; }
 }
 
@@ -253,8 +260,12 @@ public sealed class FighterRow
         Status = p.Deadline < _w.CurrentDate ? $"Overdue: it was due by {p.Deadline:d MMMM yyyy}" : p.StatusText,
         Progress = p.Progress,
         AtRisk = p.AtRisk,
-        CanBook = p.AtRisk && p.Promotion == _w.PlayerPromotion && _f.Contract?.Promotion == _w.PlayerPromotion,
+        // His deal fought out: he can't be booked until he re-signs, so the way forward is the table.
+        CanBook = p.AtRisk && p.Promotion == _w.PlayerPromotion && _f.Contract?.Promotion == _w.PlayerPromotion && !DeskCalls.FoughtOut(_w, _f),
+        CanTalk = p.AtRisk && p.Promotion == _w.PlayerPromotion && _f.Contract?.Promotion == _w.PlayerPromotion && DeskCalls.FoughtOut(_w, _f),
+        Why = p.Promotion == _w.PlayerPromotion && _f.Contract?.Promotion == _w.PlayerPromotion && DeskCalls.FoughtOut(_w, _f) ? DeskCalls.FoughtOutLine(_f) : "",
         BookText = _f.Sex == Sex.Female ? "Book her ▸" : "Book him ▸",
+        IsWoman = _f.Sex == Sex.Female,
         Tone = p.AtRisk ? CardTone.Bad : CardTone.Neutral,
     }).ToList();
 
@@ -263,6 +274,8 @@ public sealed class FighterRow
         .Select(p => $"{(p.State == PromiseState.Kept ? "✓" : p.State == PromiseState.Broken ? "✗" : "–")}  {p.What}: {p.StatusText}").ToList();
 
     public bool HasPromises => AllPromises.Count > 0;
+    /// <summary>For the profile's he/she text (Pronouns converter).</summary>
+    public bool IsWoman => _f.Sex == Sex.Female;
     public bool HasPastPromises => AllPromises.Any(p => p.State != PromiseState.Open);
 
     private static string HeatWord(int intensity) => intensity switch

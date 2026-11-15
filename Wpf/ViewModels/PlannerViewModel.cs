@@ -605,9 +605,14 @@ public sealed class PlannerViewModel : ObservableObject
                 Tone = ps.AtRisk ? CardTone.Bad : CardTone.Warn,
                 FighterId = pid,
                 Face = new LazyFace(ready => Portraits.Thumb(pf, w, ready)),
-                Open = ps.AtRisk ? AppCommands.BookFighter : AppCommands.OpenFighter,
+                // Fought out: he can't be booked until he re-signs, so the way forward is the table.
+                Open = !ps.AtRisk ? AppCommands.OpenFighter
+                     : !DeskCalls.FoughtOut(w, pf) ? AppCommands.BookFighter
+                     : NegotiateCommand ?? AppCommands.OpenFighter,
                 OpenParameter = pid,
-                OpenText = ps.AtRisk ? (pf.Sex == Sex.Female ? "Book her" : "Book him") : "Profile",
+                OpenText = !ps.AtRisk ? "Profile"
+                         : !DeskCalls.FoughtOut(w, pf) ? (pf.Sex == Sex.Female ? "Book her" : "Book him")
+                         : NegotiateCommand is null ? "Profile" : "Talk terms",
             });
         }
 

@@ -249,6 +249,7 @@ public static class DeskCalls
     /// <summary>What keeping it takes, in a sentence (the same advice the sim's warning letter gives).</summary>
     public static string PromiseFix(World w, Fighter f, PromiseStatus s)
     {
+        if (FoughtOut(w, f)) return FoughtOutLine(f);
         string what = s.Kind switch
         {
             PromiseKind.TitleShot => "a title fight",
@@ -263,6 +264,20 @@ public static class DeskCalls
     /// <summary>The Planner's marker on a promise's deadline.</summary>
     public static string PromiseDueLine(Fighter f, PromiseStatus s, World w) =>
         $"{f.LastName}: {PromiseWhat(w, s)} due";
+
+    /// <summary>
+    /// His deal is fought out (no fights left, or in his re-sign window): he can't be booked
+    /// until he re-signs, so a promise to him can only be kept on a new deal. Every promise
+    /// surface then offers "Talk terms" (the table) instead of "Book him".
+    /// </summary>
+    public static bool FoughtOut(World w, Fighter f) =>
+        f.Contract is { FightsRemaining: <= 0 } || DealWindow.InWindow(w, f);
+
+    /// <summary>Why a promise surface offers "Talk terms" instead of "Book him".</summary>
+    public static string FoughtOutLine(Fighter f) =>
+        Lifers.Gendered(f, "His deal is fought out: the promise can only be kept on a new deal. Re-sign him, then book him.");
+
+    public const string TalkTermsText = "Talk terms ▸";
 
     /// <summary>"Book him ▸" / "Book her ▸".</summary>
     public static string BookText(Fighter? f) => $"Book {Him(f)} ▸";

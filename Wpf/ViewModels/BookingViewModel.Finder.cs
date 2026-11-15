@@ -457,6 +457,27 @@ public sealed partial class BookingViewModel
     }
 
     /// <summary>
+    /// The player is part-way through building a bout on the desk (a corner picked, or a bout
+    /// being replaced) with someone other than <paramref name="id"/> in it: "Book him" asks first.
+    /// </summary>
+    public bool IsMidPairing(FighterId id) =>
+        _replaceFight is not null
+        || (SelectedRed is { } r && r.Id != id)
+        || SelectedBlue is not null;
+
+    /// <summary>The pairing in progress, in words ("Dane Mercer vs Jae-won Seo on AFC 161").</summary>
+    public string PairingLine
+    {
+        get
+        {
+            string Name(FighterPick? p) => p is not null && _world?.Get(p.Id) is { } f ? $"{f.FirstName} {f.LastName}" : "";
+            string on = SelectedEvent is { } ev ? $" on {ev.Model.Name}" : "";
+            if (_replaceFight is not null) return $"replacing a bout{on}";
+            return SelectedBlue is not null ? $"{Name(SelectedRed)} vs {Name(SelectedBlue)}{on}" : $"{Name(SelectedRed)} in the first corner{on}";
+        }
+    }
+
+    /// <summary>
     /// "Book him" from elsewhere in the app (a promise to keep, a letter): the selected card's
     /// picker opened on its next open slot, with him in the first corner and the finder
     /// looking for his opponent. Says why when he can't make this card.
@@ -464,7 +485,8 @@ public sealed partial class BookingViewModel
     public void FindOpponentFor(FighterId id)
     {
         if (_world is null || SelectedEvent is null) return;
-        if (_rail != DeskRail.Picker || _replaceFight is not null) OpenPicker(_nextSlot);
+        // A fresh picker: clears any pairing or replacement in progress (the caller asks first: IsMidPairing).
+        OpenPicker(_rail == DeskRail.Picker && _replaceFight is null ? _pickSlot ?? _nextSlot : _nextSlot);
         _pickMode = PickMode.Division;
         OnPropertyChanged(nameof(PickSuggested)); OnPropertyChanged(nameof(PickDivision)); OnPropertyChanged(nameof(PickLocal));
         PickFirstCorner(id);

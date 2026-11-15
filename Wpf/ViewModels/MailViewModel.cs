@@ -4,6 +4,7 @@ using System.Windows.Media;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Org;
 using Lifers = MmaManager.Core.Sim.Contracts.Lifers;
+using Promises = MmaManager.Core.Sim.Contracts.Promises;
 using MmaManager.Wpf.Art;
 using MmaManager.Wpf.Mvvm;
 
@@ -379,25 +380,44 @@ public sealed class MailViewModel : ObservableObject
         {
             // A promise made at the table: the warning, his "I'll hold you to it", kept, broken.
             // While one is open it says how it stands; "Book him" opens the card desk with him.
-            var open = DeskCalls.OpenPromises(w).Where(x => x.Fighter.Id == about.Id).Select(x => x.Status).ToList();
-            var risk = open.FirstOrDefault(s => s.AtRisk);
-            var shown = risk ?? open.FirstOrDefault();
+            // The promise this letter is about: the sim gives no id on a letter, so it is matched by
+            // the promise's own words (Promises.What, which the sim writes into the subject / body)
+            // among his promises that were open on the letter's date.
+            var mine = w.Promises.Where(p => p.Fighter == about.Id && p.Promotion == w.PlayerPromotion && p.Made <= m.Date
+                                             && (p.Resolved is not { } r || r >= m.Date))
+                .OrderByDescending(p => p.Made).ThenBy(p => p.Id).ToList();
+            var letterPromise = mine.FirstOrDefault(p => m.Subject.Contains(Promises.What(w, p), StringComparison.Ordinal))
+                         ?? mine.FirstOrDefault(p => m.Body.Contains(Promises.What(w, p), StringComparison.Ordinal));
+            var shown = letterPromise is { Live: true }
+                ? DeskCalls.OpenPromises(w).FirstOrDefault(x => x.Status.Id == letterPromise.Id).Status
+                : null;
             bool ours = about.Contract?.Promotion == w.PlayerPromotion;
             if (kind is PromiseMail.Warning or PromiseMail.HoldUs && shown is not null)
             {
+                bool risk = shown.AtRisk;
                 note = $"{DeskCalls.PromiseTitle(w, about, shown)}  ·  {DeskCalls.PromiseDue(w, shown)}"
-                       + (risk is not null ? ". Nothing is booked to keep it yet." : ".");
-                if (risk is not null) due = DeskCalls.PromiseLeft(w, risk);
-                if (ours && (kind == PromiseMail.Warning || risk is not null))
+                       + (risk ? ". Nothing is booked to keep it yet." : ".");
+                if (risk) due = DeskCalls.PromiseLeft(w, shown);
+                bool foughtOut = DeskCalls.FoughtOut(w, about);
+                if (ours && foughtOut && NegotiateCommand is not null)
+                {
+                    // He can't be booked until he re-signs: the table, and why.
+                    note += " " + DeskCalls.FoughtOutLine(about);
+                    actions.Add(new LetterAction { Text = DeskCalls.TalkTermsText, Command = NegotiateCommand, Parameter = about.Id.Value, IsPrimary = true, Decides = false });
+                }
+                else if (ours && (kind == PromiseMail.Warning || risk))
+                {
                     actions.Add(new LetterAction { Text = DeskCalls.BookText(about), Command = AppCommands.BookFighter, Parameter = about.Id.Value, IsPrimary = true, Decides = false });
-                if (ours && kind == PromiseMail.Warning && about.Contract is { FightsRemaining: <= 1 } && NegotiateCommand is not null)
-                    actions.Add(new LetterAction { Text = "Talk terms ▸", Command = NegotiateCommand, Parameter = about.Id.Value, Decides = false });
+                    if (kind == PromiseMail.Warning && about.Contract is { FightsRemaining: <= 1 } && NegotiateCommand is not null)
+                        actions.Add(new LetterAction { Text = DeskCalls.TalkTermsText, Command = NegotiateCommand, Parameter = about.Id.Value, Decides = false });
+                }
             }
             else
             {
                 // Settled (or the letter is about a promise already settled): say how it ended.
-                var last = w.Promises.Where(p => p.Fighter == about.Id && p.Promotion == w.PlayerPromotion && !p.Live)
-                    .OrderByDescending(p => p.Resolved).ThenByDescending(p => p.Id).FirstOrDefault();
+                var last = letterPromise is { Live: false } ? letterPromise
+                    : w.Promises.Where(p => p.Fighter == about.Id && p.Promotion == w.PlayerPromotion && !p.Live)
+                        .OrderByDescending(p => p.Resolved).ThenByDescending(p => p.Id).FirstOrDefault();
                 note = kind switch
                 {
                     PromiseMail.Kept => "Kept. He remembers it.",

@@ -218,7 +218,7 @@
                             Visibility="{Binding SelectedFighter.HasPromises, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="PROMISES" Style="{StaticResource SectionLabel}" Margin="0,0,0,6"
-                                       ToolTip="Written into his deal at the table. Kept: he remembers. Broken: he takes it hard, and it's public." />
+                                       ToolTip="{Binding SelectedFighter.IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Written into his deal at the table. Kept: he remembers. Broken: he takes it hard, and it’s public.'}" />
                             <ItemsControl ItemsSource="{Binding SelectedFighter.OpenPromises}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -228,7 +228,13 @@
                                                         Command="{x:Static mvvm:AppCommands.BookFighter}" CommandParameter="{Binding FighterId}"
                                                         VerticalAlignment="Center" Margin="10,0,0,0" Padding="10,4"
                                                         Visibility="{Binding CanBook, Converter={StaticResource BoolToVis}}"
-                                                        ToolTip="Opens the card desk on your next card he can make, with him in the first corner" />
+                                                        ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Opens the card desk on your next card he can make, with him in the first corner'}" />
+                                                <Button DockPanel.Dock="Right" Content="Talk terms ▸" Style="{StaticResource Button.Soft}"
+                                                        Command="{Binding DataContext.NegotiateFighterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding FighterId}"
+                                                        VerticalAlignment="Center" Margin="10,0,0,0" Padding="10,4"
+                                                        Visibility="{Binding CanTalk, Converter={StaticResource BoolToVis}}"
+                                                        ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Opens contract talks with him: re-sign him, then book him'}" />
                                                 <StackPanel>
                                                     <DockPanel>
                                                         <Border DockPanel.Dock="Right" Style="{StaticResource Chip}" Margin="8,0,0,0" VerticalAlignment="Center"
@@ -241,6 +247,8 @@
                                                     <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,2,0,0">
                                                         <Run Text="{Binding Status, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource TextMuted}" /><Run Text="{Binding Progress, Mode=OneWay}" FontWeight="SemiBold" />
                                                     </TextBlock>
+                                                    <TextBlock Text="{Binding Why}" FontSize="11.5" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                               Visibility="{Binding HasWhy, Converter={StaticResource BoolToVis}}" />
                                                 </StackPanel>
                                             </DockPanel>
                                         </Border>

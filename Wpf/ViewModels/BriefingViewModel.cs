@@ -860,8 +860,13 @@ public sealed class BriefingViewModel : ObservableObject
                      + Lifers.Gendered(f, " Break it and he takes it hard: his loyalty drops, the news has it, and every fighter at your table asks more for a year.");
                 Art = Portraits.Body(f, w);
                 People.Add(Person(w, f, s.Progress.Length > 0 ? $"{s.Progress}  ·  {DeskCalls.PromiseLeft(w, s)}" : DeskCalls.PromiseLeft(w, s)));
-                Actions.Add(new BriefingAction(DeskCalls.BookText(f), Then(AppCommands.BookFighter, f.Id.Value), IsPrimary: true,
-                    Hint: Lifers.Gendered(f, "Opens the card desk on your next card he can make, with him in the first corner.")));
+                if (!DeskCalls.FoughtOut(w, f))
+                    Actions.Add(new BriefingAction(DeskCalls.BookText(f), Then(AppCommands.BookFighter, f.Id.Value), IsPrimary: true,
+                        Hint: Lifers.Gendered(f, "Opens the card desk on your next card he can make, with him in the first corner.")));
+                else if (NegotiateCommand is not null)
+                    // Fought out: he can't be booked until he re-signs (the lede says so).
+                    Actions.Add(new BriefingAction(DeskCalls.TalkTermsText, Then(NegotiateCommand, f.Id.Value), IsPrimary: true,
+                        Hint: Lifers.Gendered(f, "Opens contract talks with him: re-sign him, then book him.")));
                 Actions.Add(new BriefingAction("Profile", Do(() => OpenFighter?.Invoke(f.Id.Value))));
                 Actions.Add(new BriefingAction("Later", CarryOnCommand));
                 return;
@@ -1161,9 +1166,11 @@ public sealed class BriefingViewModel : ObservableObject
                     {
                         Icon = "Pen", Picture = Portraits.Thumb(pf, w),
                         Text = $"{DeskCalls.PromiseTitle(w, pf, ps)}: nothing booked",
-                        Detail = DeskCalls.PromiseDue(w, ps),
+                        Detail = DeskCalls.FoughtOut(w, pf) ? $"{DeskCalls.PromiseDue(w, ps)}  ·  deal fought out: re-sign first" : DeskCalls.PromiseDue(w, ps),
                         Tone = (ps.DaysLeft ?? 0) <= 21 ? CardTone.Bad : CardTone.Warn,
-                        ActionText = DeskCalls.BookText(pf), Command = Then(AppCommands.BookFighter, pf.Id.Value),
+                        ActionText = DeskCalls.FoughtOut(w, pf) ? DeskCalls.TalkTermsText : DeskCalls.BookText(pf),
+                        Command = !DeskCalls.FoughtOut(w, pf) ? Then(AppCommands.BookFighter, pf.Id.Value)
+                            : NegotiateCommand is null ? Do(() => OpenFighter?.Invoke(pf.Id.Value)) : Then(NegotiateCommand, pf.Id.Value),
                     });
                     break;
                 case BriefingKind.Offer when n.Offer is { } o:

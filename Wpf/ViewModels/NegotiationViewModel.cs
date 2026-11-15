@@ -219,7 +219,15 @@ public sealed class NegotiationViewModel : ObservableObject
     public IReadOnlyList<bool> PatienceDots => Enumerable.Range(0, Math.Max(4, _view.Patience))
         .Select(i => i < Math.Max(0, _view.Patience)).ToList();
     /// <summary>What drives his number, in words (from the session).</summary>
-    public IReadOnlyList<string> Reasons => _view.Reasons;
+    /// <remarks>
+    /// A broken promise's cost is said once, on the slip (<see cref="WaryLine"/>), so the session's
+    /// own lines for it are left out here. They are recognised by their opening words until the
+    /// view carries them as values (contracts/promise-words).
+    /// </remarks>
+    public IReadOnlyList<string> Reasons => _view.Reasons
+        .Where(r => !r.StartsWith("Word gets around:", StringComparison.Ordinal)
+                    && !r.StartsWith("You broke your word to ", StringComparison.Ordinal))
+        .ToList();
 
     private string _askWhy = "";
     /// <summary>Why his opening number on these terms isn't the market rate ("" when it is).</summary>
@@ -250,7 +258,8 @@ public sealed class NegotiationViewModel : ObservableObject
     public decimal OfferWinBonus { get => _offerWinBonus; set { if (Set(ref _offerWinBonus, value)) RefreshTotals(); } }
     public decimal OfferSigningBonus { get => _offerSigningBonus; set { if (Set(ref _offerSigningBonus, value)) RefreshTotals(); } }
     public decimal OfferPerfBonus { get => _offerPerfBonus; set { if (Set(ref _offerPerfBonus, value)) RefreshTotals(); } }
-    public int OfferFights { get => _offerFights; set { if (Set(ref _offerFights, value)) RefreshTotals(); } }
+    // (The deal's length re-prices the promises too: an activity promise can't name more fights than the deal holds.)
+    public int OfferFights { get => _offerFights; set { if (Set(ref _offerFights, value)) RefreshTable(); } }
     public int OfferPpvPoints { get => _offerPpvPoints; set { if (Set(ref _offerPpvPoints, value)) RefreshTotals(); } }
     public bool OfferExclusive { get => _offerExclusive; set { if (Set(ref _offerExclusive, value)) RefreshTable(); } }
     public bool OfferChampionsClause { get => _offerChampionsClause; set { if (Set(ref _offerChampionsClause, value)) RefreshTable(); } }
@@ -305,9 +314,13 @@ public sealed class NegotiationViewModel : ObservableObject
 
     /// <summary>Promises already on the books for him (open ones), in a line ("" when none).</summary>
     public string OpenPromisesLine => _view.Promises.Where(p => p.State == PromiseState.Open).ToList() is { Count: > 0 } open
-        ? "Already promised: " + string.Join("; ", open.Select(p => $"{p.What} ({p.StatusText.ToLowerInvariant()}{(p.Progress.Length > 0 ? ", " + p.Progress : "")})"))
+        ? "Already promised: " + string.Join("; ", open.Select(p =>
+            $"{DeskCalls.PromiseWhat(_world, p)} ({LowerFirst(p.StatusText)}{(p.Progress.Length > 0 ? ", " + p.Progress : "")})"))
         : "";
     public bool HasOpenPromises => OpenPromisesLine.Length > 0;
+
+    // "Due by 14 March" -> "due by 14 March" (only the first letter; month names keep their capital).
+    private static string LowerFirst(string s) => s.Length == 0 ? s : char.ToLowerInvariant(s[0]) + s[1..];
 
     // The terms the session prices: exclusivity, the leash terms and the promises (money is ignored).
     private ContractOffer SlipTerms() => new()
@@ -412,6 +425,8 @@ public sealed class NegotiationViewModel : ObservableObject
           + (o.WinBonus.Amount > 0 ? $", {o.WinBonus} to win" : "")
           + (o.SigningBonus.Amount > 0 ? $", {o.SigningBonus} to sign" : "")
           + (o.Exclusive ? "" : ", non-exclusive")
+          + (o.MatchingRight ? ", a matching right" : "")
+          + (PromisedLine(o) is { Length: > 0 } promised ? $"; you promise {promised}" : "")
         : "";
     public string FinalNote => G(Rival?.Improved == true
         ? $"In his hands. {RivalAbbr} has already come back once and won't go again."
@@ -596,6 +611,11 @@ public sealed class NegotiationViewModel : ObservableObject
             case FinalOfferResult.CantAfford:
                 Say($"The books can't cover the {offer.SigningBonus} signing bonus you wrote down. Nothing was lodged.", CardTone.Bad);
                 break;
+            case FinalOfferResult.OffTerms
+                when _world.Get(_promoId) is { } promo && Promises.FirstRefusal(_world, promo, _fighter, offer) is { } refused:
+                // The real reason is a promise he won't take on this slip: say which, in his words.
+                Say($"He won't sign it with that promise in it: “{refused.Why}” Take it off the slip, or change the deal. Nothing was lodged.", CardTone.Warn);
+                break;
             case FinalOfferResult.OffTerms:
                 Say($"That isn't a deal he'd sign at any money: he wants {_view.Position.Fights} fights (give or take one)"
                     + (_view.Position.SigningBonus.Amount > 0 ? ", a real signing bonus" : "")
@@ -619,7 +639,11 @@ public sealed class NegotiationViewModel : ObservableObject
         if (!CanAffordMatch) { Say(MatchBlocked, CardTone.Bad); return; }
         if (Confirm is { } ask && !ask($"Match {RivalAbbr} for {Name}?",
                 G($"He re-signs now: {cost}."),
-                $"That commits {guaranteed} guaranteed over the deal" + (terms.SigningBonus.Amount > 0 ? $", {terms.SigningBonus} of it today." : "."),
+                $"That commits {guaranteed} guaranteed over the deal" + (terms.SigningBonus.Amount > 0 ? $", {terms.SigningBonus} of it today." : ".")
+                // A match is their terms: what's ticked on your slip doesn't come with it.
+                + (PromisedFights > 0 || HomePromise.IsOn || TitlePromise.IsOn || OfferMatchingRight
+                    ? " A match is their terms: the promises and matching right on your slip aren't included."
+                    : ""),
                 "Match it", "Not yet"))
             return;
         if (OfferMarket.Match(_world, o, _world.CurrentDate))

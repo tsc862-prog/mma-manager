@@ -1308,6 +1308,26 @@ public partial class App : Application
                             Shot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-bookhim.png"));
                         }
                         break;
+                    case "foughtout":
+                    {
+                        // His deal is fought out (harness only: no fights left) with the promise still live:
+                        // a week on, his re-sign window is open. Home shows "Talk terms" (and why), the
+                        // profile too (<path>-profile.png); "Book him" from anywhere opens the table instead.
+                        x.Contract!.FightsRemaining = 0;
+                        Week();
+                        foreach (var d in vm.Desktop.Windows.ToList()) vm.Desktop.Close(d);
+                        vm.Desktop.Open("home");
+                        var row = vm.Dashboard.NeedsYou.FirstOrDefault(a => a.Title.StartsWith($"You promised {x.FirstName} {x.LastName}", StringComparison.Ordinal));
+                        Console.WriteLine($"RENDERPROMISES home row: {row?.Title} | {row?.Detail} | [{row?.PrimaryText} | {row?.SecondaryText}]");
+                        Shot(p);
+                        foreach (var d in vm.Desktop.Windows.ToList()) vm.Desktop.Close(d);
+                        vm.OpenFighter(x.Id.Value);
+                        Shot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-profile.png"));
+                        Letters();
+                        AppCommandsBook(x.Id.Value);
+                        Console.WriteLine($"RENDERPROMISES book him (fought out) -> windows [{string.Join(", ", vm.Desktop.Windows.Select(d => d.Spec.Id))}]; strip: {vm.StatusText}");
+                        break;
+                    }
                     default:
                         throw new ArgumentException("unknown scenario " + scenario);
                 }
