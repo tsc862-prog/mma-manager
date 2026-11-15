@@ -1,4 +1,6 @@
-﻿namespace MmaManager.Core.Sim.Engine;
+﻿using MmaManager.Core.Model;
+
+namespace MmaManager.Core.Sim.Engine;
 
 /// <summary>Knobs for a single simulated bout.</summary>
 public sealed record FightParams
@@ -22,7 +24,67 @@ public sealed record FightParams
     /// </summary>
     public ulong TextSeed { get; init; }
 
+    /// <summary>
+    /// The rules the bout is fought under (Origins: one long round, no judges, gloves, ground
+    /// restrictions, rope escapes, open weight). Null or <see cref="FightRules.Modern"/> = today's
+    /// sport, byte for byte. <see cref="FightRules.Rounds"/> and <see cref="FightRules.RoundMinutes"/>,
+    /// when set, override <see cref="ScheduledRounds"/> and <see cref="RoundSeconds"/>.
+    /// </summary>
+    public FightRules? Rules { get; init; }
+
+    /// <summary>
+    /// The red corner's condition at the opening bell, when it is not a fresh fighter (the second
+    /// and third bouts of a one-night tournament). Null = fresh (today).
+    /// </summary>
+    public BoutCondition? RedStart { get; init; }
+
+    /// <summary>The blue corner's condition at the opening bell (see <see cref="RedStart"/>).</summary>
+    public BoutCondition? BlueStart { get; init; }
+
     public static FightParams ThreeRound { get; } = new() { ScheduledRounds = 3 };
     public static FightParams FiveRound { get; } = new() { ScheduledRounds = 5 };
     public static FightParams FastThreeRound { get; } = new() { ScheduledRounds = 3, GeneratePlayByPlay = false };
+}
+
+/// <summary>
+/// A fighter's physical state carried between bouts on one night: what is left of his health
+/// (0-100) and gas tank (0-100), how bad a cut is (0 none; the doctor stops a bout at 3+) and how
+/// much power his hands still have (1 = whole; a damaged bare hand hits softer). Not saved: it
+/// lives only for the length of a tournament night.
+/// </summary>
+public sealed record BoutCondition(double Health, double Stamina, int Cut, double HandPower)
+{
+    public static BoutCondition Fresh { get; } = new(100, 100, 0, 1);
+
+    /// <summary>Health below this after the rest, and he cannot go on.</summary>
+    public const double WithdrawHealth = 30;
+
+    /// <summary>Fit to fight the next bout: enough left in him, and no cut the doctor would stop.</summary>
+    public bool CanContinue => Health >= WithdrawHealth && Cut < 3;
+
+    // --- Rest between bouts on a tournament night (tunables) ---------------
+    /// <summary>Health back during the rest: base + this much per Recovery/100.</summary>
+    public const double RestHealthBase = 6, RestHealthRecovery = 14;
+    /// <summary>Stamina back during the rest: base + this much per Recovery/100 (a long rest; most comes back)...</summary>
+    public const double RestStaminaBase = 35, RestStaminaRecovery = 35;
+    /// <summary>...but the night's minutes in the cage leave a debt the rest cannot repay: the tank's
+    /// ceiling drops this many points per minute fought, scaled by (1.3 - 0.6 * Cardio/100), floor 40.</summary>
+    public const double FatigueDebtPerMinute = 1.1;
+
+    /// <summary>
+    /// The rest between bouts on one night: health and wind partly come back, a small cut is closed
+    /// up by the cutman (one level; a bad one, 3+, stays), the hand stays as it is.
+    /// <paramref name="minutesFoughtTonight"/> is the whole night's cage time so far, including the
+    /// bout just finished. Deterministic.
+    /// </summary>
+    public BoutCondition AfterRest(Fighter f, double minutesFoughtTonight)
+    {
+        double rec = f.Physical.Recovery / 100.0;
+        double ceiling = Math.Clamp(
+            100 - minutesFoughtTonight * FatigueDebtPerMinute * (1.3 - 0.6 * f.Physical.Cardio / 100.0), 40, 100);
+        double health = Math.Min(100, Health + RestHealthBase + RestHealthRecovery * rec);
+        double stamina = Math.Max(Math.Min(Stamina, ceiling), Math.Min(ceiling, Stamina + RestStaminaBase + RestStaminaRecovery * rec));
+        int cut = Cut >= 3 ? Cut : Math.Max(0, Cut - 1);
+        return new BoutCondition(health, stamina, cut, HandPower);
+    }
 }

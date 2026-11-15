@@ -83,6 +83,8 @@ public sealed class EventService
         // Bouts run under the HOUSE rules — the promotion staging the card
         // decides how long its rounds go.
         int roundSeconds = (world.Get(ev.Promotion)?.Rules.RoundMinutes ?? 5) * 60;
+        // Early-era house rules (Origins); null for every promotion in today's mode = today's rules.
+        var houseRules = world.Get(ev.Promotion)?.Rules.Fight;
         foreach (var fight in ev.Card)
         {
             var opts = new FightParams
@@ -90,6 +92,7 @@ public sealed class EventService
                 ScheduledRounds = fight.ScheduledRounds,
                 RoundSeconds = roundSeconds,
                 GeneratePlayByPlay = playByPlay,
+                Rules = houseRules,
             };
             _engine.Simulate(fight, world, opts);
             ResultsProcessor.Apply(world, ev, fight);

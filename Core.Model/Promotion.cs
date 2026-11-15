@@ -207,6 +207,13 @@ public sealed class OrgRules
     /// money; buys morale and a reputation as a place fighters want to work.
     /// </summary>
     public Money FightOfNightBonus { get; set; }
+
+    /// <summary>
+    /// The early-era house rules the engine obeys (one long round, no judges, bare hands, rope
+    /// escapes, open weight). Null = today's sport (<see cref="FightRules.Modern"/>), which is every
+    /// promotion in today's mode. NOT YET SAVED: the persistence owner adds it.
+    /// </summary>
+    public FightRules? Fight { get; set; }
 }
 
 /// <summary>
