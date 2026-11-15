@@ -375,6 +375,45 @@ public sealed class MailViewModel : ObservableObject
                  && MmaManager.Core.Sim.Contracts.OfferMarket.LiveFor(w, about.Id) is { Kind: RivalOfferKind.FreeAgent, State: RivalOfferState.LetGo } gone
                  && gone.Holder == w.PlayerPromotion)
             note = Lifers.Gendered(about, $"You let him go: {w.Get(gone.From)?.Abbreviation ?? "the rival"} signs him when the week turns.");
+        else if (about is not null && PromiseLetter(m, about) is { } kind)
+        {
+            // A promise made at the table: the warning, his "I'll hold you to it", kept, broken.
+            // While one is open it says how it stands; "Book him" opens the card desk with him.
+            var open = DeskCalls.OpenPromises(w).Where(x => x.Fighter.Id == about.Id).Select(x => x.Status).ToList();
+            var risk = open.FirstOrDefault(s => s.AtRisk);
+            var shown = risk ?? open.FirstOrDefault();
+            bool ours = about.Contract?.Promotion == w.PlayerPromotion;
+            if (kind is PromiseMail.Warning or PromiseMail.HoldUs && shown is not null)
+            {
+                note = $"{DeskCalls.PromiseTitle(w, about, shown)}  ·  {DeskCalls.PromiseDue(w, shown)}"
+                       + (risk is not null ? ". Nothing is booked to keep it yet." : ".");
+                if (risk is not null) due = DeskCalls.PromiseLeft(w, risk);
+                if (ours && (kind == PromiseMail.Warning || risk is not null))
+                    actions.Add(new LetterAction { Text = DeskCalls.BookText(about), Command = AppCommands.BookFighter, Parameter = about.Id.Value, IsPrimary = true, Decides = false });
+                if (ours && kind == PromiseMail.Warning && about.Contract is { FightsRemaining: <= 1 } && NegotiateCommand is not null)
+                    actions.Add(new LetterAction { Text = "Talk terms ▸", Command = NegotiateCommand, Parameter = about.Id.Value, Decides = false });
+            }
+            else
+            {
+                // Settled (or the letter is about a promise already settled): say how it ended.
+                var last = w.Promises.Where(p => p.Fighter == about.Id && p.Promotion == w.PlayerPromotion && !p.Live)
+                    .OrderByDescending(p => p.Resolved).ThenByDescending(p => p.Id).FirstOrDefault();
+                note = kind switch
+                {
+                    PromiseMail.Kept => "Kept. He remembers it.",
+                    PromiseMail.Broken or PromiseMail.LeftUnkept => "Broken, and public: for a year every fighter at your table asks a little more.",
+                    _ => last?.State switch
+                    {
+                        PromiseState.Kept => "Kept since.",
+                        PromiseState.Broken => "It was broken since.",
+                        PromiseState.Void => "It fell away since.",
+                        _ => "",
+                    },
+                };
+                note = Lifers.Gendered(about, note);
+            }
+            actions.Add(new LetterAction { Text = "Profile", Command = AppCommands.OpenFighter, Parameter = about.Id.Value, IsPrimary = actions.Count == 0, Decides = false });
+        }
         else if (m.Subject.StartsWith("Sponsorship offer:", StringComparison.Ordinal) || m.Subject.StartsWith("Media offer:", StringComparison.Ordinal))
         {
             bool media = m.Subject.StartsWith("Media", StringComparison.Ordinal);
@@ -457,6 +496,22 @@ public sealed class MailViewModel : ObservableObject
             EventId = ev?.Id.Value ?? 0,
             EventName = ev?.Name ?? "",
         };
+    }
+
+    private enum PromiseMail { Warning, HoldUs, Kept, Broken, LeftUnkept }
+
+    // Which promise letter this is (the subjects the sim's Promises posts), or null.
+    private static PromiseMail? PromiseLetter(MailMessage m, Fighter about)
+    {
+        string s = m.Subject, n = about.FullName;
+        if (s == $"{n} will hold us to it") return PromiseMail.HoldUs;
+        if (s == $"{n}: you kept your word") return PromiseMail.Kept;
+        if (s == $"We broke our word to {n}") return PromiseMail.Broken;
+        if (s == $"{n} left with our promise unkept") return PromiseMail.LeftUnkept;
+        if (m.From == "Matchmaking" && (s.StartsWith($"We promised {n} ", StringComparison.Ordinal)
+                                        || (s.StartsWith($"Last fight on {n}'s deal", StringComparison.Ordinal) && s.Contains(": we promised ", StringComparison.Ordinal))))
+            return PromiseMail.Warning;
+        return null;
     }
 
     // The desk's line, with today's holder named when the player has one ("Press and marketing · Rosa Diaz").

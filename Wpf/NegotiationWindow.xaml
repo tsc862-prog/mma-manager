@@ -20,6 +20,43 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- One promise on the slip: the toggle (and the activity picker), what it does to
+             his number pencilled on the right, what it means to him (or why not) beneath. -->
+        <DataTemplate x:Key="SlipPromiseRow">
+            <StackPanel Margin="0,7,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <CheckBox Content="{Binding Label}" IsChecked="{Binding IsOn}" IsEnabled="{Binding Allowed}"
+                              Style="{StaticResource Slip.Promise}" VerticalAlignment="Center" />
+                    <ItemsControl ItemsSource="{Binding Picks}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                  Visibility="{Binding HasPicks, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.Style>
+                            <!-- Faint until the promise is written in (picking a number writes it in) -->
+                            <Style TargetType="ItemsControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsOn}" Value="False">
+                                        <Setter Property="Opacity" Value="0.55" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton GroupName="PromisedFights" Content="{Binding Text}" IsChecked="{Binding IsChecked}"
+                                             IsEnabled="{Binding Allowed}" Style="{StaticResource Slip.Pick}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <!-- What it means to him (or why not, in his words), then what it does to his number, pencilled -->
+                <TextBlock Style="{StaticResource Slip.Small}">
+                    <Run Text="{Binding Note, Mode=OneWay}" /><Run Text="  " /><Run Text="{Binding Effect, Mode=OneWay}" FontStyle="Italic" Foreground="{StaticResource TablePencil}" />
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <DockPanel>
@@ -238,6 +275,40 @@
                                     <CheckBox Content="Champion's clause" IsChecked="{Binding OfferChampionsClause}" Style="{StaticResource Slip.Check}"
                                               ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='A title win auto-extends the deal — a leash he charges ~8% extra to wear'}" />
                                 </WrapPanel>
+
+                                <!-- Promises: written into the deal, each worth something to him -->
+                                <Rectangle Height="1" Fill="{StaticResource TableRule}" Margin="0,12,0,0" />
+                                <TextBlock Style="{StaticResource Slip.Small}" Margin="0,8,0,0"
+                                           ToolTip="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='Written into the deal with a deadline. Keep one and he remembers it; break one and he takes it hard, the news has it, and every fighter at your table is warier for a year.'}">
+                                    <Run Text="PROMISES" FontSize="10.5" FontWeight="SemiBold" /><Run Text="  ·  " /><Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='each has a deadline: keep it and he remembers, break it and so does everyone', Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding WaryLine}" Style="{StaticResource Slip.Small}" Margin="0,4,0,0"
+                                           Foreground="{StaticResource TablePencil}" FontWeight="SemiBold"
+                                           Visibility="{Binding HasWaryLine, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="{Binding OpenPromisesLine}" Style="{StaticResource Slip.Small}" Margin="0,4,0,0"
+                                           Visibility="{Binding HasOpenPromises, Converter={StaticResource BoolToVis}}" />
+                                <ContentControl Content="{Binding TitlePromise}" ContentTemplate="{StaticResource SlipPromiseRow}" Focusable="False" />
+                                <ContentControl Content="{Binding HomePromise}" ContentTemplate="{StaticResource SlipPromiseRow}" Focusable="False" />
+                                <ContentControl Content="{Binding ActivityPromise}" ContentTemplate="{StaticResource SlipPromiseRow}" Focusable="False" />
+
+                                <!-- The matching right: a hold on his next move, priced like the champion's clause -->
+                                <StackPanel Margin="0,10,0,0">
+                                    <CheckBox Content="Matching right" IsChecked="{Binding OfferMatchingRight}" Style="{StaticResource Slip.Promise}" HorizontalAlignment="Left" />
+                                    <TextBlock Style="{StaticResource Slip.Small}">
+                                        <Run Text="{Binding IsWoman, Converter={StaticResource Pronouns}, ConverterParameter='If a rival bids when this deal ends, you keep him by matching their terms.', Mode=OneWay}" /><Run Text="  " /><Run Text="{Binding MatchingRightEffect, Mode=OneWay}" FontStyle="Italic" Foreground="{StaticResource TablePencil}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding MatchingRightHeld}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Slip.Small}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding MatchingRightHeld}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
 
                                 <Rectangle Height="1" Fill="{StaticResource TableRule}" Margin="0,12,0,6" />
                                 <TextBlock Text="{Binding OfferTotalLine}" FontSize="11.5" Foreground="{StaticResource TableInkSoft}" TextWrapping="Wrap" />

@@ -197,4 +197,73 @@ public static class DeskCalls
             : $"There's no calling {Him(f)} back once {abbr} has {Him(f)}.";
         return ($"Let {name} go to {abbr}?", body, detail, LetGoText(f));
     }
+
+    // =====================================================================================
+    // Promises the player made at the table (contracts stage 9). Read through the sim's
+    // Promises.For (what, by when, progress, AtRisk); nothing here decides whether one is
+    // kept. A promise AT RISK (inside the warning window and not booked) is on the agenda
+    // everywhere it is shown: Home, the Briefing, the Planner, the letter.
+    // =====================================================================================
+
+    /// <summary>The player's open promises, soonest deadline first, each with its fighter and the sim's status.</summary>
+    public static List<(Fighter Fighter, PromiseStatus Status)> OpenPromises(World w)
+    {
+        var list = new List<(Fighter, PromiseStatus)>();
+        if (w.Promises.Count == 0) return list;
+        foreach (var fid in w.Promises.Where(p => p.Live && p.Promotion == w.PlayerPromotion).Select(p => p.Fighter).Distinct())
+        {
+            if (w.Get(fid) is not { } f) continue;
+            foreach (var s in Promises.For(w, fid))
+                if (s.State == PromiseState.Open && s.Promotion == w.PlayerPromotion) list.Add((f, s));
+        }
+        return list.OrderBy(x => x.Item2.Deadline).ThenBy(x => x.Item2.Id).ToList();
+    }
+
+    /// <summary>The player's promises at risk: inside the warning window and nothing booked to keep them.</summary>
+    public static List<(Fighter Fighter, PromiseStatus Status)> AtRisk(World w) =>
+        OpenPromises(w).Where(x => x.Status.AtRisk).ToList();
+
+    /// <summary>The promise in a phrase, without the promotion ("a title shot", "3 fights in a year").</summary>
+    public static string PromiseWhat(World w, PromiseStatus s) =>
+        w.Promises.FirstOrDefault(p => p.Id == s.Id) is { } p ? Promises.What(w, p) : s.What;
+
+    /// <summary>"You promised Kenji Morita a title shot" (no full stop).</summary>
+    public static string PromiseTitle(World w, Fighter f, PromiseStatus s) =>
+        $"You promised {f.FirstName} {f.LastName} {PromiseWhat(w, s)}";
+
+    /// <summary>The deadline has passed and the sim hasn't settled it yet (it breaks at the monthly test unless he's booked in time).</summary>
+    public static bool Overdue(World w, PromiseStatus s) => s.State == PromiseState.Open && s.Deadline < w.CurrentDate;
+
+    /// <summary>"Due 14 Mar · 12 days left · 1 of 3 fights" — the deadline and how it stands.</summary>
+    public static string PromiseDue(World w, PromiseStatus s)
+    {
+        string left = Overdue(w, s) ? "overdue"
+            : s.DaysLeft is { } d ? d <= 0 ? "due today" : d == 1 ? "1 day left" : $"{d} days left" : "";
+        return string.Join("  ·  ", new[] { $"Due {s.Deadline:d MMM}", left, s.Progress }.Where(x => x.Length > 0));
+    }
+
+    /// <summary>How long is left, in a few words ("12 days left", "last day", "overdue").</summary>
+    public static string PromiseLeft(World w, PromiseStatus s) =>
+        Overdue(w, s) ? "overdue" : s.DaysLeft is not { } d ? "" : d <= 0 ? "last day" : d == 1 ? "1 day left" : $"{d} days left";
+
+    /// <summary>What keeping it takes, in a sentence (the same advice the sim's warning letter gives).</summary>
+    public static string PromiseFix(World w, Fighter f, PromiseStatus s)
+    {
+        string what = s.Kind switch
+        {
+            PromiseKind.TitleShot => "a title fight",
+            PromiseKind.HomeShow => "a fight on a card in his home country",
+            _ => $"his next fight ({s.Progress} so far)",
+        };
+        return Lifers.Gendered(f, Overdue(w, s)
+            ? $"The deadline was {s.Deadline:d MMMM}. Unless he's booked {what} on a card within {Promises.GraceDays} days of it, the promise breaks when the month turns."
+            : $"Book him {what} before {s.Deadline:d MMMM}. A fight booked before the deadline counts if the card is within {Promises.GraceDays} days of it.");
+    }
+
+    /// <summary>The Planner's marker on a promise's deadline.</summary>
+    public static string PromiseDueLine(Fighter f, PromiseStatus s, World w) =>
+        $"{f.LastName}: {PromiseWhat(w, s)} due";
+
+    /// <summary>"Book him ▸" / "Book her ▸".</summary>
+    public static string BookText(Fighter? f) => $"Book {Him(f)} ▸";
 }

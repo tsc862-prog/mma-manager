@@ -124,6 +124,24 @@ public sealed class AchievementRow
     public bool IsCurrent { get; init; }
 }
 
+/// <summary>One promise still to keep, on a fighter's profile (from the sim's <c>PromiseStatus</c>).</summary>
+public sealed class PromiseRow
+{
+    public required int FighterId { get; init; }
+    /// <summary>"NWF promised a title shot".</summary>
+    public required string What { get; init; }
+    /// <summary>"Due by 14 March 2027 — 40 days left".</summary>
+    public required string Status { get; init; }
+    /// <summary>"1 of 3 fights", "booked", "not booked yet".</summary>
+    public string Progress { get; init; } = "";
+    public bool HasProgress => Progress.Length > 0;
+    public bool AtRisk { get; init; }
+    /// <summary>At risk, and yours to book: "Book him" opens the card desk with him.</summary>
+    public bool CanBook { get; init; }
+    public string BookText { get; init; } = "Book him ▸";
+    public CardTone Tone { get; init; }
+}
+
 /// <summary>A fighter as a flat, bindable row for the roster grid, plus a profile and fight history.</summary>
 public sealed class FighterRow
 {
@@ -221,6 +239,31 @@ public sealed class FighterRow
         }
     }
     public bool HasBonds => BondsText.Length > 0;
+
+    // --- Promises made to him at the table (the sim's read model, Promises.For) ---------
+    private IReadOnlyList<MmaManager.Core.Sim.Contracts.PromiseStatus>? _promises;
+    private IReadOnlyList<MmaManager.Core.Sim.Contracts.PromiseStatus> AllPromises =>
+        _promises ??= MmaManager.Core.Sim.Contracts.Promises.For(_w, _f.Id);
+
+    /// <summary>Promises still to keep: what, by when, how it is going; at risk ones highlighted and bookable.</summary>
+    public IReadOnlyList<PromiseRow> OpenPromises => AllPromises.Where(p => p.State == PromiseState.Open).Select(p => new PromiseRow
+    {
+        FighterId = _f.Id.Value,
+        What = p.What,
+        Status = p.Deadline < _w.CurrentDate ? $"Overdue: it was due by {p.Deadline:d MMMM yyyy}" : p.StatusText,
+        Progress = p.Progress,
+        AtRisk = p.AtRisk,
+        CanBook = p.AtRisk && p.Promotion == _w.PlayerPromotion && _f.Contract?.Promotion == _w.PlayerPromotion,
+        BookText = _f.Sex == Sex.Female ? "Book her ▸" : "Book him ▸",
+        Tone = p.AtRisk ? CardTone.Bad : CardTone.Neutral,
+    }).ToList();
+
+    /// <summary>Kept, broken and fallen-away promises, newest first, one small line each.</summary>
+    public IReadOnlyList<string> PastPromises => AllPromises.Where(p => p.State != PromiseState.Open)
+        .Select(p => $"{(p.State == PromiseState.Kept ? "✓" : p.State == PromiseState.Broken ? "✗" : "–")}  {p.What}: {p.StatusText}").ToList();
+
+    public bool HasPromises => AllPromises.Count > 0;
+    public bool HasPastPromises => AllPromises.Any(p => p.State != PromiseState.Open);
 
     private static string HeatWord(int intensity) => intensity switch
     {

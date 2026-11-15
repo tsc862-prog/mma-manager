@@ -18,6 +18,74 @@ public sealed record ReactionRow(string Term, string Note, string Feel);
 public enum TableSettlement { None, Matched, LetGo }
 
 /// <summary>
+/// One promise on the slip (a title shot, a fight at home, so many fights in the year):
+/// a toggle the player writes in, and what the session says about it on these terms —
+/// whether it can be made (and if not, why, in his words), what it is worth to him, and
+/// how much it takes off his number. Held for the life of the window; only its words are
+/// refreshed from each <see cref="NegotiationView"/>.
+/// </summary>
+public sealed class SlipPromise : ObservableObject
+{
+    private readonly Action _changed;
+    public SlipPromise(PromiseKind kind, string label, Action changed)
+    {
+        Kind = kind;
+        Label = label;
+        _changed = changed;
+    }
+
+    public PromiseKind Kind { get; }
+    public string Label { get; }
+
+    private bool _isOn;
+    /// <summary>Written on the slip (toggling it re-quotes his number).</summary>
+    public bool IsOn { get => _isOn; set { if (Set(ref _isOn, value)) _changed(); } }
+
+    private bool _allowed = true;
+    /// <summary>The promise can be made at all (off and greyed out when not — never hidden).</summary>
+    public bool Allowed { get => _allowed; private set => Set(ref _allowed, value); }
+
+    private string _note = "";
+    /// <summary>What it is worth to him, or why it can't be offered (his words, in quotes).</summary>
+    public string Note { get => _note; private set => Set(ref _note, value); }
+
+    private string _effect = "";
+    /// <summary>What it does to his number on these terms ("takes $2,500 off his number").</summary>
+    public string Effect { get => _effect; private set => Set(ref _effect, value); }
+    public bool HasEffect => _effect.Length > 0;
+
+    /// <summary>For the activity promise: the 2/3/4 picker (empty for the others).</summary>
+    public ObservableCollection<SlipPick> Picks { get; } = new();
+    public bool HasPicks => Picks.Count > 0;
+
+    internal void Update(bool allowed, string note, string effect)
+    {
+        Allowed = allowed;
+        Note = note;
+        Effect = effect;
+        OnPropertyChanged(nameof(HasEffect));
+        // A promise that can't be made comes off the slip (quietly: the caller is refreshing).
+        if (!allowed && _isOn) { _isOn = false; OnPropertyChanged(nameof(IsOn)); }
+    }
+}
+
+/// <summary>One choice on the activity picker ("3" fights in the year).</summary>
+public sealed class SlipPick : ObservableObject
+{
+    private readonly Action<SlipPick> _picked;
+    public SlipPick(int fights, Action<SlipPick> picked) { Fights = fights; _picked = picked; }
+    public int Fights { get; }
+    public string Text => Fights.ToString();
+
+    private bool _isChecked;
+    public bool IsChecked { get => _isChecked; set { if (Set(ref _isChecked, value) && value) _picked(this); } }
+    internal void SetQuietly(bool on) { _isChecked = on; OnPropertyChanged(nameof(IsChecked)); }
+
+    private bool _allowed = true;
+    public bool Allowed { get => _allowed; internal set => Set(ref _allowed, value); }
+}
+
+/// <summary>
 /// THE TABLE: a sit-down between the promoter and the fighter himself (no agent),
 /// driven by a <see cref="NegotiationSession"/>. Everything about his side comes
 /// from the session's <see cref="NegotiationView"/>: his number on the terms you
@@ -86,6 +154,15 @@ public sealed class NegotiationViewModel : ObservableObject
         bool exclusive = Negotiator.WantsExclusivity(promo);
         _offerExclusive = exclusive;
         _view = session.View(exclusive, false);
+
+        // The promises he could be given (each one re-quotes his number when toggled).
+        string home = world.Get(fighter.Country)?.Name is { Length: > 0 } c ? $"A fight at home in {c}" : "A fight at home";
+        TitlePromise = new SlipPromise(PromiseKind.TitleShot, "A title shot", RefreshTable);
+        HomePromise = new SlipPromise(PromiseKind.HomeShow, home, RefreshTable);
+        ActivityPromise = new SlipPromise(PromiseKind.Activity, "Fights in the year", RefreshTable);
+        for (int n = Promises.MinActivity; n <= Promises.MaxActivity; n++)
+            ActivityPromise.Picks.Add(new SlipPick(n, PickActivity));
+        (ActivityPromise.Picks.FirstOrDefault(p => p.Fights == 3) ?? ActivityPromise.Picks[0]).SetQuietly(true);
         var his = _view.Position;
         _offerFights = his.Fights;
         _offerPurse = RoundTo(his.PursePerFight.Amount * 0.85m);
@@ -131,8 +208,8 @@ public sealed class NegotiationViewModel : ObservableObject
     /// <summary>One of your fighters' bond with you, at re-signing talks ("" otherwise).</summary>
     public string BondLine { get; }
 
-    /// <summary>How he bargains, in his own terms (the session's stance, said about him).</summary>
-    public string Stance => HisStance(_view.Stance);
+    /// <summary>How he bargains, in words about him (the session's <see cref="NegotiationView.Stance"/>).</summary>
+    public string Stance => _view.Stance;
     public string MoodLabel => _view.Mood;
     public CardTone MoodTone => _view.Mood switch
     {
@@ -177,6 +254,103 @@ public sealed class NegotiationViewModel : ObservableObject
     public int OfferPpvPoints { get => _offerPpvPoints; set { if (Set(ref _offerPpvPoints, value)) RefreshTotals(); } }
     public bool OfferExclusive { get => _offerExclusive; set { if (Set(ref _offerExclusive, value)) RefreshTable(); } }
     public bool OfferChampionsClause { get => _offerChampionsClause; set { if (Set(ref _offerChampionsClause, value)) RefreshTable(); } }
+
+    // --- Promises and the matching right, on the slip --------------------------------
+    public SlipPromise TitlePromise { get; }
+    public SlipPromise HomePromise { get; }
+    public SlipPromise ActivityPromise { get; }
+
+    /// <summary>Fights promised in the year (0 when the activity promise is off).</summary>
+    private int PromisedFights => ActivityPromise.IsOn ? ActivityPromise.Picks.FirstOrDefault(p => p.IsChecked)?.Fights ?? 0 : 0;
+
+    private void PickActivity(SlipPick pick)
+    {
+        foreach (var p in ActivityPromise.Picks) if (!ReferenceEquals(p, pick)) p.SetQuietly(false);
+        if (!ActivityPromise.IsOn) ActivityPromise.IsOn = true;   // picking a number writes the promise in
+        else RefreshTable();
+    }
+
+    private bool _offerMatchingRight;
+    /// <summary>A matching right on the slip: if a rival bids when this deal ends, you keep him by matching their terms.</summary>
+    public bool OfferMatchingRight { get => _offerMatchingRight; set { if (Set(ref _offerMatchingRight, value)) RefreshTable(); } }
+
+    /// <summary>What the right adds to his number on these terms.</summary>
+    public string MatchingRightEffect => _view.MatchingRightCost.Amount > 0
+        ? G($"adds {_view.MatchingRightCost} to his number")
+        : G("won't move his number on these terms");
+
+    /// <summary>His current deal with you already carries one ("" otherwise).</summary>
+    public string MatchingRightHeld => _view.MatchingRightHeld
+        ? G("His current deal with you carries one. It is used up when he re-signs, unless this slip carries one too.")
+        : "";
+
+    /// <summary>
+    /// One line when a broken promise is costing you at this table: he remembers yours to him,
+    /// or word is out that you broke one this past year (both read off the sim, never worked out here).
+    /// </summary>
+    public string WaryLine
+    {
+        get
+        {
+            var today = _world.CurrentDate;
+            var lines = new List<string>();
+            if (Promises.BrokenBy(_world, _fighter.Id, _promoId, today) > 0)
+                lines.Add(G("You broke your word to him: a promise from you counts for nothing with him for now."));
+            if (Promises.Wariness(_world, _promoId, today) > 1m)
+                lines.Add("Word is out that you broke a promise this past year: every fighter asks a little more at your table and counts your promises for less.");
+            return string.Join(" ", lines);
+        }
+    }
+    public bool HasWaryLine => WaryLine.Length > 0;
+
+    /// <summary>Promises already on the books for him (open ones), in a line ("" when none).</summary>
+    public string OpenPromisesLine => _view.Promises.Where(p => p.State == PromiseState.Open).ToList() is { Count: > 0 } open
+        ? "Already promised: " + string.Join("; ", open.Select(p => $"{p.What} ({p.StatusText.ToLowerInvariant()}{(p.Progress.Length > 0 ? ", " + p.Progress : "")})"))
+        : "";
+    public bool HasOpenPromises => OpenPromisesLine.Length > 0;
+
+    // The terms the session prices: exclusivity, the leash terms and the promises (money is ignored).
+    private ContractOffer SlipTerms() => new()
+    {
+        Fighter = _fighter.Id, Promotion = _promoId,
+        Fights = Math.Max(1, OfferFights),
+        Exclusive = OfferExclusive, ChampionsClause = OfferChampionsClause, MatchingRight = OfferMatchingRight,
+        PromiseFights = PromisedFights, PromiseHomeShow = HomePromise.IsOn, PromiseTitleShot = TitlePromise.IsOn,
+    };
+
+    // Each promise's words and price, from the session's options on this slip.
+    private void RefreshPromises()
+    {
+        var opts = _view.PromiseOptions;
+        void Fill(SlipPromise sp, PromiseOption? o)
+        {
+            if (o is null) { sp.Update(false, "", ""); return; }
+            string note = o.Allowed ? Sentence(o.Worth) : $"“{o.Why}”";
+            string effect = !o.Allowed ? ""
+                : o.PurseOff.Amount > 0 ? G($"takes {o.PurseOff} off his number")
+                : G("won't move his number");
+            sp.Update(o.Allowed, note, effect);
+        }
+        Fill(TitlePromise, opts.FirstOrDefault(o => o.Kind == PromiseKind.TitleShot));
+        Fill(HomePromise, opts.FirstOrDefault(o => o.Kind == PromiseKind.HomeShow));
+
+        var acts = opts.Where(o => o.Kind == PromiseKind.Activity).ToList();
+        foreach (var p in ActivityPromise.Picks)
+            p.Allowed = acts.FirstOrDefault(o => o.Fights == p.Fights)?.Allowed == true;
+        // The picked number must be one he'd take; else the nearest he would.
+        var picked = ActivityPromise.Picks.FirstOrDefault(p => p.IsChecked);
+        if (picked is null || !picked.Allowed)
+        {
+            var next = ActivityPromise.Picks.LastOrDefault(p => p.Allowed && p.Fights <= (picked?.Fights ?? 3))
+                       ?? ActivityPromise.Picks.FirstOrDefault(p => p.Allowed);
+            foreach (var p in ActivityPromise.Picks) p.SetQuietly(ReferenceEquals(p, next));
+            picked = next;
+        }
+        var act = picked is null ? acts.FirstOrDefault() : acts.FirstOrDefault(o => o.Fights == picked.Fights);
+        Fill(ActivityPromise, act is null ? null : act with { Allowed = acts.Any(o => o.Allowed) && picked is not null });
+    }
+
+    private static string Sentence(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..] + (s.EndsWith('.') ? "" : ".");
 
     // His number on the terms you are writing — pencilled in the slip's margin.
     public string HisPurse => _view.Position.PursePerFight.ToString();
@@ -300,15 +474,36 @@ public sealed class NegotiationViewModel : ObservableObject
         Fights = Math.Max(1, OfferFights),
         Exclusive = OfferExclusive,
         ChampionsClause = OfferChampionsClause,
+        MatchingRight = OfferMatchingRight,
+        PromiseFights = PromisedFights,
+        PromiseHomeShow = HomePromise.IsOn,
+        PromiseTitleShot = TitlePromise.IsOn,
         Round = _view.Round,
     };
 
-    private static string Describe(ContractOffer offer) =>
+    private string Describe(ContractOffer offer) =>
         $"{offer.PursePerFight} a fight, {offer.WinBonus} to win, {offer.SigningBonus} up front, {offer.Fights} fights"
         + (offer.PpvPoints > 0 ? $", {offer.PpvPoints} PPV points" : "")
         + (offer.PerformanceBonus.Amount > 0 ? $", {offer.PerformanceBonus} performance bonus" : "")
         + (offer.Exclusive ? ", exclusive" : ", non-exclusive")
-        + (offer.ChampionsClause ? ", champion's clause" : "") + ".";
+        + (offer.ChampionsClause ? ", champion's clause" : "")
+        + (offer.MatchingRight ? ", a matching right" : "")
+        + (PromisedLine(offer) is { Length: > 0 } p ? $". You promise {p}" : "") + ".";
+
+    /// <summary>The promises on a slip in a phrase ("a title shot and 3 fights in the year"; "" when none).</summary>
+    private string PromisedLine(ContractOffer o)
+    {
+        var parts = new List<string>();
+        if (o.PromiseTitleShot) parts.Add("a title shot");
+        if (o.PromiseHomeShow) parts.Add(HomePromise.Label.Replace("A fight", "a fight"));
+        if (o.PromiseFights > 0) parts.Add($"{o.PromiseFights} fights in the year");
+        return parts.Count switch
+        {
+            0 => "",
+            1 => parts[0],
+            _ => string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1],
+        };
+    }
 
     private void TableOffer()
     {
@@ -382,7 +577,8 @@ public sealed class NegotiationViewModel : ObservableObject
         if (Confirm is { } ask && !ask($"Put your offer to {Name} in writing?",
                 G($"It's binding: if he takes it over {RivalAbbr}'s paper, he signs it next week at {offer.PursePerFight} a fight for {offer.Fights} fights"
                   + (offer.SigningBonus.Amount > 0 ? $", {offer.SigningBonus} up front." : ".")),
-                $"That commits {guaranteed} guaranteed over the deal" + (offer.SigningBonus.Amount > 0 ? $", {offer.SigningBonus} of it on signing." : "."),
+                $"That commits {guaranteed} guaranteed over the deal" + (offer.SigningBonus.Amount > 0 ? $", {offer.SigningBonus} of it on signing." : ".")
+                + (PromisedLine(offer) is { Length: > 0 } promised ? G($" It also promises him {promised}: break that and he takes it hard, in public.") : ""),
                 "Put it in writing", "Not yet"))
             return;
         var result = _session.PutInWriting(offer);
@@ -476,7 +672,10 @@ public sealed class NegotiationViewModel : ObservableObject
 
     private void RefreshTable()
     {
-        _view = _session.View(OfferExclusive, OfferChampionsClause);
+        // (Called by the promise toggles too, which exist only once the constructor has made them.)
+        if (TitlePromise is null) return;
+        _view = _session.View(SlipTerms());
+        RefreshPromises();
         var q = AskingQuote.For(_world, _world.Get(_promoId)!, _fighter, _exp,
             OfferExclusive, OfferChampionsClause);
         AskWhy = q.Reasons.Count == 0 ? "" : $"Opened at {q.Purse} a fight: {q.Why} (market rate {q.MarketRate}).";
@@ -495,6 +694,7 @@ public sealed class NegotiationViewModel : ObservableObject
         nameof(HasLeaning), nameof(LeansTheirs), nameof(LeansTorn), nameof(LeansYours), nameof(LeaningWords),
         nameof(HasFinal), nameof(FinalLine), nameof(FinalNote),
         nameof(CanPutInWriting), nameof(PutInWritingText), nameof(CanMatch), nameof(MatchText), nameof(CanAffordMatch), nameof(MatchBlocked), nameof(CanLetGo),
+        nameof(MatchingRightEffect), nameof(MatchingRightHeld), nameof(WaryLine), nameof(HasWaryLine), nameof(OpenPromisesLine), nameof(HasOpenPromises),
     };
 
     private void RefreshTotals()
@@ -507,16 +707,4 @@ public sealed class NegotiationViewModel : ObservableObject
     }
 
     private static decimal RoundTo(decimal v) => Math.Round(v / 500m) * 500m;
-
-    /// <summary>
-    /// The session may still describe the old agent ("hard-nosed representation"); at this
-    /// table the fighter speaks for himself, so those three are said about him. Any other
-    /// stance (the sim's own wording about him, once renamed) passes through, capitalised.
-    /// </summary>
-    internal static string HisStance(string stance) =>
-        stance.Contains("representation", StringComparison.OrdinalIgnoreCase) ? "Drives a hard bargain"
-        : stance.Contains("fair agent", StringComparison.OrdinalIgnoreCase) ? "Firm but fair"
-        : stance.Contains("easygoing camp", StringComparison.OrdinalIgnoreCase) ? "Easy to deal with"
-        : stance.Length > 0 ? char.ToUpperInvariant(stance[0]) + stance[1..]   // a renamed stance, already about him
-        : stance;
 }

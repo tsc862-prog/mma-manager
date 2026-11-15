@@ -591,6 +591,26 @@ public sealed class PlannerViewModel : ObservableObject
             });
         }
 
+        // Promises made at the table: a marker on each deadline (red while nothing is booked to keep it).
+        foreach (var (pf, ps) in DeskCalls.OpenPromises(w).Where(x => inRange(x.Status.Deadline)))
+        {
+            int pid = pf.Id.Value;
+            list.Add(new PlannerMarker
+            {
+                Date = ps.Deadline,
+                Icon = "Pen",
+                Short = $"{pf.LastName}: promise due",
+                Text = DeskCalls.PromiseDueLine(pf, ps, w),
+                Detail = ps.AtRisk ? DeskCalls.PromiseFix(w, pf, ps) : $"{DeskCalls.PromiseTitle(w, pf, ps)}. {(ps.Progress.Length > 0 ? char.ToUpperInvariant(ps.Progress[0]) + ps.Progress[1..] + "." : "")}".Trim(),
+                Tone = ps.AtRisk ? CardTone.Bad : CardTone.Warn,
+                FighterId = pid,
+                Face = new LazyFace(ready => Portraits.Thumb(pf, w, ready)),
+                Open = ps.AtRisk ? AppCommands.BookFighter : AppCommands.OpenFighter,
+                OpenParameter = pid,
+                OpenText = ps.AtRisk ? (pf.Sex == Sex.Female ? "Book her" : "Book him") : "Profile",
+            });
+        }
+
         // Offers on the table that lapse.
         foreach (var o in player.Offers.Where(o => inRange(o.ExpiresOn)))
             list.Add(new PlannerMarker

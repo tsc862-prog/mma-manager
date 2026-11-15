@@ -539,6 +539,23 @@ public sealed class DashboardViewModel : ObservableObject
             });
         }
 
+        // A promise made at the table, due soon with nothing booked to keep it.
+        foreach (var (pf, ps) in DeskCalls.AtRisk(world))
+        {
+            int days = ps.DaysLeft ?? 0;
+            NeedsYou.Add(new ActionItemModel
+            {
+                Icon = "Pen",
+                Title = $"{DeskCalls.PromiseTitle(world, pf, ps)}: nothing booked",
+                Detail = DeskCalls.PromiseFix(world, pf, ps),
+                Due = DeskCalls.PromiseLeft(world, ps),
+                Tone = days <= 21 ? CardTone.Bad : CardTone.Warn,
+                Picture = Portraits.Thumb(pf, world),
+                PrimaryText = DeskCalls.BookText(pf), PrimaryCommand = AppCommands.BookFighter, PrimaryParameter = pf.Id.Value,
+                SecondaryText = "Profile", SecondaryCommand = OpenFighterCommand, SecondaryParameter = pf.Id.Value,
+            });
+        }
+
         if (next is null && roster.Count >= 2)
             NeedsYou.Add(new ActionItemModel
             {

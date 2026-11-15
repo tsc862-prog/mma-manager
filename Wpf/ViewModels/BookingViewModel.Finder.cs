@@ -456,6 +456,20 @@ public sealed partial class BookingViewModel
         PickFirstCorner(e.FighterId);
     }
 
+    /// <summary>
+    /// "Book him" from elsewhere in the app (a promise to keep, a letter): the selected card's
+    /// picker opened on its next open slot, with him in the first corner and the finder
+    /// looking for his opponent. Says why when he can't make this card.
+    /// </summary>
+    public void FindOpponentFor(FighterId id)
+    {
+        if (_world is null || SelectedEvent is null) return;
+        if (_rail != DeskRail.Picker || _replaceFight is not null) OpenPicker(_nextSlot);
+        _pickMode = PickMode.Division;
+        OnPropertyChanged(nameof(PickSuggested)); OnPropertyChanged(nameof(PickDivision)); OnPropertyChanged(nameof(PickLocal));
+        PickFirstCorner(id);
+    }
+
     /// <summary>Put a fighter in the first corner, from any division (the finder's scope is not a prerequisite).</summary>
     private void PickFirstCorner(FighterId id)
     {

@@ -212,6 +212,51 @@
                     </StackPanel>
                 </ScrollViewer>
                 <DockPanel Grid.Column="1" Margin="12,0,0,0">
+                    <!-- Promises made to him at the table: what, by when, how it's going; at risk highlighted -->
+                    <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource Border}"
+                            BorderThickness="1" Padding="10,8" Margin="0,0,0,10"
+                            Visibility="{Binding SelectedFighter.HasPromises, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="PROMISES" Style="{StaticResource SectionLabel}" Margin="0,0,0,6"
+                                       ToolTip="Written into his deal at the table. Kept: he remembers. Broken: he takes it hard, and it's public." />
+                            <ItemsControl ItemsSource="{Binding SelectedFighter.OpenPromises}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource PromiseCard}">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Content="{Binding BookText}" Style="{StaticResource Button.Soft}"
+                                                        Command="{x:Static mvvm:AppCommands.BookFighter}" CommandParameter="{Binding FighterId}"
+                                                        VerticalAlignment="Center" Margin="10,0,0,0" Padding="10,4"
+                                                        Visibility="{Binding CanBook, Converter={StaticResource BoolToVis}}"
+                                                        ToolTip="Opens the card desk on your next card he can make, with him in the first corner" />
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <Border DockPanel.Dock="Right" Style="{StaticResource Chip}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                                Background="{StaticResource ToneBadDim}"
+                                                                Visibility="{Binding AtRisk, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="AT RISK" Style="{StaticResource Chip.Text}" FontWeight="Bold" Foreground="{StaticResource Negative}" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding What}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    </DockPanel>
+                                                    <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,2,0,0">
+                                                        <Run Text="{Binding Status, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource TextMuted}" /><Run Text="{Binding Progress, Mode=OneWay}" FontWeight="SemiBold" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <ItemsControl ItemsSource="{Binding SelectedFighter.PastPromises}" Margin="0,2,0,0"
+                                          Visibility="{Binding SelectedFighter.HasPastPromises, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" FontSize="10.5" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,1" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                     <!-- The trophy case: reigns off every belt's lineage + the honours -->
                     <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource Border}"
                             BorderThickness="1" Padding="10,8" Margin="0,0,0,10" MaxHeight="215">

@@ -838,6 +838,21 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
         </Style>
+        <!-- One promise to keep on a profile (a PromiseRow): a quiet card, red-edged while AtRisk. -->
+        <Style x:Key="PromiseCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardFill}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding AtRisk}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ToneBadDim}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource ToneBad}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 
         <!-- Buttons -->
         <Style x:Key="Button.Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -1992,6 +2007,8 @@
                TableInk / TableInkSoft       typed text on paper / its labels
                TablePencil                   his number, pencilled in your slip's margin
                Slip (Border), Slip.Label, Slip.Value, Slip.Note, Slip.Field (TextBox), Slip.Check
+               Slip.Promise (CheckBox, fades when it can't be offered), Slip.Small (ink note under it),
+               Slip.Pick (RadioButton: one number on a small paper picker)
                Stamp (Border) + Stamp.Text   rubber stamp on paper ("CAME BACK ONCE")
                LeanSegment (Border) + LeanSegment.Text: one third of the leaning bar, lit when its Tag is bound to true
              ===================================================================== -->
@@ -2089,6 +2106,59 @@
                     <DataTemplate>
                         <TextBlock Text="{Binding}" Foreground="#1D2127" FontSize="12" />
                     </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- A promise (or the matching right) written on the slip: bold ink label, greyed out
+             (never hidden) when it can't be offered. -->
+        <Style x:Key="Slip.Promise" TargetType="CheckBox" BasedOn="{StaticResource Slip.Check}">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#1D2127" FontSize="12.5" FontWeight="SemiBold" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- What a promise means to him, or why he won't take it: small ink under its toggle. -->
+        <Style x:Key="Slip.Small" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource TableInkSoft}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="21,1,0,0" />
+        </Style>
+        <!-- One number on a small picker drawn on the slip (the activity promise's 2 / 3 / 4). -->
+        <Style x:Key="Slip.Pick" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="box" Width="24" Height="20" CornerRadius="2" BorderThickness="1"
+                                BorderBrush="{StaticResource TableRule}" Background="#F6F1E4">
+                            <TextBlock x:Name="num" Text="{TemplateBinding Content}" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#1D2127" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="box" Property="Background" Value="#1D2127" />
+                                <Setter TargetName="box" Property="BorderBrush" Value="#1D2127" />
+                                <Setter TargetName="num" Property="Foreground" Value="#ECE5D3" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="box" Property="BorderBrush" Value="#1D2127" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
