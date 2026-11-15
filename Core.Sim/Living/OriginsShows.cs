@@ -226,6 +226,7 @@ public static class OriginsShows
     private static void Crown(World world, Promotion promo, Event ev, Fighter? champion)
     {
         if (champion is null) return;
+        champion.Accolades.Add(new Accolade(ev.Date, $"Won {ev.Name}"));   // every bracket won, a repeat included (the durable record)
         var division = promo.Divisions.FirstOrDefault(d => d.Open && d.Title is not null);
         if (division?.Title is not { } tid || world.Get(tid) is not { } title) return;
         var previous = title.CurrentChampion;
@@ -239,7 +240,6 @@ public static class OriginsShows
         if (reign is not null) reign.LostOn = ev.Date;
         title.CurrentChampion = champion.Id;
         title.Lineage.Add(new TitleReign { Champion = champion.Id, WonOn = ev.Date });
-        champion.Accolades.Add(new Accolade(ev.Date, $"Won {ev.Name}"));
         Contracts.ContractLifecycle.ApplyChampionsClause(champion);
         RankingService.Remove(division, champion.Id);
         if (previous is { } old && world.Get(old) is { } oldChamp)
@@ -273,6 +273,11 @@ public static class OriginsShows
         bool challenge = promo.Rules.ShowFormat == ShowFormat.GymChallenge;
         var used = new HashSet<FighterId>();
 
+        // Nobody fights the same man twice inside the cooldown (the grudge waits for its rematch).
+        var lastMet = LastMeetings(world);
+        bool Fresh(Fighter a, Fighter b) =>
+            !lastMet.TryGetValue(Pair(a.Id, b.Id), out var met) || date.DayNumber - met.DayNumber > RematchDays;
+
         // The belt first, when one can be fought for.
         Matchup? titleBout = null;
         if (!challenge && division?.Title is { } tid && world.Get(tid) is { } title)
@@ -281,8 +286,9 @@ public static class OriginsShows
             var champ = title.CurrentChampion is { } cid ? ordered.FirstOrDefault(f => f.Id == cid) : null;
             if (champ is not null)
             {
-                var challenger = ranked.Select(world.Get).OfType<Fighter>()
-                    .FirstOrDefault(c => c.Id != champ.Id && Matchmaker.Worthy(c) && !Bonds.WontFight(world, champ.Id, c.Id));
+                var eligible = ranked.Select(world.Get).OfType<Fighter>()
+                    .Where(c => c.Id != champ.Id && Matchmaker.Worthy(c) && !Bonds.WontFight(world, champ.Id, c.Id)).ToList();
+                var challenger = eligible.FirstOrDefault(c => Fresh(champ, c)) ?? eligible.FirstOrDefault();
                 if (challenger is not null) titleBout = new Matchup(champ.Id, challenger.Id, division.WeightClass, rounds, true, tid);
             }
             else if (title.CurrentChampion is null && ranked.Count >= 2 && !Bonds.WontFight(world, ranked[0], ranked[1]))
@@ -298,7 +304,7 @@ public static class OriginsShows
             {
                 var a = ordered[i]; var b = ordered[j];
                 if (a.Camp is { } room && room == b.Camp) continue;            // a man never fights his own gym-mate
-                if (Bonds.WontFight(world, a.Id, b.Id)) continue;
+                if (Bonds.WontFight(world, a.Id, b.Id) || !Fresh(a, b)) continue;
                 bool feud = Storylines.RivalryBetween(world, a.Id, b.Id) is { Intensity: >= 40 };
                 bool gymWar = a.Camp is { } ca && b.Camp is { } cb && feudingGyms.Contains(GymKey(ca, cb));
                 int tier = feud ? 3 : gymWar ? 2 : challenge && a.Camp is not null && b.Camp is not null ? 1 : 0;
@@ -309,7 +315,7 @@ public static class OriginsShows
         {
             var a = ordered.FirstOrDefault(f => f.Id == rv.A); var b = ordered.FirstOrDefault(f => f.Id == rv.B);
             if (a is null || b is null || candidates.Any(c => (c.A == a && c.B == b) || (c.A == b && c.B == a))) continue;
-            if (a.Camp is { } room && room == b.Camp) continue;
+            if ((a.Camp is { } room && room == b.Camp) || !Fresh(a, b)) continue;
             candidates.Add((a, b, 3, Math.Abs(perceived[a.Id] - perceived[b.Id])));
         }
 
@@ -347,6 +353,27 @@ public static class OriginsShows
             .Where(f => f.Status == FighterStatus.Active && f.IsMatchReady(date) && !taken.Contains(f.Id)
                         && f.Contract is not { FightsRemaining: <= 0 })
             .ToList();
+
+    /// <summary>Two men who have met are not matched again inside this many days.</summary>
+    public const int RematchDays = 150;
+
+    private static (int, int) Pair(FighterId a, FighterId b) => a.Value < b.Value ? (a.Value, b.Value) : (b.Value, a.Value);
+
+    /// <summary>When each pair of men last met (completed bouts; the sport is small enough to scan).</summary>
+    private static Dictionary<(int, int), DateOnly> LastMeetings(World world)
+    {
+        var met = new Dictionary<(int, int), DateOnly>();
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Status != EventStatus.Completed) continue;
+            foreach (var f in e.Card)
+            {
+                var key = Pair(f.RedCorner, f.BlueCorner);
+                if (!met.TryGetValue(key, out var d) || e.Date > d) met[key] = e.Date;
+            }
+        }
+        return met;
+    }
 
     private static (int, int) GymKey(CampId a, CampId b) => a.Value < b.Value ? (a.Value, b.Value) : (b.Value, a.Value);
 

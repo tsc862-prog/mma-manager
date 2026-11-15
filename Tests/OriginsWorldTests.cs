@@ -256,11 +256,13 @@ public class OriginsWorldTests : IClassFixture<OriginsYearFixture>
         {
             Assert.Equal(EventFormat.Tournament, ev.Format);
             Assert.InRange(ev.Card.Count, 4, 8);   // at most seven bouts (an alternate's bout makes no eighth); walkovers fight fewer
-            var crowned = title.Lineage.Any(r => r.WonOn == ev.Date);
+            // The durable record: every bracket won is an accolade on the winner (the news feed is capped).
+            var winner = w.Fighters.Values.FirstOrDefault(f => f.Accolades.Any(a => a.Date == ev.Date && a.Title == $"Won {ev.Name}"));
             var noWinner = w.News.Any(n => n.Date == ev.Date && n.Promotion == cru.Id
                 && (n.Headline.StartsWith("No winner in") || n.Headline.EndsWith("ends without a champion")));
-            var repeat = w.News.Any(n => n.Date == ev.Date && n.Promotion == cru.Id && n.Category == NewsCategory.TitleDefense);
-            Assert.True(crowned ^ (noWinner || repeat), $"{ev.Name}: crowned {crowned}, no winner {noWinner}, kept {repeat}");
+            Assert.True((winner is not null) ^ noWinner, $"{ev.Name}: winner {winner?.FullName}, no-winner news {noWinner}");
+            if (winner is not null)   // ...and he holds the belt from that night (a new reign, or the one he already had)
+                Assert.Equal(winner.Id, title.Lineage.Last(r => r.WonOn <= ev.Date).Champion);
             Assert.NotNull(ev.Financials);
         }
         if (title.CurrentChampion is { } champ)

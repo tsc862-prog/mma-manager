@@ -64,6 +64,40 @@ public static class OriginsTalent
         "NED", "RUS", "RUS", "KOR", "THA", "CUB", "MEX", "CAN", "GBR", "FRA", "GEO", "UKR",
     };
 
+    /// <summary>
+    /// The natural size of the men who answered the call in 1993: nobody cut weight for a sport with no
+    /// classes, and the small men mostly stayed in boxing and judo. Lightweight and up, weighted to the
+    /// middle and heavy end (repeats weight the pick); a hash of the id, never a draw.
+    /// </summary>
+    private static readonly WeightClass[] Sizes =
+    {
+        WeightClass.Featherweight,
+        WeightClass.Lightweight, WeightClass.Lightweight, WeightClass.Lightweight,
+        WeightClass.Welterweight, WeightClass.Welterweight, WeightClass.Welterweight, WeightClass.Welterweight,
+        WeightClass.Middleweight, WeightClass.Middleweight, WeightClass.Middleweight, WeightClass.Middleweight, WeightClass.Middleweight,
+        WeightClass.LightHeavyweight, WeightClass.LightHeavyweight, WeightClass.LightHeavyweight, WeightClass.LightHeavyweight,
+        WeightClass.Heavyweight, WeightClass.Heavyweight, WeightClass.Heavyweight, WeightClass.Heavyweight,
+    };
+
+    public static WeightClass NaturalClass(World world, FighterId id) =>
+        Sizes[(int)(SimRandom.Mix(world.RngSeed, (ulong)id.Value ^ 0x5_12E_1993UL) % (ulong)Sizes.Length)];
+
+    /// <summary>
+    /// A generated man finds a room: about half train in one of the existing gyms of their own country
+    /// whose craft is their own (a judoka at the judo club, a wrestler at the wrestling room); the rest
+    /// train where their art lives, outside the sport's rooms. A hash of the id, never a draw.
+    /// The authored pioneers keep the rooms their stories give them (or none).
+    /// </summary>
+    public static void FindGym(World world, Fighter f)
+    {
+        if (f.Camp is not null || f.Designed) return;
+        if (SimRandom.Mix(world.RngSeed, (ulong)f.Id.Value ^ 0x6_1A_1993UL) % 2 == 0) return;
+        f.Camp = world.Camps.Values
+            .Where(c => c.Specialty == f.PrimaryStyle && world.Get(c.City)?.Country == f.Country)
+            .OrderByDescending(c => c.Reputation).ThenBy(c => c.Id.Value)
+            .Select(c => (CampId?)c.Id).FirstOrDefault();
+    }
+
     /// <summary>The art this man comes from: a hash of his id over his country's arts.</summary>
     public static OriginsDiscipline DisciplineFor(World world, FighterId id, string? countryCode)
     {
@@ -84,8 +118,8 @@ public static class OriginsTalent
         var region = Geography.WorldAtlas.ByCode(countryCode)?.Continent ?? Region.NorthAmerica;
         var f = gen.Generate(id, on, new GenOptions
         {
-            // The big-man arts are big men; everyone else's size is the generator's.
-            WeightClass = discipline is OriginsDiscipline.Sumo or OriginsDiscipline.Ssireum ? WeightClass.Heavyweight : null,
+            // The big-man arts are big men; everyone else is the size of a 1993 fighting man (a hash of his id).
+            WeightClass = discipline is OriginsDiscipline.Sumo or OriginsDiscipline.Ssireum ? WeightClass.Heavyweight : NaturalClass(world, id),
             Style = OriginsPioneers.StyleOf(discipline),
             Nationality = region,
             CountryCode = countryCode,
@@ -173,7 +207,7 @@ public static class OriginsTalent
         {
             string country = scenes[rng.Next(0, scenes.Count)];
             var f = Create(world, gen, date, rng, country, rng.Range(19, 26), rng.GaussianInt(42, 8, 26, 64));
-            Camps.JoinLocalCamp(world, f, rng);
+            FindGym(world, f);
             made.Add(f);
         }
         return made;

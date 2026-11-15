@@ -166,7 +166,7 @@ public static class OriginsWorldBuilder
 
         // --- The rooms ---------------------------------------------------------------
         OpenGyms(world, pioneers);
-        Camps.Assign(world, rng);   // the generated men find a room near home where there is one
+        foreach (var f in world.Fighters.Values.OrderBy(f => f.Id.Value)) OriginsTalent.FindGym(world, f);   // the generated men only
 
         // --- The people behind the desks ---------------------------------------------
         Org.StaffService.SeedMarket(world, rng);

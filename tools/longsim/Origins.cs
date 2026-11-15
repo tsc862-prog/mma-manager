@@ -178,15 +178,20 @@ public static class OriginsMode
             int decisions = bouts.Count(f => f.Outcome!.Method is FightMethod.UnanimousDecision or FightMethod.SplitDecision or FightMethod.MajorityDecision);
             int tournaments = done.Count(e => e.Format == EventFormat.Tournament);
             var title = p.Titles.Select(world.Get).OfType<Title>().FirstOrDefault();
+            // A bracket night has a champion when its winner took the belt (a new reign or the holder again).
             int crowned = title?.Lineage.Count(r => r.WonOn.Year == year) ?? 0;
-            int noChampion = done.Count(e => e.Format == EventFormat.Tournament && (title is null || !title.Lineage.Any(r => r.WonOn == e.Date)));
+            int brackets = done.Count(e => e.Format == EventFormat.Tournament);
+            // (Read off the winners' accolades, a durable record: the news feed is capped.)
+            int champions = done.Count(e => e.Format == EventFormat.Tournament
+                && world.Fighters.Values.Any(f => f.Accolades.Any(a => a.Date == e.Date && a.Title == $"Won {e.Name}")));
+            int noChampion = brackets - champions;
             int roster = world.RosterOf(p.Id).Count(f => f.Status == FighterStatus.Active);
             string champ = title?.CurrentChampion is { } c && world.Get(c) is { } cf ? $"{cf.FirstName} {cf.LastName}" : "-";
             double pct(int n) => bouts.Count == 0 ? 0 : 100.0 * n / bouts.Count;
             sb.AppendLine($"  {p.Abbreviation,-4} {(p.Defunct ? "FOLDED" : "alive "),-6} bal {p.Balance.Amount,12:N0}  prestige {p.Prestige.Value,2}  " +
                           $"nights {done.Count}{(tournaments > 0 ? $" ({tournaments} brackets)" : "")}{(cancelled > 0 ? $" +{cancelled} off" : "")}  bouts {bouts.Count,3}  " +
                           $"finish {pct(finishes),3:0}% draw {pct(draws),3:0}% dec {pct(decisions),3:0}%  " +
-                          (title is null ? "no belt" : $"crowned {crowned} no-champ {noChampion} holder {champ}") +
+                          (title is null ? "no belt" : brackets > 0 ? $"new champs {crowned} no-champ nights {noChampion} holder {champ}" : $"new champs {crowned} holder {champ}") +
                           $"  roster {roster}");
             var money = p.Ledger.Where(l => l.Date.Year == year)
                 .GroupBy(l => l.Category).Select(g => (Cat: g.Key, Sum: g.Sum(l => l.Amount.Amount)))
@@ -254,10 +259,15 @@ public static class OriginsMode
                     OriginsShows.ScheduleCard(w, promo.Id, when, card);
             }
 
-            // Monthly: keep a dozen men (a bracket, an alternate and a few spare).
+            // Take whatever local sponsor knocks (no screens to sell yet).
+            foreach (var offer in promo.Offers.Where(o => o.Media is null).ToList())
+                MmaManager.Core.Sim.Finance.Sponsorships.Accept(w, promo, offer, today);
+
+            // Monthly: keep the house deep enough for its night (men whose deals are fought out don't count).
             if (today.Day > 7) return;
-            int roster = w.RosterOf(promo.Id).Count(f => f.Status == FighterStatus.Active);
-            for (int i = roster; i < 12 && promo.Balance.Amount > 60_000m; i++)
+            int need = OriginsShows.MinRoster(promo) + 2;
+            int roster = w.RosterOf(promo.Id).Count(f => f.Status == FighterStatus.Active && !DealWindow.OutOfDeal(w, f));
+            for (int i = roster; i < need && promo.Balance.Amount > 10_000m; i++)
             {
                 var cap = Negotiator.PurseCap(w, promo);
                 var pick = w.FreeAgents()
