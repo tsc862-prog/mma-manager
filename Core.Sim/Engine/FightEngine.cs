@@ -33,6 +33,49 @@ public sealed class FightEngine
     }
 
     /// <summary>
+    /// The bout plus each corner's condition at the end of it (health, wind, cut, hands), for a
+    /// one-night tournament to carry into the next bout. The outcome is exactly what
+    /// <see cref="Simulate(Fighter, Fighter, FightParams, SimRandom)"/> gives for the same inputs.
+    /// </summary>
+    public FightOutcome Simulate(Fighter red, Fighter blue, FightParams options, SimRandom rng,
+        out BoutCondition redEnd, out BoutCondition blueEnd)
+    {
+        var bout = new Bout(red, blue, options, rng);
+        var o = bout.Run();
+        redEnd = bout.EndCondition(0);
+        blueEnd = bout.EndCondition(1);
+        return o;
+    }
+
+    /// <summary>For the lab and tests: the bout, how it ended in words, and rope escapes used per corner.</summary>
+    internal FightOutcome Simulate(Fighter red, Fighter blue, FightParams options, ulong seed,
+        out string? finishDetail, out int redRopes, out int blueRopes)
+    {
+        var bout = new Bout(red, blue, options, new SimRandom(seed));
+        var o = bout.Run();
+        finishDetail = bout.FinishDetail;
+        redRopes = bout.RopeEscapesUsed(0);
+        blueRopes = bout.RopeEscapesUsed(1);
+        return o;
+    }
+
+    /// <summary>
+    /// A booked <see cref="Fight"/> under carried conditions (a one-night tournament): seeded exactly
+    /// as <see cref="Simulate(Fight, World, FightParams?)"/>, written back onto the fight, and each
+    /// corner's end condition handed back.
+    /// </summary>
+    public FightOutcome Simulate(Fight fight, World world, FightParams options, out BoutCondition redEnd, out BoutCondition blueEnd)
+    {
+        var red = world.Get(fight.RedCorner) ?? throw new InvalidOperationException($"Red corner {fight.RedCorner} not in world.");
+        var blue = world.Get(fight.BlueCorner) ?? throw new InvalidOperationException($"Blue corner {fight.BlueCorner} not in world.");
+        var opts = options with { TextSeed = (ulong)fight.Id.Value };
+        var rng = new SimRandom(SimRandom.Mix(world.RngSeed, 0x1234_5678_0000UL ^ (ulong)fight.Id.Value));
+        var outcome = Simulate(red, blue, opts, rng, out redEnd, out blueEnd);
+        fight.Outcome = outcome;
+        return outcome;
+    }
+
+    /// <summary>
     /// Simulate a booked <see cref="Fight"/> within a world, resolving corners
     /// from the roster, deriving a reproducible seed from the world seed + fight
     /// id, and writing the result back onto the fight. Returns the outcome.

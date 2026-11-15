@@ -53,6 +53,38 @@ public static partial class FightLab
         return new GoldenHashes(results.Hex, cards.Hex, bouts);
     }
 
+    /// <summary>
+    /// The play-by-play golden: the same pairing stream as <see cref="GoldenMaster"/>, text on, and
+    /// every line of every bout hashed (plus the result and card). Pins the commentary word for
+    /// word, so a change that must leave today's fights alone (the Origins rule sets, the size
+    /// term) can prove it did. Each bout gets its own wording seed, as a booked fight's id does.
+    /// <paramref name="template"/> carries extra params (e.g. an explicit modern rule set).
+    /// </summary>
+    public static string TextGolden(int bouts = 400, FightParams? template = null)
+    {
+        var pool = GoldenFighters(400);
+        var rng = new SimRandom(0x601D_3A57_E200UL);
+        var engine = new FightEngine();
+        var h = new Fnv();
+        for (int i = 0; i < bouts; i++)
+        {
+            int r = rng.Next(0, pool.Count);
+            int b = rng.Next(0, pool.Count - 1);
+            if (b >= r) b++;
+            int rounds = rng.Chance(0.2) ? 5 : 3;
+            int roundSeconds = rng.Next(0, 10) switch { 0 => 180, 1 => 240, _ => 300 };
+            var p = (template ?? new FightParams()) with
+            {
+                ScheduledRounds = rounds, RoundSeconds = roundSeconds, GeneratePlayByPlay = true, TextSeed = (ulong)(7 + i),
+            };
+            var o = engine.Simulate(pool[r], pool[b], p, SimRandom.Mix(0x601D_B007UL, (ulong)i));
+            HashResult(h, o, pool[r].Id, pool[b].Id);
+            HashCard(h, o);
+            foreach (var line in o.PlayByPlay!) h.Add(line);
+        }
+        return h.Hex;
+    }
+
     internal static void HashResult(Fnv h, FightOutcome o, FighterId red, FighterId blue)
     {
         h.Add(o.Winner == red ? 0 : o.Winner == blue ? 1 : 2);
@@ -124,6 +156,11 @@ public static partial class FightLab
                     _h *= 0x100000001B3UL;
                 }
             }
+        }
+        public void Add(string s)
+        {
+            Add(s.Length);
+            foreach (char c in s) Add(c);
         }
         public string Hex => _h.ToString("x16");
     }

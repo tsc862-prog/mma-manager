@@ -1,15 +1,19 @@
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Engine;
 using MmaManager.Core.Sim.Living;
 
 namespace MmaManager.Core.Sim.Booking;
 
+/// <summary>What a one-night tournament produced: the card, the champion (null when the final was drawn
+/// even after overtime, or nobody was left to fight it) and how every slot of the bracket was filled.</summary>
+public sealed record OneNightResult(Event Event, Fighter? Champion, BracketNight Night);
+
 /// <summary>
-/// A one-night tournament: a single-elimination bracket in a weight class, decided
-/// on one super-card. The whole thing runs at once — winners advance round by round
-/// on the same night — then settles like any other event and crowns a Grand Prix
-/// champion (prize money out of the promotion's pocket, and a headline).
+/// A one-night tournament: a single-elimination bracket, decided on one super-card. The whole thing
+/// runs at once — winners advance round by round on the same night — then settles like any other
+/// event and crowns a Grand Prix champion (prize money out of the promotion's pocket, and a headline).
+/// The bracket's own rules (seeding, carried condition, withdrawals, the alternate, draws and the
+/// final's overtime) live in <see cref="OneNightBracket"/>, shared with the lab.
 /// </summary>
 public sealed class TournamentService
 {
@@ -22,25 +26,54 @@ public sealed class TournamentService
         _events = new EventService(_engine);
     }
 
-    /// <summary>Run a <paramref name="size"/>-fighter (power of two) one-night tournament. Returns the card, or null if it can't be filled.</summary>
-    public Event? RunOneNight(World world, PromotionId promoId, WeightClass wc, int size, DateOnly date, Money prize)
+    /// <summary>
+    /// Run a <paramref name="size"/>-fighter (power of two) one-night tournament in a weight class,
+    /// under the promotion's own rules. Returns the card, or null if it can't be filled. (Nothing in
+    /// the game calls this yet; it now runs through <see cref="OneNightBracket"/> like the overload below,
+    /// so its seeding, round length and carried condition changed with the Origins work.)
+    /// </summary>
+    public Event? RunOneNight(World world, PromotionId promoId, WeightClass wc, int size, DateOnly date, Money prize) =>
+        RunOneNight(world, promoId, size, date, prize, wc, rules: null)?.Event;
+
+    /// <summary>
+    /// Run a <paramref name="size"/>-fighter (power of two) one-night tournament. Returns the result,
+    /// or null if the field can't be filled.
+    /// <list type="bullet">
+    /// <item><paramref name="wc"/> null = open weight: any of the promotion's match-ready men.</item>
+    /// <item><paramref name="rules"/> null = the promotion's house rules (<c>OrgRules.Fight</c>, else
+    /// today's). Rounds and minutes come from the rules (else 3 rounds of the house's minutes).</item>
+    /// <item>The field is seeded by what the promotion THINKS of each man (scouting, not true ability).
+    /// The next man in that order, if there is one, is the alternate.</item>
+    /// <item>The rest is <see cref="OneNightBracket.Run"/>; "injured" means the results processor gave
+    /// the winner an injury in the bout.</item>
+    /// <item>No champion (a final drawn after overtime): the prize is split between the finalists and the
+    /// news says so. Nobody left for the final: no prize, and the news says that too.</item>
+    /// </list>
+    /// Deterministic: every bout is seeded from its fight id, as any booked fight is.
+    /// </summary>
+    public OneNightResult? RunOneNight(World world, PromotionId promoId, int size, DateOnly date, Money prize,
+        WeightClass? wc, FightRules? rules)
     {
         if (size < 2 || (size & (size - 1)) != 0) return null;   // must be a power of two
         if (world.Get(promoId) is not { } promo) return null;
+        rules ??= promo.Rules.Fight ?? FightRules.Modern;
 
-        var field = world.RosterOf(promoId)
-            .Where(f => f.WeightClass == wc && f.IsMatchReady(date))
-            .OrderByDescending(FighterAbility.CurrentAbility)
-            .Take(size)
+        var seeded = world.RosterOf(promoId)
+            .Where(f => (wc is { } w ? f.WeightClass == w : f.Sex == Sex.Male) && f.IsMatchReady(date))
+            .OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
+            .ThenBy(f => f.Id.Value)
+            .Take(size + 1)
             .ToList();
-        if (field.Count < size) return null;
+        if (seeded.Count < size) return null;
+        Fighter? alternate = seeded.Count > size ? seeded[size] : null;
 
         var venue = Geography.WorldMap.PickVenue(world, promo);
+        string label = wc is { } c0 ? FriendlyClass(c0) : "Open";
         var ev = new Event
         {
             Id = world.NewEventId(),
             Promotion = promoId,
-            Name = $"{promo.Abbreviation} {FriendlyClass(wc)} Grand Prix",
+            Name = $"{promo.Abbreviation} {label} Grand Prix",
             Date = date,
             Region = venue is not null && world.Get(venue.City) is { } c ? c.Region : promo.BaseRegion,
             Venue = venue?.Name,
@@ -50,41 +83,65 @@ public sealed class TournamentService
         };
         world.Events[ev.Id] = ev;
 
-        var round = field;
-        while (round.Count > 1)
-        {
-            var winners = new List<Fighter>();
-            for (int i = 0; i + 1 < round.Count; i += 2)
+        int roundSeconds = (rules.RoundMinutes ?? promo.Rules.RoundMinutes) * 60;
+        var night = OneNightBracket.Run(seeded.Take(size).ToList(), alternate, rules, roundSeconds,
+            (red, blue, p) =>
             {
                 var fight = new Fight
                 {
                     Id = world.NewFightId(),
-                    RedCorner = round[i].Id,
-                    BlueCorner = round[i + 1].Id,
-                    WeightClass = wc,
-                    ScheduledRounds = 3,
+                    RedCorner = red.Id,
+                    BlueCorner = blue.Id,
+                    WeightClass = wc ?? red.WeightClass,   // open weight has no class of its own yet
+                    ScheduledRounds = p.ScheduledRounds,
                 };
-                Living.LocalCircuit.YieldTo(world, new[] { fight.RedCorner, fight.BlueCorner });
-                _engine.Simulate(fight, world, new FightParams { ScheduledRounds = 3, GeneratePlayByPlay = false });   // no screen shows these bouts' text
+                LocalCircuit.YieldTo(world, new[] { fight.RedCorner, fight.BlueCorner });
+                var o = _engine.Simulate(fight, world, p, out var redEnd, out var blueEnd);   // no screen shows these bouts' text
                 ResultsProcessor.Apply(world, ev, fight);
                 ev.Card.Add(fight);
-
-                var winnerId = fight.Outcome?.Winner ?? round[i].Id;   // a draw advances the higher seed
-                winners.Add(world.Get(winnerId)!);
-            }
-            round = winners;
-        }
+                return new BracketBoutResult(o, redEnd, blueEnd, fight.Id);
+            },
+            injured: f => f.CurrentInjury is not null);
 
         _events.Settle(world, ev);
 
-        var champion = round[0];
-        if (prize.Amount > 0)
-            Finance.Ledger.Expense(promo, date, FinanceCategory.Other, prize, $"{ev.Name} — winner's purse");
-        News.Post(world, date, NewsCategory.Result,
-            $"{champion.FullName} wins the {ev.Name}",
-            $"Ran the table to take the {FriendlyClass(wc)} Grand Prix.", promoId, champion.Id);
+        foreach (var b in night.Bouts)
+            if (b.Withdrew is { } wid && world.Get(wid) is { } w)
+                News.Post(world, date, NewsCategory.Result,
+                    $"{w.FullName} cannot continue in the {ev.Name}",
+                    "Won the bout but is in no state to fight again tonight.", promoId, wid);
 
-        return ev;
+        if (night.Champion is { } champion)
+        {
+            if (prize.Amount > 0)
+                Finance.Ledger.Expense(promo, date, FinanceCategory.Other, prize, $"{ev.Name} — winner's purse");
+            News.Post(world, date, NewsCategory.Result,
+                $"{champion.FullName} wins the {ev.Name}",
+                wc is { } c1 ? $"Ran the table to take the {FriendlyClass(c1)} Grand Prix." : "Ran the table on a one-night open-weight bracket.",
+                promoId, champion.Id);
+        }
+        else if (night.FinalDrawn && night.Bouts[^1] is { Red: { } r, Blue: { } bl })
+        {
+            var a = world.Get(r); var b = world.Get(bl);
+            if (prize.Amount > 0)
+            {
+                var half = new Money(prize.Amount / 2);
+                Finance.Ledger.Expense(promo, date, FinanceCategory.Other, half, $"{ev.Name} — purse split ({a?.FullName})");
+                Finance.Ledger.Expense(promo, date, FinanceCategory.Other, new Money(prize.Amount - half.Amount), $"{ev.Name} — purse split ({b?.FullName})");
+            }
+            News.Post(world, date, NewsCategory.Result,
+                $"No winner in the {ev.Name}",
+                $"{a?.FullName} and {b?.FullName} fought the final to a standstill, overtime included. The purse is split and nobody takes the title.",
+                promoId, r);
+        }
+        else
+        {
+            News.Post(world, date, NewsCategory.Result,
+                $"The {ev.Name} ends without a champion",
+                "Nobody was left fit to fight the final.", promoId);
+        }
+
+        return new OneNightResult(ev, night.Champion, night);
     }
 
     private static string FriendlyClass(WeightClass wc) =>

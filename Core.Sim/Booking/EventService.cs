@@ -83,13 +83,19 @@ public sealed class EventService
         // Bouts run under the HOUSE rules — the promotion staging the card
         // decides how long its rounds go.
         int roundSeconds = (world.Get(ev.Promotion)?.Rules.RoundMinutes ?? 5) * 60;
+        // Early-era house rules (Origins); null for every promotion in today's mode = today's rules.
+        var houseRules = world.Get(ev.Promotion)?.Rules.Fight;
         foreach (var fight in ev.Card)
         {
+            // A rule set that fixes the rounds (one long round) is what the bout is fought over, so the
+            // saved fight says so too. Round length has no field on Fight: it is the rules' (else the house's) minutes.
+            if (houseRules?.Rounds is int fixedRounds) fight.ScheduledRounds = fixedRounds;
             var opts = new FightParams
             {
                 ScheduledRounds = fight.ScheduledRounds,
                 RoundSeconds = roundSeconds,
                 GeneratePlayByPlay = playByPlay,
+                Rules = houseRules,
             };
             _engine.Simulate(fight, world, opts);
             ResultsProcessor.Apply(world, ev, fight);
