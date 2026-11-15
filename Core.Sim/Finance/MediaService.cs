@@ -54,9 +54,18 @@ public static class MediaService
         MediaKind Kind,
         PartnerProfile[] Partners,
         int TermMonths,
-        Func<World, Promotion, bool> Qualifies,
+        Func<World, Promotion, bool> Rule,
         Func<Promotion, decimal> Fee,
-        Func<Promotion, DealRequirement[]> Terms);
+        Func<Promotion, DealRequirement[]> Terms)
+    {
+        /// <summary>
+        /// Does the promotion clear this rung's bar — and has the sport got this
+        /// kind of screen yet (always, in today's mode: the era gate asks first
+        /// and draws nothing)?
+        /// </summary>
+        public bool Qualifies(World world, Promotion promo) =>
+            Living.Era.AllowsMedia(world, Kind) && Rule(world, promo);
+    }
 
     private static readonly Rung[] Ladder =
     {
@@ -347,6 +356,7 @@ public static class MediaService
     /// </summary>
     public static bool LaunchStream(World world, Promotion promo, DateOnly date)
     {
+        if (!Living.Era.AllowsMedia(world, MediaKind.InHouseStream)) return false;   // nobody streams yet
         if (promo.Stream is not null || !LaneOpen(promo, MediaKind.InHouseStream)) return false;
         if (promo.Balance.Amount < StreamLaunchCost.Amount) return false;
 
@@ -425,7 +435,8 @@ public static class MediaService
         if (stream.Qualifies(world, promo) && promo.Prestige.Value >= 70
             && TrySign(world, promo, stream, on, rng) is not null)
         { }
-        else if (Org.OrgSizing.SizeOf(promo) >= OrgSize.Continental)
+        else if (Org.OrgSizing.SizeOf(promo) >= OrgSize.Continental
+                 && Living.Era.AllowsMedia(world, MediaKind.InHouseStream))
             promo.Stream = new StreamingPlatform
             {
                 Name = $"{promo.Abbreviation}+",

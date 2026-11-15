@@ -63,6 +63,16 @@ public class PersistenceTests
                 },
             });
 
+            // The sport's own history (Origins): a fired chapter with every payload set,
+            // and an unlocked capability (keyed, so the saved id round-trips with its key).
+            world.Era.Chapters.Add(new ChapterRecord
+            {
+                Key = "first-tv-deal", FiredOn = world.CurrentDate.AddDays(-20),
+                Promotion = world.Promotions.Keys.First(), Fighter = world.Fighters.Keys.Skip(6).First(),
+                Note = "Lightweight",
+            });
+            world.Era.Unlocked.Add(Capability.Class(WeightClass.Lightweight).Id);
+
             PersistenceGraph.FillUnpopulated(world);
         }
         return world;

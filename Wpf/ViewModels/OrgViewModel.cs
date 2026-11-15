@@ -171,6 +171,11 @@ public sealed class OrgViewModel : ObservableObject
             return;
         }
         var title = Core.Sim.Booking.PromotionSetup.CommissionTitle(_world, promo, pick.WeightClass, pick.Sex, _world.CurrentDate);
+        if (title is null)
+        {
+            Status = "The sport doesn't have that division yet.";
+            return;
+        }
         Status = $"The {title.Name} is sanctioned — vacant until somebody takes it. Book the title fight.";
         Refresh();
         OnChanged?.Invoke();
