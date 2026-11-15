@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "brands": {
+    "Combat One": {
+      "file": "combat-one.png",
+      "category": "specialty-cable",
+      "tag": "standard"
+    },
+    "Octagon TV": {
+      "file": "octagon-tv.png",
+      "category": "specialty-cable",
+      "tag": "flagship"
+    },
+    "The Fight Channel": {
+      "file": "the-fight-channel.png",
+      "category": "specialty-cable",
+      "tag": "niche"
+    },
+    "Ring Report": {
+      "file": "ring-report.png",
+      "category": "specialty-cable",
+      "tag": "budget"
+    },
+    "PrimeSport": {
+      "file": "primesport.png",
+      "category": "cable-sports",
+      "tag": "flagship"
+    },
+    "Vertex Sports": {
+      "file": "vertex-sports.png",
+      "category": "cable-sports",
+      "tag": "standard"
+    },
+    "Global Combat Network": {
+      "file": "global-combat-network.png",
+      "category": "cable-sports",
+      "tag": "niche"
+    },
+    "AllSport 24": {
+      "file": "allsport-24.png",
+      "category": "cable-sports",
+      "tag": "budget"
+    },
+    "NBS": {
+      "file": "nbs.png",
+      "category": "prime-broadcast",
+      "tag": "standard"
+    },
+    "United Broadcasting": {
+      "file": "united-broadcasting.png",
+      "category": "prime-broadcast",
+      "tag": "flagship"
+    },
+    "Star Network": {
+      "file": "star-network.png",
+      "category": "prime-broadcast",
+      "tag": "niche"
+    },
+    "Meridian One": {
+      "file": "meridian-one.png",
+      "category": "prime-broadcast",
+      "tag": "upstart"
+    },
+    "Streamflix": {
+      "file": "streamflix.png",
+      "category": "major-stream",
+      "tag": "flagship"
+    },
+    "Arena+": {
+      "file": "arena-plus.png",
+      "category": "major-stream",
+      "tag": "standard"
+    },
+    "Watchtower": {
+      "file": "watchtower.png",
+      "category": "major-stream",
+      "tag": "niche"
+    },
+    "Nimbus Video": {
+      "file": "nimbus-video.png",
+      "category": "major-stream",
+      "tag": "upstart"
+    },
+    "MainCard": {
+      "file": "maincard.png",
+      "category": "ppv-carrier",
+      "tag": "standard"
+    },
+    "PrimeView": {
+      "file": "primeview.png",
+      "category": "ppv-carrier",
+      "tag": "premium"
+    },
+    "BoxSeat": {
+      "file": "boxseat.png",
+      "category": "ppv-carrier",
+      "tag": "budget"
+    }
+  }
+}
