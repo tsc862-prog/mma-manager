@@ -580,6 +580,241 @@ public class PromiseTests
         Assert.DoesNotContain(world.Mail, m => m.Subject.Contains("promise", StringComparison.OrdinalIgnoreCase));
     }
 
+    // --- Words and the read model (follow-up to stage 9) ------------------------------------
+
+    [Fact]
+    public void APublicBreak_IsNotReportedAsAWordBrokenToAFighterWhoWasNeverPromisedAnything()
+    {
+        var (world, f, p) = Promised(PromiseKind.Activity, fights: 2);
+        var promo = Player(world);
+        var other = world.FreeAgents().Where(x => x.Status == FighterStatus.Active && !x.LocalTalent && promo.Divisions.Any(d => d.Matches(x)))
+            .OrderBy(x => x.Id.Value).First();
+        var exp = Exp(world, other);
+        decimal before = AskingQuote.For(world, promo, other, exp).Purse.Amount;
+        ContractLifecycle.Release(world, f);   // broken, and public
+        Assert.Equal(PromiseState.Broken, p.State);
+
+        // The quote: the public reason, never the personal one; the number is the room's opening number.
+        var q = AskingQuote.For(world, promo, other, exp);
+        _out.WriteLine(q.Why);
+        Assert.Contains(q.Reasons, r => r.StartsWith("word gets around: you broke a promise to another fighter this year"));
+        Assert.DoesNotContain(q.Reasons, r => r.Contains("broke your word to him") || r.Contains("broke your word to her"));
+        Assert.True(q.Purse.Amount >= before);
+        var s = new NegotiationSession(world, other, promo, exp);
+        Assert.Equal(s.DemandPurse(Excl(promo), false).Amount, q.Purse.Amount);
+
+        // The table: the same split, as read values and one ready line.
+        var view = s.View(Excl(promo), false);
+        Assert.Equal(1, view.PublicBreaks);
+        Assert.Equal((int)(Promises.WarinessPerBreak * 100m), view.WarinessPercent);
+        Assert.Equal(0, view.BrokenToHim);
+        Assert.Equal(0, view.DistrustPercent);
+        Assert.NotNull(view.TrustNote);
+        Assert.StartsWith("Word gets around: you broke a promise to another fighter this year, so", view.TrustNote);
+        Assert.Contains("3% more", view.TrustNote);
+        Assert.DoesNotContain(view.Reasons, r => r.Contains("broke your word to"));
+
+        // The fighter it was broken to: his own memory, said as his, plus the public record as his too.
+        var mine = AskingQuote.For(world, promo, f, Exp(world, f));
+        Assert.Contains(mine.Reasons, r => r.StartsWith(f.Sex == Sex.Female ? "you broke your word to her" : "you broke your word to him"));
+        Assert.DoesNotContain(mine.Reasons, r => r.Contains("another fighter"));
+        var hisView = new NegotiationSession(world, f, promo, Exp(world, f)).View(Excl(promo), false);
+        Assert.Equal(1, hisView.BrokenToHim);
+        Assert.Equal((int)(Promises.DistrustPerBreak * 100m), hisView.DistrustPercent);
+        Assert.Equal(1, hisView.PublicBreaks);
+        Assert.Contains("10% more", hisView.TrustNote);
+        Assert.Contains("everyone heard", hisView.TrustNote);
+
+        // Both memories run out: nothing at all.
+        world.CurrentDate = world.CurrentDate.AddDays(Promises.TrustDays + 1);
+        var none = new NegotiationSession(world, f, promo, Exp(world, f)).View(Excl(promo), false);
+        Assert.Null(none.TrustNote);
+        Assert.Equal(0, none.PublicBreaks + none.BrokenToHim + none.WarinessPercent + none.DistrustPercent);
+    }
+
+    [Fact]
+    public void ABrokenPromise_IsToldInHisOwnWords_InTheLetterTheNewsAndTheReadModel()
+    {
+        var (world, f, p) = Promised(PromiseKind.TitleShot);
+        f.Sex = Sex.Female;   // the narration around the quote is gendered
+        Assert.Null(Promises.BrokenLine(world, p));
+        Assert.Null(Promises.For(world, f.Id).Single().BrokenLine);
+
+        world.CurrentDate = p.Deadline.AddDays(3);
+        Promises.RunMonthly(world, world.CurrentDate);
+        Assert.Equal(PromiseState.Broken, p.State);
+
+        string? line = Promises.BrokenLine(world, p);
+        _out.WriteLine(line);
+        Assert.NotNull(line);
+        Assert.Contains("a title shot", line);
+        Assert.Contains(" me ", line);
+        Assert.Equal(line, Promises.BrokenLine(world, p));   // deterministic
+        Assert.Equal(line, Promises.For(world, f.Id).Single().BrokenLine);
+        var letter = world.Mail.Single(m => m.Subject == $"We broke our word to {f.FullName}");
+        Assert.Contains($"“{line}”", letter.Body);
+        var news = world.News.Single(n => n.Headline.EndsWith("broke its word") && n.Headline.StartsWith(f.FullName));
+        Assert.Contains($"“{line}”", news.Body);
+        Assert.Contains("when she signed", news.Body);
+        Assert.DoesNotContain("when he signed", news.Body);
+
+        // The variant follows the promise's id (no stream draw): more than one line in use.
+        var lines = new HashSet<string>();
+        for (int id = 1; id <= 12; id++)
+        {
+            var q = new Promise
+            {
+                Id = id, Fighter = f.Id, Promotion = p.Promotion, Kind = PromiseKind.TitleShot,
+                Made = p.Made, Deadline = p.Made.AddDays(365), State = PromiseState.Broken, Resolved = p.Deadline, Note = "the deadline passed",
+            };
+            lines.Add(Promises.BrokenLine(world, q)!);
+            Assert.Contains("A year went by", Promises.BrokenLine(world, q)!);
+            q.Note = "she left before it was kept (released)";
+            lines.Add(Promises.BrokenLine(world, q)!);
+        }
+        Assert.True(lines.Count >= 4, $"only {lines.Count} variants");
+    }
+
+    [Fact]
+    public void APromisesDiscount_IsExactlyHowFarHisNumberMoves_WithOtherPromisesOnTheSlip()
+    {
+        var world = FoundedWorld(48);
+        var promo = Player(world);
+        bool excl = Excl(promo);
+        foreach (var div in promo.Divisions) Belt(world, promo, div);
+        var people = world.FreeAgents()
+            .Where(x => x.Status == FighterStatus.Active && !x.LocalTalent && promo.Divisions.Any(d => d.Matches(x)))
+            .OrderBy(x => x.Id.Value).Take(25).ToList();
+        int moved = 0, movedWithAnother = 0;
+        foreach (var f in people)
+        {
+            var div = promo.Divisions.First(d => d.Matches(f));
+            if (!div.Rankings.Contains(f.Id)) div.Rankings.Insert(0, f.Id);   // a contender: a title shot is worth money
+            var s = new NegotiationSession(world, f, promo, Exp(world, f));
+            ContractOffer Slip(bool title, bool home, int fights, bool match = false) => new()
+            {
+                Fighter = f.Id, Promotion = promo.Id, Exclusive = excl, Fights = 4,
+                PromiseTitleShot = title, PromiseHomeShow = home, PromiseFights = fights, MatchingRight = match,
+            };
+            decimal His(ContractOffer o) => s.View(o).Position.PursePerFight.Amount;
+            foreach (var (title, home, fights) in new[] { (false, false, 0), (true, false, 0), (false, true, 0), (true, true, 0), (true, false, 3), (true, true, 2) })
+            {
+                var on = Slip(title, home, fights);
+                var view = s.View(on);
+                Assert.Equal(His(on), view.Position.PursePerFight.Amount);
+                foreach (var o in view.PromiseOptions.Where(o => o.Allowed))
+                {
+                    var with = o.Kind switch
+                    {
+                        PromiseKind.TitleShot => Slip(true, home, fights),
+                        PromiseKind.HomeShow => Slip(title, true, fights),
+                        _ => Slip(title, home, o.Fights),
+                    };
+                    var without = o.Kind switch
+                    {
+                        PromiseKind.TitleShot => Slip(false, home, fights),
+                        PromiseKind.HomeShow => Slip(title, false, fights),
+                        _ => Slip(title, home, 0),
+                    };
+                    // Toggling it moves the number he shows by exactly the stated amount.
+                    Assert.Equal(His(without) - His(with), o.PurseOff.Amount);
+                    if (o.PurseOff.Amount > 0)
+                    {
+                        moved++;
+                        bool another = o.Kind != PromiseKind.TitleShot && title || o.Kind != PromiseKind.HomeShow && home
+                                       || o.Kind != PromiseKind.Activity && fights > 0;
+                        if (another) movedWithAnother++;
+                    }
+                }
+                // The matching right, likewise.
+                Assert.Equal(His(Slip(title, home, fights, match: true)) - His(on), view.MatchingRightCost.Amount);
+                Assert.Equal(view.MatchingRightCost.Amount, s.View(Slip(title, home, fights, match: true)).MatchingRightCost.Amount);
+            }
+        }
+        _out.WriteLine($"{people.Count} free agents: a promise moved his number {moved} times, {movedWithAnother} of them with another promise already on");
+        Assert.True(movedWithAnother > 0, "the check must cover a promise priced with another one on the slip");
+    }
+
+    [Fact]
+    public void ThePromiseOptions_AreJudgedAgainstTheSlipsOwnLength_AsTheTableJudgesThem()
+    {
+        var world = FoundedWorld(48);
+        var promo = Player(world);
+        var f = world.FreeAgents().Where(x => x.Status == FighterStatus.Active && !x.LocalTalent && promo.Divisions.Any(d => d.Matches(x)))
+            .OrderBy(x => x.Id.Value).First();
+        var s = new NegotiationSession(world, f, promo, Exp(world, f));
+        foreach (int dealFights in new[] { 2, 3, 4 })
+        {
+            var slip = new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = Excl(promo), Fights = dealFights };
+            var view = s.View(slip);
+            for (int n = Promises.MinActivity; n <= Promises.MaxActivity; n++)
+            {
+                bool allowed = view.PromiseOptions.Single(o => o.Kind == PromiseKind.Activity && o.Fights == n).Allowed;
+                Assert.Equal(n <= dealFights, allowed);
+                // The table agrees: an option shown allowed is never refused there, and vice versa.
+                var probe = new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = Excl(promo), Fights = dealFights, PromiseFights = n };
+                Assert.Equal(allowed, Promises.FirstRefusal(world, promo, f, probe) is null);
+            }
+        }
+        // A deal of 2: promising 3 is refused at the table without using a round.
+        var two = s.TheirTermsAsOffer(new ContractOffer { Fighter = f.Id, Promotion = promo.Id, Exclusive = Excl(promo), PromiseFights = 3 });
+        two.Fights = 2;
+        var answer = s.Table(two);
+        Assert.Equal(0, s.Round);
+        Assert.Contains(answer.Reactions, r => r.Term == "Promise: activity" && r.Feel == TermFeel.Sore);
+    }
+
+    [Fact]
+    public void APromiseThatBecameImpossibleBeforeSigning_FallsAway_WithALetter()
+    {
+        var world = FoundedWorld(48);
+        var promo = Player(world);
+        var f = HireOne(world);
+        var t = Belt(world, promo, promo.Divisions.First(d => d.Matches(f)));
+        t.CurrentChampion = f.Id;   // he won the belt between the final offer and the signature
+        var c = f.Contract!;
+        int mail = world.Mail.Count;
+        ContractLifecycle.Sign(world, f, new ContractOffer
+        {
+            Fighter = f.Id, Promotion = promo.Id, PursePerFight = c.PursePerFight, WinBonus = c.WinBonus, Fights = 4,
+            Exclusive = c.IsExclusive, PromiseTitleShot = true, PromiseFights = 2,
+        }, world.CurrentDate);
+        var p = Assert.Single(world.Promises);   // the activity promise stands; the title shot fell away
+        Assert.Equal(PromiseKind.Activity, p.Kind);
+        var letter = Assert.Single(world.Mail.Skip(mail), m => m.Subject == $"{f.FullName}: a promise fell away at signing");
+        _out.WriteLine(letter.Body);
+        Assert.Contains("a title shot", letter.Body);
+        Assert.Contains("I'm the champion already.", letter.Body);
+        Assert.Contains(world.Mail.Skip(mail), m => m.Subject == $"{f.FullName} will hold us to it");
+    }
+
+    [Fact]
+    public void ACountryThatTakesAnArticle_ReadsRightInPromises()
+    {
+        Assert.Equal("the United States", Core.Sim.Geography.CountryNames.InSentence("United States"));
+        Assert.Equal("the United Kingdom", Core.Sim.Geography.CountryNames.InSentence("United Kingdom"));
+        Assert.Equal("the United Arab Emirates", Core.Sim.Geography.CountryNames.InSentence("United Arab Emirates"));
+        Assert.Equal("the Netherlands", Core.Sim.Geography.CountryNames.InSentence("Netherlands"));
+        Assert.Equal("the Philippines", Core.Sim.Geography.CountryNames.InSentence("Philippines"));
+        Assert.Equal("the Czech Republic", Core.Sim.Geography.CountryNames.InSentence("Czech Republic"));
+        Assert.Equal("the Dominican Republic", Core.Sim.Geography.CountryNames.InSentence("Dominican Republic"));
+        Assert.Equal("Brazil", Core.Sim.Geography.CountryNames.InSentence("Brazil"));
+        Assert.Equal("Czechia", Core.Sim.Geography.CountryNames.InSentence("Czechia"));
+        Assert.Equal("the Netherlands", Core.Sim.Geography.CountryNames.InSentence("the Netherlands"));
+
+        var world = FoundedWorld(48);
+        var promo = Player(world);
+        var us = world.Countries.Values.Single(c => c.Name == "United States");
+        var f = HireOne(world);
+        f.Country = us.Id;
+        var p = new Promise
+        {
+            Id = world.NewPromiseId(), Fighter = f.Id, Promotion = promo.Id, Kind = PromiseKind.HomeShow,
+            Made = world.CurrentDate, Deadline = world.CurrentDate.AddDays(365),
+        };
+        Assert.Equal("a fight at home in the United States", Promises.What(world, p));
+    }
+
     // --- Helpers ------------------------------------------------------------------------------
 
     private static World FoundedWorld(ulong seed) =>

@@ -6,12 +6,34 @@ namespace MmaManager.Core.Sim.Contracts;
 /// <summary>A promise as the UI reads it (<see cref="Promises.For"/>): what was promised, by when, how it stands, in words.</summary>
 public sealed record PromiseStatus(
     int Id, PromiseKind Kind, PromotionId Promotion, string What, PromiseState State,
-    DateOnly Made, DateOnly Deadline, int? DaysLeft, string Progress, string StatusText, bool AtRisk);
+    DateOnly Made, DateOnly Deadline, int? DaysLeft, string Progress, string StatusText, bool AtRisk,
+    string? BrokenLine = null);
+
+/// <summary>
+/// What broken promises cost a promotion at one fighter's table, as the UI reads it
+/// (<see cref="Promises.TrustAt"/>): the PUBLIC record (<see cref="PublicBreaks"/> promises it
+/// broke to anyone this past year, of which <see cref="ToOthers"/> were to other fighters:
+/// everyone asks <see cref="WarinessPercent"/>% more) and his PERSONAL memory
+/// (<see cref="BrokenToHim"/> promises it broke to him in the last two years: he asks
+/// <see cref="DistrustPercent"/>% more and takes no promise from it). All zero at every AI table.
+/// </summary>
+public readonly record struct TableTrust(int PublicBreaks, int ToOthers, int BrokenToHim)
+{
+    /// <summary>The public surcharge in percent (<see cref="Promises.Wariness"/> - 1, as a whole number).</summary>
+    public int WarinessPercent => (int)(Promises.WarinessPerBreak * 100m * Math.Min(Promises.MaxPublicBreaks, PublicBreaks));
+
+    /// <summary>His personal surcharge in percent (<see cref="Promises.Distrust"/> - 1, as a whole number).</summary>
+    public int DistrustPercent => (int)(Promises.DistrustPerBreak * 100m * Math.Min(Promises.MaxPersonalBreaks, BrokenToHim));
+}
 
 /// <summary>
 /// One promise the owner could put on the slip at the table, as the UI reads it
 /// (<see cref="NegotiationView.PromiseOptions"/>): whether it can be made at all (and why not),
 /// what it is worth to him in words, and how much it takes off his number on these terms.
+/// <see cref="PurseOff"/> is marginal to the slip as it stands: exactly his number without this one
+/// promise minus his number with it, every other term (other promises included) left as it is,
+/// on the same $500 step as the number shown. An activity option is priced against no activity
+/// promise (switching from 3 fights to 4 moves his number by the difference of the two options).
 /// </summary>
 public sealed record PromiseOption(PromiseKind Kind, int Fights, bool Allowed, string Why, string Worth, Money PurseOff);
 
@@ -189,7 +211,7 @@ public static class Promises
             case PromiseKind.HomeShow:
                 if (world.Get(f.Country) is not { } country) return "There's nowhere on file as my home to promise me.";
                 bool reachable = world.Venues.Values.Any(v => world.Get(v.City)?.Country == f.Country && OrgReach.CanBookIn(world, promo, v.City));
-                return reachable ? null : $"You can't put on a card in {country.Name} — it's beyond {promo.Abbreviation}'s reach.";
+                return reachable ? null : $"You can't put on a card in {Geography.CountryNames.InSentence(country)} — it's beyond {promo.Abbreviation}'s reach.";
             default:
                 var div = promo.Divisions.FirstOrDefault(d => d.Matches(f));
                 if (div is null) return $"{promo.Abbreviation} doesn't run my division.";
@@ -228,7 +250,10 @@ public static class Promises
     /// <see cref="TrustDays"/> days (two at most). 1 when there are none (every AI table).
     /// </summary>
     public static decimal Distrust(World world, FighterId fighter, PromotionId promo, DateOnly date) =>
-        1m + DistrustPerBreak * Math.Min(2, BrokenBy(world, fighter, promo, date));
+        1m + DistrustPerBreak * Math.Min(MaxPersonalBreaks, BrokenBy(world, fighter, promo, date));
+
+    /// <summary>The most promises broken to him that count against a promotion's table (<see cref="Distrust"/>).</summary>
+    public const int MaxPersonalBreaks = 2;
 
     /// <summary>Promises this promotion broke (to anyone) in the <see cref="PublicDays"/> days to <paramref name="date"/>: the public record.</summary>
     public static int PublicBreaks(World world, PromotionId promo, DateOnly date)
@@ -248,6 +273,50 @@ public static class Promises
     /// </summary>
     public static decimal Wariness(World world, PromotionId promo, DateOnly date) =>
         1m + WarinessPerBreak * Math.Min(MaxPublicBreaks, PublicBreaks(world, promo, date));
+
+    /// <summary>
+    /// The public record and his personal memory at this promotion's table, kept apart
+    /// (<see cref="TableTrust"/>): the same counts <see cref="Wariness"/> and <see cref="Distrust"/> read.
+    /// </summary>
+    public static TableTrust TrustAt(World world, FighterId fighter, PromotionId promo, DateOnly date)
+    {
+        if (world.Promises.Count == 0) return default;
+        int toOthers = 0;
+        foreach (var p in world.Promises)
+            if (p.State == PromiseState.Broken && p.Promotion == promo && p.Fighter != fighter
+                && p.Resolved is { } r && date.DayNumber - r.DayNumber < PublicDays)
+                toOthers++;
+        return new TableTrust(PublicBreaks(world, promo, date), toOthers, BrokenBy(world, fighter, promo, date));
+    }
+
+    /// <summary>
+    /// The trust reasons at a table, each in its own words, addressed to the owner; empty when
+    /// neither applies. <paramref name="sentences"/>: full sentences with the percentages (the
+    /// table's reasons and <see cref="NegotiationView.TrustNote"/>); else short lower-case
+    /// clauses (<see cref="AskingQuote.Reasons"/>). His personal memory first, then the public record.
+    /// </summary>
+    public static IReadOnlyList<string> TrustReasons(Fighter f, TableTrust t, bool sentences)
+    {
+        var list = new List<string>();
+        if (t.BrokenToHim > 0)
+            list.Add(Lifers.Gendered(f, sentences
+                ? $"You broke your word to him: he asks {t.DistrustPercent}% more, has less patience, and won't take your promises."
+                : "you broke your word to him: he asks more and won't take your promises"));
+        if (t.PublicBreaks > 0)
+        {
+            string others = t.ToOthers == 1 ? "a promise to another fighter" : $"promises to {t.ToOthers} other fighters";
+            string text = t.ToOthers > 0
+                ? (sentences
+                    ? $"Word gets around: you broke {others} this year, so he asks {t.WarinessPercent}% more"
+                      + (t.BrokenToHim > 0 ? "." : " and counts your promises for less.")
+                    : $"word gets around: you broke {others} this year, so he asks a little more")
+                : (sentences
+                    ? $"And it's public: everyone heard you broke your word to him this year, so he asks {t.WarinessPercent}% more on top."
+                    : "word gets around: everyone heard you broke your word to him, so he asks a little more again");
+            list.Add(Lifers.Gendered(f, text));
+        }
+        return list;
+    }
 
     /// <summary>
     /// The broken promise that stands as a grievance against the promotion he is signed to:
@@ -276,8 +345,52 @@ public static class Promises
     private static string What(World world, PromiseKind kind, int fights, Fighter? f) => kind switch
     {
         PromiseKind.Activity => $"{fights} fights in a year",
-        PromiseKind.HomeShow => f is not null && world.Get(f.Country) is { } c ? $"a fight at home in {c.Name}" : "a fight at home",
+        PromiseKind.HomeShow => f is not null && world.Get(f.Country) is { } c ? $"a fight at home in {Geography.CountryNames.InSentence(c)}" : "a fight at home",
         _ => "a title shot",
+    };
+
+    /// <summary>The note on a promise broken because its deadline passed (any other break: he left without it).</summary>
+    internal const string DeadlinePassedNote = "the deadline passed";
+
+    /// <summary>
+    /// What he says about a BROKEN promise, in the first person ("You promised me a title shot.
+    /// A year went by. I won't forget that either."); null for any promise not broken. Derived
+    /// from the promise alone (its id picks the variant, its dates and how it broke the words):
+    /// no RNG, nothing saved; the break letter, the news and the UI all read this same line.
+    /// </summary>
+    public static string? BrokenLine(World world, Promise p)
+    {
+        if (p.State != PromiseState.Broken) return null;
+        string what = What(world, p);
+        bool left = p.Note != DeadlinePassedNote;
+        var pool = left ? LeftLines : DeadlineLines;
+        uint h = (uint)p.Id * 2654435761u;
+        h ^= h >> 15;
+        return string.Format(pool[h % (uint)pool.Length], what, Span(p));
+    }
+
+    // How long he waited, as a sentence start ("A year went by").
+    private static string Span(Promise p)
+    {
+        int days = p.Deadline.DayNumber - p.Made.DayNumber;
+        return days > 400 ? "More than a year went by"
+             : days >= 330 ? "A year went by"
+             : days >= 45 ? $"{(days + 15) / 30} months went by"
+             : "Weeks went by";
+    }
+
+    // {0} = what was promised, {1} = how long he waited.
+    private static readonly string[] DeadlineLines =
+    {
+        "You promised me {0}. {1}. I won't forget that either.",
+        "You looked me in the eye and promised me {0}. {1}, and nothing. Next time I'll want more than your word.",
+        "That was the promise: {0}. {1}. I'm done waiting on you.",
+    };
+    private static readonly string[] LeftLines =
+    {
+        "You promised me {0}, and I walked out your door without it. Remember that the next time you want my signature.",
+        "You told me {0}. I'm gone now, and I never got it. I won't forget that.",
+        "Promises are cheap. You promised me {0} and I left without it.",
     };
 
     // --- Made at signing ----------------------------------------------------------------
@@ -292,9 +405,16 @@ public static class Promises
     {
         if (!o.HasPromises || world.Get(o.Promotion) is not { } promo || !DealWindow.PlayerRules(world, promo.Id)) return;
         var made = new List<Promise>();
+        var dropped = new List<string>();
         void Make(PromiseKind kind, int fights)
         {
-            if (Refusal(world, promo, f, kind, fights, o.Fights) is not null) return;
+            // Refused at the table first; one that became impossible since (a final lodged a week
+            // ago, and he has won the belt meanwhile) falls away here, and the owner is told.
+            if (Refusal(world, promo, f, kind, fights, o.Fights) is { } why)
+            {
+                dropped.Add($"{What(world, kind, fights, f)} (“{why}”)");
+                return;
+            }
             var p = new Promise
             {
                 Id = world.NewPromiseId(),
@@ -308,7 +428,15 @@ public static class Promises
         if (o.PromiseTitleShot) Make(PromiseKind.TitleShot, 0);
         if (o.PromiseHomeShow) Make(PromiseKind.HomeShow, 0);
         if (o.PromiseFights > 0) Make(PromiseKind.Activity, o.PromiseFights);
-        if (made.Count == 0 || promo.Id != world.PlayerPromotion) return;
+        if (promo.Id != world.PlayerPromotion) return;
+        if (dropped.Count > 0)
+            Living.Mail.Post(world, date, MailCategory.ContractAlert, "Matchmaking",
+                $"{f.FullName}: a promise fell away at signing",
+                Lifers.Gendered(f, $"We wrote {string.Join(" and ", dropped)} into {f.FullName}'s deal, but by the time he signed "
+                    + (dropped.Count == 1 ? "it could no longer be made. It is" : "they could no longer be made. They are")
+                    + " not on the books, and nobody's word was broken."),
+                aboutFighter: f.Id);
+        if (made.Count == 0) return;
         string list = string.Join(" and ", made.Select(p => What(world, p)));
         Living.Mail.Post(world, date, MailCategory.FighterRequest, f.FullName,
             $"{f.FullName} will hold us to it",
@@ -356,7 +484,7 @@ public static class Promises
 
         if (date > p.Deadline && (date > p.Deadline.AddDays(GraceDays) || !Honouring(world, p, f)))
         {
-            Break(world, p, f, promo, date, "the deadline passed");
+            Break(world, p, f, promo, date, DeadlinePassedNote);
             return;
         }
         bool nearDeadline = !p.Warned && p.Deadline.DayNumber - date.DayNumber <= WarnDays;
@@ -383,7 +511,8 @@ public static class Promises
             if (from == world.PlayerPromotion)
                 Living.Mail.Post(world, date, MailCategory.BoardNote, Living.Mail.Owner(world),
                     $"{f.FullName} left with our promise unkept",
-                    Lifers.Gendered(f, $"We promised {f.FullName} {What(world, p)} and he's gone without it: {door}. "
+                    Lifers.Gendered(f, $"“{BrokenLine(world, p)}” "
+                        + $"We promised {f.FullName} {What(world, p)} and he's gone without it: {door}. "
                         + "He'll remember it if we ever sit down with him again."),
                     aboutFighter: f.Id);
         }
@@ -475,7 +604,8 @@ public static class Promises
         if (promo.Id == world.PlayerPromotion)
             Living.Mail.Post(world, date, MailCategory.BoardNote, Living.Mail.Owner(world),
                 $"We broke our word to {f.FullName}",
-                Lifers.Gendered(f, $"We promised {f.FullName} {what} by {p.Deadline:d MMMM yyyy}, and it never came. "
+                Lifers.Gendered(f, $"“{BrokenLine(world, p)}” "
+                    + $"We promised {f.FullName} {what} by {p.Deadline:d MMMM yyyy}, and it never came. "
                     + $"He's taken it hard: his loyalty is down, and for the next year it's a grievance he holds against us "
                     + $"(re-signing him at the table with a new promise, and keeping it, would mend it). The next time we sit down with him "
                     + $"he'll ask more, have less patience, and won't take our word for anything for two years. And it's public: "
@@ -487,7 +617,8 @@ public static class Promises
     private static void Publicize(World world, Promise p, Fighter f, Promotion promo, DateOnly date) =>
         Living.News.Post(world, date, NewsCategory.Milestone,
             $"{f.FullName} says {promo.Abbreviation} broke its word",
-            Lifers.Gendered(f, $"{f.FullName} was promised {What(world, p)} when he signed with {promo.Name}. It never came."),
+            Lifers.Gendered(f, $"{f.FullName} was promised {What(world, p)} when he signed with {promo.Name}. It never came. "
+                + $"“{BrokenLine(world, p)}”"),
             promo.Id, f.Id);
 
     private static void Warn(World world, Promise p, Fighter f, Promotion promo, DateOnly date, bool nearDeadline, bool lastFight)
@@ -559,7 +690,7 @@ public static class Promises
             };
             list.Add(new PromiseStatus(p.Id, p.Kind, p.Promotion, $"{abbr} promised {What(world, p)}", p.State,
                 p.Made, p.Deadline, daysLeft, progress, status,
-                AtRisk: p.Live && !booked && daysLeft <= WarnDays));
+                AtRisk: p.Live && !booked && daysLeft <= WarnDays, BrokenLine: BrokenLine(world, p)));
         }
         return list;
     }
