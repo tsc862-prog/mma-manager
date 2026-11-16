@@ -27,6 +27,18 @@ public static class OriginsReforms
     public const string Rounds = "rounds-and-judges";
     public const string Gloves = "gloves-adopted";
 
+    /// <summary>
+    /// The commissions' one code (Era 4's chapter): today's rules, every field (<see cref="FightRules.Modern"/>:
+    /// five-minute rounds, three judges, today's gloves, no rope escapes), three rounds a bout and five for a
+    /// title. Once it fires every house whose home region a commission licenses fights under it (the second
+    /// centre's houses keep their own: <see cref="OriginsScenes"/>), any other house may adopt it, and the
+    /// sport's rankings across promotions are recognised (<see cref="RankingsRecognised"/>).
+    /// </summary>
+    public const string Unified = "unified-rules";
+
+    /// <summary>The rounds of a title bout under the unified code.</summary>
+    public const int UnifiedTitleRounds = 5;
+
     /// <summary>The weight-line chapters, in the order a house adopts them.</summary>
     public static readonly string[] Ladder =
         { "first-weight-split", "weight-ladder-middle", "weight-ladder-lower", "weight-ladder-bantam", "weight-ladder-flyweight" };
@@ -58,6 +70,30 @@ public static class OriginsReforms
     public static bool HasGloves(Promotion p) =>
         p.Rules.Fight is not { } r || r.Gloves is GloveType.Modern or GloveType.ThinOpenFinger;
 
+    /// <summary>Does the house fight under the unified code (today's rules in every field but its weight and its ring)?</summary>
+    public static bool HasUnified(Promotion p) =>
+        p.Rules.Fight is not { } r || (r with { OpenWeight = false, Enclosure = Enclosure.Cage }).IsModern;
+
+    /// <summary>
+    /// Is the house bound by the commissions' code: the code is the sport's, its home region is licensed, and
+    /// it is not a house of the second centre (which keeps its own rules)? Never in today's mode.
+    /// </summary>
+    public static bool BoundByCode(World world, Promotion p)
+    {
+        if (world.Mode != WorldMode.Origins || p.Defunct || !world.Era.HasFired(Unified)) return false;
+        if (OriginsScenes.InSecondCentre(world, p)) return false;
+        if (p.HomeCity is not { } hc || world.Get(hc) is not { } city || world.Get(city.Country) is not { } country) return false;
+        return world.Era.Sanctions.Any(s => s.Country == country.Code && (s.Area is null || s.Area == city.Area));
+    }
+
+    /// <summary>
+    /// Are the sport's rankings across promotions recognised (the cross-promotion and pound-for-pound lists
+    /// are published)? Always in today's mode; in an Origins world once the commissions have one code. Before
+    /// then each house ranks its own men and nobody else's list means anything.
+    /// </summary>
+    public static bool RankingsRecognised(World world) =>
+        world.Mode != WorldMode.Origins || world.Era.HasFired(Unified);
+
     /// <summary>Has the house drawn every line this weight chapter draws?</summary>
     public static bool HasLines(Promotion p, string chapter) =>
         LinesOf(chapter).All(wc => p.Divisions.Any(d => !d.Open && d.Sex == Sex.Male && d.WeightClass == wc));
@@ -79,6 +115,8 @@ public static class OriginsReforms
             list.Add(new(Rounds, "Rounds and judges", "Five-minute rounds with a minute's rest; three judges score a fight that goes the distance."));
         if (!HasGloves(p) && OriginsTimeline.IsOpen(world, Gloves, date))
             list.Add(new(Gloves, "Gloves for everyone", "Every man wears the same thin, open-fingered glove."));
+        if (!HasUnified(p) && world.Era.HasFired(Unified) && !BracketBooked(world, p))
+            list.Add(new(Unified, "The unified rules", UnifiedDetail(p)));
         if (BeltHouse(p) && HasRounds(p) && HasGloves(p))
             foreach (var chapter in Ladder)
             {
@@ -90,6 +128,10 @@ public static class OriginsReforms
             }
         return list;
     }
+
+    private static string UnifiedDetail(Promotion p) =>
+        $"The commissions' code: five-minute rounds, three judges, today's gloves and no rope escapes; {CardRounds} rounds a bout, {UnifiedTitleRounds} for a title."
+        + (p.Rules.ShowFormat == ShowFormat.OneNightTournament ? " The house gives up its one-night brackets for cards of single bouts." : "");
 
     private static string LineLabel(string chapter) => chapter == Ladder[0]
         ? "Split heavy and light"
@@ -139,9 +181,13 @@ public static class OriginsReforms
         if (world.Mode != WorldMode.Origins) return "Today's sport has settled its rules.";
         if (p.Defunct) return "The promotion has closed.";
         bool weight = Ladder.Contains(chapter);
-        if (chapter != Rounds && chapter != Gloves && !weight) return "That is not a rule a house can change.";
+        if (chapter != Rounds && chapter != Gloves && chapter != Unified && !weight) return "That is not a rule a house can change.";
         if (chapter == Rounds && HasRounds(p)) return "You already fight in rounds with judges.";
         if (chapter == Gloves && HasGloves(p)) return "Every man on your cards already wears gloves.";
+        if (chapter == Unified && HasUnified(p)) return "You already fight under the commissions' code.";
+        if (chapter == Unified && world.Era.HasFired(Unified) && BracketBooked(world, p))
+            return "Your one-night bracket on the books was announced under your own rules and runs as announced: take up the code after it is fought.";
+        if (chapter == Unified) return "There is no one code yet: every house and every commission still writes its own rules.";
         if (weight && HasLines(p, chapter)) return "You have already drawn those weight lines.";
         if (weight && p.Rules.ShowFormat == ShowFormat.GymChallenge) return "Challenge nights settle arguments between gyms; there are no belts to split.";
         if (weight && !BeltHouse(p))
@@ -180,6 +226,9 @@ public static class OriginsReforms
                     $"Every man on a {p.Abbreviation} card will wear the same thin, open-fingered glove.", p.Id);
                 OriginsTimeline.FireNow(world, Gloves, new ChapterDoer(p.Id, City: p.HomeCity), date);
                 break;
+            case Unified:
+                TakeUnified(world, p, date, bound: false);
+                break;
             default:
                 if (p.Rules.ShowFormat == ShowFormat.OneNightTournament)
                 {
@@ -208,10 +257,96 @@ public static class OriginsReforms
         p.Rules.TitleRounds = CardRounds;
     }
 
+    /// <summary>
+    /// A house takes the unified code: today's rules in every field (its weight lines and its ring or fence stay),
+    /// three rounds a bout and five for a title; a bracket house becomes a card house. Every card it already has
+    /// on the books is rewritten to the code (the round count is the booking's under the code, and round length is
+    /// the house's at fight time, so a card left alone would be fought as the old rounds at five minutes). A house
+    /// with a one-night bracket on the books takes the code only after the bracket is fought
+    /// (<see cref="BracketBooked"/>): a bracket runs as announced. <paramref name="bound"/>: the commission
+    /// requires it (the player is told it is no longer his call).
+    /// </summary>
+    private static void TakeUnified(World world, Promotion p, DateOnly date, bool bound)
+    {
+        var had = p.Rules.Fight ?? FightRules.Modern;
+        p.Rules.Fight = new FightRules { OpenWeight = had.OpenWeight, Enclosure = had.Enclosure };
+        p.Rules.StandardRounds = CardRounds;
+        p.Rules.TitleRounds = UnifiedTitleRounds;
+        p.Rules.RoundMinutes = 5;
+        if (p.Rules.ShowFormat == ShowFormat.OneNightTournament) p.Rules.ShowFormat = ShowFormat.Card;
+        int rewritten = RewriteBookedCards(world, p, date);
+        News.Post(world, date, NewsCategory.General, $"{p.Name} fights under the unified rules",
+            bound
+                ? $"The commission that licenses {p.Abbreviation} holds every house it licenses to one code: {CardRounds} rounds a bout, {UnifiedTitleRounds} for a title, three judges and today's gloves."
+                : $"{p.Abbreviation} takes up the commissions' code of its own accord: {CardRounds} rounds a bout, {UnifiedTitleRounds} for a title, three judges and today's gloves.",
+            p.Id);
+        if (bound && p.Id == world.PlayerPromotion)
+            Mail.Post(world, date, MailCategory.BoardNote, Mail.Owner(world), "The commission's code is now our rulebook",
+                $"Our licence comes with one condition now: every licensed house fights under the same code. From our next night it's {CardRounds} rounds of five minutes a bout and {UnifiedTitleRounds} for a title, three judges, today's gloves and no rope escapes"
+                + (rewritten > 0 ? $"; the {rewritten} {(rewritten == 1 ? "bout" : "bouts")} already on our cards are rebooked to it." : ".")
+                + " It wasn't our call to make.");
+    }
+
+    /// <summary>
+    /// The house's announced cards of single bouts, rebooked to the code: every bout at <see cref="CardRounds"/>,
+    /// a title bout at <see cref="UnifiedTitleRounds"/>. Returns how many bouts changed. (A bracket on the books
+    /// never reaches here: the house waits for it.)
+    /// </summary>
+    private static int RewriteBookedCards(World world, Promotion p, DateOnly date)
+    {
+        int changed = 0;
+        foreach (var ev in world.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Scheduled
+                     && e.Format == EventFormat.Card && e.Date >= date).OrderBy(e => e.Date).ThenBy(e => e.Id.Value))
+            foreach (var f in ev.Card)
+            {
+                int rounds = f.IsTitleFight ? UnifiedTitleRounds : CardRounds;
+                if (f.ScheduledRounds == rounds) continue;
+                f.ScheduledRounds = rounds;
+                changed++;
+            }
+        return changed;
+    }
+
+    /// <summary>Has the house a one-night bracket on the books? It runs as announced, so the house takes the code after it.</summary>
+    public static bool BracketBooked(World world, Promotion p) =>
+        world.Events.Values.Any(e => e.Promotion == p.Id && e.Status == EventStatus.Scheduled && e.Format == EventFormat.Tournament
+                                    && e.Date >= world.CurrentDate);
+
+    /// <summary>The commissions publish one code (the chapter's effect): every bound house takes it now, the player's included.</summary>
+    internal static void UnifiedRulesBegin(World world, DateOnly date)
+    {
+        // (A house with a bracket on the books takes it after the bracket: the monthly pass binds it then.)
+        foreach (var p in world.Promotions.Values.Where(p => !p.Defunct && BoundByCode(world, p) && !HasUnified(p) && !BracketBooked(world, p))
+                     .OrderBy(p => p.Id.Value).ToList())
+            TakeUnified(world, p, date, bound: true);
+    }
+
+    /// <summary>
+    /// A house founded now is of its era: under the unified code once there is one (unless it opens in the
+    /// second centre), and in a ring when it opens in the second centre. (Applied after its era rules were
+    /// rolled, so its founding draws are untouched.)
+    /// </summary>
+    internal static void FoundedUnder(World world, Promotion p)
+    {
+        if (world.Mode != WorldMode.Origins) return;
+        if (OriginsScenes.InSecondCentre(world, p))
+        {
+            if (p.Rules.Fight is { } r) p.Rules.Fight = r with { Enclosure = Enclosure.Ring };
+            return;
+        }
+        if (!world.Era.HasFired(Unified)) return;
+        var had = p.Rules.Fight ?? FightRules.Modern;
+        p.Rules.Fight = new FightRules { OpenWeight = had.OpenWeight, Enclosure = had.Enclosure };
+        p.Rules.StandardRounds = CardRounds;
+        p.Rules.TitleRounds = UnifiedTitleRounds;
+        p.Rules.RoundMinutes = 5;
+    }
+
     /// <summary>The month's AI reforms: each AI house weighs its open reforms on a keyed roll (one reform a month at most).</summary>
     public static void RunMonthly(World world, DateOnly date)
     {
         int month = OriginsTimeline.Month(world, date);
+        // (A house a commission licenses after the code was published comes under it in the timeline's weekly pass.)
         TellThePlayer(world, date);
         foreach (var p in world.Promotions.Values.Where(p => !p.Defunct && p.Id != world.PlayerPromotion).OrderBy(p => p.Id.Value).ToList())
         {
@@ -241,6 +376,7 @@ public static class OriginsReforms
             {
                 Rounds => " It answers the critics, and with gloves it is what a commission asks before it will license our cards.",
                 Gloves => " With rounds and judges it is what a commission asks before it will license our cards; equipment money follows the gloves.",
+                Unified => " No commission holds us to it, but fighters, judges and the rankings all speak this code now.",
                 _ => " A belt for every weight: smaller men get fights they can win, and the first champion crowned in a new class makes history.",
             };
             Mail.Post(world, date, MailCategory.BoardNote, Mail.Owner(world), $"We could adopt: {o.Label}",
@@ -264,6 +400,8 @@ public static class OriginsReforms
     /// </summary>
     public static double Chance(World world, Promotion p, string chapter, DateOnly date)
     {
+        // The second centre keeps its own house rules: its AI houses never take the commissions' code.
+        if (chapter == Unified) return OriginsScenes.InSecondCentre(world, p) ? 0 : 0.06;
         var c = OriginsChapters.ByKey(chapter);
         int month = OriginsTimeline.Month(world, date);
         double progress = Math.Clamp((month - c.EarliestMonth) / (double)Math.Max(1, c.LatestMonth - c.EarliestMonth), 0, 1);

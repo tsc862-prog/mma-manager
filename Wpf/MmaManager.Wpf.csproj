@@ -35,6 +35,9 @@
          legacy sidecar kept for packs without a manifest -->
     <Content Include="Assets\Painted\manifest.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Assets\Painted\manifest.json')" />
     <Content Include="Assets\Painted\tags.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Assets\Painted\tags.json')" />
+    <!-- Origins pioneers bound to portraits by name (PaintedLibrary.PioneerFace/Body); their PNGs sit in Assets\Painted\pioneers
+         and are covered by the PNG glob above. Written by E:/FighterArt sync/synccorporate.py (pioneers mode). -->
+    <Content Include="Assets\Painted\pioneers.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Assets\Painted\pioneers.json')" />
     <!-- Owners / founders / named staff (Assets\People) and media + sponsor logos (Assets\Brands): small,
          fictional, tracked in git (unlike the 2.8 GB fighter pack). Written by E:/FighterArt
          sync/synccorporate.py; see Wpf\Art\PeopleLibrary.cs and BrandLibrary.cs. Loaders fall back when absent. -->

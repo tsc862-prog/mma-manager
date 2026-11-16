@@ -135,6 +135,267 @@
       "sex": "m",
       "age": 69,
       "country": "JPN"
+    },
+    "Pavel Ilic": {
+      "file": "pavel-ilic.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "IFA",
+      "sex": "m",
+      "age": 49,
+      "country": "SRB"
+    },
+    "Bill Hennessy": {
+      "file": "bill-hennessy.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "UFL",
+      "sex": "m",
+      "age": 58,
+      "country": "USA"
+    },
+    "Tiago Moreira": {
+      "file": "tiago-moreira.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "RCS",
+      "sex": "m",
+      "age": 41,
+      "country": "BRA"
+    },
+    "Denise Cartwright": {
+      "file": "denise-cartwright.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "SCM",
+      "sex": "f",
+      "age": 51,
+      "country": "USA"
+    },
+    "Dona Marisa Bittencourt": {
+      "file": "dona-marisa-bittencourt.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "CK",
+      "sex": "f",
+      "age": 72,
+      "country": "BRA"
+    },
+    "Marty Feldstein": {
+      "file": "marty-feldstein.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "CC",
+      "sex": "m",
+      "age": 60,
+      "country": "USA"
+    },
+    "Duane Pfeiffer": {
+      "file": "duane-pfeiffer.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "GLF",
+      "sex": "m",
+      "age": 62,
+      "country": "GER"
+    },
+    "Ernesto Chambi": {
+      "file": "ernesto-chambi.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "CDC",
+      "sex": "m",
+      "age": 52,
+      "country": "BOL"
+    },
+    "Sal Rizzo": {
+      "file": "sal-rizzo.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "MCC",
+      "sex": "m",
+      "age": 57,
+      "country": "USA"
+    },
+    "Rihards Kalnins": {
+      "file": "rihards-kalnins.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "BLB",
+      "sex": "m",
+      "age": 55,
+      "country": "LAT"
+    },
+    "Bongani Zulu": {
+      "file": "bongani-zulu.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "CPF",
+      "sex": "m",
+      "age": 43,
+      "country": "RSA"
+    },
+    "Hector Ravelo": {
+      "file": "hector-ravelo.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "PMP",
+      "sex": "m",
+      "age": 56,
+      "country": "MEX"
+    },
+    "Gloria Pemberton": {
+      "file": "gloria-pemberton.png",
+      "kind": "staff",
+      "role": "marketing",
+      "org": "AFC",
+      "sex": "f",
+      "age": 50,
+      "country": "USA"
+    },
+    "Emmett Cole": {
+      "file": "emmett-cole.png",
+      "kind": "staff",
+      "role": "scouting",
+      "org": "AFC",
+      "sex": "m",
+      "age": 59,
+      "country": "USA"
+    },
+    "Dr. Yelena Sorokina": {
+      "file": "dr-yelena-sorokina.png",
+      "kind": "staff",
+      "role": "medical",
+      "org": "IFA",
+      "sex": "f",
+      "age": 47,
+      "country": "SRB"
+    },
+    "Kenzo Arakaki": {
+      "file": "kenzo-arakaki.png",
+      "kind": "staff",
+      "role": "scouting",
+      "org": "ICF",
+      "sex": "m",
+      "age": 49,
+      "country": "JPN"
+    },
+    "Yusuf Bakr": {
+      "file": "yusuf-bakr.png",
+      "kind": "staff",
+      "role": "marketing",
+      "org": "GFC",
+      "sex": "m",
+      "age": 42,
+      "country": "UAE"
+    },
+    "Chuck Delaney": {
+      "file": "chuck-delaney.png",
+      "kind": "staff",
+      "role": "marketing",
+      "org": "UFL",
+      "sex": "m",
+      "age": 55,
+      "country": "USA"
+    },
+    "Paulinho Serra": {
+      "file": "paulinho-serra.png",
+      "kind": "staff",
+      "role": "coach",
+      "org": "CK",
+      "sex": "m",
+      "age": 44,
+      "country": "BRA"
+    },
+    "Wiremu Tane": {
+      "file": "wiremu-tane.png",
+      "kind": "staff",
+      "role": "coach",
+      "org": "SCM",
+      "sex": "m",
+      "age": 51,
+      "country": "NZL"
+    },
+    "Rosalind Okoye": {
+      "file": "rosalind-okoye.png",
+      "kind": "staff",
+      "role": "scouting",
+      "org": null,
+      "sex": "f",
+      "age": 46,
+      "country": "NGA"
+    },
+    "Dr. Anton Vrba": {
+      "file": "dr-anton-vrba.png",
+      "kind": "staff",
+      "role": "medical",
+      "org": null,
+      "sex": "m",
+      "age": 56,
+      "country": "CZE"
+    },
+    "Marguerite Lavoie": {
+      "file": "marguerite-lavoie.png",
+      "kind": "staff",
+      "role": "marketing",
+      "org": null,
+      "sex": "f",
+      "age": 39,
+      "country": "FRA"
+    },
+    "Big Tom Halvorsen": {
+      "file": "big-tom-halvorsen.png",
+      "kind": "staff",
+      "role": "coach",
+      "org": null,
+      "sex": "m",
+      "age": 68,
+      "country": "NOR"
+    },
+    "Ossie Blackwood": {
+      "file": "ossie-blackwood.png",
+      "kind": "staff",
+      "role": "coach",
+      "org": null,
+      "sex": "m",
+      "age": 64,
+      "country": "ENG"
+    },
+    "Ryoji Fukuhara": {
+      "file": "ryoji-fukuhara.png",
+      "kind": "founder",
+      "role": "owner",
+      "org": "SGC",
+      "sex": "m",
+      "age": 47,
+      "country": "JPN"
+    },
+    "Dennis Raczkowski": {
+      "file": "dennis-raczkowski.png",
+      "kind": "staff",
+      "role": "coach",
+      "org": null,
+      "sex": "m",
+      "age": 48,
+      "country": "USA"
+    },
+    "Dale Kessler": {
+      "file": "dale-kessler.png",
+      "kind": "founder",
+      "role": "owner",
+      "org": "BFC",
+      "sex": "m",
+      "age": 52,
+      "country": "USA"
+    },
+    "Marguerite Beaulieu": {
+      "file": "marguerite-beaulieu.png",
+      "kind": "founder",
+      "role": "owner",
+      "org": "BLF",
+      "sex": "f",
+      "age": 49,
+      "country": "CAN"
     }
   }
 }

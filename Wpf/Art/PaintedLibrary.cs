@@ -63,6 +63,7 @@ public static class PaintedLibrary
     public static string? PersonaFor(Fighter f)
     {
         Load();
+        if (PioneerOf(f) is not null) return null;                 // a bound pioneer takes no random identity's persona
         if (Tags.Count == 0 || Identities.Count == 0) return null;
         if (PersonaCache.TryGetValue(f.Id.Value, out var cached)) return cached;
         var tag = Choose(f) is { } id && Tags.TryGetValue(id.Key, out var t) ? t : null;
@@ -74,7 +75,74 @@ public static class PaintedLibrary
     public static bool HasTriptychFor(Fighter f)
     {
         Load();
-        return Choose(f) is { } i && HasAllStages(i);
+        return PioneerOf(f) is null && Choose(f) is { } i && HasAllStages(i);
+    }
+
+    // ------------------------------------------------------------------ Origins pioneers: portraits bound BY NAME
+    // Painted/pioneers.json (written by E:/FighterArt sync/synccorporate.py --pioneers) maps an exact "First Last" to a face + body
+    // pair under Painted/pioneers/. These are named, authored fighters, so they never go through Choose(): no pool, no id modulo, no
+    // randomness, no clock. Absent file or absent PNGs = today's behaviour (a fresh clone has no portrait PNGs).
+    private sealed record Pioneer(string Face, string Body, string? TopsFace, string? TopsBody);
+    private static readonly Dictionary<string, Pioneer> Pioneers = new(StringComparer.Ordinal);
+
+    private static void LoadPioneers(string dir)
+    {
+        try
+        {
+            var path = Path.Combine(dir, "pioneers.json");
+            if (!File.Exists(path)) return;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            if (!doc.RootElement.TryGetProperty("pioneers", out var rows)) return;
+            string? Pic(System.Text.Json.JsonElement e, string key)
+            {
+                if (!e.TryGetProperty(key, out var v) || v.ValueKind != System.Text.Json.JsonValueKind.String) return null;
+                var file = Path.Combine(dir, "pioneers", v.GetString() ?? "");
+                return File.Exists(file) ? file : null;
+            }
+            foreach (var row in rows.EnumerateObject())
+            {
+                var face = Pic(row.Value, "face");
+                var body = Pic(row.Value, "body");
+                if (face is null || body is null) continue;             // never offer half a pair
+                string? tf = null, tb = null;
+                if (row.Value.TryGetProperty("tops", out var t) && t.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    tf = Pic(t, "face");
+                    tb = Pic(t, "body");
+                    if (tf is null || tb is null) tf = tb = null;
+                }
+                Pioneers[row.Name] = new Pioneer(face, body, tf, tb);
+            }
+        }
+        catch (Exception) { Pioneers.Clear(); }                            // art metadata is optional: never take the app down
+    }
+
+    private static Pioneer? PioneerOf(Fighter f)
+    {
+        Load();
+        return Pioneers.Count > 0 && Pioneers.TryGetValue($"{f.FirstName} {f.LastName}", out var p) ? p : null;
+    }
+
+    /// <summary>True when this fighter is one of the bound Origins pioneers AND their portrait files are present.</summary>
+    public static bool IsPioneer(Fighter f) => PioneerOf(f) is not null;
+
+    /// <summary>True when the pioneer also has a tops-on (gi / singlet) pair. Only Aurelio Neves and Tetsuya Hagiwara do today.</summary>
+    public static bool HasPioneerTops(Fighter f) => PioneerOf(f) is { TopsFace: not null };
+
+    /// <summary>
+    /// The bound pioneer portrait, or null when the fighter is not a pioneer (or the files are absent). The BARE-TORSO base pair
+    /// is the default; <paramref name="tops"/> asks for the tops-on variant when there is one (nothing in the game asks for it yet).
+    /// </summary>
+    public static ImageSource? PioneerFace(Fighter f, bool tops = false) => PioneerImage(f, body: false, tops);
+
+    /// <inheritdoc cref="PioneerFace"/>
+    public static ImageSource? PioneerBody(Fighter f, bool tops = false) => PioneerImage(f, body: true, tops);
+
+    private static ImageSource? PioneerImage(Fighter f, bool body, bool tops)
+    {
+        if (PioneerOf(f) is not { } p) return null;
+        var path = tops && p.TopsFace is not null ? (body ? p.TopsBody : p.TopsFace) : (body ? p.Body : p.Face);
+        return path is null ? null : LoadImage(path);
     }
 
     /// <summary>The fighter's painted head shot for their current age, or null if none matches.</summary>
@@ -90,6 +158,7 @@ public static class PaintedLibrary
     public static string? FacePath(Fighter f, int age)
     {
         Load();
+        if (PioneerOf(f) is { } pio) return pio.Face;
         if (Identities.Count == 0) return null;
         return Choose(f) is { } chosen ? Resolve(chosen, StageFor(age), false) : null;
     }
@@ -113,6 +182,7 @@ public static class PaintedLibrary
     private static ImageSource? Image(Fighter f, int age, bool body)
     {
         Load();
+        if (PioneerImage(f, body, tops: false) is { } bound) return bound;      // named pioneers: bound portrait, one picture at every age
         if (Identities.Count == 0) return null;
 
         var stage = StageFor(age);
@@ -376,6 +446,7 @@ public static class PaintedLibrary
                     LoadTags(Path.Combine(dir, "tags.json"));
                 }
             }
+            LoadPioneers(dir);
             _loaded = true;
         }
     }
