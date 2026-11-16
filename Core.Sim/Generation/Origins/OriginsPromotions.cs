@@ -73,7 +73,7 @@ public static class OriginsPromotions
         new("Crucible Challenge", "CRU", Region.NorthAmerica, "USA", "Los Angeles",
             Prestige: 8, RosterSize: 10, Balance: new Money(650_000m), FoundedYear: 1992, FirstShowYear: 1993,
             Founder: new OriginsFounder("Leonard Pastor", 46,
-                "Len Pastor spent two decades packaging late-night cable: kung-fu double bills, celebrity bowling, a wrestling hour that nobody admitted watching. He had never been in a fight and had never promoted one until a gym-owning friend told him over dinner that nobody actually knew who would win if a boxer met a wrestler. Pastor went home, wrote 'WHO WINS?' on a legal pad, and spent the next year selling the idea to a pay-per-view carrier that is not yet sure it believes him."),
+                "Len Pastor spent two decades packaging late-night cable: kung-fu double bills, celebrity bowling, a wrestling hour that nobody admitted watching. He had never been in a fight and had never promoted one until a gym-owning friend told him over dinner that nobody actually knew who would win if a boxer met a wrestler. Pastor went home, wrote 'WHO WINS?' on a legal pad, and spent the next year selling the idea to a pay-per-view carrier that is not yet sure it believes him. He has offered by fax to buy Anibal Sampaio's parking garage, and been told on each occasion that it is not for sale."),
             HomeVenue: "Pico Sports Pavilion",
             HomeVenueLore: "A converted trade-show hall off the freeway with a rented grandstand and a ring of waist-high wire fence on a raised canvas. It holds four thousand on the night and smells of fresh paint for a week afterwards.",
             Rules: new OriginsRuleSet(
@@ -89,7 +89,7 @@ public static class OriginsPromotions
         new("Shinken Fighting Association", "SFA", Region.Asia, "JPN", "Tokyo",
             Prestige: 8, RosterSize: 10, Balance: new Money(520_000m), FoundedYear: 1992, FirstShowYear: 1993,
             Founder: new OriginsFounder("Kosaku Hiyama", 54,
-                "Hiyama spent thirty years in the back offices of professional wrestling, where he learned how to fill a hall and, more quietly, which of the men in the ring could really fight. In 1991 he fell out with his bosses over whether the audience could be trusted with the truth. The Shinken Fighting Association is his answer: the same ring, the same ropes, the same bowing crowd, and nothing agreed in advance."),
+                "Hiyama spent thirty years in the back offices of professional wrestling, where he learned how to fill a hall and, more quietly, which of the men in the ring could really fight. In 1991 he fell out with his bosses over whether the audience could be trusted with the truth. The Shinken Fighting Association is his answer: the same ring, the same ropes, the same bowing crowd, and nothing agreed in advance. He keeps a videotape of a Saturday night in a Rio parking garage, mailed by a lawyer who thought he would understand, and says it is the one fight tape he has watched twice."),
             HomeVenue: "Eitoku Hall",
             HomeVenueLore: "A 2,800-seat municipal hall in Tokyo that hosted boxing, concerts and a week of flower-arranging every spring until the Association took its Friday nights. Spectators sit in silence through the exchanges and applaud the way people applaud in a temple.",
             Rules: new OriginsRuleSet(
@@ -105,7 +105,7 @@ public static class OriginsPromotions
         new("Duelo Livre", "DLB", Region.SouthAmerica, "BRA", "Rio de Janeiro",
             Prestige: 5, RosterSize: 11, Balance: new Money(90_000m), FoundedYear: 1991, FirstShowYear: 1992,
             Founder: new OriginsFounder("Anibal Sampaio", 58,
-                "Sampaio is a retired sports lawyer who has been arguing with Rio's gym owners about whose style is best since before most of his fighters were born. In 1991 he got tired of the arguing and offered to hold the argument in a rented parking garage with a referee, a doctor and a cash box. Nobody has been able to stop the Saturday nights since, and the police have given up trying to find the address in advance."),
+                "Sampaio is a retired sports lawyer who has been arguing with Rio's gym owners about whose style is best since before most of his fighters were born. In 1991 he got tired of the arguing and offered to hold the argument in a rented parking garage with a referee, a doctor and a cash box. Nobody has been able to stop the Saturday nights since, and the police have given up trying to find the address in advance. He has declined two offers for the garage from a television man in California and keeps both faxes in the cash box."),
             HomeVenue: "Garagem Tijuca",
             HomeVenueLore: "The lower level of a Tijuca parking garage, swept every Saturday afternoon and lit by the headlights of a dozen parked cars. It holds six hundred standing and twice that number on the ramps, and when the roll-down door goes up the sound reaches the next district.",
             Rules: new OriginsRuleSet(

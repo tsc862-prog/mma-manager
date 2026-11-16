@@ -303,8 +303,11 @@ public class StoriesBatch1BTests
     public void TheSecondSliceHeadlines_AreAppendedAfterTheFirst()
     {
         var all = DesignedHeadlines.All.Select(h => h.Headline).ToList();
-        Assert.Equal("Second Bell is answering the phone", all[all.Count - 7]);
-        Assert.Equal("Mokoena: 'Van Zyl picked a side'", all[all.Count - 6]);
-        Assert.Equal("Pryor headlines for gas money, and says he is fine with it", all[^1]);
+        // Relative order, not distance from the end: later batches append after the second slice.
+        int bell = all.IndexOf("Second Bell is answering the phone");
+        int mokoena = all.IndexOf("Mokoena: 'Van Zyl picked a side'");
+        int pryor = all.IndexOf("Pryor headlines for gas money, and says he is fine with it");
+        Assert.True(bell >= 0 && bell + 1 == mokoena && mokoena < pryor, "the second slice stays in the order it was written");
+        Assert.Equal(bell + 7, pryor + 1);   // seven lines, Second Bell through Pryor
     }
 }

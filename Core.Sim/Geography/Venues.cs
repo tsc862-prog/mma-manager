@@ -35,6 +35,15 @@ public static class Venues
             ["Arena Guanabara"] = "Rio's big room, where the street noise gets in whether or not the doors are open.",
             ["Arena Bandeirantes"] = "São Paulo's grand old arena, still hung with Cage Kings banners from the vale tudo days.",
             ["The Falcon Dome"] = "Abu Dhabi's biggest fight room, built to impress. It is still learning what a home crowd sounds like.",
+            // The narratives pass: the small rooms the stories keep starting in.
+            ["Kelly's Gym"] = "Chicago's sweat room: a corner gym with a ring bolted to the floor and a bell older than most of the people who have rung it.",
+            ["The Bukom Room"] = "Accra's boxing quarter in one room, where the fans arrive early to argue about the undercard and stay late to argue about the verdict.",
+            ["The Dockside"] = "A room below Table Mountain between a fish market and a shipping office, where the township arguments get sold tickets.",
+            ["The Woolshed"] = "A converted wool store on the Sydney harbour, with a floor that still smells of lanolin and a bar that closes when the main event begins.",
+            ["El Galpón de Boedo"] = "A Boedo warehouse with a ring and a balcony that sings; the PA man has been told to turn the crowd down and cannot win the argument.",
+            ["O Barracão"] = "Rio's small room: a tin-roofed shed where the rain on the roof is the second announcer.",
+            ["Källaren"] = "A vaulted cellar in Stockholm where the ferry crowds queue down the stairs, with a ceiling low enough that heavyweights stoop to come in.",
+            ["Soi Nine Stadium"] = "A walled stadium behind a Bangkok market where the ring is rebuilt for each festival and the best seats are the ones nearest the music.",
         };
 
     private static readonly Dictionary<string, (string, string, string)> Named =

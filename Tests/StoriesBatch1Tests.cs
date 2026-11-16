@@ -59,7 +59,9 @@ public class StoriesBatch1Tests
     {
         // Append-only: the five stories-batch rows are followed, in the order written, by the
         // four lost-decade rows (see LostDecadeTests).
-        var tail = DesignedRoster.Bonds.Skip(DesignedRoster.Bonds.Count - 9).Take(5).ToList();
+        // Located by name, not by distance from the end: later batches append after the lost decade.
+        int start = DesignedRoster.Bonds.ToList().FindIndex(b => b.A == "Cross" && b.B == "Donovan");
+        var tail = DesignedRoster.Bonds.Skip(start).Take(5).ToList();
         Assert.Equal(new[] { "Cross", "Volkov", "Paulo Bandeira", "Quispe", "Okonjo" }, tail.Select(b => b.A));
         Assert.Equal(new[] { "Donovan", "Volkova", "Wallace Bandeira", "Huanca", "Okafor" }, tail.Select(b => b.B));
     }
