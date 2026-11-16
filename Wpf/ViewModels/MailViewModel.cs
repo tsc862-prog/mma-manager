@@ -290,7 +290,7 @@ public sealed class MailViewModel : ObservableObject
         string ownerName = player?.OwnerName ?? "";
         if (about is not null && about.FullName == from)
         {
-            role = $"Fighter  ·  {FighterRow.DivisionLabel(about.WeightClass, about.Sex)}";
+            role = $"Fighter  ·  {FighterRow.DivisionLabel(about)}";
             icon = "People";
             pic = () => Portraits.Thumb(about, w);
         }

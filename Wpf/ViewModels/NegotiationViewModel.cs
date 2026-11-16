@@ -165,7 +165,7 @@ public sealed class NegotiationViewModel : ObservableObject
         Portrait = Portraits.For(fighter, world);
         Facts = new[]
         {
-            FighterRow.DivisionLabel(fighter.WeightClass, fighter.Sex),
+            FighterRow.DivisionLabel(fighter),
             fighter.Record.ToString(),
             $"Scouted {FighterRow.Scouted(world, fighter)}",
             FreeAgentRow.HometownOf(fighter, world),

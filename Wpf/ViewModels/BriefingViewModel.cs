@@ -438,7 +438,7 @@ public sealed class BriefingViewModel : ObservableObject
 
         var mine = w.Events.Values.Where(e => e.Status == EventStatus.Scheduled && e.Promotion == player.Id)
             .OrderBy(e => e.Date).ThenBy(e => e.Id.Value).ToList();
-        foreach (var e in mine.Where(e => e.Card.Count == 0 && e.Date.DayNumber - today.DayNumber <= 42))
+        foreach (var e in mine.Where(e => e.Card.Count == 0 && e.Format != EventFormat.Tournament && e.Date.DayNumber - today.DayNumber <= 42))
             list.Add(new Need(BriefingKind.EmptyCard, $"empty:{e.Id.Value}", 600, e.Id.Value));
         if (mine.Count == 0 && roster.Count >= 2)
         {
@@ -523,6 +523,15 @@ public sealed class BriefingViewModel : ObservableObject
                 Kicker = $"TIME STOPPED  ·  FIGHT NIGHT  ·  {ev.Name}".ToUpperInvariant();
                 Headline = $"{ev.Name} is tonight.";
                 int bouts = ev.Card.Count;
+                if (ev.Format == EventFormat.Tournament)
+                {
+                    // A one-night bracket (Origins): nothing to watch bout by bout before it's drawn.
+                    Lede = $"Eight men, one night{Where(w, ev)}. The bracket is drawn from your roster tonight and fought round by round under the house rules; the clock waits until it is run.";
+                    Art = Poster(w, ev); ArtIsFramed = true;
+                    if (SimTonightCommand is not null) Actions.Add(new BriefingAction("Run the bracket ▸", Then(SimTonightCommand), IsPrimary: true));
+                    Actions.Add(new BriefingAction("The bracket desk", Do(() => OpenCard?.Invoke(ev.Id.Value))));
+                    return;
+                }
                 Lede = bouts == 0
                     ? "There isn't a bout left on the card. The clock waits until it is run — or called off from the card desk."
                     : $"{Plural(bouts, "bout")} ready to go{Where(w, ev)}. The clock waits for your show: watch it from ringside, or go straight to the results.";
@@ -737,7 +746,7 @@ public sealed class BriefingViewModel : ObservableObject
                 Kicker = $"{kicker}  ·  {(lastCall ? "LAST CALL" : "A CALL ONLY YOU CAN MAKE")}  ·  ANSWER {(days <= 0 ? "TODAY" : days == 1 ? "BY TOMORROW" : $"BY {d.Deadline:d MMM}".ToUpperInvariant())}";
                 Headline = DeskCalls.Title(w, d) + ".";
                 Lede = d.Detail + $" Ignoring it past {d.Deadline:d MMM} counts as an answer.";
-                if (who is not null) { Art = Portraits.Body(who, w); People.Add(Person(w, who, FighterRow.DivisionLabel(who.WeightClass, who.Sex))); }
+                if (who is not null) { Art = Portraits.Body(who, w); People.Add(Person(w, who, FighterRow.DivisionLabel(who))); }
                 else if (target is not null) { Art = LogoFactory.ForPromotion(target); ArtIsFramed = true; }
                 else if (player is not null) { Art = LogoFactory.ForPromotion(player); ArtIsFramed = true; }
 
@@ -768,7 +777,7 @@ public sealed class BriefingViewModel : ObservableObject
                     .OrderBy(e => e.Date).FirstOrDefault();
                 Lede = (all.Count > 1
                            ? $"Nothing is up yet. When each of them fights out the deal, a {DealWindow.WindowDays}-day window opens to re-sign him before he walks — or talk terms now, while he's still under contract."
-                           : $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}, {f.Record}. " +
+                           : $"{FighterRow.DivisionLabel(f)}, {f.Record}. " +
                              (booked is not null ? $"Booked on {booked.Name} ({booked.Date:d MMM}); after that bout the deal is done and a {DealWindow.WindowDays}-day re-sign window opens. " : "") +
                              "Re-sign now and there's no window to worry about.");
                 Art = Portraits.Body(f, w);
@@ -833,7 +842,7 @@ public sealed class BriefingViewModel : ObservableObject
                 Headline = lastWeek
                     ? (left <= 0 ? $"Last day to re-sign {f.FirstName} {f.LastName}." : $"{Plural(left, "day")} left to re-sign {f.FirstName} {f.LastName}.")
                     : $"{f.FirstName} {f.LastName}'s deal is up. {Plural(left, "day")} to re-sign.";
-                Lede = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}, {f.Record}. {He} talks to nobody but you until {end:d MMMM} and can't be booked until {he} re-signs. "
+                Lede = $"{FighterRow.DivisionLabel(f)}, {f.Record}. {He} talks to nobody but you until {end:d MMMM} and can't be booked until {he} re-signs. "
                      + $"After that {he}'s a free agent and anyone can have {Pronoun(f)}."
                      + (champ ? $" {He} keeps the belt until then; if {he} walks, it's vacant." : "")
                      + (player?.FaceOfCompany == f.Id ? $" {He}'s the face of the company." : "");
@@ -978,7 +987,7 @@ public sealed class BriefingViewModel : ObservableObject
         if (stop.Kind == BriefingKind.PromiseAtRisk && w.Get(new FighterId(stop.EventId)) is { } kept)
         {
             Art = Portraits.Body(kept, w);
-            People.Add(Person(w, kept, FighterRow.DivisionLabel(kept.WeightClass, kept.Sex)));
+            People.Add(Person(w, kept, FighterRow.DivisionLabel(kept)));
             if (PromiseOf(w, stop.Key) is { State: PromiseState.Broken }) { IsResolved = false; ResolvedText = ""; Tone = CardTone.Bad; Icon = "Warning"; }
         }
         else if (stop.Kind is BriefingKind.ExpiringDeal or BriefingKind.DealUp or BriefingKind.LastWeek or BriefingKind.RivalOffer && w.Get(new FighterId(stop.EventId)) is { } who)
@@ -1155,7 +1164,7 @@ public sealed class BriefingViewModel : ObservableObject
                     {
                         Icon = "Pen", Picture = Portraits.Thumb(f, w),
                         Text = $"{f.FirstName} {f.LastName}: last fight on the deal",
-                        Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}  ·  {f.Record}",
+                        Detail = $"{FighterRow.DivisionLabel(f)}  ·  {f.Record}",
                         Tone = CardTone.Warn,
                         ActionText = "Talk terms ▸", Command = NegotiateCommand is null ? null : Then(NegotiateCommand, f.Id.Value),
                     });
@@ -1246,7 +1255,8 @@ public sealed class BriefingViewModel : ObservableObject
             NextCountdownUnit = days <= 0 ? "" : days == 1 ? "day to go" : "days to go";
             string main = next.Card.LastOrDefault() is { } m && w.Get(m.RedCorner) is { } r && w.Get(m.BlueCorner) is { } b
                 ? $"{r.LastName} vs {b.LastName}" + (m.IsTitleFight ? " for the belt" : "") : "";
-            NextDetail = next.Card.Count == 0 ? "No bouts on it yet."
+            NextDetail = next.Format == EventFormat.Tournament && next.Card.Count == 0 ? "A bracket, drawn from your roster on the night"
+                : next.Card.Count == 0 ? "No bouts on it yet."
                 : $"{Plural(next.Card.Count, "bout")}" + (main.Length > 0 ? $"  ·  main event {main}" : "");
             if (next.Id.Value != _nextPosterEvent || next.Card.Count != _nextPosterBouts || NextPoster is null)
             {
@@ -1255,7 +1265,7 @@ public sealed class BriefingViewModel : ObservableObject
                 _nextPosterBouts = next.Card.Count;
             }
             int id = next.Id.Value;
-            NextActionText = next.Card.Count == 0 ? "Build the card ▸" : "The card ▸";
+            NextActionText = next.Format == EventFormat.Tournament ? "The bracket desk ▸" : next.Card.Count == 0 ? "Build the card ▸" : "The card ▸";
             NextCommand = Do(() => OpenCard?.Invoke(id));
             NoCardLine = "";
         }
@@ -1379,7 +1389,7 @@ public sealed class BriefingViewModel : ObservableObject
             {
                 Icon = "People", Picture = Portraits.Thumb(f, w), Weight = 70, Kicker = "SIGNED",
                 Text = $"{f.FirstName} {f.LastName} joined the roster",
-                Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}  ·  {f.Record}", Tone = CardTone.Good,
+                Detail = $"{FighterRow.DivisionLabel(f)}  ·  {f.Record}", Tone = CardTone.Good,
                 ActionText = "Profile ▸", Command = Do(() => OpenFighter?.Invoke(id)),
             });
         }
@@ -1402,7 +1412,7 @@ public sealed class BriefingViewModel : ObservableObject
                 Icon = "People", Picture = Portraits.Thumb(f, w), Kicker = retired ? "RETIRED" : "LEFT",
                 Weight = retired ? 60 : windowClosed ? 88 : 85,
                 Text = $"{f.FirstName} {f.LastName} {where}",
-                Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}  ·  {f.Record}",
+                Detail = $"{FighterRow.DivisionLabel(f)}  ·  {f.Record}",
                 Tone = retired ? CardTone.Neutral : CardTone.Bad,
                 ActionText = "Profile ▸", Command = Do(() => OpenFighter?.Invoke(gone)),
             };

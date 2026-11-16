@@ -1,0 +1,198 @@
+<UserControl x:Class="MmaManager.Wpf.Views.TournamentDeskView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+    <!-- THE BRACKET DESK (Book Event at a one-night-tournament house, Origins). No card to build: the
+         player puts a night on the books, sees who is fit to fight it and how the field is drawn, and after
+         the night reads the bracket round by round. Reads TournamentDeskViewModel only. -->
+    <Grid Background="{StaticResource Bg}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="380" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== The desk ===== -->
+        <DockPanel Margin="18,14,10,14">
+            <!-- Header: the house and what a night here is -->
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                <Border DockPanel.Dock="Left" Width="58" Height="58" CornerRadius="10" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" Margin="0,0,14,0">
+                    <Image Source="{Binding Logo}" Stretch="Uniform" />
+                </Border>
+                <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Top">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="The next night" GroupName="bracketDesk" IsChecked="{Binding ShowNextNight}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="The last bracket" GroupName="bracketDesk" IsChecked="{Binding ShowBracket}"
+                                     IsEnabled="{Binding HasBoard}" ToolTip="How the last night went, round by round" />
+                    </StackPanel>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="THE BRACKET DESK" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" />
+                    <TextBlock Text="{Binding HouseName}" Style="{StaticResource Text.Title}" />
+                    <TextBlock Text="{Binding NightLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Result line -->
+            <Border DockPanel.Dock="Top" Background="{StaticResource ToneGoodDim}" CornerRadius="6" Padding="12,7" Margin="0,0,0,10"
+                    Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding Status}" Foreground="{StaticResource ToneGood}" TextWrapping="Wrap" />
+            </Border>
+
+            <Grid>
+                <!-- ===== The next night: book it, and the field it would draw ===== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding ShowNextNight, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Margin="0,0,8,0">
+                        <!-- On the books -->
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,12" Visibility="{Binding HasNext, Converter={StaticResource BoolToVis}}">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                                    <Button Content="Cancel the night" Style="{StaticResource Button.Ghost}" Command="{Binding CancelCommand}"
+                                            ToolTip="Take this night off the books (asks first)" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="ON THE BOOKS" Style="{StaticResource Text.Kicker}" />
+                                    <TextBlock Text="{Binding NextName}" Style="{StaticResource Text.Title}" FontSize="22" />
+                                    <TextBlock Style="{StaticResource Text.Secondary}">
+                                        <Run Text="{Binding NextWhen, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding NextWhere, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Text="Advancing time stops on the night. You run the bracket from the red fight-night bar; every bout is fought under the house rules."
+                                               Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Not on the books yet -->
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,12" Visibility="{Binding NoNext, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="PUT A TOURNAMENT ON THE BOOKS" Style="{StaticResource Text.Kicker}" />
+                                <TextBlock Text="Pick the night. Nobody is drawn until then: the field is the fittest eight on your roster that day."
+                                           Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                                <StackPanel Orientation="Horizontal">
+                                    <DatePicker SelectedDate="{Binding Date}" Width="190" VerticalAlignment="Center" />
+                                    <Button Content="Book the night" Style="{StaticResource Button.Primary}" Command="{Binding ScheduleCommand}" Margin="12,0,0,0" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Error}" Foreground="{StaticResource ToneBad}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="{Binding CadenceLine}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The field -->
+                        <TextBlock Text="{Binding FieldHeadline}" Style="{StaticResource Text.Heading}" FontSize="16" />
+                        <TextBlock x:Name="FieldLineText" Text="{Binding FieldLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                        <ItemsControl ItemsSource="{Binding Field}" ItemTemplate="{StaticResource FieldEntryTemplate}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <StackPanel Visibility="{Binding HasLeftOut, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
+                            <TextBlock Text="NOT IN THE FIELD" Style="{StaticResource Text.Kicker}" Margin="0,0,0,6" />
+                            <ItemsControl ItemsSource="{Binding LeftOut}" ItemTemplate="{StaticResource FieldEntryTemplate}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== The last bracket, round by round ===== -->
+                <DockPanel Visibility="{Binding ShowBracket, Converter={StaticResource BoolToVis}}">
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock Text="{Binding Board.Title}" Style="{StaticResource Text.Title}" FontSize="22" />
+                        <TextBlock Text="{Binding Board.When}" Style="{StaticResource Text.Secondary}" />
+                    </StackPanel>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Orientation="Horizontal">
+                            <ItemsControl ItemsSource="{Binding Board.Rounds}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Width="250" Margin="0,0,14,0">
+                                            <TextBlock DockPanel.Dock="Top" Text="{Binding Name}" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" Margin="2,0,0,2" />
+                                            <!-- the round's bouts spread down the column, as a bracket's do -->
+                                            <ItemsControl ItemsSource="{Binding Bouts}" ItemTemplate="{StaticResource BracketBoutTemplate}" Focusable="False">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><UniformGrid Columns="1" VerticalAlignment="Stretch" /></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                            </ItemsControl>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- The champion -->
+                            <Border Width="230" Style="{StaticResource Panel}" VerticalAlignment="Stretch" Padding="0"
+                                    Visibility="{Binding Board.HasChampion, Converter={StaticResource BoolToVis}}">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Top" Margin="14,12,14,6">
+                                        <TextBlock Text="TONIGHT'S CHAMPION" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" />
+                                        <Button Style="{StaticResource Button.Link}" Padding="0" HorizontalAlignment="Left"
+                                                Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Board.ChampionId}">
+                                            <TextBlock Text="{Binding Board.ChampionName}" Style="{StaticResource Text.Title}" FontSize="19" TextWrapping="Wrap" />
+                                        </Button>
+                                        <TextBlock Text="{Binding Board.ChampionLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Image Source="{Binding Board.ChampionBody}" Stretch="Uniform" VerticalAlignment="Bottom" MaxHeight="420" />
+                                </DockPanel>
+                            </Border>
+                            <Border Width="230" Style="{StaticResource Panel}" VerticalAlignment="Top"
+                                    Visibility="{Binding Board.HasChampion, Converter={StaticResource InverseBoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="NO CHAMPION" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource ToneWarn}" />
+                                    <TextBlock Text="{Binding Board.Verdict}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Grid>
+        </DockPanel>
+
+        <!-- ===== The rail: the belt, the house rules, past nights ===== -->
+        <Border Grid.Column="1" Background="{StaticResource PanelFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1,0,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,14,16,14">
+                    <TextBlock Text="THE BELT" Style="{StaticResource Text.Kicker}" />
+                    <TextBlock Text="{Binding BeltName}" Style="{StaticResource Text.Heading}" TextWrapping="Wrap" Margin="0,2,0,6" />
+                    <DockPanel Visibility="{Binding HasBeltHolder, Converter={StaticResource BoolToVis}}" Margin="0,0,0,4">
+                        <Border DockPanel.Dock="Left" Width="52" Height="52" CornerRadius="26" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" Margin="0,0,10,0">
+                            <Image Source="{Binding BeltFace.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                        </Border>
+                        <Button Style="{StaticResource Button.Link}" Padding="0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding BeltHolderId}">
+                            <TextBlock Text="{Binding BeltHolder}" FontWeight="SemiBold" FontSize="14" />
+                        </Button>
+                    </DockPanel>
+                    <TextBlock Text="{Binding BeltLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,16" />
+
+                    <TextBlock Text="HOUSE RULES" Style="{StaticResource Text.Kicker}" Margin="0,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Rules}" ItemTemplate="{StaticResource RuleLineTemplate}" Focusable="False" Margin="0,0,0,14" />
+
+                    <StackPanel Visibility="{Binding HasPast, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="PAST NIGHTS" Style="{StaticResource Text.Kicker}" Margin="0,0,0,6" />
+                        <ItemsControl ItemsSource="{Binding Past}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource Button.Link}" HorizontalContentAlignment="Stretch" Padding="0" Margin="0,0,0,6"
+                                            Command="{Binding DataContext.ShowNightCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding Id}" ToolTip="See the bracket">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <TextBlock Style="{StaticResource Text.Caption}">
+                                                <Run Text="{Binding When, Mode=OneWay}" /><Run Text="  ·  won by " /><Run Text="{Binding Winner, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

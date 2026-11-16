@@ -18,7 +18,7 @@
         <Border DockPanel.Dock="Top" Background="{StaticResource Header}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="16,12">
             <StackPanel>
                 <TextBlock Text="📡 THE MEDIA DESK" FontSize="10.5" FontWeight="Bold" Foreground="{StaticResource TextSecondary}" />
-                <TextBlock Text="One deal per screen: a linear TV home, a streaming home, and the pay-per-view pipe. Networks pitch once — sign them or watch them move on."
+                <TextBlock Text="{Binding Headline}" TextWrapping="Wrap"
                            FontSize="12" Foreground="{StaticResource TextSecondary}" />
             </StackPanel>
         </Border>
@@ -124,6 +124,14 @@
             <!-- Right: the ladder of screens -->
             <DockPanel Grid.Column="1">
                 <TextBlock DockPanel.Dock="Top" Text="THE LADDER — EVERY SCREEN IN THE SPORT" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                <!-- the screens the sport hasn't got yet (Origins): said plainly, not listed as rungs to climb -->
+                <Border DockPanel.Dock="Bottom" Background="{StaticResource CardFill}" CornerRadius="{StaticResource Radius.Card}" Padding="12,10" Margin="0,8,0,0"
+                        Visibility="{Binding HasNotYet, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="NOT IN THE SPORT YET" Style="{StaticResource Text.Kicker}" />
+                        <TextBlock Text="{Binding NotYetLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                    </StackPanel>
+                </Border>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Ladder}">
                         <ItemsControl.ItemTemplate>

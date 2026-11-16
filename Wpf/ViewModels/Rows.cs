@@ -191,7 +191,7 @@ public sealed class FighterRow
 
     public string Name => _f.FullName;
     public int Age => _f.AgeOn(_w.CurrentDate);
-    public string Division => DivisionLabel(_f.WeightClass, _f.Sex);
+    public string Division => DivisionLabel(_f);
     public string Style => Pretty(_f.PrimaryStyle.ToString());
     public int Ovr => Scouted(_w, _f);
     public string Record => _f.Record.ToString();
@@ -628,9 +628,40 @@ public sealed class FighterRow
         return sb.ToString();
     }
 
-    /// <summary>A weight class labelled with sex — men's is the bare name, women's is prefixed.</summary>
+    /// <summary>A weight class labelled with sex — men's is the bare name, women's is prefixed.
+    /// In a world whose sport has not split this class out yet (Origins) it is "Open weight".</summary>
     public static string DivisionLabel(WeightClass wc, Sex sex) =>
-        sex == Sex.Female ? $"Women's {Pretty(wc.ToString())}" : Pretty(wc.ToString());
+        !ClassExists(wc, sex) ? OpenLabel
+        : sex == Sex.Female ? $"Women's {Pretty(wc.ToString())}" : Pretty(wc.ToString());
+
+    /// <summary>A fighter's division line: his class, or in an open-weight sport his size ("92 kg · open weight").</summary>
+    public static string DivisionLabel(Fighter f) =>
+        ClassExists(f.WeightClass, f.Sex) ? DivisionLabel(f.WeightClass, f.Sex) : $"{Kilos(f)} kg · open weight";
+
+    /// <summary>A bout's division: "Open weight" for an open-weight bout (never its filing class).</summary>
+    public static string DivisionLabel(Fight fight, Sex sex) => fight.OpenWeight ? OpenLabel : DivisionLabel(fight.WeightClass, sex);
+
+    /// <summary>A division's label: "Open weight" for the open division.</summary>
+    public static string DivisionLabel(Division d) => d.Open ? OpenLabel : DivisionLabel(d.WeightClass, d.Sex);
+
+    public const string OpenLabel = "Open weight";
+
+    /// <summary>A man's natural weight in kilograms.</summary>
+    public static int Kilos(Fighter f) => (int)Math.Round(f.NaturalWeightLbs / 2.2046);
+
+    /// <summary>
+    /// The world the labels are read in (set whenever a world attaches). Only its era is read: has the sport
+    /// split this class out yet? Always yes in today's mode, so today's labels never change.
+    /// </summary>
+    public static World? EraWorld { get; set; }
+
+    /// <summary>Has the sport got this division yet (always, in today's mode)?</summary>
+    public static bool ClassExists(WeightClass wc, Sex sex) =>
+        EraWorld is not { Mode: WorldMode.Origins } w || MmaManager.Core.Sim.Living.Era.AllowsDivision(w, wc, sex);
+
+    /// <summary>A title's division label (the open belt reads "Open weight", whatever class it is filed under).</summary>
+    public static string TitleDivision(World w, Title t, Sex sex = Sex.Male) =>
+        w.Get(t.Promotion)?.Divisions.FirstOrDefault(d => d.Title == t.Id) is { } d ? DivisionLabel(d) : DivisionLabel(t.WeightClass, sex);
 
     /// <summary>
     /// Sort key for a "12-3" record column (grids sort the display string

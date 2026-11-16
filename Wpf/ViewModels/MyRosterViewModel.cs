@@ -59,6 +59,7 @@ public sealed class MyRosterRow
             return b;
         }
     }
+    // (In an open-weight sport every man is in the one open division, whatever his size.)
     public string Division => FighterRow.DivisionLabel(_f.WeightClass, _f.Sex);
     public int Age => _f.AgeOn(_w.CurrentDate);
     public string Record => _f.Record.ToString();
@@ -80,7 +81,8 @@ public sealed class MyRosterRow
     public bool IsSidelined { get; }
 
     /// <summary>Division order: men's light→heavy, then women's.</summary>
-    public int DivisionKey => (int)_f.Sex * 100 + (int)_f.WeightClass;
+    public int DivisionKey => (int)_f.Sex * 100
+        + (int)(FighterRow.ClassExists(_f.WeightClass, _f.Sex) ? _f.WeightClass : MmaManager.Core.Model.Division.OpenClass);
 }
 
 /// <summary>

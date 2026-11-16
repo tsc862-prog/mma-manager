@@ -464,6 +464,16 @@ public sealed partial class BookingViewModel : ObservableObject
         RaiseHints();
     }
 
+    /// <summary>The player's house fights at open weight (an Origins house rule; never in today's mode): one division, any size.</summary>
+    private bool OpenHouse => _world?.Get(_world.PlayerPromotion)?.Rules.Fight?.OpenWeight == true;
+
+    /// <summary>The division a fighter is booked in: his class, or the open division at an open-weight house.</summary>
+    private DivisionPick DivisionOf(Fighter f) => OpenHouse ? new DivisionPick(Division.OpenClass, f.Sex) : new DivisionPick(f.WeightClass, f.Sex);
+
+    private bool SameDivision(Fighter a, Fighter b) => a.Sex == b.Sex && (OpenHouse || a.WeightClass == b.WeightClass);
+
+    private bool InScope(Fighter f, DivisionPick scope) => f.Sex == scope.Sex && (OpenHouse || f.WeightClass == scope.WeightClass);
+
     // Only offer weight classes the org actually has fighters in — a founded
     // promotion starts with none at all until the player hires.
     private void RefreshDivisions()
@@ -472,7 +482,7 @@ public sealed partial class BookingViewModel : ObservableObject
         // Only divisions (weight AND sex) you actually have fighters in.
         var mine = _world.RosterOf(_world.PlayerPromotion)
             .Where(f => f.Status != FighterStatus.Retired)
-            .Select(f => new DivisionPick(f.WeightClass, f.Sex))
+            .Select(DivisionOf)
             .Distinct()
             .OrderBy(d => d.Sex)
             .ThenBy(d => d.WeightClass)
@@ -517,9 +527,17 @@ public sealed partial class BookingViewModel : ObservableObject
             _ => "",
         };
         ReachLine = MmaManager.Core.Sim.Org.OrgReach.Describe(_world, promo) + business;
-        HasLocalOption = MmaManager.Core.Sim.Org.OrgSizing.SizeOf(promo) <= OrgSize.Regional;
+        HasLocalOption = MmaManager.Core.Sim.Org.OrgSizing.SizeOf(promo) <= OrgSize.Regional
+                         && _world.Mode == WorldMode.Modern;   // 1993 has no club scene to draw locals from
         PlayerLogo = Art.LogoFactory.ForPromotion(promo);
+        HouseRuleLines = HouseRules.For(promo);
+        OnPropertyChanged(nameof(HouseRuleLines));
+        OnPropertyChanged(nameof(HasHouseRules));
     }
+
+    /// <summary>The rules every bout on your cards is fought under, in plain words (an Origins house; empty today).</summary>
+    public IReadOnlyList<string> HouseRuleLines { get; private set; } = Array.Empty<string>();
+    public bool HasHouseRules => HouseRuleLines.Count > 0;
 
     private ImageSource? _playerLogo;
     /// <summary>Your promotion's logo, for the card's header.</summary>

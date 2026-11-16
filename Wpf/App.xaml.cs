@@ -1695,6 +1695,16 @@ public partial class App : Application
                         },
                     }, "You founded New Wave Fighting.");
                 }
+                else if (e.Args.Contains("--origins"))
+                {
+                    // An Origins career (1 January 1993): --origins <0 Crucible | 1 Shinken | 2 Duelo>,
+                    // then --weeks N of play (each fight night of yours simmed as it comes, unless
+                    // --holdnight leaves the last one waiting on the fight-night bar).
+                    int house = int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]);
+                    vm.StartWorld(WorldBuilder.Options.Origins(1993, house), OriginsHarness.Summary(house));
+                    int weeks = e.Args.Contains("--weeks") ? int.Parse(e.Args[Array.IndexOf(e.Args, "--weeks") + 1]) : 0;
+                    OriginsHarness.Play(vm, weeks, hold: e.Args.Contains("--holdnight"), bookNight: e.Args.Contains("--booknight"));
+                }
                 else
                     for (int i = 0; i < months; i++) vm.AdvanceMonthCommand.Execute(null);
                 if (e.Args.Contains("--card"))
@@ -2089,8 +2099,19 @@ public partial class App : Application
             try
             {
                 var win = new NewGameWindow();
+                if (e.Args.Contains("--origins")) win.ChooseOrigins(int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]));
                 var root = (FrameworkElement)win.Content;
-                const int W = 640, H = 640;
+                // The window sizes to its content: measure it at its width, then draw it at the height it wants.
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    root.Measure(new Size(win.Width, double.PositiveInfinity));
+                    root.Arrange(new Rect(new Size(win.Width, root.DesiredSize.Height))); root.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                }
+                root.Measure(new Size(win.Width, double.PositiveInfinity));
+                int W = (int)win.Width, H = (int)Math.Ceiling(root.DesiredSize.Height);
+                Console.WriteLine($"RENDERNEWGAME window {W}x{H}");
                 var size = new Size(W, H);
                 root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
                 System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(

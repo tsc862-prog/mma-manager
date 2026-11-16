@@ -211,12 +211,12 @@ public sealed partial class BookingViewModel
         var blue = CornerOf(b, r, false, bh, rh, host, titleFight, title);
 
         // The kicker and the one line on why it matters.
-        string divLabel = FighterRow.DivisionLabel(r.WeightClass, r.Sex);
+        string divLabel = FighterRow.DivisionLabel(r.WeightClass, r.Sex);   // the bout's division ("Open weight" in 1993)
         string slotWord = a.Source == SheetSource.Replace ? SlotLabelOf(ev, a.Replacing) : a.Slot switch
         {
             BoutSlot.MainEvent => "MAIN EVENT", BoutSlot.CoMain => "CO-MAIN", BoutSlot.MainCard => "MAIN CARD", _ => "PRELIM",
         };
-        string kicker = $"{slotWord} · {(titleFight ? $"{divLabel} title" : divLabel).ToUpperInvariant()} · {rounds} ROUNDS";
+        string kicker = $"{slotWord} · {(titleFight ? $"{divLabel} title" : divLabel).ToUpperInvariant()} · {HouseRules.Rounds(rounds, _world?.Get(_world.PlayerPromotion)).ToUpperInvariant()}";
         string headline = proposal?.Reason
             ?? (appraisal.Stakes == Stakes.Mismatch ? "A mismatch on our reads: the favourite should run through this."
                 : $"{char.ToUpperInvariant(appraisal.Summary[0])}{appraisal.Summary[1..]}.");
@@ -301,7 +301,7 @@ public sealed partial class BookingViewModel
         var ev = SelectedEvent!.Model;
         var x = FactsFor(f.Id);
         var st = _advisor.StandingOf(w, f.Id);
-        string divLabel = FighterRow.DivisionLabel(f.WeightClass, f.Sex);
+        string divLabel = FighterRow.DivisionLabel(f);
         string standing = f.LocalTalent ? "Local club fighter"
             : st.Kind == Standing.Champion ? $"{divLabel} champion"
             : st.Kind == Standing.Ranked ? $"#{st.Rank} at {divLabel}" : $"Unranked at {divLabel}";
@@ -571,7 +571,9 @@ public sealed partial class BookingViewModel
             lines.Add(new SheetLine("The belt", "A champion in a non-title fight: he'd risk his aura for nothing.", CardTone.Warn));
         else if (appraisal.Stakes == Stakes.TitleEliminator)
             lines.Add(new SheetLine("Title picture", "A title eliminator: the winner should be next.", CardTone.Info));
-        lines.Add(new SheetLine("Weight", $"{FighterRow.DivisionLabel(r.WeightClass, r.Sex)}, {rounds} rounds" + (r.WeightClass == b.WeightClass ? "" : " (a class mismatch)")));
+        lines.Add(new SheetLine("Weight", OpenHouse
+            ? $"Open weight: {FighterRow.Kilos(r)} kg against {FighterRow.Kilos(b)} kg, {HouseRules.Rounds(rounds, _world?.Get(_world.PlayerPromotion))}"
+            : $"{FighterRow.DivisionLabel(r)}, {rounds} rounds" + (r.WeightClass == b.WeightClass ? "" : " (a class mismatch)")));
         if (a.Source != SheetSource.Replace && a.Slot == BoutSlot.Prelim && appraisal.Appeal >= 60)
             lines.Add(new SheetLine("Slot", "A big fight for the prelims: the main card would sell it better.", CardTone.Info));
         if (appraisal.Stakes == Stakes.Mismatch)

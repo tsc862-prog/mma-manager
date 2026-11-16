@@ -118,7 +118,7 @@ public sealed class NewsViewModel : ObservableObject
             DivisionOptions.Add(new FilterOption { Label = "Every division", Key = "" });
             foreach (var sex in new[] { Sex.Male, Sex.Female })
                 foreach (var wc in Enum.GetValues<WeightClass>())
-                    if (world.Fighters.Values.Any(x => x.Sex == sex && x.WeightClass == wc))
+                    if (FighterRow.ClassExists(wc, sex) && world.Fighters.Values.Any(x => x.Sex == sex && x.WeightClass == wc))
                         DivisionOptions.Add(new FilterOption { Label = FighterRow.DivisionLabel(wc, sex), Key = $"{(int)sex}:{(int)wc}" });
             _division = DivisionOptions[0];
             OnPropertyChanged(nameof(Division));

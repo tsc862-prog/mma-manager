@@ -22,7 +22,15 @@
                 </DataGrid>
             </DockPanel>
 
-            <DockPanel Grid.Column="1">
+            <!-- An open-weight sport (Origins) has no divisions to rank: say so instead of an empty table -->
+            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="12,0,0,0" VerticalAlignment="Top"
+                    Visibility="{Binding HasDivisions, Converter={StaticResource InverseBoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="NO WEIGHT CLASSES YET" Style="{StaticResource Text.Kicker}" />
+                    <TextBlock Text="{Binding NoDivisionsLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                </StackPanel>
+            </Border>
+            <DockPanel Grid.Column="1" Visibility="{Binding HasDivisions, Converter={StaticResource BoolToVis}}">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                     <TextBlock Text="Division rankings" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
                     <ComboBox Width="150" ItemsSource="{Binding Divisions}" SelectedItem="{Binding SelectedDivision}" Margin="10,0,0,0" HorizontalAlignment="Left" />

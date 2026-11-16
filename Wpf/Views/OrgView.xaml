@@ -115,6 +115,8 @@
                             <ComboBox ItemsSource="{Binding BeltlessDivisions}" SelectedItem="{Binding SelectedBeltless}" />
                         </DockPanel>
                     </StackPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding NoBeltsLine}" FontSize="12" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
+                               Visibility="{Binding HasNoBeltsLine, Converter={StaticResource BoolToVis}}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="640">
                         <ItemsControl ItemsSource="{Binding Belts}">
                             <ItemsControl.ItemTemplate>
@@ -186,8 +188,10 @@
                 <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="House rules" FontWeight="Bold" />
-                        <TextBlock Text="How your promotion runs its fights. Applies to every card you book from here on."
+                        <TextBlock Text="{Binding HouseRulesBlurb}"
                                    FontSize="11" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,2,0,8" />
+                        <ItemsControl ItemsSource="{Binding HouseRuleLines}" ItemTemplate="{StaticResource RuleLineTemplate}" Focusable="False" Margin="0,0,0,6"
+                                      Visibility="{Binding HasOwnRules, Converter={StaticResource BoolToVis}}" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="150" />
@@ -196,18 +200,18 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Round length" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                            <TextBlock Grid.Row="0" Text="Round length" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="0" Grid.Column="1" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" Orientation="Horizontal" Margin="0,2">
                                 <ComboBox Width="70" ItemsSource="{Binding RoundMinuteOptions}" SelectedItem="{Binding RoundMinutes}" />
                                 <TextBlock Text="minutes" FontSize="11" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="6,0,0,0" />
                             </StackPanel>
-                            <TextBlock Grid.Row="1" Text="Standard bout" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                            <TextBlock Grid.Row="1" Text="Standard bout" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" Orientation="Horizontal" Margin="0,2">
                                 <ComboBox Width="70" ItemsSource="{Binding StandardRoundOptions}" SelectedItem="{Binding StandardRounds}" />
                                 <TextBlock Text="rounds" FontSize="11" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="6,0,0,0" />
                             </StackPanel>
-                            <TextBlock Grid.Row="2" Text="Title fight" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                            <TextBlock Grid.Row="2" Text="Title fight" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="2" Grid.Column="1" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" Orientation="Horizontal" Margin="0,2">
                                 <ComboBox Width="70" ItemsSource="{Binding TitleRoundOptions}" SelectedItem="{Binding TitleRounds}" />
                                 <TextBlock Text="rounds" FontSize="11" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="6,0,0,0" />
                             </StackPanel>

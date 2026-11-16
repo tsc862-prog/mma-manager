@@ -30,7 +30,7 @@ public sealed class FighterCardModel : Controls.ICardKey
         Id = f.Id.Value;
         Name = $"{f.FirstName} {f.LastName}";
         Nickname = f.Nickname is { Length: > 0 } nick ? $"“{nick}”" : "";
-        Division = FighterRow.DivisionLabel(f.WeightClass, f.Sex);
+        Division = FighterRow.DivisionLabel(f);
         Age = f.AgeOn(w.CurrentDate);
         Record = f.Record.ToString();
         Scout = FighterRow.Scouted(w, f);
@@ -38,7 +38,7 @@ public sealed class FighterCardModel : Controls.ICardKey
 
         var title = w.Titles.Values.FirstOrDefault(t => t.CurrentChampion == f.Id);
         IsChampion = title is not null;
-        ChampionText = title is null ? "" : $"{FighterRow.DivisionLabel(title.WeightClass, f.Sex)} champion";
+        ChampionText = title is null ? "" : $"{FighterRow.TitleDivision(w, title, f.Sex)} champion";
         IsFace = Core.Sim.Org.Franchise.IsFace(w, f);
 
         var c = f.Contract;

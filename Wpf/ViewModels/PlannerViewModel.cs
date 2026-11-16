@@ -188,10 +188,16 @@ public sealed class PlannerViewModel : ObservableObject
         Rebuild();
     }
 
+    /// <summary>The plan button's words: a card, or at a one-night-bracket house (Origins) a tournament night.</summary>
+    public string PlanText => Bracket ? "Book a tournament" : "Plan a card";
+    public string PlanHereText => Bracket ? "Book a tournament here" : "Plan a card here";
+    private bool Bracket => _world?.Get(_world.PlayerPromotion)?.Rules.ShowFormat == ShowFormat.OneNightTournament;
+
     public void Attach(World world)
     {
         bool sameWorld = ReferenceEquals(world, _world);
         _world = world;
+        OnPropertyChanged(nameof(PlanText)); OnPropertyChanged(nameof(PlanHereText));
         if (!sameWorld) { _month = DefaultMonth; _selected = null; OnPropertyChanged(nameof(Month)); OnPropertyChanged(nameof(MonthTitle)); }
         else
         {

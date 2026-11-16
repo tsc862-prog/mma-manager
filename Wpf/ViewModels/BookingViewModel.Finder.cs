@@ -383,7 +383,7 @@ public sealed partial class BookingViewModel
     private LadderEntry Row(FighterFacts x, string line, System.Windows.Input.ICommand? command, string cost = "")
     {
         var f = x.F;
-        var div = FighterRow.DivisionLabel(f.WeightClass, f.Sex);
+        var div = FighterRow.DivisionLabel(f);
         return new LadderEntry(f, _world!, this, x.Standing.Label, line, x.Ready, x.Why)
         {
             Command = command,
@@ -497,7 +497,7 @@ public sealed partial class BookingViewModel
     {
         var f = _world?.Get(id);
         if (f is null) return;
-        var div = Divisions.FirstOrDefault(d => d.WeightClass == f.WeightClass && d.Sex == f.Sex);
+        var div = Divisions.FirstOrDefault(d => d == DivisionOf(f));
         if (div is null) return;
         if (SelectedDivision != div) SelectedDivision = div;
         SelectedRed = RedOptions.FirstOrDefault(o => o.Id == id);
