@@ -43,6 +43,14 @@ public sealed class MediaViewModel : ObservableObject
     public ObservableCollection<OfferRow> Offers { get; } = new();
     public ObservableCollection<RungRow> Ladder { get; } = new();
 
+    /// <summary>The desk's one-line brief (today's lanes, or what a 1993 promoter can actually sell).</summary>
+    public string Headline { get; private set; } = Today;
+    private const string Today = "One deal per screen: a linear TV home, a streaming home, and the pay-per-view pipe. Networks pitch once — sign them or watch them move on.";
+
+    /// <summary>The screens the sport hasn't got yet (an Origins world), in plain words; empty today.</summary>
+    public string NotYetLine { get; private set; } = "";
+    public bool HasNotYet => NotYetLine.Length > 0;
+
     private bool _hasStream;
     public bool HasStream { get => _hasStream; private set => Set(ref _hasStream, value); }
 
@@ -84,6 +92,13 @@ public sealed class MediaViewModel : ObservableObject
         });
     }
 
+    private static string Join(IReadOnlyList<string> items) => items.Count switch
+    {
+        0 => "",
+        1 => items[0],
+        _ => string.Join(", ", items.Take(items.Count - 1)) + " or " + items[^1],
+    };
+
     public void Attach(World world)
     {
         _world = world;
@@ -102,8 +117,19 @@ public sealed class MediaViewModel : ObservableObject
         foreach (var o in promo.Offers.Where(o => o.Media is not null).OrderBy(o => o.ExpiresOn))
             Offers.Add(new OfferRow(o));
 
+        // Only the screens the sport has (every one, today); the rest are named once, as not there yet.
+        var missing = new List<string>();
         foreach (var rung in MediaService.LadderView(_world, promo))
-            Ladder.Add(new RungRow(rung, promo));
+            if (Core.Sim.Living.Era.AllowsMedia(_world, rung.Kind)) Ladder.Add(new RungRow(rung, promo));
+            else missing.Add(rung.Label);
+        bool streams = Core.Sim.Living.Era.AllowsMedia(_world, MediaKind.InHouseStream);
+        if (!streams && !missing.Contains(MediaService.Label(MediaKind.InHouseStream))) missing.Add(MediaService.Label(MediaKind.InHouseStream));
+        NotYetLine = missing.Count == 0 ? ""
+            : $"The sport hasn't got {Join(missing.Select(m => m.ToLowerInvariant()).ToList())} yet. When it does, the offers start here.";
+        Headline = _world.Mode == WorldMode.Modern ? Today
+            : Ladder.Count == 0 ? "No screen carries the sport yet. A night is sold to the people in the room."
+            : $"What the sport has for now: {Join(Ladder.Select(r => r.Label).ToList())}. Carriers pitch once — sign them or watch them move on.";
+        OnPropertyChanged(nameof(Headline)); OnPropertyChanged(nameof(NotYetLine)); OnPropertyChanged(nameof(HasNotYet));
 
         HasStream = promo.Stream is not null;
         if (promo.Stream is { } s)
@@ -115,10 +141,11 @@ public sealed class MediaViewModel : ObservableObject
         }
         else { StreamHeadline = ""; StreamDetail = ""; }
 
-        CanLaunchStream = promo.Stream is null
+        CanLaunchStream = promo.Stream is null && streams
             && MediaService.LaneOpen(promo, MediaKind.InHouseStream)
             && promo.Balance.Amount >= MediaService.StreamLaunchCost.Amount;
         StreamPitch = promo.Stream is not null ? ""
+            : !streams ? $"{promo.Abbreviation}+ will have to wait: nobody streams fights in {_world.CurrentDate.Year}. Your nights sell in the room and, if a carrier takes them, on pay-per-view."
             : MediaService.LaneOpen(promo, MediaKind.InHouseStream)
                 ? $"Launch {promo.Abbreviation}+ for {MediaService.StreamLaunchCost} (plus monthly operations): our own service, " +
                   "every card aired, no network in between. Viable on a war chest or a following — painful on neither."

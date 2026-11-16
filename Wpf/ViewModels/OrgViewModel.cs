@@ -13,7 +13,7 @@ public sealed class BeltRow
 {
     public BeltRow(Title t, Division d, World w)
     {
-        Division = FighterRow.DivisionLabel(d.WeightClass, d.Sex);
+        Division = FighterRow.DivisionLabel(d);
         BeltName = t.Name;
         Prestige = t.Prestige.Value;
 
@@ -91,7 +91,7 @@ public sealed class ObjectiveRow
 }
 
 /// <summary>The org screen: hire/fire back-office staff and track the owner's objectives.</summary>
-public sealed class OrgViewModel : ObservableObject
+public sealed partial class OrgViewModel : ObservableObject
 {
     private World? _world;
     public Action? OnChanged { get; set; }
@@ -202,6 +202,16 @@ public sealed class OrgViewModel : ObservableObject
 
     // --- House rules (the owner's ruleset, written straight to the model) ----
     public int[] RoundMinuteOptions { get; } = { 3, 4, 5 };
+
+    public string NoBeltsLine { get; private set; } = "";
+    public bool HasNoBeltsLine => NoBeltsLine.Length > 0;
+
+    /// <summary>The house's own rules in plain words (an Origins house; empty today, when the rounds are the owner's to set).</summary>
+    public IReadOnlyList<string> HouseRuleLines { get; private set; } = Array.Empty<string>();
+    public bool HasOwnRules => HouseRuleLines.Count > 0;
+    public string HouseRulesBlurb => HasOwnRules
+        ? "How your house fights. Every card you book is fought under these rules."
+        : "How your promotion runs its fights. Applies to every card you book from here on.";
     public int[] StandardRoundOptions { get; } = { 2, 3, 5 };
     public int[] TitleRoundOptions { get; } = { 3, 5 };
 
@@ -309,16 +319,35 @@ public sealed class OrgViewModel : ObservableObject
         // Weight classes we have fighters in but no sanctioned belt for — the
         // owner can commission one (creating the division alongside if needed).
         BeltlessDivisions.Clear();
+        // (An open-weight house has no classes to sanction a belt in: the sport hasn't split them out.)
+        bool openHouse = promo.Rules.Fight?.OpenWeight == true;
         var titled = promo.Divisions.Where(d => d.Title is not null)
             .Select(d => new DivisionPick(d.WeightClass, d.Sex)).ToHashSet();
         foreach (var pick in _world.RosterOf(promo.Id)
                      .Where(f => f.Status != FighterStatus.Retired)
+                     // (a man inside a titled weight band, after an Origins split, already has his belt)
+                     .Where(f => !promo.Divisions.Any(d => d.Lightest is not null && d.Title is not null && d.Matches(f)))
                      .Select(f => new DivisionPick(f.WeightClass, f.Sex))
                      .Distinct()
-                     .Where(p => !titled.Contains(p))
+                     .Where(p => !openHouse && !titled.Contains(p))
                      .OrderBy(p => p.Sex).ThenBy(p => p.WeightClass))
             BeltlessDivisions.Add(pick);
         HasBeltless = BeltlessDivisions.Count > 0;
+        // An Origins house with no belt says why (today's empty panel stays as it was).
+        NoBeltsLine = Belts.Count > 0 || _world.Mode == WorldMode.Modern ? ""
+            : promo.Rules.ShowFormat == ShowFormat.GymChallenge
+                ? "No belts here. A challenge night settles an argument between two gyms; nobody is crowned."
+                : "No belt yet.";
+        OnPropertyChanged(nameof(NoBeltsLine)); OnPropertyChanged(nameof(HasNoBeltsLine));
+
+        // An Origins house fights under its own rules, set when it was founded: they are read here, not edited.
+        HouseRuleLines = HouseRules.For(promo);
+        if (HouseRules.NightLine(promo) is { Length: > 0 } night && HouseRules.HasOwn(promo))
+            HouseRuleLines = new[] { night }.Concat(HouseRuleLines).ToList();
+        OnPropertyChanged(nameof(HouseRuleLines));
+        OnPropertyChanged(nameof(HasOwnRules));
+        OnPropertyChanged(nameof(HouseRulesBlurb));
+        RefreshReforms(promo);
         if (SelectedBeltless is not { } sel || !BeltlessDivisions.Contains(sel))
             SelectedBeltless = BeltlessDivisions.FirstOrDefault();
 

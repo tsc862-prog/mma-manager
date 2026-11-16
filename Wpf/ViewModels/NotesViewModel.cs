@@ -16,7 +16,7 @@ public sealed class ShortlistRow
         FighterId = f.Id.Value;
         Portrait = Portraits.For(f, w);
         Name = f.FullName;
-        Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}  ·  {f.AgeOn(w.CurrentDate)}y  ·  {f.Record}  ·  Sct {FighterRow.Scouted(w, f)}";
+        Detail = $"{FighterRow.DivisionLabel(f)}  ·  {f.AgeOn(w.CurrentDate)}y  ·  {f.Record}  ·  Sct {FighterRow.Scouted(w, f)}";
         Status = f.Contract is { } c
             ? (c.Promotion == w.PlayerPromotion ? "on OUR roster" : $"signed to {w.Get(c.Promotion)?.Abbreviation ?? "?"}")
             : f.Status == FighterStatus.Retired ? "retired" : "FREE AGENT";

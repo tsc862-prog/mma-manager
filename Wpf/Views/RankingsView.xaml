@@ -59,7 +59,7 @@
                         <Image Source="{Binding ChampionPortrait}" Stretch="UniformToFill" />
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock FontSize="10" FontWeight="Bold" Foreground="{StaticResource Gold}" Text="CHAMPION" />
+                        <TextBlock FontSize="10" FontWeight="Bold" Foreground="{StaticResource Gold}" Text="{Binding ChampionKicker}" />
                         <TextBlock Text="{Binding ChampionText}" FontWeight="Bold" FontSize="14" />
                         <TextBlock Text="{Binding ChampionReign}" Foreground="{StaticResource TextSecondary}" FontSize="11.5" />
                     </StackPanel>

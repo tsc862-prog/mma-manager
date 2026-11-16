@@ -59,7 +59,14 @@ public sealed class MyRosterRow
             return b;
         }
     }
-    public string Division => FighterRow.DivisionLabel(_f.WeightClass, _f.Sex);
+    // (In an open-weight sport every man is in the one open division, whatever his size.)
+    // After an Origins weight split, the BAND of your house he fights in ("Middleweight · up to 185 lb").
+    // Your house first: its open division ("Open weight"), or its band; only then his class. (Today: his class.)
+    public string Division => Band is { } band ? FighterRow.DivisionLabel(band) : FighterRow.DivisionLabel(_f.WeightClass, _f.Sex);
+    private MmaManager.Core.Model.Division? Band =>
+        _w.Mode != MmaManager.Core.Model.WorldMode.Origins || _w.Get(_w.PlayerPromotion) is not { } house ? null
+        : house.Divisions.FirstOrDefault(d => d.Open && d.Sex == _f.Sex)
+          ?? house.Divisions.FirstOrDefault(d => !d.Open && d.Lightest is not null && d.Matches(_f));
     public int Age => _f.AgeOn(_w.CurrentDate);
     public string Record => _f.Record.ToString();
     public int RecordSort => FighterRow.RecordKey(_f.Record);
@@ -80,7 +87,8 @@ public sealed class MyRosterRow
     public bool IsSidelined { get; }
 
     /// <summary>Division order: men's light→heavy, then women's.</summary>
-    public int DivisionKey => (int)_f.Sex * 100 + (int)_f.WeightClass;
+    public int DivisionKey => (int)_f.Sex * 100
+        + (int)(Band?.WeightClass ?? (FighterRow.ClassExists(_f.WeightClass, _f.Sex) ? _f.WeightClass : MmaManager.Core.Model.Division.OpenClass));
 }
 
 /// <summary>

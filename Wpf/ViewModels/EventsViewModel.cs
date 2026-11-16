@@ -48,7 +48,7 @@ public sealed class EventBoutRow
         Slot = slot;
         IsMainEvent = slot == "Main event";
         IsTitle = f.IsTitleFight;
-        Division = FighterRow.Pretty(f.WeightClass.ToString());
+        Division = FighterRow.DivisionLabel(f, w.Get(f.RedCorner)?.Sex ?? Sex.Male);   // "Open weight" for an open-weight bout
         var red = w.Get(f.RedCorner);
         var blue = w.Get(f.BlueCorner);
         RedName = red?.FullName ?? "?";
@@ -60,7 +60,7 @@ public sealed class EventBoutRow
 
         if (f.Outcome is not { } o)
         {
-            ResultLine = $"Scheduled · {f.ScheduledRounds} rounds";
+            ResultLine = $"Scheduled · {HouseRules.Rounds(f.ScheduledRounds, w.Get(e.Promotion))}";
             return;
         }
 
@@ -126,6 +126,12 @@ public sealed class EventsViewModel : ObservableObject
     }
 
     // --- The event page -----------------------------------------------------
+    private BracketBoard? _bracket;
+    /// <summary>A fought one-night tournament, drawn as a bracket (Origins); null for a card.</summary>
+    public BracketBoard? Bracket { get => _bracket; private set { if (Set(ref _bracket, value)) { OnPropertyChanged(nameof(HasBracket)); OnPropertyChanged(nameof(BracketChampion)); } } }
+    public bool HasBracket => _bracket is not null;
+    public string BracketChampion => _bracket is null ? "" : _bracket.HasChampion ? _bracket.ChampionName : "nobody (" + _bracket.Verdict + ")";
+
     private bool _hasDetail;
     public bool HasDetail { get => _hasDetail; private set => Set(ref _hasDetail, value); }
 
@@ -180,6 +186,7 @@ public sealed class EventsViewModel : ObservableObject
     private void BuildDetail()
     {
         Card.Clear();
+        Bracket = null;
         if (_world is null || Selected is null
             || _world.Events.Values.FirstOrDefault(e => e.Id.Value == Selected.Id) is not { } ev)
         {
@@ -214,8 +221,11 @@ public sealed class EventsViewModel : ObservableObject
             FinInRed = false;
             FinLine = ev.Status == EventStatus.Cancelled
                 ? "Cancelled — the card fell apart before the doors opened."
-                : $"Scheduled  ·  {ev.Card.Count} bout{(ev.Card.Count == 1 ? "" : "s")} booked";
+                : ev.Format == EventFormat.Tournament
+                    ? $"Scheduled  ·  a {_world.Get(ev.Promotion)?.Rules.TournamentSize ?? 8}-man bracket, drawn from the roster on the night"
+                    : $"Scheduled  ·  {ev.Card.Count} bout{(ev.Card.Count == 1 ? "" : "s")} booked";
         }
+        Bracket = BracketBoard.From(_world, ev);
 
         // Billing order: the main event tops the page.
         for (int i = ev.Card.Count - 1; i >= 0; i--)

@@ -286,8 +286,9 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Content="▶ Watch Live" Command="{Binding WatchTonightCommand}" FontWeight="SemiBold"
-                            Background="{StaticResource Crimson}" BorderBrush="{StaticResource Crimson}" Foreground="White" />
-                    <Button Content="Sim Result" Command="{Binding SimTonightCommand}" Margin="8,0,0,0" />
+                            Background="{StaticResource Crimson}" BorderBrush="{StaticResource Crimson}" Foreground="White"
+                            Visibility="{Binding IsBracketNight, Converter={StaticResource InverseBoolToVis}}" />
+                    <Button Content="{Binding SimTonightText}" Command="{Binding SimTonightCommand}" Margin="8,0,0,0" />
                 </StackPanel>
                 <TextBlock Text="{Binding FightNightLine}" FontWeight="Bold" Foreground="#F2D7D3" VerticalAlignment="Center" />
             </DockPanel>

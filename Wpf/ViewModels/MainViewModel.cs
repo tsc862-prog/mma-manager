@@ -88,7 +88,7 @@ public sealed class MainViewModel : ObservableObject
             OrgsPage.Select(id);
             NavigateTo(Tab.Orgs);
         });
-        WatchTonightCommand = new RelayCommand(() => { if (DuePlayerEvent() is { } ev) RunLive(ev); }, () => IsFightNight);
+        WatchTonightCommand = new RelayCommand(() => { if (DuePlayerEvent() is { } ev) RunLive(ev); }, () => IsFightNight && !IsBracketNight);
         SimTonightCommand = new RelayCommand(SimPendingEvent, () => IsFightNight);
         RetainFighterCommand = new RelayCommand(RetainSelected, () => CanRetainSelected);
         NegotiateFighterCommand = new RelayCommand<int>(NegotiateFighter);
@@ -103,13 +103,20 @@ public sealed class MainViewModel : ObservableObject
         Org.OnChanged = RefreshAll;         // hiring/firing changes staff and overhead
         Camps.OnChanged = RefreshAll;       // a team deal / camp report moves the balance
         Booking.OnRunLive = RunLive;        // "run & watch" a card
+        Tournament.OnChanged = RefreshAll;  // a night booked or cancelled
         Booking.OpenContracts = () => NavigateTo(Tab.Contracts);   // empty roster: go sign someone
         Booking.SimTonightCommand = SimTonightCommand;             // fight night's second door, on the card's header
         // Destructive booking actions ask first — in the interactive app only;
         // harness runs never open a dialog (null = go ahead as scripted).
         if (!HeadlessAutoBoot)
+            Tournament.Confirm = (heading, body, detail, confirm) =>
+                MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep the night");
+        if (!HeadlessAutoBoot)
             Booking.Confirm = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep the event");
+        if (!HeadlessAutoBoot)
+            Org.Confirm = (heading, body, detail, confirm) =>
+                MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
         Dashboard.Navigate = NavigateTo;                  // home-page shortcuts jump to their screen
         Dashboard.GetWorld = () => _world;                // the desk acts on the live world
         Dashboard.OnDecisionMade = RefreshAll;            // a decision moves loyalty/rankings/money
@@ -133,9 +140,15 @@ public sealed class MainViewModel : ObservableObject
         Planner.PlanCardOn = date =>
         {
             Booking.NewEventDate = date.ToDateTime(TimeOnly.MinValue);
+            if (Tournament.Applies && !Tournament.HasNext) { Tournament.Date = date.ToDateTime(TimeOnly.MinValue); Tournament.ShowNextNight = true; }
             NavigateTo(Tab.BookEvent);
         };
-        Planner.OpenMyCard = id => { Booking.SelectEvent(id); NavigateTo(Tab.BookEvent); };
+        Planner.OpenMyCard = id =>
+        {
+            Booking.SelectEvent(id);
+            if (Tournament.Applies) { if (LiveWorld?.Get(id) is { Status: EventStatus.Completed }) Tournament.ShowNight(id); else Tournament.ShowNextNight = true; }
+            NavigateTo(Tab.BookEvent);
+        };
         Planner.Navigate = NavigateTo;
         Planner.NegotiateCommand = NegotiateFighterCommand;   // a free agent's offer deadline: sit down with him
         Moments.OpenFighter = OpenFighter;
@@ -143,10 +156,7 @@ public sealed class MainViewModel : ObservableObject
         WireMail();
         WireBriefing();
 
-        RankingDivisions = new ObservableCollection<DivisionPick>(
-            Enum.GetValues<WeightClass>().Select(w => new DivisionPick(w, Sex.Male))
-                .Concat(new[] { WeightClass.Strawweight, WeightClass.Flyweight, WeightClass.Bantamweight }
-                    .Select(w => new DivisionPick(w, Sex.Female))));
+        RankingDivisions = new ObservableCollection<DivisionPick>(RankingPicks());
 
         // Headless render/selftest runs boot straight into the deterministic
         // quick-start world; the interactive app shows the start screen instead
@@ -186,7 +196,16 @@ public sealed class MainViewModel : ObservableObject
     private void WireBriefing()
     {
         Briefing.Navigate = NavigateTo;
-        Briefing.OpenCard = id => { Booking.SelectEvent(new EventId(id)); NavigateTo(Tab.BookEvent); };
+        Briefing.OpenCard = id =>
+        {
+            Booking.SelectEvent(new EventId(id));
+            if (Tournament.Applies)
+            {
+                if (LiveWorld?.Get(new EventId(id)) is { Status: EventStatus.Completed }) Tournament.ShowNight(new EventId(id));
+                else Tournament.ShowNextNight = true;
+            }
+            NavigateTo(Tab.BookEvent);
+        };
         Briefing.OpenFighter = OpenFighter;
         Briefing.OpenEvent = id => OpenEventCommand.Execute(id);
         Briefing.Close = () =>
@@ -200,6 +219,7 @@ public sealed class MainViewModel : ObservableObject
         Briefing.AcceptDecisionCommand = Dashboard.AcceptDecisionCommand;   // OnDecisionMade refreshes everything
         Briefing.DeclineDecisionCommand = Dashboard.DeclineDecisionCommand;
         Briefing.AdvanceWeekCommand = AdvanceWeekCommand;
+        Briefing.OpenStoryCommand = new RelayCommand(() => Desktop.Open("story"));
         if (!HeadlessAutoBoot)
             // One confirm for costly desk answers, on every surface (Home, Inbox, Briefing
             // all run Dashboard.AcceptDecisionCommand).
@@ -436,6 +456,16 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>The Book Event screen (player matchmaking).</summary>
     public BookingViewModel Booking { get; } = new();
 
+    /// <summary>The Bracket Desk: Book Event at a one-night-tournament house (Origins).</summary>
+    public TournamentDeskViewModel Tournament { get; } = new();
+
+    /// <summary>Tonight's night of yours is a one-night bracket: nothing to watch bout by bout, the bracket is run.</summary>
+    public bool IsBracketNight { get => _isBracketNight; private set { if (Set(ref _isBracketNight, value)) OnPropertyChanged(nameof(SimTonightText)); } }
+    private bool _isBracketNight;
+
+    /// <summary>The fight-night bar's sim button: "Sim Result", or "Run the bracket" on a tournament night.</summary>
+    public string SimTonightText => _isBracketNight ? "▶ Run the bracket" : "Sim Result";
+
     /// <summary>The Contracts screen (free agency, renewals, releases).</summary>
     public ContractsViewModel Contracts { get; } = new();
 
@@ -491,6 +521,8 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The Monday briefing: why the clock stopped, the fix, what happened, what's next.</summary>
     public BriefingViewModel Briefing { get; } = new();
+    /// <summary>The Story So Far (Origins only).</summary>
+    public StoryViewModel Story { get; } = new();
 
     
 
@@ -695,6 +727,33 @@ public sealed class MainViewModel : ObservableObject
         RefreshAll();
     }
 
+    /// <summary>The divisions the Rankings screen offers: every class (today), or only the ones the sport
+    /// has so far (an Origins world: the open division, filed under its nominal class, first).</summary>
+    private List<DivisionPick> RankingPicks()
+    {
+        var all = Enum.GetValues<WeightClass>().Select(w => new DivisionPick(w, Sex.Male))
+            .Concat(new[] { WeightClass.Strawweight, WeightClass.Flyweight, WeightClass.Bantamweight }
+                .Select(w => new DivisionPick(w, Sex.Female)));
+        if (FighterRow.EraWorld is not { Mode: WorldMode.Origins }) return all.ToList();
+        // (Labelled by the house being viewed: its open division, or ITS band's weights, never the player's.)
+        var house = (_selectedOrg ?? _world?.Get(_world.PlayerPromotion))?.Id;
+        return new[] { new DivisionPick(Division.OpenClass, Sex.Male) }
+            .Concat(all.Where(p => FighterRow.ClassExists(p.WeightClass, p.Sex))).Distinct()
+            .Select(p => p with { House = house }).ToList();
+    }
+
+    /// <summary>Rebuild the Rankings picker when its picks or their labels changed (the viewed house), keeping the pick.</summary>
+    private void RefreshRankingPicks()
+    {
+        var picks = RankingPicks();
+        if (picks.Select(p => p.Label).SequenceEqual(RankingDivisions.Select(p => p.Label))) return;
+        var keep = _rankingDivision;
+        RankingDivisions.Clear();
+        foreach (var p in picks) RankingDivisions.Add(p);
+        _rankingDivision = picks.FirstOrDefault(p => p == keep) ?? picks[0];
+        OnPropertyChanged(nameof(RankingDivision));
+    }
+
     private DivisionPick _rankingDivision = new(WeightClass.Lightweight, Sex.Male);
     public DivisionPick RankingDivision { get => _rankingDivision; set { if (value is not null && Set(ref _rankingDivision, value)) RefreshStandings(); } }
 
@@ -702,10 +761,13 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<Promotion> Organizations { get; } = new();
 
     private Promotion? _selectedOrg;
-    public Promotion? SelectedOrg { get => _selectedOrg; set { if (Set(ref _selectedOrg, value)) RefreshStandings(); } }
+    public Promotion? SelectedOrg { get => _selectedOrg; set { if (Set(ref _selectedOrg, value)) { RefreshRankingPicks(); RefreshStandings(); } } }
 
     private string _championText = "";
     public string ChampionText { get => _championText; private set => Set(ref _championText, value); }
+
+    private string _championKicker = "CHAMPION";
+    public string ChampionKicker { get => _championKicker; private set => Set(ref _championKicker, value); }
 
     private string _championReign = "";
     public string ChampionReign { get => _championReign; private set => Set(ref _championReign, value); }
@@ -770,7 +832,9 @@ public sealed class MainViewModel : ObservableObject
         if (DuePlayerEvent() is { } due)
         {
             Booking.SelectEvent(due.Id);
-            StatusText = $"▶ Time can't move on: {due.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar first.";
+            StatusText = due.Format == EventFormat.Tournament
+                ? $"▶ Time can't move on: {due.Name} is tonight. Run the bracket from the red fight-night bar first."
+                : $"▶ Time can't move on: {due.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar first.";
             Briefing.Blocked(_world, due);
             if (BriefingOnStop) NavigateTo(Tab.Briefing);
             else NavigateTo(Tab.BookEvent);
@@ -851,7 +915,9 @@ public sealed class MainViewModel : ObservableObject
         {
             Booking.SelectEvent(pending.Id);
             if (!BriefingOnStop) NavigateTo(Tab.BookEvent);
-            StatusText = $"▶ Time stopped: {pending.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar.";
+            StatusText = pending.Format == EventFormat.Tournament
+                ? $"▶ Time stopped: {pending.Name} is tonight. Run the bracket from the red fight-night bar."
+                : $"▶ Time stopped: {pending.Name} is tonight. Use Watch Live or Sim Result in the red fight-night bar.";
         }
 
         // Every stop gets the briefing: why it stopped, the fix, what happened, what's next.
@@ -888,11 +954,25 @@ public sealed class MainViewModel : ObservableObject
         RefreshAll();
         Autosave();
         EventsPage.Select(ev.Id.Value);
-        if (!BriefingOnStop) NavigateTo(Tab.Events);
         var fin = ev.Financials;
-        StatusText = fin is null
-            ? $"{ev.Name} is in the books — results are on the event page."
-            : $"{ev.Name} is in the books — house {fin.Attendance:N0}, gate {fin.GateRevenue}.";
+        if (ev.Format == EventFormat.Tournament)
+        {
+            // A bracket night lands on its bracket (the Bracket Desk), not on a card page.
+            Tournament.ShowNight(ev.Id);
+            if (!BriefingOnStop) NavigateTo(Tab.BookEvent);
+            var board = Tournament.Board;
+            StatusText = ev.Status == EventStatus.Cancelled
+                ? $"{ev.Name} was called off: you couldn't field a full bracket tonight."
+                : (board?.HasChampion == true ? $"{board.ChampionName} wins {ev.Name}." : $"{ev.Name} ends without a champion.")
+                  + (fin is null ? "" : $" House {fin.Attendance:N0}, gate {fin.GateRevenue}.");
+        }
+        else
+        {
+            if (!BriefingOnStop) NavigateTo(Tab.Events);
+            StatusText = fin is null
+                ? $"{ev.Name} is in the books — results are on the event page."
+                : $"{ev.Name} is in the books — house {fin.Attendance:N0}, gate {fin.GateRevenue}.";
+        }
         // The result is on the strip; a big night then takes the desk, and the
         // briefing (the night's results, what's next) follows it.
         Briefing.AfterCard(_world, before, ev);
@@ -1000,6 +1080,7 @@ public sealed class MainViewModel : ObservableObject
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
             Moments.Reset();
             Briefing.Reset();
+            Briefing.Loaded(_world);                             // chapters in the save were told already
             LastAdvance = $"Loaded {Path.GetFileName(path)}.";
             StatusText = "";   // the last career's results don't carry over
             IsGameStarted = true;
@@ -1093,6 +1174,7 @@ public sealed class MainViewModel : ObservableObject
     private void RefreshAll()
     {
         if (_world is null) return;
+        FighterRow.EraWorld = _world;   // every label below reads the sport's era (open weight in 1993)
         var player = _world.Get(_world.PlayerPromotion);
         Title = player is null ? "PromoterOS" : $"PromoterOS — {player.Name}";
         PlayerLogo = player is null ? null : LogoFactory.ForPromotion(player);
@@ -1133,6 +1215,7 @@ public sealed class MainViewModel : ObservableObject
         // field so we don't refresh standings twice during RefreshAll).
         _selectedOrg = _world.Get(_world.PlayerPromotion) ?? Organizations.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedOrg));
+        RefreshRankingPicks();   // (after the viewed house is known: the picks are labelled by it)
 
         // Stamp portrait personas onto the model: the marketable look baked into
         // each fighter's assigned portrait (glam/adonis/menace/inked/babyface)
@@ -1148,13 +1231,17 @@ public sealed class MainViewModel : ObservableObject
         // Fight night: a due player card holds time hostage until watched/simmed.
         var tonight = DuePlayerEvent();
         IsFightNight = tonight is not null;
-        FightNightLine = tonight is null ? "" : $"🔔  FIGHT NIGHT — {tonight.Name}, {tonight.Card.Count} bout{(tonight.Card.Count == 1 ? "" : "s")}";
+        IsBracketNight = tonight?.Format == EventFormat.Tournament;
+        FightNightLine = tonight is null ? ""
+            : IsBracketNight ? $"🔔  FIGHT NIGHT — {tonight.Name}: the bracket is drawn from your roster tonight"
+            : $"🔔  FIGHT NIGHT — {tonight.Name}, {tonight.Card.Count} bout{(tonight.Card.Count == 1 ? "" : "s")}";
 
         RefreshRoster();
         RefreshStandings();
         EventsPage.Attach(_world);
         Dashboard.Attach(_world);
         Booking.Attach(_world);
+        Tournament.Attach(_world);
         Contracts.Attach(_world);
         Finance.Attach(_world);
         Media.Attach(_world);
@@ -1168,6 +1255,9 @@ public sealed class MainViewModel : ObservableObject
         Notes.Attach(_world);
         OrgsPage.Attach(_world);
         Planner.Attach(_world);
+        // The Story So Far is an Origins app: on the desktop only while an Origins world is loaded.
+        Desktop.ShowStoryApp(_world.Mode == WorldMode.Origins);
+        if (_world.Mode == WorldMode.Origins) Story.Attach(_world);
         if (Desktop.Windows.Any(w => w.Spec.Id == "briefing")) Briefing.Attach(_world);   // (opening it attaches it)
         RefreshDeskNotes(player);
     }
@@ -1209,6 +1299,10 @@ public sealed class MainViewModel : ObservableObject
                     Core.Sim.Geography.Reputation.OrgInRegion(_world, org, region)));
 
         var div = org?.Divisions.FirstOrDefault(d => d.WeightClass == RankingDivision.WeightClass && d.Sex == RankingDivision.Sex);
+        // Which division of THIS house the pick lands on, when the era makes it ambiguous (its open division,
+        // or a weight band after its split): "CHAMPION · OPEN WEIGHT". Today it stays "CHAMPION".
+        ChampionKicker = div is not null && _world.Mode == WorldMode.Origins
+            ? $"CHAMPION  ·  {FighterRow.DivisionLabel(div).ToUpperInvariant()}" : "CHAMPION";
         if (div is null) return;
 
         if (div.Title is { } tid && _world.Get(tid) is { CurrentChampion: { } cid } title && _world.Get(cid) is { } champ)
@@ -1218,11 +1312,22 @@ public sealed class MainViewModel : ObservableObject
             ChampionId = champ.Id.Value;
             var reign = title.Lineage.LastOrDefault(r => r.LostOn is null);
             string beltName = $"belt prestige {title.Prestige.Value}";
+            bool bracket = org?.Rules.ShowFormat == ShowFormat.OneNightTournament;
             ChampionReign = reign is null
                 ? beltName
-                : $"Champion since {reign.WonOn:MMM yyyy}  ·  {reign.Defenses} defense{(reign.Defenses == 1 ? "" : "s")}  ·  {beltName}";
+                : bracket
+                    ? $"Won the tournament {reign.WonOn:MMM yyyy}" + (reign.Defenses > 0 ? $"  ·  won it again {reign.Defenses}×" : "") + $"  ·  {beltName}"
+                    : $"Champion since {reign.WonOn:MMM yyyy}  ·  {reign.Defenses} defense{(reign.Defenses == 1 ? "" : "s")}  ·  {beltName}";
             Standings.Add(new RankRow("C", champ, _world));
         }
+        else if (div.Title is { } vid && _world.Get(vid) is { } vacant && vacant.Lineage.LastOrDefault() is { LostOn: { } gone } last
+                 && _world.Get(last.Champion) is { } former)
+            // A belt that has had champions is vacant AGAIN: say who held it last and how it came free.
+            ChampionText = last.Vacated
+                ? $"Vacant since {gone:MMM yyyy} — {former.FullName} left it without losing it"
+                : $"Vacant since {gone:MMM yyyy} — last held by {former.FullName}";
+        else if (div.Title is null && div.Open)
+            ChampionText = "No belt here — this house's nights crown nobody";
         else ChampionText = "Vacant — the belt is waiting for a first champion";
 
         int rank = 1;

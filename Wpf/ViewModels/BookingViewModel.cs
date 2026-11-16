@@ -281,6 +281,8 @@ public sealed partial class BookingViewModel : ObservableObject
     public FighterPick? SelectedBlue { get => _blue; set { if (Set(ref _blue, value) && !_quiet) UpdateAppraisal(); } }
 
     private int _rounds;
+    private int? _houseStandard;   // the house's standard bout length when the desk last looked
+    private bool _houseRulesMoved; // ...and it changed since (an Origins reform): the old pick isn't restored
     public int SelectedRounds { get => _rounds; set { if (Set(ref _rounds, value) && !_quiet && HasPairing) SyncPickSheet(); } }
 
     private bool _isTitle;
@@ -376,6 +378,7 @@ public sealed partial class BookingViewModel : ObservableObject
         }
 
         _quiet = true;
+        _houseRulesMoved = false;
         try
         {
             // Round options and default follow the org's ruleset.
@@ -389,6 +392,12 @@ public sealed partial class BookingViewModel : ObservableObject
                     foreach (var o in options) RoundsOptions.Add(o);
                 }
                 if (!sameWorld) { IsTitleBout = false; SelectedRounds = promo.Rules.StandardRounds; }
+                // The house changed its rules under the desk (an Origins reform: one long round became timed rounds):
+                // a length the rules no longer offer falls back to the house's standard bout.
+                else if ((_houseRulesMoved = HouseRules.HasOwn(promo) && _houseStandard is { } was && was != promo.Rules.StandardRounds)
+                         || !RoundsOptions.Contains(SelectedRounds))
+                    SelectedRounds = promo.Rules.StandardRounds;   // (an Origins house's split moved it to cards of 3 rounds, say)
+                _houseStandard = promo.Rules.StandardRounds;
             }
 
             RefreshDivisions();
@@ -447,7 +456,7 @@ public sealed partial class BookingViewModel : ObservableObject
         // The appraisal re-derives the title box from the pairing; the player's
         // own tick and round count go back on top of it (Add Bout still checks them).
         if (SelectedRed is not null && SelectedBlue is not null) IsTitleBout = keep.Title;
-        if (RoundsOptions.Contains(keep.Rounds)) SelectedRounds = keep.Rounds;
+        if (RoundsOptions.Contains(keep.Rounds) && !_houseRulesMoved) SelectedRounds = keep.Rounds;
 
         if (dropped.Count > 0)
             Err("Things changed since you last looked: " + string.Join("; ", dropped) + ".");
@@ -464,6 +473,30 @@ public sealed partial class BookingViewModel : ObservableObject
         RaiseHints();
     }
 
+    /// <summary>The player's house fights at open weight (an Origins house rule; never in today's mode): one division, any size.</summary>
+    private bool OpenHouse => _world?.Get(_world.PlayerPromotion)?.Rules.Fight?.OpenWeight == true;
+
+    /// <summary>
+    /// The division a fighter is booked in: his class; the open division at an open-weight house; or, at a
+    /// house split into weight BANDS (Origins), the band his natural weight puts him in (the sim's
+    /// <see cref="Division.Matches"/>). Today no division is a band, so this is his class.
+    /// </summary>
+    private DivisionPick DivisionOf(Fighter f)
+    {
+        if (OpenHouse) return new DivisionPick(Division.OpenClass, f.Sex);
+        if (_world?.Get(_world.PlayerPromotion)?.Divisions.FirstOrDefault(d => !d.Open && d.Lightest is not null && d.Matches(f)) is { } band)
+            return new DivisionPick(band.WeightClass, f.Sex);
+        return new DivisionPick(f.WeightClass, f.Sex);
+    }
+
+    /// <summary>The weight band of the player's house this man fights in (Origins, after a split); null otherwise (always today).</summary>
+    private Division? Band(Fighter f) =>
+        _world?.Get(_world.PlayerPromotion)?.Divisions.FirstOrDefault(d => !d.Open && d.Lightest is not null && d.Matches(f));
+
+    private bool SameDivision(Fighter a, Fighter b) => a.Sex == b.Sex && (OpenHouse || DivisionOf(a) == DivisionOf(b));
+
+    private bool InScope(Fighter f, DivisionPick scope) => f.Sex == scope.Sex && (OpenHouse || DivisionOf(f) == scope);
+
     // Only offer weight classes the org actually has fighters in — a founded
     // promotion starts with none at all until the player hires.
     private void RefreshDivisions()
@@ -472,7 +505,7 @@ public sealed partial class BookingViewModel : ObservableObject
         // Only divisions (weight AND sex) you actually have fighters in.
         var mine = _world.RosterOf(_world.PlayerPromotion)
             .Where(f => f.Status != FighterStatus.Retired)
-            .Select(f => new DivisionPick(f.WeightClass, f.Sex))
+            .Select(DivisionOf)
             .Distinct()
             .OrderBy(d => d.Sex)
             .ThenBy(d => d.WeightClass)
@@ -517,9 +550,17 @@ public sealed partial class BookingViewModel : ObservableObject
             _ => "",
         };
         ReachLine = MmaManager.Core.Sim.Org.OrgReach.Describe(_world, promo) + business;
-        HasLocalOption = MmaManager.Core.Sim.Org.OrgSizing.SizeOf(promo) <= OrgSize.Regional;
+        HasLocalOption = MmaManager.Core.Sim.Org.OrgSizing.SizeOf(promo) <= OrgSize.Regional
+                         && _world.Mode == WorldMode.Modern;   // 1993 has no club scene to draw locals from
         PlayerLogo = Art.LogoFactory.ForPromotion(promo);
+        HouseRuleLines = HouseRules.For(promo);
+        OnPropertyChanged(nameof(HouseRuleLines));
+        OnPropertyChanged(nameof(HasHouseRules));
     }
+
+    /// <summary>The rules every bout on your cards is fought under, in plain words (an Origins house; empty today).</summary>
+    public IReadOnlyList<string> HouseRuleLines { get; private set; } = Array.Empty<string>();
+    public bool HasHouseRules => HouseRuleLines.Count > 0;
 
     private ImageSource? _playerLogo;
     /// <summary>Your promotion's logo, for the card's header.</summary>
@@ -530,7 +571,8 @@ public sealed partial class BookingViewModel : ObservableObject
         if (_world is null) return;
         var date = DateOnly.FromDateTime(NewEventDate);
         if (date <= _world.CurrentDate) { Err("Pick a date in the future."); return; }
-        var ev = _booking.CreateEvent(_world, date, name: null, tier: SelectedTier, city: SelectedCity?.Id);
+        var ev = _booking.TryCreateEvent(_world, date, out var refused, name: null, tier: SelectedTier, city: SelectedCity?.Id);
+        if (ev is null) { Err(refused ?? "That night can't go on the calendar."); return; }
         RefreshUpcoming();
         SelectedEvent = UpcomingEvents.FirstOrDefault(r => r.Model.Id == ev.Id);
         Rail = DeskRail.Night;

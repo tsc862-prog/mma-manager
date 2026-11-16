@@ -200,7 +200,7 @@ public sealed class OrgsViewModel : ObservableObject
                 FighterId = f.Id.Value,
                 Portrait = Portraits.For(f, _world),
                 Name = f.FullName,
-                Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}  ·  {f.Record}  ·  Sct {FighterRow.Scouted(_world, f)}",
+                Detail = $"{FighterRow.DivisionLabel(f)}  ·  {f.Record}  ·  Sct {FighterRow.Scouted(_world, f)}",
                 IsChampion = _world.Titles.Values.Any(t => t.CurrentChampion == f.Id),
             });
 

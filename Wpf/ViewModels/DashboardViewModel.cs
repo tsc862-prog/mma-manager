@@ -257,9 +257,13 @@ public sealed class DashboardViewModel : ObservableObject
         TierChip = $"{OrgSizing.Label(OrgSizing.SizeOf(player))} promotion";
         HqChip = $"HQ {hq}";
         RankChip = $"#{rank} of {byPrestige.Count} in the world";
+        // A one-night-bracket house (Origins) has no card to build: its night is booked, then drawn.
+        bool bracket = player.Rules.ShowFormat == ShowFormat.OneNightTournament;
+        string divisions = player.Divisions.Count == 1 && player.Divisions[0].Open ? "open weight"
+            : $"{player.Divisions.Count} division{(player.Divisions.Count == 1 ? "" : "s")}";
         RosterLine = roster.Count == 0
-            ? $"no fighters yet  ·  {player.Divisions.Count} divisions open"
-            : $"{roster.Count} fighters  ·  {player.Divisions.Count} divisions";
+            ? $"no fighters yet  ·  {divisions}" + (player.Divisions.Count == 1 && player.Divisions[0].Open ? "" : " open")
+            : $"{roster.Count} fighters  ·  {divisions}";
 
         string owner = MmaManager.Core.Sim.Living.Mail.Owner(world);
         bool founder = player.OwnerName is not { Length: > 0 };
@@ -296,13 +300,13 @@ public sealed class DashboardViewModel : ObservableObject
         }
 
         // --- First steps: a founder until the first show is in the books -------------
-        ShowFirstSteps = !everShowed && (roster.Count == 0 || scheduled.Count == 0 || scheduled.All(e => e.Card.Count == 0));
+        ShowFirstSteps = !everShowed && (roster.Count == 0 || scheduled.Count == 0 || scheduled.All(e => e.Card.Count == 0 && e.Format != EventFormat.Tournament));
         OnPropertyChanged(nameof(ShowCareerPanels));
         FirstSteps.Clear();
         if (ShowFirstSteps)
         {
             bool signed = roster.Count >= 2;
-            bool booked = scheduled.Any(e => e.Card.Count > 0);
+            bool booked = scheduled.Any(e => e.Card.Count > 0 || e.Format == EventFormat.Tournament);
             FirstSteps.Add(new JourneyStop
             {
                 Number = signed ? "✓" : "1", Label = "Sign your first fighters",
@@ -314,20 +318,23 @@ public sealed class DashboardViewModel : ObservableObject
             });
             FirstSteps.Add(new JourneyStop
             {
-                Number = booked ? "✓" : "2", Label = "Book your first card",
-                Detail = booked ? "The card is set. Now sell it." : "Pick a date and a room, then match your fighters up. Start small.",
+                Number = booked ? "✓" : "2", Label = bracket ? "Put your first tournament on the books" : "Book your first card",
+                Detail = bracket
+                    ? (booked ? $"The night is set. On the night, {HouseRules.FieldRule(player)}." : $"Pick the night. Nobody is drawn until then: {HouseRules.FieldRule(player)}.")
+                    : booked ? "The card is set. Now sell it." : "Pick a date and a room, then match your fighters up. Start small.",
                 Done = booked, Current = signed && !booked,
-                ActionText = "Book a card ▸", ActionCommand = BookCommand,
+                ActionText = bracket ? "Book the night ▸" : "Book a card ▸", ActionCommand = BookCommand,
             });
             FirstSteps.Add(new JourneyStop
             {
                 Number = "3", Label = "Fight night",
                 Detail = booked && next is not null
                     ? $"{next.Name}, {next.Date:ddd d MMM}. Advance the calendar to get there."
+                    : bracket ? $"{char.ToUpperInvariant(HouseRules.Men(player)[0])}{HouseRules.Men(player)[1..]} men, one night: run the bracket and crown the last man standing."
                     : "Watch it live from ringside or jump straight to the results.",
                 Current = signed && booked, IsLast = true,
-                ActionText = fightNight ? "Watch it live ▸" : "",
-                ActionCommand = WatchTonightCommand,
+                ActionText = fightNight ? (bracket ? "Run the bracket ▸" : "Watch it live ▸") : "",
+                ActionCommand = bracket ? SimTonightCommand : WatchTonightCommand,
             });
         }
 
@@ -344,7 +351,9 @@ public sealed class DashboardViewModel : ObservableObject
             NextEventWhere = next.Venue is { Length: > 0 } v ? v + city : "Venue to be confirmed";
             NextEventTagline = MmaManager.Core.Sim.Flavor.EventHype.Tagline(world, next) ?? "";
             int bouts = next.Card.Count;
-            NextEventCard = bouts == 0 ? "No bouts on the card yet." : $"{bouts} bout{(bouts == 1 ? "" : "s")} on the card";
+            NextEventCard = next.Format == EventFormat.Tournament
+                ? (bouts == 0 ? $"A {player.Rules.TournamentSize}-man bracket, drawn on the night" : $"{bouts} bouts in the bracket")
+                : bouts == 0 ? "No bouts on the card yet." : $"{bouts} bout{(bouts == 1 ? "" : "s")} on the card";
             if (next.Card.LastOrDefault() is { } main && world.Get(main.RedCorner) is { } red && world.Get(main.BlueCorner) is { } blue)
             {
                 MainRed = Corner(world, red);
@@ -364,8 +373,10 @@ public sealed class DashboardViewModel : ObservableObject
             NoCardTitle = "Nothing on the calendar";
             if (roster.Count >= 2)
             {
-                NoCardMessage = $"{roster.Count} fighters and no show to fight on. Pick a date and build a card.";
-                NoCardAction = "Book a card ▸";
+                NoCardMessage = bracket
+                    ? $"{roster.Count} fighters and no night to fight on. Put a tournament on the books."
+                    : $"{roster.Count} fighters and no show to fight on. Pick a date and build a card.";
+                NoCardAction = bracket ? "Book the night ▸" : "Book a card ▸";
                 NoCardCommand = BookCommand;
             }
             else
@@ -490,7 +501,16 @@ public sealed class DashboardViewModel : ObservableObject
         NeedsYou.Clear();
         var today = world.CurrentDate;
 
-        if (fightNight && next is not null)
+        bool bracket = player.Rules.ShowFormat == ShowFormat.OneNightTournament;
+        if (fightNight && next is not null && next.Format == EventFormat.Tournament)
+            NeedsYou.Add(new ActionItemModel
+            {
+                Icon = "Bell", Tone = CardTone.Bad, Due = "tonight",
+                Title = $"Fight night: {next.Name}",
+                Detail = "The bracket is drawn from your roster tonight and fought round by round under the house rules.",
+                PrimaryText = "Run the bracket ▸", PrimaryCommand = SimTonightCommand,
+            });
+        else if (fightNight && next is not null)
             NeedsYou.Add(new ActionItemModel
             {
                 Icon = "Bell", Tone = CardTone.Bad, Due = "tonight",
@@ -563,10 +583,12 @@ public sealed class DashboardViewModel : ObservableObject
             {
                 Icon = "Calendar", Tone = CardTone.Warn,
                 Title = "No show on the calendar",
-                Detail = $"{roster.Count} fighters with nowhere to fight. Pick a date and build a card.",
-                PrimaryText = "Book a card ▸", PrimaryCommand = BookCommand,
+                Detail = bracket
+                    ? $"{roster.Count} fighters with nowhere to fight. Put a tournament on the books: the bracket is drawn on the night."
+                    : $"{roster.Count} fighters with nowhere to fight. Pick a date and build a card.",
+                PrimaryText = bracket ? "Book the night ▸" : "Book a card ▸", PrimaryCommand = BookCommand,
             });
-        else if (next is not null && next.Card.Count == 0)
+        else if (next is not null && next.Card.Count == 0 && next.Format != EventFormat.Tournament)
             NeedsYou.Add(new ActionItemModel
             {
                 Icon = "Calendar", Tone = CardTone.Warn,
@@ -583,7 +605,7 @@ public sealed class DashboardViewModel : ObservableObject
             {
                 Icon = "Pen", Tone = CardTone.Warn,
                 Title = f.Contract!.FightsRemaining <= 0 ? $"{f.FullName}'s deal is up" : $"{f.FullName} is on the last fight of the deal",
-                Detail = $"{FighterRow.DivisionLabel(f.WeightClass, f.Sex)}, {f.Record}. Re-sign before the bigger promotions come calling.",
+                Detail = $"{FighterRow.DivisionLabel(f)}, {f.Record}. " + (world.Mode == WorldMode.Origins ? "Re-sign before a rival house comes calling." : "Re-sign before the bigger promotions come calling."),
                 Picture = Portraits.Thumb(f, world),
                 PrimaryText = "Talk terms ▸", PrimaryCommand = NegotiateCommand, PrimaryParameter = f.Id.Value,
                 SecondaryText = "Profile", SecondaryCommand = OpenFighterCommand, SecondaryParameter = f.Id.Value,

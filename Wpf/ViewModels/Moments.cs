@@ -130,7 +130,7 @@ public sealed class TitleMoment : MomentViewModel
     private static TitleMoment Build(World world, Event ev, Promotion? promo, Fight fight, FightOutcome outcome,
         Title title, int reignIndex, Fighter winner, Fighter? loser, TitleReign? previous, Variant how, bool isMain)
     {
-        string division = FighterRow.DivisionLabel(title.WeightClass, winner.Sex);
+        string division = FighterRow.TitleDivision(world, title, winner.Sex);
 
         // How it was won, the way the arena announcer reads it.
         string clock = $"{outcome.EndTimeSeconds / 60}:{outcome.EndTimeSeconds % 60:00}";

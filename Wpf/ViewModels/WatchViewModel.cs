@@ -194,7 +194,7 @@ public sealed class WatchViewModel : ObservableObject
             {
                 Order = $"{CardBilling.Position(i, ev.Card.Count)}",
                 Matchup = $"{red} vs {blue}",
-                Billing = slot + "  ·  " + FighterRow.Pretty(f.WeightClass.ToString()) + (f.IsTitleFight ? "  ·  ★ TITLE" : ""),
+                Billing = slot + "  ·  " + FighterRow.DivisionLabel(f, world.Get(f.RedCorner)?.Sex ?? Sex.Male) + (f.IsTitleFight ? "  ·  ★ TITLE" : ""),
                 Result = ShortResult(world, f),
                 Stars = MatchRating.StarsFor(f),
             });
@@ -249,8 +249,8 @@ public sealed class WatchViewModel : ObservableObject
             BlueRecord = b?.Record.ToString() ?? "",
             RedBody = r is null ? null : Art.Portraits.Body(r, world),
             BlueBody = b is null ? null : Art.Portraits.Body(b, world),
-            Billing = FighterRow.Pretty(f.WeightClass.ToString())
-                      + $"  ·  {f.ScheduledRounds} rounds"
+            Billing = FighterRow.DivisionLabel(f, r?.Sex ?? Sex.Male)
+                      + $"  ·  {HouseRules.Rounds(f.ScheduledRounds, world.Get(ev.Promotion))}"
                       + (f.IsTitleFight ? "  ·  TITLE FIGHT" : ""),
             ResultText = ResultLine(world, f),
             Stars = MatchRating.StarsFor(f),
