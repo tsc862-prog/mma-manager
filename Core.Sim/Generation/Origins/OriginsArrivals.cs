@@ -53,7 +53,7 @@ public static class OriginsArrivals
             "USA", "Chicago", "first-cross-training-camp", null, null, null,
             "The first fighter who is good at everything: a college wrestler who learned to punch and submit in the same room.",
             Row("Declan", "Voss", "The Polymath", "USA", OriginsDiscipline.FreestyleWrestling, 183, 83, 24, 62, 3, 0, null, 28,
-                "Voss wrestled for a mid-sized university and was an All-American in his senior year. He then spent two winters at a warehouse gym on Fenwick Street in Chicago, where a one-time boxing coach taught him to punch properly and a visiting black belt taught him to choke. By 1998 he is the first fighter in the world who can do all three, and the first one the older specialists cannot answer. His record is short; his career is a tour of the discovery that the one-art champions of the early days were simply out of date.",
+                "Voss wrestled for a mid-sized university and was an All-American in his senior year. He then spent two winters at a warehouse gym on Fenwick Street in Chicago, where a one-time boxing coach taught him to punch properly and a visiting black belt from a Los Angeles strip mall taught him to choke. By 1998 he is the first fighter in the world who can do all three, and the first one the older specialists cannot answer. His record is short; his career is a tour of the discovery that the one-art champions of the early days were simply out of date.",
                 new[] { (SkillId.PunchTechnique, 24), (SkillId.StrikingDefense, 22), (SkillId.Footwork, 22), (SkillId.SubmissionOffense, 24), (SkillId.SubmissionDefense, 24), (SkillId.BottomGame, 24), (SkillId.KickTechnique, 14) },
                 PrimaryStyle.WellRounded)),
 
@@ -61,7 +61,7 @@ public static class OriginsArrivals
             "BRA", "Rio de Janeiro", "weight-ladder-lower", null, null, null,
             "A Rio lightweight raised on the garage nights: the first Brazilian who is a star on television, not only in the gym.",
             Row("Tiago", "Moreira", "Relampago", "BRA", OriginsDiscipline.JiuJitsu, 175, 70, 22, 66, 4, 0, "DLB", 30,
-                "Moreira grew up two streets from the Tijuca garage where Duelo Livre held its first Saturday nights, and was carried on his father's shoulders to the fifth. He began jiu-jitsu at six, boxing at fourteen and, at twenty-one, a career in the sport that had been waiting for him. He is quick, smiling and entirely unafraid, and the Saturday-night television audience, who have watched his sport grow up in front of them, think of him as one of the family.",
+                "Moreira grew up two streets from the Tijuca garage where Duelo Livre held its first Saturday nights, and was carried on his father's shoulders to the fifth. He began jiu-jitsu at six on the thin mats of Odair Quintela's academy, paying in the bakery's leftover bread, boxing at fourteen and, at twenty-one, a career in the sport that had been waiting for him. He is quick, smiling and entirely unafraid, and the Saturday-night television audience, who have watched his sport grow up in front of them, think of him as one of the family.",
                 new[] { (SkillId.PunchTechnique, 18), (SkillId.KickTechnique, 8), (SkillId.Footwork, 14), (SkillId.StrikingDefense, 12) },
                 PrimaryStyle.BrazilianJiuJitsu)),
 
@@ -69,7 +69,7 @@ public static class OriginsArrivals
             "RUS", "Moscow", "boom-new-promotions", null, null, null,
             "A heavyweight from the sambo halls: patient, unfashionable and almost impossible to take down.",
             Row("Arkady", "Slobodin", "The Iron Clerk", "RUS", OriginsDiscipline.Sambo, 190, 108, 27, 68, 6, 0, null, 18,
-                "A bank clerk by day, Slobodin trained in the same Moscow sambo hall that had produced the old wrestling champions a generation earlier. He is slow to anger, slower to tire and, once he has a grip, very hard to remove. He is a heavyweight in the old sense: thick, patient and uninterested in the kind of showmanship that sells tickets. He signs his first contract with a handshake and a request that the promoter pay the hall's heating bill.",
+                "A bank clerk by day, Slobodin trained in the Zarya sambo hall, where Vadim Orekhov and Boris Khlebnikov had been feeding the stove for a decade and which had produced the old wrestling champions a generation earlier. He is slow to anger, slower to tire and, once he has a grip, very hard to remove. He is a heavyweight in the old sense: thick, patient and uninterested in the kind of showmanship that sells tickets. He signs his first contract with a handshake and a request that the promoter pay the hall's heating bill.",
                 new[] { (SkillId.TakedownDefense, 10), (SkillId.Strength, 8) },
                 PrimaryStyle.Grappler)),
 
