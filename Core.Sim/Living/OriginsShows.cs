@@ -326,6 +326,8 @@ public static class OriginsShows
     public static Event? ScheduleTournament(World world, PromotionId promoId, DateOnly date, out string? reason, string? name = null, CityId? city = null)
     {
         reason = null;
+        // Called for the player when he has no house (an observer): say so. (Tests also book AI houses' nights here.)
+        if (promoId == world.PlayerPromotion && Booking.PlayerBooking.NoHouse(world, out reason)) return null;
         if (world.Get(promoId) is not { Defunct: false } promo) { reason = "That promotion isn't running."; return null; }
         if (promo.Rules.ShowFormat != ShowFormat.OneNightTournament) { reason = $"{promo.Abbreviation} doesn't run one-night tournaments."; return null; }
         if (date <= world.CurrentDate) { reason = "Pick a date that hasn't happened yet."; return null; }

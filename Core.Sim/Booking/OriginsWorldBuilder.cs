@@ -87,7 +87,8 @@ public static class OriginsWorldBuilder
                 Name = spec.Name,
                 Abbreviation = spec.Abbreviation,
                 BaseRegion = spec.Region,
-                IsPlayerControlled = o.Founding is null && p == o.PlayerPromotionIndex,
+                // An observer start flags nobody (all three are the AI's: staffed, booked, no objectives).
+                IsPlayerControlled = !o.Observer && o.Founding is null && p == o.PlayerPromotionIndex,
                 Balance = spec.Balance,
                 Prestige = spec.Prestige,
                 Lore = spec.Lore,

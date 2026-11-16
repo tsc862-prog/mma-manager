@@ -157,6 +157,20 @@ public sealed class WorldBuilder
         };
 
         /// <summary>
+        /// An Origins start with no house of the player's: he watches the sport from 1 January 1993
+        /// (<see cref="World.HasPlayer"/> is false) and founds his own promotion later. All three day-one
+        /// promotions are the AI's: front offices staffed, opening nights booked.
+        /// </summary>
+        public static Options OriginsObserver(ulong seed) => Origins(seed) with { Observer = true };
+
+        /// <summary>
+        /// No player house on day one (<see cref="OriginsObserver"/>): every promotion is built as the AI's and
+        /// <see cref="PlayerPromotionIndex"/> and <see cref="Founding"/> are ignored. Origins only (today's
+        /// build refuses it).
+        /// </summary>
+        public bool Observer { get; init; }
+
+        /// <summary>
         /// Roll a backstory record for the generated talent pool (the default; the
         /// history pass turns those tallies into real careers). Off for a world
         /// whose sport starts on day one: every pool fighter debuts 0-0.
@@ -296,6 +310,7 @@ public sealed class WorldBuilder
         var o = options ?? new Options();
         // The birth of the sport is its own world (nothing below runs for it).
         if (o.Mode == WorldMode.Origins && !o.GatedModernShape) return OriginsWorldBuilder.Build(o);
+        if (o.Observer) throw new NotSupportedException("An observer start (no house of the player's) is an Origins start only.");
         var specs = o.Promotions ?? Options.DefaultPromotions;
         var world = new World { CurrentDate = o.StartDate, StartDate = o.StartDate, RngSeed = o.Seed, ArtCatalog = o.IdentityCatalog, Mode = o.Mode };
         // No women's divisions in a world whose sport hasn't got them yet (never in today's mode).
