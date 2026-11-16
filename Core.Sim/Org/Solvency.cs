@@ -17,6 +17,12 @@ public static class Solvency
     public const decimal DebtCeiling = -300_000m;
 
     /// <summary>
+    /// An Origins house's debt ceiling as a share of today's (a City house folds at -75,000): its overheads
+    /// are a fifth of today's, so today's ceiling left a broke house running no nights for seven years.
+    /// </summary>
+    public const decimal OriginsDebtScale = 0.25m;
+
+    /// <summary>
     /// How deep a promotion can go before it folds — it scales with stature. A
     /// regional club is done at a few hundred grand in the red; an established
     /// international brand has the backing to weather millions, so a big org
@@ -56,7 +62,8 @@ public static class Solvency
         {
             if (promo.Defunct) continue;   // bought earlier this pass
             bool isPlayer = promo.Id == world.PlayerPromotion;
-            decimal ceiling = DebtCeilingFor(promo);
+            // A 1990s house (Origins) owes a 1990s sum before the doors close (never in today's mode).
+            decimal ceiling = DebtCeilingFor(promo) * (world.Mode == WorldMode.Origins ? OriginsDebtScale : 1m);
 
             if (promo.Balance.Amount > ceiling)
             {

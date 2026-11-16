@@ -271,15 +271,15 @@ public sealed class Negotiator
             * (WantsExclusivity(promo) ? 1m : NonExclusiveMoneyFactor)
             * TableDiscount(world, f, promo.Id), 500m));
 
+    /// <summary>The least an Origins house budgets for one purse (today's floor is 2,000).</summary>
+    public const decimal OriginsPurseFloor = 500m;
+
     /// <summary>
     /// The biggest per-fight purse a promotion's economics support, derived from
     /// its expected box office: what one card grosses in its usual building,
     /// less production, spread across a full card's purses. A small-hall org
     /// pays small-hall money; a fighter who outgrows the budget must move up.
     /// </summary>
-    /// <summary>The least an Origins house budgets for one purse (today's floor is 2,000).</summary>
-    public const decimal OriginsPurseFloor = 500m;
-
     public static decimal PurseCap(World world, Promotion promo)
     {
         int prestige = promo.Prestige.Value;

@@ -65,7 +65,14 @@ public static class MediaService
         /// </summary>
         public bool Qualifies(World world, Promotion promo) =>
             Living.Era.AllowsMedia(world, Kind) && Rule(world, promo);
+
+        /// <summary>The rung's going rate for this promotion: today's figure, or a share of it in a young sport (Origins).</summary>
+        public decimal FeeIn(World world, Promotion promo) =>
+            world.Mode == WorldMode.Origins ? Fee(promo) * OriginsFeeScale : Fee(promo);
     }
+
+    /// <summary>What a network pays an Origins house per event, as a share of today's rate (a sport nobody has heard of; sponsors pay the same share).</summary>
+    public const decimal OriginsFeeScale = 0.2m;
 
     private static readonly Rung[] Ladder =
     {
@@ -422,7 +429,7 @@ public static class MediaService
     {
         foreach (var rung in Ladder
                      .Where(r => MediaLanes.LaneOf(r.Kind) == MediaLane.Linear && r.Qualifies(world, promo))
-                     .OrderByDescending(r => r.Fee(promo)))
+                     .OrderByDescending(r => r.FeeIn(world, promo)))
             if (TrySign(world, promo, rung, on, rng) is not null) break;
 
         var carrier = RungOf(MediaKind.PpvCarrier);
@@ -459,7 +466,7 @@ public static class MediaService
         {
             Kind = rung.Kind,
             Partner = profile.Name,
-            RightsFeePerEvent = new Money(rung.Fee(promo) * profile.FeeScale),
+            RightsFeePerEvent = new Money(rung.FeeIn(world, promo) * profile.FeeScale),
             MonthsRemaining = rung.TermMonths,
             Requirements = AdjustTerms(rung.Terms(promo), profile.Strictness),
             SignedOn = on,
@@ -505,7 +512,7 @@ public static class MediaService
             var rung = RungOf(deal.Kind);
             if (deal.Strikes == 0 && rung.Qualifies(world, promo) && !rng.Chance(0.25))
             {
-                deal.RightsFeePerEvent = new Money(rung.Fee(promo) * ProfileOf(deal.Partner).FeeScale);
+                deal.RightsFeePerEvent = new Money(rung.FeeIn(world, promo) * ProfileOf(deal.Partner).FeeScale);
                 deal.MonthsRemaining = rung.TermMonths;
                 deal.SignedOn = date;
                 // A renewal is a new contract: today's term sheet, not the one
@@ -540,7 +547,7 @@ public static class MediaService
             // specialty). An org running its OWN platform isn't poachable.
             var current = DealIn(promo, MediaLanes.LaneOf(rung.Kind));
             bool upgrade = current is not null && current.Kind != rung.Kind
-                && rung.Fee(promo) > current.RightsFeePerEvent.Amount;
+                && rung.FeeIn(world, promo) > current.RightsFeePerEvent.Amount;
             if (!LaneOpen(promo, rung.Kind) && !upgrade) continue;
             if (!rng.Chance(0.5)) continue;   // the phone doesn't ring the instant you qualify
             if (Suitor(world, promo, rung, rng) is not { } profile) continue;   // nobody free who hasn't already pitched
@@ -558,7 +565,7 @@ public static class MediaService
         {
             Media = rung.Kind,
             Partner = profile.Name,
-            FeePerEvent = new Money(rung.Fee(promo) * profile.FeeScale),
+            FeePerEvent = new Money(rung.FeeIn(world, promo) * profile.FeeScale),
             Term = rung.TermMonths,
             Requirements = AdjustTerms(rung.Terms(promo), profile.Strictness),
             OfferedOn = date,
@@ -594,7 +601,7 @@ public static class MediaService
                 && !p.Offers.Any(o => o.Partner == partner)
                 && (LaneOpen(p, kind)
                     || (DealIn(p, MediaLanes.LaneOf(kind)) is { } cur && cur.Kind != kind
-                        && rung.Fee(p) > cur.RightsFeePerEvent.Amount)))
+                        && rung.FeeIn(world, p) > cur.RightsFeePerEvent.Amount)))
             .OrderByDescending(p => p.Prestige.Value)
             .FirstOrDefault();
         if (suitor is not null) MakeOffer(world, suitor, rung, ProfileOf(partner), date);
@@ -805,7 +812,7 @@ public static class MediaService
     public static IReadOnlyList<RungView> LadderView(World world, Promotion promo) =>
         Ladder.Select(r => new RungView(
             r.Kind, Label(r.Kind), r.Qualifies(world, promo), Gate(r.Kind),
-            new Money(r.Fee(promo)),
+            new Money(r.FeeIn(world, promo)),
             string.Join("; ", r.Terms(promo).Select(x => DealCompliance.Describe(x)))
             + $" · networks: {string.Join(", ", r.Partners.Select(pp => $"{pp.Name} ({pp.Tag})"))} — terms and money vary by house")).ToList();
 

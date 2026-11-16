@@ -192,7 +192,9 @@ public static class ResultsProcessor
             // CHAMP-VS-CHAMP CONQUEST: the winner came UP a class for this belt.
             // They move up for good — the old division's belt passes to its top
             // contender behind them, and the sport has a two-division king.
+            // (A banded Origins division takes every class in its band: winning it is not moving up.)
             if (title.CurrentChampion == winner.Id && winner.WeightClass != title.WeightClass
+                && division?.Lightest is null
                 && world.Titles.Values.Any(t => t.CurrentChampion == winner.Id && t.Id != title.Id))
             {
                 var oldClass = winner.WeightClass;

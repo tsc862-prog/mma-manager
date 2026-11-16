@@ -19,7 +19,7 @@ public static class Financials
     /// <summary>The world's base ticket price (today's 55; an Origins world's 20: a sport nobody has heard of).</summary>
     public static decimal TicketBaseOf(World world) => world.Mode == WorldMode.Origins ? OriginsTicketBase : TicketBase;
 
-    /// <summary>A seat's price at this prestige: today's 55 + 1.4 a point; 1993's (Origins) 20 + 0.6 a point.</summary>
+    /// <summary>A seat's price at this prestige: today's 55 + 1.4 a point; 1993's (Origins) 20 + 0.4 a point.</summary>
     public static decimal TicketPrice(World world, int prestige) =>
         world.Mode == WorldMode.Origins ? OriginsTicketBase + prestige * OriginsTicketPerPrestige : TicketBase + prestige * 1.4m;
 

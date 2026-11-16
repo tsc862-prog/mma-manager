@@ -81,8 +81,18 @@ public class PersistenceTests
                 Key = "first-tv-deal", FiredOn = world.CurrentDate.AddDays(-20),
                 Promotion = world.Promotions.Keys.First(), Fighter = world.Fighters.Keys.Skip(6).First(),
                 Note = "Lightweight",
+                Variant = ChapterVariant.Rival, City = world.Cities.Keys.First(), Partner = "Nocturne Cable",
             });
             world.Era.Unlocked.Add(Capability.Class(WeightClass.Lightweight).Id);
+            // The Backlash (Origins phase 2): a region closed then licensed, and a whole country closed.
+            world.Era.Bans.Add(new SceneBan
+            {
+                Country = "USA", Area = 2, Since = world.CurrentDate.AddDays(-300), Until = world.CurrentDate.AddDays(400),
+                LiftedOn = world.CurrentDate.AddDays(-10),
+            });
+            world.Era.Bans.Add(new SceneBan { Country = "BRA", Since = world.CurrentDate.AddDays(-30), Until = world.CurrentDate.AddDays(60) });
+            world.Era.Sanctions.Add(new Sanction { Country = "USA", Area = 2, On = world.CurrentDate.AddDays(-10), Promotion = world.Promotions.Keys.First() });
+            world.Era.Sanctions.Add(new Sanction { Country = "JPN", On = world.CurrentDate.AddDays(-5) });
 
             // Origins fight rules on two promotions: one with every flag at its non-default value, one
             // with judges and every legal strike on (so each column holds a non-zero value somewhere).

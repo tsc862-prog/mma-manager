@@ -85,6 +85,14 @@ public static class Sponsorships
     /// <summary>Each archetype's era capability, in table order (the tests hold every archetype to its own Sponsor* kind).</summary>
     internal static IReadOnlyList<Capability> ArchetypeEras => Archetypes.Select(a => a.Era).ToList();
 
+    /// <summary>The era capability of the archetype a partner belongs to (null for a name no archetype carries).</summary>
+    internal static Capability? ArchetypeOf(string partner)
+    {
+        foreach (var a in Archetypes)
+            if (Array.IndexOf(a.Partners, partner) >= 0) return a.Era;
+        return null;
+    }
+
     /// <summary>What an Origins sponsor pays per event, as a share of today's fee.</summary>
     public const decimal OriginsFeeScale = 0.2m;
 
@@ -156,8 +164,10 @@ public static class Sponsorships
         {
             var size = Org.OrgSizing.SizeOf(promo);
             var taken = promo.SponsorDeals.Select(d => d.Partner).ToHashSet();
+            // (The lean years of an Origins Backlash leave only the local backers calling; never in today's mode.)
+            bool lean = world.Mode == WorldMode.Origins && Living.OriginsTimeline.LeanFor(world, promo, date);
             var eligible = Archetypes.Where(a => size >= a.MinTier && Living.Era.Allows(world, a.Era)
-                && a.Partners.Any(n => !taken.Contains(n))).ToList();
+                && a.Partners.Any(n => !taken.Contains(n)) && (!lean || a == Archetypes[0])).ToList();
             if (eligible.Count > 0)
             {
                 var offer = AddOffer(promo, eligible[rng.Range(0, eligible.Count - 1)], date, rng);

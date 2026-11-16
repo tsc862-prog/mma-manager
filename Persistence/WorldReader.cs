@@ -91,6 +91,36 @@ internal sealed class WorldReader
                     Promotion = r.IntN("promotion_id") is { } p ? new PromotionId(p) : null,
                     Fighter = r.IntN("fighter_id") is { } f ? new FighterId(f) : null,
                     Note = r.StrN("note"),
+                    Variant = r.Enum<ChapterVariant>("variant"),
+                    City = r.IntN("city_id") is { } c ? new CityId(c) : null,
+                    Partner = r.StrN("partner"),
+                });
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM era_bans ORDER BY ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.Era.Bans.Add(new SceneBan
+                {
+                    Country = r.Str("country"),
+                    Area = r.IntN("area"),
+                    Since = r.Date("since"),
+                    Until = r.Date("until"),
+                    LiftedOn = r.DateN("lifted_on"),
+                });
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM era_sanctions ORDER BY ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.Era.Sanctions.Add(new Sanction
+                {
+                    Country = r.Str("country"),
+                    Area = r.IntN("area"),
+                    On = r.Date("granted_on"),
+                    Promotion = r.IntN("promotion_id") is { } p ? new PromotionId(p) : null,
                 });
         }
 
@@ -371,6 +401,7 @@ internal sealed class WorldReader
                     Sex = r.Enum<Sex>("sex"),
                     Title = title is null ? null : new TitleId(title.Value),
                     Open = r.Bool("open"),
+                    Lightest = r.StrN("lightest") is { } lightest ? Enum.Parse<WeightClass>(lightest) : null,
                 });
             }
         }

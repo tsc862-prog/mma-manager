@@ -426,7 +426,7 @@ internal sealed class WorldWriter
     private void WriteEra(World w)
     {
         using var ch = _c.Cmd(_tx,
-            "INSERT INTO era_chapters (ordinal, key, fired_on, promotion_id, fighter_id, note) VALUES ($o,$k,$d,$p,$f,$n)");
+            "INSERT INTO era_chapters (ordinal, key, fired_on, promotion_id, fighter_id, note, variant, city_id, partner) VALUES ($o,$k,$d,$p,$f,$n,$v,$c,$pa)");
         for (int i = 0; i < w.Era.Chapters.Count; i++)
         {
             var c = w.Era.Chapters[i];
@@ -437,7 +437,39 @@ internal sealed class WorldWriter
             ch.Bind("$p", Db.IdN(c.Promotion?.Value));
             ch.Bind("$f", Db.IdN(c.Fighter?.Value));
             ch.Bind("$n", Db.Text(c.Note));
+            ch.Bind("$v", c.Variant.ToString());
+            ch.Bind("$c", Db.IdN(c.City?.Value));
+            ch.Bind("$pa", Db.Text(c.Partner));
             ch.ExecuteNonQuery();
+        }
+
+        using var ban = _c.Cmd(_tx,
+            "INSERT INTO era_bans (ordinal, country, area, since, until, lifted_on) VALUES ($o,$c,$a,$s,$u,$l)");
+        for (int i = 0; i < w.Era.Bans.Count; i++)
+        {
+            var b = w.Era.Bans[i];
+            ban.Parameters.Clear();
+            ban.Bind("$o", i);
+            ban.Bind("$c", b.Country);
+            ban.Bind("$a", Db.IdN(b.Area));
+            ban.Bind("$s", Db.Date(b.Since));
+            ban.Bind("$u", Db.Date(b.Until));
+            ban.Bind("$l", Db.DateN(b.LiftedOn));
+            ban.ExecuteNonQuery();
+        }
+
+        using var san = _c.Cmd(_tx,
+            "INSERT INTO era_sanctions (ordinal, country, area, granted_on, promotion_id) VALUES ($o,$c,$a,$g,$p)");
+        for (int i = 0; i < w.Era.Sanctions.Count; i++)
+        {
+            var s = w.Era.Sanctions[i];
+            san.Parameters.Clear();
+            san.Bind("$o", i);
+            san.Bind("$c", s.Country);
+            san.Bind("$a", Db.IdN(s.Area));
+            san.Bind("$g", Db.Date(s.On));
+            san.Bind("$p", Db.IdN(s.Promotion?.Value));
+            san.ExecuteNonQuery();
         }
 
         using var un = _c.Cmd(_tx, "INSERT INTO era_unlocks (ordinal, capability) VALUES ($o,$c)");
@@ -616,7 +648,7 @@ internal sealed class WorldWriter
         using var pop = _c.Cmd(_tx,
             "INSERT INTO promotion_city_pop (promotion_id, city_id, rating) VALUES ($p,$r,$v)");
         using var div = _c.Cmd(_tx,
-            "INSERT INTO divisions (promotion_id, ordinal, weight_class, title_id, sex, open) VALUES ($p,$o,$w,$t,$sx,$op)");
+            "INSERT INTO divisions (promotion_id, ordinal, weight_class, title_id, sex, open, lightest) VALUES ($p,$o,$w,$t,$sx,$op,$li)");
         using var rank = _c.Cmd(_tx,
             "INSERT INTO division_rankings (promotion_id, weight_class, sex, position, fighter_id, open) VALUES ($p,$w,$sx,$pos,$f,$op)");
         using var ledger = _c.Cmd(_tx,
@@ -701,6 +733,7 @@ internal sealed class WorldWriter
                 div.Bind("$t", Db.IdN(d.Title?.Value));
                 div.Bind("$sx", d.Sex.ToString());
                 div.Bind("$op", d.Open ? 1 : 0);
+                div.Bind("$li", d.Lightest is { } lightest ? lightest.ToString() : DBNull.Value);
                 div.ExecuteNonQuery();
 
                 for (int pos = 0; pos < d.Rankings.Count; pos++)

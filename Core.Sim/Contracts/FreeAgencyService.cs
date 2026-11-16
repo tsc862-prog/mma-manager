@@ -79,7 +79,9 @@ public static class FreeAgencyService
             // (An Origins house runs ONE open division and every night needs its whole field: its floor is
             // what its own night takes. Today's mode keeps the old four.)
             int minBodies = world.Mode == WorldMode.Origins ? Living.OriginsShows.MinRoster(promo) : MinToRunDivision;
-            int target = distress > 0
+            int target = world.Mode == WorldMode.Origins
+                ? Living.OriginsShows.DivisionRosterTarget(promo, distress > 0)   // (a split house shares its depth among its divisions)
+                : distress > 0
                 ? minBodies
                 : Math.Max(minBodies, Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo)));
             foreach (var div in promo.Divisions)

@@ -32,7 +32,18 @@ internal static class SaveSchema
 
             CREATE TABLE era_chapters (
                 ordinal INTEGER NOT NULL, key TEXT NOT NULL, fired_on TEXT NOT NULL,
-                promotion_id INTEGER, fighter_id INTEGER, note TEXT
+                promotion_id INTEGER, fighter_id INTEGER, note TEXT,
+                variant TEXT NOT NULL DEFAULT 'World', city_id INTEGER, partner TEXT
+            );
+
+            CREATE TABLE era_bans (
+                ordinal INTEGER NOT NULL, country TEXT NOT NULL, area INTEGER,
+                since TEXT NOT NULL, until TEXT NOT NULL, lifted_on TEXT
+            );
+
+            CREATE TABLE era_sanctions (
+                ordinal INTEGER NOT NULL, country TEXT NOT NULL, area INTEGER,
+                granted_on TEXT NOT NULL, promotion_id INTEGER
             );
 
             CREATE TABLE era_unlocks (
@@ -99,7 +110,7 @@ internal static class SaveSchema
             CREATE TABLE divisions (
                 promotion_id INTEGER NOT NULL, ordinal INTEGER NOT NULL,
                 weight_class TEXT NOT NULL, title_id INTEGER, sex TEXT NOT NULL DEFAULT 'Male',
-                open INTEGER NOT NULL DEFAULT 0
+                open INTEGER NOT NULL DEFAULT 0, lightest TEXT
             );
 
             CREATE TABLE division_rankings (
