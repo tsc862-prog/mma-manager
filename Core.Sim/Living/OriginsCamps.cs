@@ -52,11 +52,20 @@ public static class OriginsCamps
         || (camp.Specialty == PrimaryStyle.WellRounded && OriginsTimeline.IsOpen(world, FirstCampChapter, world.CurrentDate));
 
     /// <summary>
-    /// Does this man train one art only (Origins): alone, or in a room that teaches one art? False in today's
-    /// mode, always. His growth then goes into his stronger half of the game (<see cref="FighterDevelopment"/>).
+    /// Does this man train one art only (Origins)? Only in the one-art era, and only a man who learned one art:
+    /// <list type="bullet">
+    /// <item>once the specialists have fallen (<see cref="SpecialistsFallChapter"/>) nobody does: every room, ring
+    /// and garage teaches the whole game, and a man who trains alone has seen enough of it to copy;</item>
+    /// <item>a man who arrived knowing two arts (his listed style is <see cref="PrimaryStyle.WellRounded"/>, which
+    /// never changes) keeps working both wherever he trains;</item>
+    /// <item>anyone else trains one art when he trains alone or in a room that teaches one.</item>
+    /// </list>
+    /// False in today's mode, always. His growth then goes into his stronger half of the game (<see cref="FighterDevelopment"/>).
     /// </summary>
     public static bool TrainsOneArt(World world, Fighter f) =>
         world.Mode == WorldMode.Origins
+        && f.PrimaryStyle != PrimaryStyle.WellRounded
+        && !world.Era.HasFired(SpecialistsFallChapter)
         && (f.Camp is not { } id || world.Get(id) is not { } camp || !CrossTrains(world, camp));
 
     // ------------------------------------------------------------------ the month

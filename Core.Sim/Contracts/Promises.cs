@@ -149,6 +149,14 @@ public static class Promises
         int rank = promo.Divisions.FirstOrDefault(d => d.Matches(f))?.Rankings.IndexOf(f.Id) ?? -1;
         double contender;
         if (rank >= 0) contender = rank <= 1 ? 1.0 : rank <= 4 ? 0.7 : rank <= 9 ? 0.45 : 0.2;
+        else if (!Living.OriginsReforms.RankingsRecognised(world))
+        {
+            // An Origins world before the code publishes no list across promotions: a man knows where he stands at
+            // his own house (its published ranking), and a contender there is worth courting.
+            int h = f.Contract is { } k && world.Get(k.Promotion) is { } own
+                ? own.Divisions.FirstOrDefault(d => d.Matches(f))?.Rankings.IndexOf(f.Id) ?? -1 : -1;
+            contender = h is >= 0 and < 3 ? 0.6 : h is >= 0 and < 8 ? 0.4 : 0.2;
+        }
         else
         {
             int g = world.GlobalRankings.TryGetValue(f.WeightClass, out var list) ? list.IndexOf(f.Id) : -1;

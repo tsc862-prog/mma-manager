@@ -129,6 +129,8 @@ public static class OriginsShows
         Event ev;
         if (promo.Rules.ShowFormat == ShowFormat.OneNightTournament)
         {
+            // A licensed house the code now binds runs no new bracket: it takes the code once its last one is fought.
+            if (OriginsReforms.BoundByCode(world, promo)) return null;
             int size = Math.Max(2, promo.Rules.TournamentSize);
             // Only a house that could field the bracket today puts one on the books.
             if (!TournamentService.PreviewField(world, promo, when, null, size).Full) return null;   // (the one field rule: TournamentService)
@@ -328,6 +330,8 @@ public static class OriginsShows
         reason = null;
         if (world.Get(promoId) is not { Defunct: false } promo) { reason = "That promotion isn't running."; return null; }
         if (promo.Rules.ShowFormat != ShowFormat.OneNightTournament) { reason = $"{promo.Abbreviation} doesn't run one-night tournaments."; return null; }
+        if (OriginsReforms.BoundByCode(world, promo))
+        { reason = "Your licence now binds you to the commissions' code: no new one-night brackets. The house fights cards under the code once the bracket on the books is fought."; return null; }
         if (date <= world.CurrentDate) { reason = "Pick a date that hasn't happened yet."; return null; }
         if (world.Events.Values.Any(e => e.Promotion == promoId && e.Date == date && e.Status == EventStatus.Scheduled))
         { reason = "There's already a night on the books that day."; return null; }

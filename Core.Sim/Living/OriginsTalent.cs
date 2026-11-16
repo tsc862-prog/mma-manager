@@ -259,15 +259,21 @@ public static class OriginsTalent
     /// <summary>A half of the game is TAUGHT when its mean sits no more than this far below the man's own level (body and head).</summary>
     public const int TaughtMargin = 16;
 
+    /// <summary>The mean of the striking half (true skills).</summary>
+    /// <remarks>
+    /// WORLD-LEVEL DETECTOR: reads true skills. Not for display on a fighter, and not for any decision made on an
+    /// org's behalf (the fog); a screen shows <see cref="ListedAsAllRounder"/> instead.
+    /// </remarks>
     public static double StrikingMean(Fighter f) =>
         (f.Striking.PunchPower + f.Striking.PunchTechnique + f.Striking.KickPower + f.Striking.KickTechnique
          + f.Striking.ClinchStriking + f.Striking.StrikingDefense + f.Striking.Footwork) / 7.0;
 
+    /// <summary>The mean of the grappling half (true skills; a world-level detector, not for display: see <see cref="StrikingMean"/>).</summary>
     public static double GrapplingMean(Fighter f) =>
         (f.Grappling.TakedownOffense + f.Grappling.TakedownDefense + f.Grappling.TopControl + f.Grappling.BottomGame
          + f.Grappling.SubmissionOffense + f.Grappling.SubmissionDefense + f.Grappling.Scrambling + f.Grappling.ClinchControl) / 8.0;
 
-    /// <summary>The man's own level, apart from his craft: the mean of his body (six) and his head (four).</summary>
+    /// <summary>The man's own level, apart from his craft: the mean of his body (six) and his head (four). True skills: a world-level detector, not for display.</summary>
     public static double BaseLevel(Fighter f) =>
         (f.Physical.Strength + f.Physical.Cardio + f.Physical.Speed + f.Physical.Chin + f.Physical.Recovery + f.Physical.Flexibility
          + f.Mental.FightIQ + f.Mental.Composure + f.Mental.Heart + f.Mental.Discipline) / 10.0;
@@ -277,12 +283,21 @@ public static class OriginsTalent
     /// more than <see cref="TaughtMargin"/> below his own level (<see cref="BaseLevel"/>)? A specialist is lost in
     /// one half (every 1993 pioneer is one; a brawler is lost in both). Read off his skills today, so a
     /// specialist who learns the other half becomes an all-rounder.
+    /// WORLD-LEVEL DETECTOR: reads true skills. Not for display on a fighter, and not for any decision made on an
+    /// org's behalf (the fog); a screen shows <see cref="ListedAsAllRounder"/> instead.
     /// </summary>
     public static bool IsAllRounder(Fighter f)
     {
         double floor = BaseLevel(f) - TaughtMargin;
         return StrikingMean(f) >= floor && GrapplingMean(f) >= floor;
     }
+
+    /// <summary>
+    /// What the public knows: is this man LISTED as knowing more than one art (his style is
+    /// <see cref="PrimaryStyle.WellRounded"/>: he arrived cross-trained, or his story says so)? The read for a
+    /// fighter's screen; a man who learned the other half on the mats shows it in his record, not here.
+    /// </summary>
+    public static bool ListedAsAllRounder(Fighter f) => f.PrimaryStyle == PrimaryStyle.WellRounded;
 
     private const ulong CrossSalt = 0x0219_C405_5000UL, SecondArtSalt = 0x0219_5EC0_0D00UL;
 

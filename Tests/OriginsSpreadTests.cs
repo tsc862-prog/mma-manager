@@ -154,7 +154,7 @@ public class OriginsSpreadTests : IClassFixture<OriginsSpreadFixture>
         Assert.True(w.Era.HasFired(OriginsReforms.Unified));
         Assert.True(OriginsReforms.RankingsRecognised(w));
         Assert.NotEmpty(w.PoundForPound);
-        foreach (var p in w.Promotions.Values.Where(p => OriginsReforms.BoundByCode(w, p)))
+        foreach (var p in w.Promotions.Values.Where(p => OriginsReforms.BoundByCode(w, p) && !OriginsReforms.BracketBooked(w, p)))
         {
             Assert.True(OriginsReforms.HasUnified(p), $"{p.Abbreviation} is licensed but not under the code");
             Assert.Equal(OriginsReforms.UnifiedTitleRounds, p.Rules.TitleRounds);
@@ -388,6 +388,145 @@ public class OriginsSpreadTests : IClassFixture<OriginsSpreadFixture>
         Assert.True(world.Era.HasFired(OriginsCamps.FirstCampChapter));
 
         string path = Path.Combine(Path.GetTempPath(), $"mma_spread_{Guid.NewGuid():N}.db");
+        try
+        {
+            SaveGame.Save(world, path);
+            var loaded = SaveGame.Load(path);
+            var diffs = PersistenceGraph.Diff(world, loaded);
+            Assert.True(diffs.Count == 0, "Changed across the save:\n" + PersistenceGraph.Describe(diffs));
+            new WorldTick().AdvanceWeeks(world, 30);
+            new WorldTick().AdvanceWeeks(loaded, 30);
+            diffs = PersistenceGraph.Diff(world, loaded);
+            Assert.True(diffs.Count == 0, "Saved and never-saved worlds ran apart:\n" + PersistenceGraph.Describe(diffs));
+        }
+        finally { File.Delete(path); }
+    }
+
+    // ---- the code and the cards already on the books (review M1) -------------------------------
+
+    /// <summary>A card of two bouts at one long round (the title bout second), three weeks out.</summary>
+    private static Event LongRoundCard(World w, Promotion p)
+    {
+        p.Rules.Fight = (p.Rules.Fight ?? FightRules.Modern) with { Rounds = 1, RoundMinutes = 15, Judges = false };
+        p.Rules.StandardRounds = 1; p.Rules.TitleRounds = 1; p.Rules.RoundMinutes = 15;
+        var div = p.Divisions.First(d => d.Title is not null);
+        var men = w.RosterOf(p.Id).Where(f => f.Status == FighterStatus.Active).Take(4).ToList();
+        return new EventService().CreateEvent(w, p.Id, $"{p.Abbreviation} under the old rules", w.CurrentDate.AddDays(21), new[]
+        {
+            new Matchup(men[0].Id, men[1].Id, div.WeightClass, 1, false, null),
+            new Matchup(men[2].Id, men[3].Id, div.WeightClass, 1, true, div.Title),
+        }, p.HomeCity);
+    }
+
+    [Fact]
+    public void ALongRoundHouse_BoundByTheCode_HasItsBookedCardRebooked_TitleToFive_AndIsToldSoTruthfully()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(21, playerIndex: 1));   // the Association, Tokyo
+        var sfa = w.Get(w.PlayerPromotion)!;
+        w.CurrentDate = Month(160);
+        var ev = LongRoundCard(w, sfa);
+        w.Era.Sanctions.Add(new Sanction { Country = "JPN", Area = null, On = Month(150) });
+        Fired(w, Month(158), OriginsReforms.Unified);
+        Assert.True(OriginsReforms.BoundByCode(w, sfa));
+
+        OriginsReforms.UnifiedRulesBegin(w, w.CurrentDate);
+        Assert.True(OriginsReforms.HasUnified(sfa));
+        Assert.Null(sfa.Rules.Fight!.Rounds);
+        Assert.Null(sfa.Rules.Fight.RoundMinutes);
+        Assert.Equal(5, sfa.Rules.RoundMinutes);
+        Assert.Equal(OriginsReforms.CardRounds, ev.Card[0].ScheduledRounds);          // no longer one long round...
+        Assert.Equal(OriginsReforms.UnifiedTitleRounds, ev.Card[1].ScheduledRounds);  // ...and the title bout booked at one is five
+        var mail = Assert.Single(w.Mail, m => m.Subject == "The commission's code is now our rulebook");
+        Assert.Contains("the 2 bouts already on our cards are rebooked to it", mail.Body);
+    }
+
+    [Fact]
+    public void AHouseThatAdoptsTheCodeOfItsOwnAccord_HasItsBookedCardsRebookedToo()
+    {
+        var w = OriginsWorldTests.AiWorld(21);
+        var sfa = House(w, "SFA");   // (a house with a belt, nobody licensed in Japan)
+        w.CurrentDate = Month(160);
+        var ev = LongRoundCard(w, sfa);
+        Fired(w, Month(158), OriginsReforms.Unified);
+        Assert.False(OriginsReforms.BoundByCode(w, sfa));   // Tokyo is not licensed: it is the house's choice
+        Assert.True(OriginsReforms.TryAdopt(w, sfa, OriginsReforms.Unified, w.CurrentDate, out var refused), refused);
+        Assert.Equal(new[] { OriginsReforms.CardRounds, OriginsReforms.UnifiedTitleRounds }, ev.Card.Select(f => f.ScheduledRounds).ToArray());
+    }
+
+    [Fact]
+    public void ABookedBracket_RunsAsAnnounced_AndTheBoundHouseTakesTheCodeAfterIt_WithNoNewBracketMeanwhile()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(22, playerIndex: 0));   // the Crucible, Los Angeles
+        var cru = w.Get(w.PlayerPromotion)!;
+        w.CurrentDate = Month(160);
+        var bracket = new Event
+        {
+            Id = w.NewEventId(), Promotion = cru.Id, Name = "Crucible, as announced", Date = w.CurrentDate.AddDays(14),
+            Region = cru.BaseRegion, Status = EventStatus.Scheduled, Format = EventFormat.Tournament,
+        };
+        w.Events[bracket.Id] = bracket;
+        var rulesBefore = cru.Rules.Fight;
+        var la = w.Get(cru.HomeCity!.Value)!;
+        w.Era.Sanctions.Add(new Sanction { Country = "USA", Area = la.Area, On = Month(150) });
+        Fired(w, Month(158), OriginsReforms.Unified);
+
+        OriginsReforms.UnifiedRulesBegin(w, w.CurrentDate);
+        Assert.True(OriginsReforms.BracketBooked(w, cru));
+        Assert.False(OriginsReforms.HasUnified(cru));                  // the bracket keeps the rules it was announced under
+        Assert.Equal(rulesBefore, cru.Rules.Fight);
+        Assert.Equal(ShowFormat.OneNightTournament, cru.Rules.ShowFormat);
+        Assert.DoesNotContain(OriginsReforms.Options(w, cru, w.CurrentDate), o => o.Chapter == OriginsReforms.Unified);
+        Assert.StartsWith("Your one-night bracket on the books", OriginsReforms.Refusal(w, cru, OriginsReforms.Unified, w.CurrentDate));
+        Assert.Null(OriginsShows.ScheduleTournament(w, cru.Id, w.CurrentDate.AddDays(60), out var why));
+        Assert.StartsWith("Your licence now binds you to the commissions' code", why);
+
+        bracket.Status = EventStatus.Completed;                         // fought, as announced
+        OriginsReforms.UnifiedRulesBegin(w, w.CurrentDate.AddDays(14));
+        Assert.True(OriginsReforms.HasUnified(cru));
+        Assert.Equal(ShowFormat.Card, cru.Rules.ShowFormat);
+        Assert.Contains(w.Mail, m => m.Subject == "The commission's code is now our rulebook");
+    }
+
+    // ---- who grows across the whole game (review L4) -----------------------------------------------
+
+    [Fact]
+    public void TheOneArtEra_EndsWithTheFall_AndACrossTrainedArrivalWorksBothHalvesWhereverHeTrains()
+    {
+        var w = OriginsWorldTests.AiWorld(6);
+        var gen = FighterGenerator.ForWorld(w);
+        var loner = OriginsTalent.Create(w, gen, w.CurrentDate, "USA", 22, 45);
+        loner.Camp = null;
+        Assert.NotEqual(PrimaryStyle.WellRounded, loner.PrimaryStyle);
+        Assert.True(OriginsCamps.TrainsOneArt(w, loner));
+
+        Fired(w, Month(2), "crucible-first-night", "first-star");
+        Fired(w, Month(20), "style-upset");
+        Fired(w, Month(70), OriginsCamps.FirstCampChapter);
+        w.CurrentDate = Month(150);
+        var arrival = OriginsTalent.Create(w, gen, w.CurrentDate, "USA", 22, 45);
+        for (int i = 0; arrival.PrimaryStyle != PrimaryStyle.WellRounded && i < 50; i++)
+            arrival = OriginsTalent.Create(w, gen, w.CurrentDate, "USA", 22, 45);
+        Assert.Equal(PrimaryStyle.WellRounded, arrival.PrimaryStyle);
+        arrival.Camp = null;
+        Assert.False(OriginsCamps.TrainsOneArt(w, arrival));            // he learned two arts: he keeps working both, alone or not
+        Assert.True(OriginsTalent.ListedAsAllRounder(arrival));
+        Assert.True(OriginsCamps.TrainsOneArt(w, loner));               // the specialist alone is still a specialist...
+
+        Fired(w, Month(100), OriginsCamps.SpecialistsFallChapter);
+        Assert.False(OriginsCamps.TrainsOneArt(w, loner));               // ...until the one-art era is over
+    }
+
+    [Fact]
+    public void SaveLoadRunOn_EqualsNeverSaved_AfterTheSecondCentreAndTheCode()
+    {
+        var world = OriginsWorldTests.AiWorld(23);
+        var tick = new WorldTick();
+        while (!world.Era.HasFired(OriginsReforms.Unified) && world.CurrentDate.Year < 2008) tick.AdvanceWeek(world);
+        Assert.True(world.Era.HasFired(OriginsScenes.SecondCentreChapter));
+        Assert.True(world.Era.HasFired(OriginsReforms.Unified));
+        tick.AdvanceWeeks(world, 6);
+
+        string path = Path.Combine(Path.GetTempPath(), $"mma_code_{Guid.NewGuid():N}.db");
         try
         {
             SaveGame.Save(world, path);

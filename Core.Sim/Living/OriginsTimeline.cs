@@ -168,6 +168,8 @@ public static class OriginsTimeline
             OriginsScenes.RunMonthly(world, date);   // gyms open in the scenes that have woken
             OriginsCamps.RunMonthly(world, date);    // rooms earn names and learn the whole game
         }
+        // A licensed house the code binds takes it the week it is clear of any bracket on its books.
+        if (world.Era.HasFired(OriginsReforms.Unified)) OriginsReforms.UnifiedRulesBegin(world, date);
 
         int month = Month(world, date);
         foreach (var c in Walk)
@@ -462,8 +464,9 @@ public static class OriginsTimeline
         && bouts >= SpecialistBoutsNeeded && won * 100 >= percent * bouts;
 
     /// <summary>
-    /// All-rounders against specialists since a date: the all-rounders' wins and the bouts with a winner. Read-only
-    /// (the story screen's "the old guard against the new" line can show it).
+    /// All-rounders against specialists since a date: the all-rounders' wins and the bouts with a winner. Read-only.
+    /// WORLD-LEVEL DETECTOR: it classifies men by their true skills (<see cref="OriginsTalent.IsAllRounder"/>), so a
+    /// screen may show the sport-wide totals but never which man counted as which.
     /// </summary>
     public static (int AllRounderWins, int Bouts) AllRounderRecord(World world, DateOnly since)
     {

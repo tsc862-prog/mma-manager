@@ -365,7 +365,8 @@ public static class OriginsMode
         // Phase 3 checks.
         foreach (var s in scenes)
             if (s.Gyms == 0 && world.CurrentDate > s.WokeOn.AddMonths(2)) o.Violations.Add($"{year}: scene {s.Code} awake since {s.WokeOn:yyyy-MM} has no gym");
-        foreach (var p in world.Promotions.Values.Where(p => !p.Defunct && OriginsReforms.BoundByCode(world, p) && !OriginsReforms.HasUnified(p)))
+        foreach (var p in world.Promotions.Values.Where(p => !p.Defunct && OriginsReforms.BoundByCode(world, p) && !OriginsReforms.HasUnified(p)
+                     && !OriginsReforms.BracketBooked(world, p)))   // (a booked bracket runs as announced; the house takes the code after it)
             o.Violations.Add($"{year}: {p.Abbreviation} is licensed but not under the code");
         if (!OriginsReforms.RankingsRecognised(world) && (world.PoundForPound.Count > 0 || world.GlobalRankings.Values.Any(l => l.Count > 0)))
             o.Violations.Add($"{year}: rankings across promotions published before the code");
