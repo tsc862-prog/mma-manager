@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "pioneers": {
+    "Walt Corbin": {
+      "key": "walt-corbin",
+      "first": "Walt",
+      "last": "Corbin",
+      "nick": "The Alderman",
+      "discipline": "Boxing",
+      "country": "USA",
+      "age": 34,
+      "cm": 188,
+      "kg": 92,
+      "face": "walt-corbin_face.png",
+      "body": "walt-corbin_body.png",
+      "tops": null
+    },
+    "Lemalu Tofaeono": {
+      "key": "lemalu-tofaeono",
+      "first": "Lemalu",
+      "last": "Tofaeono",
+      "nick": "The Island",
+      "discipline": "Sumo",
+      "country": "SAM",
+      "age": 31,
+      "cm": 193,
+      "kg": 168,
+      "face": "lemalu-tofaeono_face.png",
+      "body": "lemalu-tofaeono_body.png",
+      "tops": null
+    },
+    "Lyle Brannock": {
+      "key": "lyle-brannock",
+      "first": "Lyle",
+      "last": "Brannock",
+      "nick": "Sideshow",
+      "discipline": "ProWrestling",
+      "country": "USA",
+      "age": 36,
+      "cm": 185,
+      "kg": 108,
+      "face": "lyle-brannock_face.png",
+      "body": "lyle-brannock_body.png",
+      "tops": null
+    },
+    "Aurelio Neves": {
+      "key": "aurelio-neves",
+      "first": "Aurelio",
+      "last": "Neves",
+      "nick": "The Locksmith",
+      "discipline": "JiuJitsu",
+      "country": "BRA",
+      "age": 33,
+      "cm": 182,
+      "kg": 83,
+      "face": "aurelio-neves_face.png",
+      "body": "aurelio-neves_body.png",
+      "tops": {
+        "face": "aurelio-neves__tops_face.png",
+        "body": "aurelio-neves__tops_body.png"
+      }
+    },
+    "Tetsuya Hagiwara": {
+      "key": "tetsuya-hagiwara",
+      "first": "Tetsuya",
+      "last": "Hagiwara",
+      "nick": "The Open Hand",
+      "discipline": "ProWrestling",
+      "country": "JPN",
+      "age": 30,
+      "cm": 183,
+      "kg": 92,
+      "face": "tetsuya-hagiwara_face.png",
+      "body": "tetsuya-hagiwara_body.png",
+      "tops": {
+        "face": "tetsuya-hagiwara__tops_face.png",
+        "body": "tetsuya-hagiwara__tops_body.png"
+      }
+    },
+    "Kiyoshi Aizawa": {
+      "key": "kiyoshi-aizawa",
+      "first": "Kiyoshi",
+      "last": "Aizawa",
+      "nick": "Yamakaze",
+      "discipline": "Sumo",
+      "country": "JPN",
+      "age": 31,
+      "cm": 187,
+      "kg": 155,
+      "face": "kiyoshi-aizawa_face.png",
+      "body": "kiyoshi-aizawa_body.png",
+      "tops": null
+    },
+    "Jurandir Salles": {
+      "key": "jurandir-salles",
+      "first": "Jurandir",
+      "last": "Salles",
+      "nick": "Mestre Jura",
+      "discipline": "Capoeira",
+      "country": "BRA",
+      "age": 40,
+      "cm": 170,
+      "kg": 70,
+      "face": "jurandir-salles_face.png",
+      "body": "jurandir-salles_body.png",
+      "tops": null
+    },
+    "Pongsak Thanasarn": {
+      "key": "pongsak-thanasarn",
+      "first": "Pongsak",
+      "last": "Thanasarn",
+      "nick": "Iron Elbow",
+      "discipline": "MuayThai",
+      "country": "THA",
+      "age": 24,
+      "cm": 170,
+      "kg": 64,
+      "face": "pongsak-thanasarn_face.png",
+      "body": "pongsak-thanasarn_body.png",
+      "tops": null
+    },
+    "Dermot Quirke": {
+      "key": "dermot-quirke",
+      "first": "Dermot",
+      "last": "Quirke",
+      "nick": "The Fairground",
+      "discipline": "Brawler",
+      "country": "IRL",
+      "age": 31,
+      "cm": 183,
+      "kg": 92,
+      "face": "dermot-quirke_face.png",
+      "body": "dermot-quirke_body.png",
+      "tops": null
+    },
+    "Ademir Bastos": {
+      "key": "ademir-bastos",
+      "first": "Ademir",
+      "last": "Bastos",
+      "nick": "O Armario",
+      "discipline": "Brawler",
+      "country": "BRA",
+      "age": 30,
+      "cm": 198,
+      "kg": 128,
+      "face": "ademir-bastos_face.png",
+      "body": "ademir-bastos_body.png",
+      "tops": null
+    }
+  }
+}
