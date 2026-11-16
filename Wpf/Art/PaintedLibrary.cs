@@ -71,6 +71,23 @@ public static class PaintedLibrary
         return tag;
     }
 
+    /// <summary>
+    /// <see cref="PersonaFor(Fighter)"/> for a fighter of <paramref name="w"/>, read off that world's countries
+    /// rather than the attached one (and uncached), so the sim can stamp the look the moment a fighter is made,
+    /// before any screen has attached the world. Same identity choice the portrait lookups make once the world is
+    /// attached. Handed to the sim as <see cref="Core.Sim.Generation.IdentityCatalog.LookOf"/>.
+    /// </summary>
+    public static string? PersonaFor(Fighter f, World w)
+    {
+        Load();
+        if (PioneerOf(f) is not null) return null;
+        if (Tags.Count == 0 || Identities.Count == 0) return null;
+        string? culture = w.Countries.TryGetValue(f.Country, out var c)
+            ? Core.Sim.Geography.WorldAtlas.ByCode(c.Code)?.Culture
+            : null;
+        return Choose(f, culture) is { } id && Tags.TryGetValue(id.Key, out var t) ? t : null;
+    }
+
     /// <summary>Whether the fighter's assigned identity is rendered at all three life stages (diagnostics).</summary>
     public static bool HasTriptychFor(Fighter f)
     {
@@ -253,13 +270,14 @@ public static class PaintedLibrary
         ["southernafrican"] = new[] { "black", "white" },
     };
 
-    private static Identity? Choose(Fighter f)
+    private static Identity? Choose(Fighter f) => Choose(f, CultureOf(f));
+
+    private static Identity? Choose(Fighter f, string? culture)
     {
         var sex = f.Sex == Sex.Female ? 'f' : 'm';
         var mine = Identities.Values.Where(i => i.Sex == sex).ToList();
         if (mine.Count == 0) return null;
 
-        var culture = CultureOf(f);
         var eths = culture is not null && CultureBuckets.TryGetValue(culture, out var cb)
             ? cb
             : Buckets(f.Nationality);
@@ -360,7 +378,8 @@ public static class PaintedLibrary
                 StyleFromCode(id.Style),
                 HasAllStages(id)));
         }
-        return specs.Count > 0 ? new Core.Sim.Generation.IdentityCatalog(specs) : null;
+        // The sim stamps each fighter's look from this when it makes him (Core.Sim.Living.Personas).
+        return specs.Count > 0 ? new Core.Sim.Generation.IdentityCatalog(specs) { LookOf = PersonaFor } : null;
     }
 
     private static PrimaryStyle? StyleFromCode(string code) => code switch
