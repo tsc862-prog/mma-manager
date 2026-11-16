@@ -294,7 +294,7 @@ public sealed class Negotiator
             var room = Living.OriginsShows.HomeVenue(world, promo);
             decimal seats = Math.Min(attendance * (decimal)Booking.Financials.OriginsCrowdFactor, room?.Capacity ?? attendance);
             decimal take = seats * Booking.Financials.TicketPrice(world, prestige)
-                         - Booking.Financials.OriginsProduction(seats) - Booking.Financials.RentOf(world, room).Amount;   // (a 1993 rent)
+                         - Booking.Financials.OriginsProduction(seats) - SeatsRent(world, room, seats);
             return Math.Max(OriginsPurseFloor, Math.Round(take * 0.9m / 14m / 250m) * 250m);
         }
         var venue = Geography.WorldMap.PickVenue(world, promo);
@@ -305,6 +305,15 @@ public sealed class Negotiator
         // A full card is ~16 purses + 8 win bonuses at 0.75 → ~22 purse-units.
         return Math.Max(2_000m, Math.Round((gate - production) * 0.9m / 22m / 500m) * 500m);
     }
+
+    /// <summary>
+    /// The rent an Origins house budgets its purses against: its room's 1993 rent for the seats it expects to
+    /// sell (a house whose room is bigger than its budgeted crowd prices its men off the crowd, not the
+    /// empty rows; RoomIn picks the room for the crowd it has actually seen).
+    /// </summary>
+    private static decimal SeatsRent(World world, Venue? room, decimal seats) =>
+        room is null || room.Capacity <= 0 ? 0m
+        : Booking.Financials.RentOf(world, room).Amount * Math.Min(1m, seats / room.Capacity);
 
     /// <summary>The headliner draw a brand-new promotion can expect: a known local name, not a star.</summary>
     public const int FoundingHeadlinerDraw = 40;
