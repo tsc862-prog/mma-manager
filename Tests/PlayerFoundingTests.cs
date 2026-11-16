@@ -136,6 +136,114 @@ public class PlayerFoundingTests
         Assert.False(PlayerFounding.TryoutOptions(modern, modern.CurrentDate).Available);
     }
 
+    [Fact]
+    public void Refuses_TheNamesTheStoryKeeps_ForArrivalsAndFounders()
+    {
+        var w = Observer(15);
+        var open = FirstOpen(w).Id;
+        var arrivals = OriginsArrivals.All.Where(a => a.Kind == OriginsArrivalKind.Promotion).ToList();
+        Assert.Contains(arrivals, a => a.Name == "Bellwether Fighting Championship");
+        Assert.Contains(arrivals, a => a.Name == "Seiryu Grand Combat");
+        foreach (var a in arrivals)
+        {
+            // Its name and its abbreviation, in any case: neither may be his (else it would never arrive).
+            Assert.Null(PlayerFounding.Found(w, w.CurrentDate, new PlayerFoundingSpec(a.Name.ToUpperInvariant(), "QQX", open), out var why));
+            Assert.Contains("still to bring", why);
+            string abbr = a.Abbreviation ?? OriginsFounding.Initials(a.Name);
+            Assert.Null(PlayerFounding.Found(w, w.CurrentDate, new PlayerFoundingSpec("Quite New Fights", abbr.ToLowerInvariant(), open), out why));
+            Assert.Contains("still to bring", why);
+            Assert.False(OriginsFounding.Arrived(w, a));
+        }
+        foreach (var f in OriginsPromotions.All)
+        {
+            Assert.Null(PlayerFounding.Found(w, w.CurrentDate, new PlayerFoundingSpec(f.Name.ToLowerInvariant(), "QQX", open), out var why));
+            Assert.Contains("already", why);
+            Assert.Null(PlayerFounding.Found(w, w.CurrentDate, new PlayerFoundingSpec("Quite New Fights", f.Abbreviation.ToLowerInvariant(), open), out why));
+            Assert.Contains("already", why);
+        }
+        Assert.False(w.HasPlayer);
+    }
+
+    [Fact]
+    public void SuggestAbbreviation_IsAlwaysOneFoundAccepts()
+    {
+        var w = Observer(16);
+        Assert.Equal("LSO", PlayerFounding.SuggestAbbreviation(w, "Lantern Street Open"));
+        Assert.Equal("", PlayerFounding.SuggestAbbreviation(w, "   "));
+        Assert.NotEqual("SGC", PlayerFounding.SuggestAbbreviation(w, "Seiryu Grand Combat Two"));
+        var names = new[]
+        {
+            "Lantern Street Open", "São Paulo Luta Livre Clube", "Seiryu Grand Combat Two", "Bellwether Fights Club",
+            "Crucible Challenge Again", "Ü", "Ångström Åsa Örebro", "東京 Fight Night", "X", "Shinken Fighting Academy",
+        };
+        int i = 0;
+        foreach (var name in names)
+        {
+            string abbr = PlayerFounding.SuggestAbbreviation(w, name);
+            Assert.InRange(abbr.Length, 2, 5);
+            Assert.All(abbr, ch => Assert.True(char.IsAsciiLetterOrDigit(ch) && !char.IsLower(ch), $"'{abbr}' for {name}"));
+            var fresh = Observer(16);
+            var promo = PlayerFounding.Found(fresh, fresh.CurrentDate, new PlayerFoundingSpec($"Test House {i++}", abbr, FirstOpen(fresh).Id), out var why);
+            Assert.True(promo is not null, $"{name} -> {abbr}: {why}");
+        }
+    }
+
+    [Fact]
+    public void FoundedLateInTheYear_ObjectivesStartOnFirstJanuary()
+    {
+        Assert.False(PlayerFounding.LateInYear(new DateOnly(1993, 10, 20)));   // 73 days left
+        Assert.True(PlayerFounding.LateInYear(new DateOnly(1993, 10, 25)));    // 68 days left
+
+        var w = Observer(17);
+        var tick = new WorldTick();
+        while (!PlayerFounding.LateInYear(w.CurrentDate)) tick.AdvanceWeek(w);
+        int year = w.CurrentDate.Year + 1;
+        var promo = FoundOk(w, Spec(w));
+        Assert.Empty(promo.Objectives);
+        var letter = Assert.Single(w.Mail, m => m.From == "The Accountant" && m.Subject.EndsWith("open for business"));
+        Assert.Contains("1 January", letter.Body);
+
+        while (w.CurrentDate < new DateOnly(year, 2, 1)) tick.AdvanceWeeksStoppingForPlayer(w, 1);
+        Assert.Equal(2, promo.Objectives.Count);
+        Assert.All(promo.Objectives, o =>
+        {
+            Assert.Equal(new DateOnly(year, 1, 1), o.Start);
+            Assert.Equal(new DateOnly(year, 12, 31), o.Deadline);
+            Assert.Equal(ObjectiveStatus.Active, o.Status);
+        });
+    }
+
+    [Fact]
+    public void ReformsAlreadyOpenAtFounding_AreToldOnce()
+    {
+        const string rounds = OriginsReforms.Rounds;
+        var chapter = OriginsChapters.ByKey(rounds);
+        int checkedWorlds = 0;
+        for (ulong seed = 1; seed <= 10 && checkedWorlds == 0; seed++)
+        {
+            var w = Observer(seed);
+            var tick = new WorldTick();
+            // Wait until the rounds reform has been open (and unfired) for over a month.
+            DateOnly? openSince = null;
+            while (w.CurrentDate.Year < 2001 && !w.Era.HasFired(rounds))
+            {
+                tick.AdvanceWeek(w);
+                if (OriginsTimeline.IsLive(w, chapter, w.CurrentDate)) openSince ??= w.CurrentDate;
+                if (openSince is { } since && w.CurrentDate.DayNumber - since.DayNumber > 45) break;
+            }
+            if (w.Era.HasFired(rounds) || openSince is null) continue;
+            checkedWorlds++;
+            var promo = FoundOk(w, Spec(w));
+            Assert.Contains(OriginsReforms.Options(w, promo, w.CurrentDate), o => o.Chapter == rounds);
+            var note = Assert.Single(w.Mail, m => m.Subject == "House rules we could change");
+            Assert.Contains("Rounds and judges", note.Body);
+            // The monthly desk does not tell it again.
+            for (int week = 0; week < 6; week++) tick.AdvanceWeeksStoppingForPlayer(w, 1);
+            Assert.DoesNotContain(w.Mail, m => m.Subject == "We could adopt: Rounds and judges");
+        }
+        Assert.True(checkedWorlds > 0, "no seed had the rounds reform open and unfired for a month");
+    }
+
     // ---- what he gets ------------------------------------------------------------------
 
     [Fact]
@@ -234,7 +342,7 @@ public class PlayerFoundingTests
     public void Found_YearsIn_MatchesTheChoicesOfThatDay()
     {
         var w = Observer(8);
-        new WorldTick().AdvanceWeeks(w, 52 * 5);
+        new WorldTick().AdvanceWeeks(w, 52 * 5 - 20);   // mid-year: objectives for the rest of it
         var choices = PlayerFounding.Choices(w, w.CurrentDate);
         Assert.True(choices.CanFound);
         var spec = new PlayerFoundingSpec("Harbour Lights Fighting", "HLF", choices.Cities.First(c => c.Open).Id,

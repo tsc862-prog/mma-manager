@@ -249,7 +249,7 @@ public static class OriginsReforms
     }
 
     /// <summary>Was this chapter open (fired, or live) on a date? Read off the durable record, so the past answers the same.</summary>
-    private static bool OpenOn(World world, string chapter, DateOnly on)
+    internal static bool OpenOn(World world, string chapter, DateOnly on)
     {
         if (world.Era.Chapter(chapter) is { } rec) return rec.FiredOn <= on;
         var c = OriginsChapters.ByKey(chapter);

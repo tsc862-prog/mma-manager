@@ -73,7 +73,9 @@ public sealed record TryoutSigning(FighterId Fighter, string Name, int Age, Weig
 /// </summary>
 public static class PlayerFounding
 {
-    private const ulong FoundSalt = 0x0219_F0D0_0011UL, TryoutSalt = 0x0219_7A1E_0012UL;
+    // Keyed streams of their own, with high bits unlike every other founding salt (OriginsFounding's are 0x0219_...),
+    // so his founding on one day never shares a stream seed with an AI founding (or his tryout) on a nearby day.
+    private const ulong FoundSalt = 0x5A4D_C3E1_0000_0001UL, TryoutSalt = 0x6B71_92F4_0000_0002UL;
 
     /// <summary>The player's pick inside the AI newcomer's bank range: two of <see cref="OriginsFounding.NewcomerBankSteps"/> steps.</summary>
     public const int BankSteps = 2;
@@ -84,15 +86,81 @@ public static class PlayerFounding
     /// <summary>The local men the free open tryout signs.</summary>
     public const int TryoutTurnout = 6;
 
-    /// <summary>The ledger line that records the free tryout (the durable mark that it has been held).</summary>
+    /// <summary>
+    /// The ledger line that records the free tryout: the durable mark that it has been held (<see cref="TryoutHeldOn"/>),
+    /// a $0 <see cref="FinanceCategory.Other"/> entry. The ledger is the promotion's permanent, saved history and
+    /// nothing trims it; that must stay so, because this line is the only record of the tryout (the men it signed
+    /// can be released, retire or be bought away, and the news caps). Screens that sum money should skip $0 lines.
+    /// </summary>
     public const string TryoutLedgerLine = "Open tryout (free)";
+
+    /// <summary>Founded with fewer days than this left in the year, his objectives start on 1 January (the year's turn seeds them).</summary>
+    public const int LateInYearDays = 70;
 
     /// <summary>The bank a house the player founds today opens with (an AI newcomer's, at <see cref="BankSteps"/>).</summary>
     public static Money Bank => new(OriginsFounding.NewcomerBank(BankSteps));
 
-    /// <summary>The initials a name suggests for its abbreviation ("Lantern Street Open" gives "LSO").</summary>
-    public static string SuggestAbbreviation(string name) =>
-        string.IsNullOrWhiteSpace(name) ? "" : OriginsFounding.Initials(name.Trim());
+    /// <summary>
+    /// The abbreviation a name suggests ("Lantern Street Open" gives "LSO"): its initials in plain letters (accents
+    /// dropped), two to five of them, and never one <see cref="Found"/> would refuse: when the initials are taken
+    /// (by a live or closed house, or one the story has still to bring) a letter, then a digit, is tried in the
+    /// last place. Empty for a blank name.
+    /// </summary>
+    public static string SuggestAbbreviation(World world, string name)
+    {
+        var plain = new System.Text.StringBuilder();
+        foreach (char ch in (name ?? "").Normalize(System.Text.NormalizationForm.FormD))
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
+            plain.Append(char.IsAsciiLetterOrDigit(ch) ? ch : ' ');
+        }
+        string folded = plain.ToString().Trim();
+        if (folded.Length == 0) return "";
+        var basis = new string(OriginsFounding.Initials(folded).Where(char.IsAsciiLetterOrDigit)
+            .Select(char.ToUpperInvariant).Take(5).ToArray());
+        if (basis.Length < 2) basis = (basis + "XX")[..2];
+        if (AbbreviationRefusal(world, basis) is null) return basis;
+        string stem = basis[..2];
+        foreach (char ch in Enumerable.Range('A', 26).Concat(Enumerable.Range('2', 8)).Select(i => (char)i))
+            if (AbbreviationRefusal(world, stem + ch) is null) return stem + ch;
+        for (int n = 10; n < 1000; n++)
+            if (AbbreviationRefusal(world, stem + n) is null) return stem + n;
+        return "";
+    }
+
+    /// <summary>The promotions the story has still to bring, and the founding three: their names and abbreviations are theirs.</summary>
+    private static IEnumerable<(string Name, string Abbreviation, bool Arrival)> Reserved() =>
+        OriginsArrivals.All.Where(a => a.Kind == OriginsArrivalKind.Promotion)
+            .Select(a => (a.Name, a.Abbreviation ?? OriginsFounding.Initials(a.Name), true))
+            .Concat(OriginsPromotions.All.Select(sp => (sp.Name, sp.Abbreviation, false)));
+
+    /// <summary>Why a name can't be his (null when it can): another house's, or kept for one the story has still to bring.</summary>
+    private static string? NameRefusal(World world, string name)
+    {
+        if (world.Promotions.Values.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+            return $"There is already a promotion called {name}.";
+        foreach (var r in Reserved())
+            if (string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase))
+                return r.Arrival
+                    ? $"{r.Name} is a promotion the sport's story has still to bring; the name is spoken for."
+                    : $"{r.Name} is one of the sport's founding promotions.";
+        return null;
+    }
+
+    /// <summary>Why an abbreviation can't be his (null when it can): its shape, another house's, or kept for one still to come.</summary>
+    private static string? AbbreviationRefusal(World world, string abbr)
+    {
+        if (abbr.Length is < 2 or > 5 || !abbr.All(char.IsAsciiLetterOrDigit))
+            return "The abbreviation is two to five letters or digits.";
+        if (world.Promotions.Values.Any(p => string.Equals(p.Abbreviation, abbr, StringComparison.OrdinalIgnoreCase)))
+            return $"{abbr} is already another promotion's abbreviation.";
+        foreach (var r in Reserved())
+            if (string.Equals(r.Abbreviation, abbr, StringComparison.OrdinalIgnoreCase))
+                return r.Arrival
+                    ? $"{abbr} belongs to {r.Name}, a promotion the sport's story has still to bring."
+                    : $"{abbr} belongs to {r.Name}, one of the sport's founding promotions.";
+        return null;
+    }
 
     // ------------------------------------------------------------------ reading the choices
 
@@ -164,7 +232,7 @@ public static class PlayerFounding
         if (k is null || !scenes.Contains(k.Code))
         {
             string where = k?.Name ?? "That country";
-            return k is not null && OriginsTimeline.ContestedScene(world, k.Code)
+            return k is not null && OriginsTimeline.ContestedScene(world, k.Code, date)
                 ? $"{where} has no scene of its own yet. A first night there could wake it, but a house needs gyms, a crowd and fighters at home."
                 : $"{where} has no MMA scene yet: no gyms, no crowd, no fighters to sign.";
         }
@@ -213,14 +281,18 @@ public static class PlayerFounding
         var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ FoundSalt));
         Finance.Sponsorships.SeedFounding(world, promo, date, rng);
         RankingService.RecomputePromotion(world, promo, date);
-        Org.Objectives.Seed(promo, date, new DateOnly(date.Year, 12, 31), world);
+        // His objectives run to the year's end; founded in its last weeks they start on 1 January instead (the year's
+        // turn seeds them, as it does every player's), so he is never set a target he cannot meet.
+        bool late = LateInYear(date);
+        if (!late) Org.Objectives.Seed(promo, date, new DateOnly(date.Year, 12, 31), world);
 
         News.Post(world, date, NewsCategory.Finance, $"{name} opens in {city.Name}",
             $"A new promotion has opened in {city.Name}, {country.Name}, with {OriginsFounding.Describe(promo)}. Nobody is signed yet.",
             promo.Id);
-        Mail.Post(world, date, MailCategory.BoardNote, "The Accountant", $"{name} is open for business", Welcome(world, promo, city, country));
+        Mail.Post(world, date, MailCategory.BoardNote, "The Accountant", $"{name} is open for business", Welcome(world, promo, city, country, late));
+        TellOpenReforms(world, promo, date);
 
-        CreditChapters(world, promo, city, date, aliveBefore);
+        CreditChapters(world, date, aliveBefore);
         return promo;
     }
 
@@ -236,14 +308,8 @@ public static class PlayerFounding
 
         if (name.Length < 3) return "Give the promotion a name of at least three letters.";
         if (name.Length > 40) return "Keep the name to forty characters or fewer.";
-        string n = name;
-        if (world.Promotions.Values.Any(p => string.Equals(p.Name, n, StringComparison.OrdinalIgnoreCase)))
-            return $"There is already a promotion called {name}.";
-        if (abbr.Length is < 2 or > 5 || !abbr.All(char.IsAsciiLetterOrDigit))
-            return "The abbreviation is two to five letters or digits.";
-        string a = abbr;
-        if (world.Promotions.Values.Any(p => string.Equals(p.Abbreviation, a, StringComparison.OrdinalIgnoreCase)))
-            return $"{abbr} is already another promotion's abbreviation.";
+        if (NameRefusal(world, name) is { } badName) return badName;
+        if (AbbreviationRefusal(world, abbr) is { } badAbbr) return badAbbr;
 
         if (world.Get(spec.City) is not { } c) return "Pick a city for the promotion's home.";
         if (CityRefusal(world, c, date, HomesOfLiveHouses(world), Era.Scenes(world).ToHashSet(StringComparer.Ordinal)) is { } why)
@@ -284,7 +350,7 @@ public static class PlayerFounding
     }
 
     /// <summary>The accountant's first letter: the money, the empty roster, the tryout, the year's asks.</summary>
-    private static string Welcome(World world, Promotion promo, City city, Country country)
+    private static string Welcome(World world, Promotion promo, City city, Country country, bool late)
     {
         var r = promo.Rules.Fight!;
         string time = r.Rounds is > 1 ? $"{r.Rounds} rounds of {r.RoundMinutes} minutes with judges" : $"one round of {r.RoundMinutes} minutes, no judges";
@@ -299,22 +365,46 @@ public static class PlayerFounding
         return $"The books are open: {promo.Balance} in the bank, a home in {city.Name}, {country.Name}, and {OriginsFounding.Describe(promo)}. "
              + $"House rules: {time}, {hands}, {where}. "
              + "Nobody is signed. We have one open tryout of local men, free, whenever you call it; the rest come off the free-agent market at their asking terms. "
-             + $"For the rest of {promo.FoundedYear} I'd like {shows} show{(shows == 1 ? "" : "s")} and the year finished in the black.";
+             + (late
+                 ? $"There's too little of {promo.FoundedYear} left to judge us on it: the owner's targets start on 1 January."
+                 : $"For the rest of {promo.FoundedYear} I'd like {shows} show{(shows == 1 ? "" : "s")} and the year finished in the black.");
+    }
+
+    /// <summary>Too few days of the year left to set him a year's objectives (<see cref="LateInYearDays"/>).</summary>
+    public static bool LateInYear(DateOnly date) => new DateOnly(date.Year, 12, 31).DayNumber - date.DayNumber + 1 < LateInYearDays;
+
+    /// <summary>
+    /// The rule reforms already open to his house on the day he founds it. The monthly desk note
+    /// (OriginsReforms.TellThePlayer) tells only reforms that opened since the previous month's turn, so a reform
+    /// open before then would never reach him: those are listed here, once. Any that opened since are told at the
+    /// next month's turn as usual, so nothing is told twice.
+    /// </summary>
+    private static void TellOpenReforms(World world, Promotion promo, DateOnly date)
+    {
+        var next = date.AddDays(7);
+        while (next.AddDays(-7).Month == next.Month) next = next.AddDays(7);
+        var told = OriginsBacklash.PreviousMonthlyTick(next);
+        var open = OriginsReforms.Options(world, promo, date).Where(o => OriginsReforms.OpenOn(world, o.Chapter, told)).ToList();
+        if (open.Count == 0) return;
+        Mail.Post(world, date, MailCategory.BoardNote, "The Accountant", "House rules we could change",
+            "The sport has moved on since our rules were written. " + string.Join(" ", open.Select(o => $"{o.Label}: {o.Detail}"))
+            + " It's our call; nobody will make it for us.");
     }
 
     /// <summary>
-    /// A "promotions at least" chapter that is live and that this house's opening brings to its count is the
-    /// player's: it fires now, crediting him (the story's player variant). A count already met before he opened
-    /// is somebody else's.
+    /// A live "promotions at least" chapter whose count this house's opening reaches fires now, with the doer the
+    /// weekly detection would name (<see cref="OriginsTimeline.CountDoer"/>, one rule for both). That is his house
+    /// by construction: it is the newest, so its place in id order is the last, at or past the count's last place.
+    /// A count already met before he opened is left to the weekly detection.
     /// </summary>
-    private static void CreditChapters(World world, Promotion promo, City city, DateOnly date, int aliveBefore)
+    private static void CreditChapters(World world, DateOnly date, int aliveBefore)
     {
-        int alive = world.Promotions.Values.Count(p => !p.Defunct);
         foreach (var c in OriginsChapters.All)
         {
             if (c.Structured.Condition is not ("PromotionsAtLeast" or "PromotionsOnTheMapAtLeast")) continue;
-            if (aliveBefore >= c.Structured.Value || alive < c.Structured.Value) continue;
-            OriginsTimeline.FireNow(world, c.Key, new ChapterDoer(promo.Id, City: city.Id), date);
+            if (aliveBefore >= c.Structured.Value || !OriginsTimeline.IsLive(world, c, date)) continue;
+            if (OriginsTimeline.CountDoer(world, c.Structured.Value) is { } doer)
+                OriginsTimeline.FireNow(world, c.Key, doer, date);
         }
     }
 

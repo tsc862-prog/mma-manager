@@ -98,9 +98,12 @@ public static class OriginsTimeline
         && IsLive(world, c, world.CurrentDate);
 
     /// <summary>A country whose scene the first house to take a night there will wake (its chapter is live).</summary>
-    public static bool ContestedScene(World world, string countryCode) =>
+    public static bool ContestedScene(World world, string countryCode) => ContestedScene(world, countryCode, world.CurrentDate);
+
+    /// <summary>As above, on a given date.</summary>
+    public static bool ContestedScene(World world, string countryCode, DateOnly date) =>
         world.Mode == WorldMode.Origins && SceneChapterOf.TryGetValue(countryCode.ToUpperInvariant(), out var c)
-        && IsLive(world, c, world.CurrentDate);
+        && IsLive(world, c, date);
 
     /// <summary>The countries whose scenes are up for grabs today (code order).</summary>
     public static IReadOnlyList<string> ContestedScenes(World world) =>
@@ -276,16 +279,7 @@ public static class OriginsTimeline
             }
             case "PromotionsAtLeast":
             case "PromotionsOnTheMapAtLeast":
-            {
-                var alive = world.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value).ToList();
-                if (alive.Count < value) return null;
-                var newest = alive[^1];
-                // A house the player founded that is one of the houses making the count (it opened before the
-                // chapter could fire; a newcomer may have opened since) is the one the story credits.
-                int mine = world.HasPlayer ? alive.FindIndex(p => p.Id == world.PlayerPromotion) : -1;
-                if (mine >= value - 1) newest = alive[mine];
-                return new ChapterDoer(newest.Id, City: newest.HomeCity);
-            }
+                return CountDoer(world, value);
             case "PromotionReachesTier":
             {
                 if (!Enum.TryParse<OrgSize>(arg, out var size)) return null;
@@ -339,6 +333,23 @@ public static class OriginsTimeline
         // Dated chapters wait for their date; rule adoptions and licences fire where they happen
         // (OriginsReforms, OriginsBacklash); the rest wait for systems later phases build (see OriginsStory.Gaps).
         return null;
+    }
+
+    /// <summary>
+    /// Who made a "promotions at least <paramref name="value"/>" count: null while fewer houses are alive; else the
+    /// newest live house, unless the player's house is one of the houses making the count (its place in id order
+    /// is at or past the count's last place: it opened before the chapter could fire, a newcomer may have opened
+    /// since), which the story credits. With no player, or a player house among the first three, it is the newest.
+    /// The weekly detection and the founding-day credit (<see cref="PlayerFounding"/>) both ask this.
+    /// </summary>
+    internal static ChapterDoer? CountDoer(World world, int value)
+    {
+        var alive = world.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value).ToList();
+        if (alive.Count < value) return null;
+        var doer = alive[^1];
+        int mine = world.HasPlayer ? alive.FindIndex(p => p.Id == world.PlayerPromotion) : -1;
+        if (mine >= value - 1) doer = alive[mine];
+        return new ChapterDoer(doer.Id, City: doer.HomeCity);
     }
 
     /// <summary>A chapter's time is up and nobody did it: whatever the world does about it, then "it just happened".</summary>

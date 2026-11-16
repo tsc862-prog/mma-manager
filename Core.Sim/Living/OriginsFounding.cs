@@ -105,11 +105,11 @@ public static class OriginsFounding
         else
         {
             name = rng.Chance(0.4) ? $"{city.Name} {rng.Pick(Kinds)}" : $"{rng.Pick(Prefixes)} {rng.Pick(Kinds)}";
-            for (int guard = 0; world.Promotions.Values.Any(p => p.Name == name) && guard < 20; guard++)
+            for (int guard = 0; world.Promotions.Values.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) && guard < 20; guard++)
                 name = $"{rng.Pick(Prefixes)} {rng.Pick(Kinds)}";
             abbr = Initials(name);
         }
-        for (int guard = 0; world.Promotions.Values.Any(p => p.Abbreviation == abbr) && guard < 60; guard++)
+        for (int guard = 0; world.Promotions.Values.Any(p => string.Equals(p.Abbreviation, abbr, StringComparison.OrdinalIgnoreCase)) && guard < 60; guard++)
             abbr = abbr[..2] + (char)('A' + rng.Range(0, 25));
 
         var (bank, prestige) = arrival?.Abbreviation is { } ab && Authored.TryGetValue(ab, out var auth)
