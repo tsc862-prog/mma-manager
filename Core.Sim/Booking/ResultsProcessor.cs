@@ -23,8 +23,8 @@ public static class ResultsProcessor
 
         red.BoutHistory.Add(fight.Id);
         blue.BoutHistory.Add(fight.Id);
-        DecrementContract(red, ev);
-        DecrementContract(blue, ev);
+        DecrementContract(world, red, ev);
+        DecrementContract(world, blue, ev);
 
         // Getting booked by your own org builds loyalty; winning and (especially) a
         // title shot build more. Neglect eats it back (see WorldTick's monthly decay).
@@ -301,8 +301,13 @@ public static class ResultsProcessor
     // ContractLifecycle.FightsServed counts as served. A non-exclusive
     // moonlighter's local-circuit night (nobody's show) or another promotion's
     // card is his own business and leaves the home deal where it was.
-    private static void DecrementContract(Fighter f, Event ev)
+    private static void DecrementContract(World world, Fighter f, Event ev)
     {
+        // A one-night bracket (Origins) is one night's work on his deal, as it is one purse: only his first
+        // bout of the night counts. (The bracket adds each bout to the card after this runs, so an earlier
+        // bout of his on the card means this is a second or third.)
+        if (world.Mode == WorldMode.Origins && ev.Format == EventFormat.Tournament
+            && ev.Card.Any(b => b.RedCorner == f.Id || b.BlueCorner == f.Id)) return;
         if (f.Contract is { } c && c.Promotion == ev.Promotion && c.FightsRemaining > 0) c.FightsRemaining--;
     }
 

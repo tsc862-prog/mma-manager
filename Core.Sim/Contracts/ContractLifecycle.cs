@@ -73,6 +73,7 @@ public static class ContractLifecycle
             LeavePromotion(world, f, old.Promotion, on,
                 $"{world.Get(offer.Promotion)?.Name ?? "a rival"} signed him away", offer.Promotion, hisChoice: true);
         f.Contract = offer.ToContract(on);
+        f.Contract.WinBonus = Negotiator.WinBonusAt(world, offer.Promotion, f.Contract.WinBonus);   // (none at a bracket house)
         f.Contract.PpvPoints = Math.Clamp(offer.PpvPoints, 0, Negotiator.MaxPpvPoints);
         // Promises and the matching right are the player's deal rules only (contracts stage 9).
         if (offer.MatchingRight && !DealWindow.PlayerRules(world, offer.Promotion)) f.Contract.MatchingRight = false;

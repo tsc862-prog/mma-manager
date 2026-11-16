@@ -67,6 +67,13 @@ public static class OriginsFounding
         "Fighting Championship", "Combat League", "Fight Night", "Challenge", "Open", "Fighting Association",
     };
 
+    /// <summary>
+    /// A new house's opening bank: <see cref="FoundingBankBase"/> and zero to <see cref="NewcomerBankSteps"/> steps
+    /// of <see cref="FoundingBankStep"/> (<see cref="NewcomerBank"/>; one keyed draw for the AI, a fixed pick for the
+    /// player): the money side's lever on how many new houses last.
+    /// </summary>
+    public const decimal FoundingBankBase = 50_000m, FoundingBankStep = 25_000m;
+
     /// <summary>The authored terms of an arriving promotion: its bank and prestige.</summary>
     private static readonly Dictionary<string, (decimal Bank, int Prestige)> Authored = new(StringComparer.Ordinal)
     {
@@ -213,7 +220,7 @@ public static class OriginsFounding
     public const int NewcomerBankSteps = 6;
 
     /// <summary>A newcomer's opening bank after <paramref name="steps"/> steps (the AI rolls them; the player gets a fixed pick).</summary>
-    public static decimal NewcomerBank(int steps) => 150_000m + steps * 25_000m;
+    public static decimal NewcomerBank(int steps) => FoundingBankBase + steps * FoundingBankStep;
 
     /// <summary>Known at home, a little around its country.</summary>
     internal static void SeedPopularity(World world, Promotion promo, City city, int prestige)
@@ -391,6 +398,8 @@ public static class OriginsFounding
                         f.Contract.PursePerFight = new Money(Negotiator.OriginsPurseFloor);
                         f.Contract.WinBonus = new Money(Negotiator.OriginsPurseFloor / 2);
                     }
+                    // (A bracket house pays no win bonuses: the cheque is the bonus. The signing's draws are kept.)
+                    f.Contract.WinBonus = Negotiator.WinBonusAt(world, house.Id, f.Contract.WinBonus);
                     RankingService.RecomputePromotion(world, house, date);
                 }
                 News.Post(world, date, NewsCategory.Debut, $"{f.FullName} turns professional",
