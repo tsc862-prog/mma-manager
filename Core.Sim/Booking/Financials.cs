@@ -67,7 +67,9 @@ public static class Financials
             Region = world.Get(room.City) is { } c ? c.Region : ev.Region,
             Tier = ev.Tier, Format = ev.Format, Card = ev.Card,
         };
-        return Compute(world, there, capByRoom: false).Attendance;
+        // (A past night's clash belongs to that week's calendar, not to the room: left out, which also keeps
+        // this off a scan of every card in the world.)
+        return Compute(world, there, capByRoom: false, countClash: false).Attendance;
     }
     private const decimal PpvPrice = 45m;
 
@@ -153,7 +155,7 @@ public static class Financials
              // (it used to be run, and so exist, from the day it was staged)
              && !Living.LocalCircuit.IsLocalCard(o));
 
-    private static EventFinancials Compute(World world, Event ev, bool capByRoom)
+    private static EventFinancials Compute(World world, Event ev, bool capByRoom, bool countClash = true)
     {
         var promo = world.Get(ev.Promotion);
         int prestige = promo?.Prestige.Value ?? 40;
@@ -183,7 +185,7 @@ public static class Financials
         // trinket adds a line to the poster.
         if (main is { IsTitleFight: true, Title: { } beltId } && world.Get(beltId) is { } belt)
             drawPower += (int)(belt.Prestige.Value * 0.3);
-        bool clash = world.Events.Values.Any(o => IsClash(world, ev.Promotion, ev.Date, ev.Id, o));
+        bool clash = countClash && world.Events.Values.Any(o => IsClash(world, ev.Promotion, ev.Date, ev.Id, o));
         double counterProgramming = clash ? -ClashPenalty : 0;
 
         // Head-to-head market split: sharing a region with same-or-bigger promotions

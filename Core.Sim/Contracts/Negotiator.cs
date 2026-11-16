@@ -294,7 +294,7 @@ public sealed class Negotiator
             var room = Living.OriginsShows.HomeVenue(world, promo);
             decimal seats = Math.Min(attendance * (decimal)Booking.Financials.OriginsCrowdFactor, room?.Capacity ?? attendance);
             decimal take = seats * Booking.Financials.TicketPrice(world, prestige)
-                         - Booking.Financials.OriginsProduction(seats) - (room?.Rent.Amount ?? 0m);
+                         - Booking.Financials.OriginsProduction(seats) - Booking.Financials.RentOf(world, room).Amount;   // (a 1993 rent)
             return Math.Max(OriginsPurseFloor, Math.Round(take * 0.9m / 14m / 250m) * 250m);
         }
         var venue = Geography.WorldMap.PickVenue(world, promo);

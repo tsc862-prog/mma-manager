@@ -280,13 +280,10 @@ public static class OriginsShows
     {
         var rooms = world.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Id.Value).ToList();
         if (rooms.Count == 0) return null;
-        var recent = world.Events.Values
-            .Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Completed && e.Financials is not null)
-            .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id.Value).Take(3)
-            .ToList();
+        var recent = LastNights(world, promo.Id, 3);
         int expected = recent.Count == 0
             ? 600 + 100 * promo.Prestige.Value
-            : (int)recent.Average(e => Financials.DemandAt(world, e, rooms[0]));
+            : (int)recent.Average(e => Drew(world, e, city, rooms[0]));
         decimal seat = Financials.TicketPrice(world, promo.Prestige.Value)
                        * (promo.Rules.ShowFormat == ShowFormat.OneNightTournament ? Financials.OriginsBracketTicketPremium : 1m);
         decimal Left(Venue v)
@@ -295,6 +292,36 @@ public static class OriginsShows
             return crowd * seat - Financials.OriginsProduction(crowd) - Financials.RentOf(world, v).Amount;
         }
         return rooms.OrderByDescending(Left).ThenBy(v => Math.Abs(v.Capacity - expected)).ThenBy(v => v.Id.Value).First();
+    }
+
+    /// <summary>
+    /// What a past night tells a house about a crowd in <paramref name="city"/>: the crowd itself when the night
+    /// was there and seats were left over, else what its card would have drawn there with no walls.
+    /// </summary>
+    private static int Drew(World world, Event e, CityId city, Venue roomThere)
+    {
+        if (e.VenueId is { } v && world.Get(v) is { } room && room.City == city && e.Financials!.Attendance < room.Capacity)
+            return e.Financials.Attendance;
+        return Financials.DemandAt(world, e, roomThere);
+    }
+
+    /// <summary>
+    /// The house's last <paramref name="n"/> completed nights with a box office, newest first (ties on the
+    /// higher id): one pass over the calendar, no sort (the purse cap asks for the home room very often).
+    /// </summary>
+    private static List<Event> LastNights(World world, PromotionId promo, int n)
+    {
+        var top = new List<Event>(n + 1);
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Promotion != promo || e.Status != EventStatus.Completed || e.Financials is null) continue;
+            int i = top.Count;
+            while (i > 0 && (top[i - 1].Date < e.Date || (top[i - 1].Date == e.Date && top[i - 1].Id.Value < e.Id.Value))) i--;
+            if (i >= n) continue;
+            top.Insert(i, e);
+            if (top.Count > n) top.RemoveAt(n);
+        }
+        return top;
     }
 
     // --- Tournaments -------------------------------------------------------------
