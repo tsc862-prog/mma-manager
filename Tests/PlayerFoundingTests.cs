@@ -300,6 +300,125 @@ public class PlayerFoundingTests
         Assert.Contains(w.News, n => n.Headline == $"{promo.Name} opens in {city.Name}");
     }
 
+    // ---- phase 3: the unified code and the second centre ---------------------------------
+
+    private static World AfterRulesAndGloves(ulong seed)
+    {
+        var w = Observer(seed);
+        Era.Unlock(w, Capability.Rounds);
+        Era.Unlock(w, Capability.Gloves);
+        return w;
+    }
+
+    [Fact]
+    public void UnderTheUnifiedCode_OnlyTheEnclosureIsHis_AsForTheAi()
+    {
+        var w = AfterRulesAndGloves(18);
+        Era.Fire(w, OriginsReforms.Unified, w.CurrentDate);
+        var choices = PlayerFounding.Choices(w, w.CurrentDate);
+        Assert.True(choices.UnifiedCode);
+        Assert.Empty(choices.SingleRoundMinutes);
+        Assert.Equal(new[] { GloveType.Modern }, choices.Gloves);
+        Assert.Equal(new[] { Enclosure.Cage, Enclosure.Ring }, choices.Enclosures);
+        var rules = FirstOpen(w).Rules;
+        Assert.Equal((3, 5), (rules.StandardRounds, rules.TitleRounds));
+        Assert.Contains(rules.Notes, n => n.Contains("code"));
+
+        Assert.Null(PlayerFounding.Found(w, w.CurrentDate, Spec(w, minutes: 20), out var why));
+        Assert.Contains("code", why);
+        Assert.Null(PlayerFounding.Found(w, w.CurrentDate, Spec(w, gloves: GloveType.ThinOpenFinger), out why));
+        Assert.Contains("code", why);
+
+        var promo = FoundOk(w, Spec(w, gloves: GloveType.Modern, enclosure: Enclosure.Ring));
+        Assert.True(OriginsReforms.HasUnified(promo));
+        Assert.Equal((3, 5, 5), (promo.Rules.StandardRounds, promo.Rules.TitleRounds, promo.Rules.RoundMinutes));
+        Assert.Equal(Enclosure.Ring, promo.Rules.Fight!.Enclosure);
+        Assert.Contains("commissions' code", w.Mail.Single(m => m.Subject.EndsWith("open for business")).Body);
+
+        // The AI newcomer of that day is under the same code.
+        var twin = AfterRulesAndGloves(18);
+        Era.Fire(twin, OriginsReforms.Unified, twin.CurrentDate);
+        var ai = OriginsFounding.Found(twin, twin.CurrentDate, null)!;
+        Assert.True(OriginsReforms.HasUnified(ai));
+        Assert.Equal((ai.Rules.StandardRounds, ai.Rules.TitleRounds), (promo.Rules.StandardRounds, promo.Rules.TitleRounds));
+    }
+
+    [Fact]
+    public void InTheSecondCentre_ARingIsForced_AndTheCodeDoesNotBind()
+    {
+        var w = AfterRulesAndGloves(19);
+        // The second centre is wherever its chapter put it: here, the country of the first open city outside North America.
+        var abroad = PlayerFounding.Choices(w, w.CurrentDate).Cities.First(c => c.Open && c.Region != Region.NorthAmerica);
+        Era.Fire(w, OriginsScenes.SecondCentreChapter, w.CurrentDate, city: abroad.Id);
+        Era.Fire(w, OriginsReforms.Unified, w.CurrentDate);
+        var choices = PlayerFounding.Choices(w, w.CurrentDate);
+        Assert.Equal(abroad.CountryCode, choices.SecondCentre);
+        var tokyo = choices.Cities.First(c => c.Open && c.CountryCode == choices.SecondCentre);
+        Assert.Equal(new[] { Enclosure.Ring }, tokyo.Rules.Enclosures);
+        Assert.False(tokyo.Rules.UnifiedCode);
+        Assert.Contains(tokyo.Rules.Notes, n => n.Contains("ring"));
+        Assert.True(choices.Cities.First(c => c.Open && c.CountryCode != choices.SecondCentre).Rules.UnifiedCode);
+
+        Assert.Null(PlayerFounding.Found(w, w.CurrentDate, new PlayerFoundingSpec("Harbour Lights Fighting", "HLF", tokyo.Id, Enclosure: Enclosure.Cage), out var why));
+        Assert.Contains("ring", why);
+        var promo = FoundOk(w, new PlayerFoundingSpec("Harbour Lights Fighting", "HLF", tokyo.Id));
+        Assert.Equal(Enclosure.Ring, promo.Rules.Fight!.Enclosure);
+        Assert.False(OriginsReforms.HasUnified(promo));
+        Assert.Equal((3, 3), (promo.Rules.StandardRounds, promo.Rules.TitleRounds));   // its era's rules, its own
+        Assert.False(OriginsReforms.BoundByCode(w, promo));
+    }
+
+    [Fact]
+    public void LicensedBeforeTheCode_TheCodeBindsHim_RebooksHisCard_AndTellsHim()
+    {
+        var w = Observer(20);
+        var promo = FoundOk(w, Spec(w));
+        var country = w.Get(w.Get(promo.HomeCity!.Value)!.Country)!.Code;
+        w.Era.Sanctions.Add(new Sanction { Country = country, On = w.CurrentDate });
+        PlayerFounding.HoldTryout(w, w.CurrentDate, out _);
+        var date = w.CurrentDate.AddDays(35);
+        var ev = OriginsShows.ScheduleCard(w, promo.Id, date, OriginsShows.SuggestCard(w, promo.Id, date))!;
+        Assert.NotNull(ev);
+        Assert.All(ev.Card, f => Assert.Equal(1, f.ScheduledRounds));
+        Assert.False(OriginsReforms.HasUnified(promo));
+
+        Era.Fire(w, OriginsReforms.Unified, w.CurrentDate);
+        Assert.True(OriginsReforms.BoundByCode(w, promo));
+        new WorldTick().AdvanceWeeksStoppingForPlayer(w, 1);
+
+        Assert.True(OriginsReforms.HasUnified(promo));
+        Assert.All(ev.Card, f => Assert.Equal(f.IsTitleFight ? OriginsReforms.UnifiedTitleRounds : OriginsReforms.CardRounds, f.ScheduledRounds));
+        var mail = Assert.Single(w.Mail, m => m.Subject == "The commission's code is now our rulebook");
+        Assert.Contains("rebooked", mail.Body);
+    }
+
+    [Fact]
+    public void TryoutMen_AreOfTheirEra_LikeTheAiNewcomers()
+    {
+        var w = Observer(21);
+        new WorldTick().AdvanceWeeks(w, 52 * 6 + 10);
+        var promo = FoundOk(w, Spec(w));
+        var home = w.Get(w.Get(promo.HomeCity!.Value)!.Country)!.Code;
+        var sizes = OriginsTalent.SizesNow(w);
+        var men = PlayerFounding.HoldTryout(w, w.CurrentDate, out _).Select(m => w.Get(m.Fighter)!).ToList();
+        Assert.NotEmpty(men);
+        Assert.All(men, f =>
+        {
+            Assert.Equal(home, f.OriginCountryCode);
+            Assert.True(sizes.Contains(f.WeightClass) || f.WeightClass == WeightClass.Heavyweight, $"{f.WeightClass} is not a size of the day");
+        });
+
+        // The same men an AI newcomer's tryout makes: one shared path (OriginsFounding.TryoutMan over OriginsTalent.Create).
+        var twin = Observer(21);
+        new WorldTick().AdvanceWeeks(twin, 52 * 6 + 10);
+        var house = FoundOk(twin, Spec(twin));
+        var rng = new Core.Sim.Rng.SimRandom(42);
+        var gen = Core.Sim.Generation.FighterGenerator.ForWorld(twin);
+        var aiMan = OriginsFounding.TryoutMan(twin, gen, house, home, twin.CurrentDate, rng)!;
+        Assert.Equal(home, aiMan.OriginCountryCode);
+        Assert.Contains(aiMan.WeightClass, sizes.Append(WeightClass.Heavyweight));
+    }
+
     [Fact]
     public void Found_OfItsEra_RoundsGlovesAndWeightLines()
     {

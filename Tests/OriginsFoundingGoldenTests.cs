@@ -11,7 +11,7 @@ namespace MmaManager.Tests;
 /// forced open on fixed dates (day one; after the sport's rules and first weight lines; three years in) and the
 /// whole world after three years with founding active. The constants were captured from the code as it was before
 /// the player-founding refactor (main at 654adbc, its OriginsFounding/OriginsTimeline checked out into a scratch
-/// build), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
+/// build; recaptured from 29e733a after Origins phase 3, which changed only the three-year cases), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
 /// prestige, rules, roster), recapture: set FOUNDING_GOLDEN_OUT to a file path and run this class; it writes the
 /// new values instead of asserting.
 /// </summary>
@@ -20,14 +20,14 @@ public class OriginsFoundingGoldenTests
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
         ["s1-day1"] = "2BD93F9B310891D5F64E",
-        ["s1-years3-world"] = "D5840D9C2665C475AE1E",
-        ["s1-years3-house"] = "E8054F0CD666E17563C5",
+        ["s1-years3-world"] = "31E7D4C581B7F25D65B3",
+        ["s1-years3-house"] = "CE75E9DAD272678E4763",
         ["s2-day1"] = "476CA951BB60EA22993E",
-        ["s2-years3-world"] = "3D360DFB12EC68F2BA0A",
-        ["s2-years3-house"] = "F12854FBD0D3C10C2D03",
+        ["s2-years3-world"] = "046851F746B786EB7DBC",
+        ["s2-years3-house"] = "BD1671698340A0FF504F",
         ["s3-day1"] = "97764D76DA032EF0D813",
-        ["s3-years3-world"] = "9E216D4A40AC4FA5C23D",
-        ["s3-years3-house"] = "D64E41EA3825A7DA262F",
+        ["s3-years3-world"] = "F623ACF38A79EB6210E9",
+        ["s3-years3-house"] = "F0A746BD3CC4A8CD54A2",
         ["s4-split"] = "8FB70477327FDD45C4E4",
         ["s5-split"] = "9EAA4A00161FB78D8BCE",
         ["s6-tryouts"] = "01B70CF1CA83175302CE",

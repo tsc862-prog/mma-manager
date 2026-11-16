@@ -6,9 +6,24 @@ using MmaManager.Core.Sim.Rng;
 
 namespace MmaManager.Core.Sim.Living;
 
-/// <summary>A city the player may (or may not) found his house in, with the honest reason when he may not.</summary>
+/// <summary>
+/// The house rules a house founded in a city today may choose and the ones its era forces there: one long round
+/// (he picks its length) or three of five with judges; the gloves; the ring or the cage. <see cref="UnifiedCode"/>:
+/// the commissions' code binds every new house outside the second centre (three rounds a bout, five for a title,
+/// today's gloves; only the enclosure is his). In the second centre the house fights in a ring and keeps the rest of
+/// its era's rules. <see cref="Notes"/> says why, in words.
+/// </summary>
+public sealed record FoundingRules(
+    bool RoundsAndJudges, bool UnifiedCode, IReadOnlyList<int> SingleRoundMinutes, IReadOnlyList<GloveType> Gloves,
+    IReadOnlyList<Enclosure> Enclosures, int StandardRounds, int TitleRounds, IReadOnlyList<string> Notes);
+
+/// <summary>
+/// A city the player may (or may not) found his house in, with the honest reason when he may not, and the rules a
+/// house there would fight under (<see cref="FoundingRules"/>; the second centre's differ).
+/// </summary>
 public sealed record FoundingCity(
-    CityId Id, string Name, string Country, string CountryCode, Region Region, int Market, int MmaInterest, string? Refusal)
+    CityId Id, string Name, string Country, string CountryCode, Region Region, int Market, int MmaInterest, string? Refusal,
+    FoundingRules Rules)
 {
     public bool Open => Refusal is null;
 }
@@ -16,7 +31,9 @@ public sealed record FoundingCity(
 /// <summary>
 /// What founding a house today would mean, for the screen: whether he can at all (<see cref="Refusal"/>), the
 /// cities, the house rules the era leaves to him and the ones it forces, the bank and prestige he opens with,
-/// and the divisions he gets. Read-only.
+/// and the divisions he gets. Read-only. The top-level rule fields are those of a city outside the second centre;
+/// each city carries its own (<see cref="FoundingCity.Rules"/>), and <see cref="SecondCentre"/> names the country
+/// (code) whose houses fight in a ring, once there is one.
 /// </summary>
 public sealed record FoundingChoices(
     string? Refusal,
@@ -28,7 +45,9 @@ public sealed record FoundingChoices(
     Money Bank,
     int Prestige,
     IReadOnlyList<WeightClass> WeightLines,
-    IReadOnlyList<string> Notes)
+    IReadOnlyList<string> Notes,
+    bool UnifiedCode,
+    string? SecondCentre)
 {
     public bool CanFound => Refusal is null;
 
@@ -178,34 +197,69 @@ public static class PlayerFounding
     {
         var homes = HomesOfLiveHouses(world);
         var scenes = Era.Scenes(world).ToHashSet(StringComparer.Ordinal);
+        var general = RulesFor(world, secondCentre: false);
+        var centre = OriginsScenes.SecondCentre(world);
+        var centreRules = centre is null ? general : RulesFor(world, secondCentre: true);
         var cities = world.Cities.Values.OrderBy(c => c.Id.Value)
             .Select(c =>
             {
                 var k = world.Get(c.Country);
                 return new FoundingCity(c.Id, c.Name, k?.Name ?? "", k?.Code ?? "", c.Region, c.Market, c.MmaInterest,
-                    CityRefusal(world, c, date, homes, scenes));
+                    CityRefusal(world, c, date, homes, scenes), centre is not null && k?.Code == centre ? centreRules : general);
             }).ToList();
 
-        bool rounds = RoundsForced(world), gloves = GlovesForced(world);
         var lines = OriginsFounding.DrawnLines(world);
-        var notes = new List<string>();
-        notes.Add(rounds
-            ? "The sport fights timed rounds with judges now: every house fights three rounds of five minutes."
-            : "Before the sport has rounds, a fight is one long round with no judges: you choose how long it runs.");
-        notes.Add(gloves
-            ? "Gloves are the sport's rule now: every man wears the thin open-fingered glove."
-            : "Gloves are not the sport's rule yet: bare hands, or each man chooses for himself.");
+        var notes = new List<string>(general.Notes);
+        if (centre is not null)
+            notes.Add($"Houses founded in {Geography.WorldMap.CountryByCode(world, centre)?.Name ?? centre}, the sport's second centre, fight in a ring and keep their own rules.");
         notes.Add(lines.Count == 0
             ? "No weight classes yet: one open division, a vacant belt, any man can fight any man."
             : $"The sport has drawn its weight lines: {string.Join(", ", lines.Select(OriginsReforms.Name).Select(s => s.ToLowerInvariant()))}, each with a vacant belt.");
         notes.Add($"You open with {Bank} in the bank, no fighters signed and one free open tryout of local men to call when you are ready.");
 
         return new FoundingChoices(
-            Unavailable(world), cities, rounds,
+            Unavailable(world), cities, general.RoundsAndJudges, general.SingleRoundMinutes, general.Gloves, general.Enclosures,
+            Bank, Prestige, lines, notes, general.UnifiedCode, centre);
+    }
+
+    /// <summary>The rules a house founded today in this city fights under (chosen or forced), with the reasons.</summary>
+    public static FoundingRules RulesIn(World world, CityId city) => RulesFor(world, InSecondCentre(world, city));
+
+    private static bool InSecondCentre(World world, CityId city) =>
+        OriginsScenes.SecondCentre(world) is { } code && world.Get(city) is { } c && world.Get(c.Country)?.Code == code;
+
+    /// <summary>
+    /// The founding rules, mirroring what the AI newcomer's founding does: its era rules (OriginsFounding.EraRules,
+    /// where he chooses what the AI rolls), then OriginsReforms.FoundedUnder (a ring in the second centre, which keeps
+    /// its own rules; else the unified code once the commissions have one).
+    /// </summary>
+    private static FoundingRules RulesFor(World world, bool secondCentre)
+    {
+        bool code = !secondCentre && world.Mode == WorldMode.Origins && world.Era.HasFired(OriginsReforms.Unified);
+        bool rounds = code || RoundsForced(world), gloves = GlovesForced(world);
+        var notes = new List<string>();
+        if (code)
+            notes.Add($"The commissions have one code now, and every new house comes under it: {OriginsReforms.CardRounds} rounds of five minutes a bout, "
+                      + $"{OriginsReforms.UnifiedTitleRounds} for a title, three judges, today's gloves. Only the cage or the ring is yours to choose.");
+        else
+        {
+            notes.Add(rounds
+                ? "The sport fights timed rounds with judges now: every house fights three rounds of five minutes."
+                : "Before the sport has rounds, a fight is one long round with no judges: you choose how long it runs.");
+            notes.Add(gloves
+                ? "Gloves are the sport's rule now: every man wears the thin open-fingered glove."
+                : "Gloves are not the sport's rule yet: bare hands, or each man chooses for himself.");
+        }
+        if (secondCentre)
+            notes.Add("The second centre fights in a ring, as its own big houses do, and keeps its own rules; the commissions' code does not bind it.");
+        return new FoundingRules(
+            rounds, code,
             rounds ? Array.Empty<int>() : OriginsFounding.SingleRoundMinutes,
-            gloves ? new[] { GloveType.ThinOpenFinger } : new[] { GloveType.Bare, GloveType.Optional },
-            new[] { Enclosure.Cage, Enclosure.Ring },
-            Bank, Prestige, lines, notes);
+            code ? new[] { new FightRules().Gloves } : gloves ? new[] { GloveType.ThinOpenFinger } : new[] { GloveType.Bare, GloveType.Optional },
+            secondCentre ? new[] { Enclosure.Ring } : new[] { Enclosure.Cage, Enclosure.Ring },
+            code ? OriginsReforms.CardRounds : rounds ? 3 : 1,
+            code ? OriginsReforms.UnifiedTitleRounds : rounds ? 3 : 1,
+            notes);
     }
 
     /// <summary>Do new houses fight timed rounds with judges (the sport has made them its rules)?</summary>
@@ -271,6 +325,7 @@ public static class PlayerFounding
         promo.Rules.RoundMinutes = rules!.RoundMinutes ?? 5;
         promo.Rules.StandardRounds = rules.Rounds ?? 3;
         promo.Rules.TitleRounds = promo.Rules.StandardRounds;
+        OriginsReforms.FoundedUnder(world, promo);   // as the AI newcomer: the unified code once there is one; a ring in the second centre
         promo.TierClearance = Org.OrgSizing.SizeOf(promo);
         int aliveBefore = world.Promotions.Values.Count(p => !p.Defunct);
         world.Promotions[promo.Id] = promo;
@@ -316,9 +371,21 @@ public static class PlayerFounding
             return why;
         city = c;
 
+        var allowed = RulesIn(world, c.Id);
+        if (allowed.UnifiedCode)
+        {
+            // The code leaves him the enclosure only (FoundedUnder writes the rest after his era rules are set).
+            if (spec.SingleRoundMinutes is { } cm && cm != 5)
+                return $"The commissions' code binds every new house: {OriginsReforms.CardRounds} rounds of five minutes a bout, {OriginsReforms.UnifiedTitleRounds} for a title.";
+            if (spec.Gloves is { } cg && !allowed.Gloves.Contains(cg))
+                return "The commissions' code binds every new house: today's gloves for every man.";
+        }
+        if (spec.Enclosure is { } want && want is Enclosure.Cage or Enclosure.Ring && !allowed.Enclosures.Contains(want))
+            return "Houses in the sport's second centre fight in a ring.";
         bool rounds = RoundsForced(world), gloves = GlovesForced(world);
         int minutes;
-        if (rounds)
+        if (allowed.UnifiedCode && !rounds) minutes = OriginsFounding.SingleRoundMinutes[0];   // (overwritten by the code)
+        else if (rounds)
         {
             if (spec.SingleRoundMinutes is { } m && m != 5)
                 return "The sport fights three rounds of five minutes with judges now; a single long round is a thing of the past.";
@@ -331,7 +398,8 @@ public static class PlayerFounding
                 return $"Before the sport has rounds, a fight is one round of {string.Join(" or ", OriginsFounding.SingleRoundMinutes)} minutes.";
         }
         GloveType glove;
-        if (gloves)
+        if (allowed.UnifiedCode) glove = gloves ? GloveType.ThinOpenFinger : GloveType.Bare;   // (overwritten by the code)
+        else if (gloves)
         {
             glove = spec.Gloves ?? GloveType.ThinOpenFinger;
             if (glove != GloveType.ThinOpenFinger) return "Gloves are the sport's rule now: every man wears the thin open-fingered glove.";
@@ -342,7 +410,7 @@ public static class PlayerFounding
             if (glove is not (GloveType.Bare or GloveType.Optional))
                 return "Gloves are not the sport's rule yet: bare hands, or each man's choice. A house can adopt gloves once the sport asks for them.";
         }
-        var enclosure = spec.Enclosure ?? Enclosure.Cage;
+        var enclosure = spec.Enclosure ?? allowed.Enclosures[0];
         if (enclosure is not (Enclosure.Cage or Enclosure.Ring)) return "A house fights in a cage or a ring.";
 
         rules = OriginsFounding.NewcomerRules(rounds, minutes, glove, enclosure);
@@ -353,11 +421,15 @@ public static class PlayerFounding
     private static string Welcome(World world, Promotion promo, City city, Country country, bool late)
     {
         var r = promo.Rules.Fight!;
-        string time = r.Rounds is > 1 ? $"{r.Rounds} rounds of {r.RoundMinutes} minutes with judges" : $"one round of {r.RoundMinutes} minutes, no judges";
+        var hr = promo.Rules;
+        string time = OriginsReforms.HasUnified(promo)
+            ? $"the commissions' code, {hr.StandardRounds} rounds of {hr.RoundMinutes} minutes a bout and {hr.TitleRounds} for a title, with judges"
+            : r.Rounds is > 1 ? $"{hr.StandardRounds} rounds of {hr.RoundMinutes} minutes with judges" : $"one round of {hr.RoundMinutes} minutes, no judges";
         string hands = r.Gloves switch
         {
             GloveType.Bare => "bare hands",
             GloveType.Optional => "gloves if a man wants them",
+            GloveType.Modern => "today's gloves",
             _ => "thin open-fingered gloves",
         };
         string where = r.Enclosure == Enclosure.Ring ? "a ring" : "a cage";
