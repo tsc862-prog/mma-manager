@@ -83,6 +83,8 @@ public static class OriginsMode
         public List<string> Folds = new();
         public List<string> Problems = new();
         public List<string> Notes = new();
+        public Dictionary<string, List<string>> Trace = new();
+        public Dictionary<string, HashSet<FighterId>> LastRoster = new();
 
         public bool Healthy(bool deterministic) =>
             Exception is null && Violations.Count == 0 && Folds.Count == 0 && Problems.Count == 0 && deterministic;
@@ -143,6 +145,7 @@ public static class OriginsMode
                     script?.Week(world);
                     var r = tick.AdvanceWeek(world);
                     newgens += r.Newgens; retired += r.Retired; washouts += r.Washouts;
+                    if (y >= years - 2) RosterTrace(world, o);
                 } while (world.CurrentDate.Year == year);
                 Check(world, o);
                 YearLines(world, year, sb, newgens, retired, washouts);
@@ -183,7 +186,53 @@ public static class OriginsMode
             int need = OriginsShows.MinRoster(p);
             int roster = world.RosterOf(p.Id).Count(f => f.Status == FighterStatus.Active);
             // (A house in the red keeps a thin, cheap roster on its way out: that is a fold coming, not a starved sport.)
-            if (roster < need && p.Balance.Amount >= 0) o.Problems.Add($"{p.Abbreviation} roster {roster} < {need}");
+            if (roster < need && p.Balance.Amount >= 0)
+            {
+                o.Problems.Add($"{p.Abbreviation} roster {roster} < {need}");
+                var men = world.RosterOf(p.Id).ToList();
+                int counted = men.Count(f => f.Status != FighterStatus.Retired);
+                int target = OriginsShows.DivisionRosterTarget(p, MmaManager.Core.Sim.Org.Solvency.Distress(p, world) > 0)
+                             * Math.Max(1, p.Divisions.Count(d => d.Sex == Sex.Male));
+                int down = men.Count(f => f.Status is FighterStatus.Injured or FighterStatus.Suspended);
+                var last = LastNight(world, p);
+                var next = world.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Scheduled)
+                    .Select(e => (DateOnly?)e.Date).DefaultIfEmpty(null).Min();
+                int readyByNext = next is { } n ? men.Count(f => f.Status != FighterStatus.Retired && f.IsMatchReady(n)) : -1;
+                sb.AppendLine($"  ROSTER DIAG {p.Abbreviation}: active {roster}, on the books {counted} (signing target {target}), injured/suspended {down}, " +
+                              $"last night {last:yyyy-MM-dd} ({(last is { } lastOn ? world.CurrentDate.DayNumber - lastOn.DayNumber : -1)} days before the check), " +
+                              $"next night {next:yyyy-MM-dd} with {readyByNext} men ready by then, bank {p.Balance.Amount:N0}");
+                // Why the signing pass does not fill a division under its target: what the free men in it say
+                // to this house's opening offer (the pass's own valuation and offer; read-only).
+                var negotiator = new Negotiator();
+                var valuation = new FighterValuation();
+                decimal cap = Negotiator.PurseCap(world, p);
+                int perDiv = OriginsShows.DivisionRosterTarget(p, MmaManager.Core.Sim.Org.Solvency.Distress(p, world) > 0);
+                foreach (var d in p.Divisions.Where(d => d.Sex == Sex.Male))
+                {
+                    int have = men.Count(f => d.Matches(f) && f.Status != FighterStatus.Retired);
+                    if (have >= perDiv) continue;
+                    var pool = world.FreeAgents().Where(f => d.Matches(f) && f.Status == FighterStatus.Active).ToList();
+                    int yes = 0, overCap = 0, no = 0;
+                    var asks = new List<decimal>();
+                    foreach (var fa in pool)
+                    {
+                        var exp = valuation.Evaluate(world, fa);
+                        asks.Add(exp.AskingPurse.Amount);
+                        var offer = negotiator.AiOpeningOffer(world, p, fa, exp);
+                        if (negotiator.Evaluate(world, fa, offer, exp).Verdict == NegotiationVerdict.Accept) yes++;
+                        else if (exp.AskingPurse.Amount * Negotiator.NonExclusiveMoneyFactor > cap) overCap++;
+                        else no++;
+                    }
+                    asks.Sort();
+                    sb.AppendLine($"    {(d.Open ? "Open" : d.WeightClass.ToString())} {have}/{perDiv}: {pool.Count} free men, would accept {yes}, ask over the purse cap {cap:N0}: {overCap}, other refusals {no}"
+                                  + (asks.Count > 0 ? $", median ask {asks[asks.Count / 2]:N0}, cheapest {asks[0]:N0}" : ""));
+                }
+                if (o.Trace.TryGetValue(p.Abbreviation, out var lines))
+                {
+                    sb.AppendLine($"  ROSTER TRACE {p.Abbreviation} (last two years, weekly):");
+                    foreach (var l in lines) sb.AppendLine("    " + l);
+                }
+            }
             if (s0 == 0) continue;   // a house founded during the run
             // (Money was a failure line in phase 1's five quiet years; the Backlash is meant to bite.)
             if (p.Balance.Amount < s0 * MoneyFloor) o.Notes.Add($"{p.Abbreviation} money down ({s0:N0} -> {p.Balance.Amount:N0})");
@@ -195,6 +244,39 @@ public static class OriginsMode
         o.Summary = sb.ToString();
         o.Digest = LongSim.Check.WorldGraph.Digest(world, canonical: false);
         return o;
+    }
+
+    // Each house's roster, weekly over the last two years: who is on it in what state, what the signing pass
+    // aims for, the free men who would fit, and who left since last week (and why). Printed only for a house
+    // that ends under its floor.
+    private static void RosterTrace(World world, Outcome o)
+    {
+        foreach (var p in world.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value))
+        {
+            var men = world.RosterOf(p.Id).ToList();
+            int active = men.Count(f => f.Status == FighterStatus.Active);
+            int counted = men.Count(f => f.Status != FighterStatus.Retired);
+            int outOfDeal = men.Count(f => DealWindow.OutOfDeal(world, f));
+            int target = OriginsShows.DivisionRosterTarget(p, MmaManager.Core.Sim.Org.Solvency.Distress(p, world) > 0);
+            var free = world.FreeAgents().Where(f => f.Status == FighterStatus.Active).ToList();
+            string divs = string.Join(" ", p.Divisions.Select(d =>
+                $"{(d.Open ? "Open" : d.WeightClass.ToString())}:{men.Count(f => d.Matches(f) && f.Status != FighterStatus.Retired)}/{target} fa{free.Count(d.Matches)}"));
+            var ids = men.Select(f => f.Id).ToHashSet();
+            var left = new List<string>();
+            if (o.LastRoster.TryGetValue(p.Abbreviation, out var prev))
+                foreach (var id in prev.Where(id => !ids.Contains(id)).OrderBy(id => id.Value))
+                {
+                    var f = world.Get(id);
+                    string why = f is null ? "gone" : f.Status == FighterStatus.Retired ? "retired"
+                        : f.Contract is null ? "deal ended" : $"to {world.Get(f.Contract.Promotion)?.Abbreviation}";
+                    left.Add($"{f?.LastName ?? "?"}({f?.WeightClass}) {why}");
+                }
+            var joined = o.LastRoster.TryGetValue(p.Abbreviation, out var prev2) ? men.Count(f => !prev2.Contains(f.Id)) : 0;
+            o.LastRoster[p.Abbreviation] = ids;
+            if (!o.Trace.TryGetValue(p.Abbreviation, out var lines)) o.Trace[p.Abbreviation] = lines = new();
+            lines.Add($"{world.CurrentDate:yyyy-MM-dd} active {active} counted {counted} outOfDeal {outOfDeal} bal {p.Balance.Amount / 1000m:0}k " +
+                      $"fmt {p.Rules.ShowFormat} [{divs}] +{joined}" + (left.Count > 0 ? " -" + string.Join(", ", left) : ""));
+        }
     }
 
     private static DateOnly? LastNight(World world, Promotion p) =>
@@ -374,19 +456,33 @@ public static class OriginsMode
             // ...and make the first reform the sport offers (rounds, gloves, a weight line): the player's own path to a chapter.
             if (OriginsReforms.Options(w, promo, today).FirstOrDefault() is { } reform)
                 OriginsReforms.Adopt(w, promo, reform.Chapter, today);
-            int need = OriginsShows.MinRoster(promo) + 2;
-            int roster = w.RosterOf(promo.Id).Count(f => f.Status == FighterStatus.Active && !DealWindow.OutOfDeal(w, f));
-            for (int i = roster; i < need && promo.Balance.Amount > 10_000m; i++)
+            // As the AI's signing pass holds its depth (FreeAgencyService): every man on the books counts (a man
+            // recovering from his last night is still ours), each division to its share of the house's depth
+            // (a split house fills its bands, not just a head count), and the house's own floor in all.
+            int floor = OriginsShows.MinRoster(promo) + 2;
+            int perDivision = OriginsShows.DivisionRosterTarget(promo, distressed: false);
+            bool Held(Fighter f) => f.Status != FighterStatus.Retired && !DealWindow.OutOfDeal(w, f);
+            var nobodyFits = new HashSet<WeightClass>();   // divisions with no free man the house can pay this month
+            for (int guard = 0; guard < 60 && promo.Balance.Amount > 10_000m; guard++)
             {
+                var men = w.RosterOf(promo.Id).Where(Held).ToList();
+                var thin = promo.Divisions.Where(d => d.Sex == Sex.Male && !nobodyFits.Contains(d.WeightClass) && men.Count(d.Matches) < perDivision)
+                    .OrderBy(d => men.Count(d.Matches)).ThenBy(d => d.WeightClass).FirstOrDefault();
+                if (thin is null && men.Count >= floor) break;
                 var cap = Negotiator.PurseCap(w, promo);
                 var pick = w.FreeAgents()
-                    .Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male)
+                    .Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male && (thin is null || thin.Matches(f)))
                     .Select(f => (F: f, Exp: _valuation.Evaluate(w, f)))
                     .Where(x => x.Exp.AskingPurse.Amount <= cap)
                     .OrderByDescending(x => ScoutingService.PerceivedAbility(w, promo, x.F))
                     .ThenBy(x => x.F.Id.Value)
                     .FirstOrDefault();
-                if (pick.F is null) break;
+                if (pick.F is null)
+                {
+                    if (thin is null) break;
+                    nobodyFits.Add(thin.WeightClass);
+                    continue;
+                }
                 ContractLifecycle.Sign(w, pick.F, new ContractOffer
                 {
                     Fighter = pick.F.Id, Promotion = promo.Id, PursePerFight = pick.Exp.AskingPurse,
