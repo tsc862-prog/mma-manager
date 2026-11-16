@@ -111,6 +111,14 @@ public sealed partial class OrgViewModel
     private static IReadOnlyList<string> Buys(World w, Promotion promo, string chapter)
     {
         var lines = new List<string>();
+        if (chapter == OriginsReforms.Unified)
+        {
+            // The commissions' code: nobody's chapter but the commissions', and no licence rides on it for this house.
+            lines.Add("The code every licensed house fights under: fighters, judges and the sport's rankings all speak it. No commission holds you to it.");
+            if (w.Era.Chapter(chapter) is { } agreed)
+                lines.Add($"The commissions agreed it in {agreed.FiredOn.Year}.");
+            return lines;
+        }
         bool weight = OriginsReforms.Ladder.Contains(chapter);
         if (!weight)
             lines.Add(OriginsReforms.HasRounds(promo) || OriginsReforms.HasGloves(promo)

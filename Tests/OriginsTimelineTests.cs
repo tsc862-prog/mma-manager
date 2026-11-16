@@ -82,7 +82,7 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
             "Date", "SignSponsor", "SignMedia", "HoldEventInNewCountry", "CrownChampionInClass", "HoldEventAbove",
             "PromotionsAtLeast", "PromotionsOnTheMapAtLeast", "PromotionReachesTier", "FighterFameAtLeast", "UpsetOfStar",
             "BothFightersFameAtLeast", "CampReputationAtLeast", "SanctionedRegionsAtLeast", "ContinentsWithPromotionsAtLeast",
-            "ChaptersFired", "AdoptRules", "SanctionedByCommission",
+            "ChaptersFired", "AdoptRules", "SanctionedByCommission", "AllRoundersBeatSpecialists",
         };
         foreach (var c in OriginsChapters.All)
         {
