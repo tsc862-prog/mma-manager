@@ -541,7 +541,7 @@ public static class Storylines
 
             News.Post(world, date, NewsCategory.Callout, callout.Line,
                 (finish ? "The statement finish came with a statement. " : "The mic work was sharper than the fight. ")
-                + Flavor.Quotes.Say(w, finish ? Flavor.Moment.WinFinish : Flavor.Moment.WinDecision, date,
+                + Flavor.Quotes.Say(world, w, finish ? Flavor.Moment.WinFinish : Flavor.Moment.WinDecision, date,
                     fight.Outcome.Loser is { } lid ? world.Get(lid) : null),
                 ev.Promotion, w.Id);
             if (w.Contract?.Promotion == world.PlayerPromotion)
