@@ -811,10 +811,30 @@ public static class MediaService
     /// <summary>The whole ladder, judged for this promotion — the Media desk's map of what's out there.</summary>
     public static IReadOnlyList<RungView> LadderView(World world, Promotion promo) =>
         Ladder.Select(r => new RungView(
-            r.Kind, Label(r.Kind), r.Qualifies(world, promo), Gate(r.Kind),
+            r.Kind, Label(r.Kind), r.Qualifies(world, promo), GateIn(world, r.Kind),
             new Money(r.FeeIn(world, promo)),
             string.Join("; ", r.Terms(promo).Select(x => DealCompliance.Describe(x)))
-            + $" · networks: {string.Join(", ", r.Partners.Select(pp => $"{pp.Name} ({pp.Tag})"))} — terms and money vary by house")).ToList();
+            + $" · networks: {Networks(world, r)} — terms and money vary by house")).ToList();
+
+    /// <summary>
+    /// Who could carry a rung, in words: today's partners, or in an Origins world the era's own broadcasters
+    /// of that kind (<see cref="Generation.Origins.OriginsBroadcasters"/>) that have come on the air by now.
+    /// </summary>
+    private static string Networks(World world, Rung r)
+    {
+        if (world.Mode != WorldMode.Origins)
+            return string.Join(", ", r.Partners.Select(pp => $"{pp.Name} ({pp.Tag})"));
+        int month = Living.OriginsTimeline.Month(world, world.CurrentDate);
+        var era = Generation.Origins.OriginsBroadcasters.Media.Where(m => m.Media == r.Kind && m.EarliestMonth <= month)
+            .OrderBy(m => m.EarliestMonth).ThenBy(m => m.Name, StringComparer.Ordinal).Select(m => m.Name).ToList();
+        return era.Count == 0 ? "none on the air yet" : string.Join(", ", era);
+    }
+
+    /// <summary>A rung's bar in words; in an Origins world a rung the sport has not got yet says so first.</summary>
+    private static string GateIn(World world, MediaKind kind) =>
+        world.Mode == WorldMode.Origins && !Living.Era.AllowsMedia(world, kind)
+            ? "Not in this era yet" + (Gate(kind) is { Length: > 0 } g ? " · then " + g : "")
+            : Gate(kind);
 
     private static string Gate(MediaKind kind) => kind switch
     {

@@ -262,7 +262,7 @@ public sealed class WorldTick
             if (after.Year != before.Year)
             {
                 if (world.Get(world.PlayerPromotion) is { } py)
-                    Org.Objectives.Seed(py, new DateOnly(after.Year, 1, 1), new DateOnly(after.Year, 12, 31));
+                    Org.Objectives.Seed(py, new DateOnly(after.Year, 1, 1), new DateOnly(after.Year, 12, 31), world);
                 Storylines.YearEndAwards(world, after);
             }
             Org.Objectives.Evaluate(world, after);

@@ -178,7 +178,7 @@ public static class OriginsWorldBuilder
         Org.StaffService.SeedMarket(world, rng);
         Org.StaffService.SeedFrontOffices(world, rng, useDesigned: false);
         if (world.Get(world.PlayerPromotion) is { } player)
-            Org.Objectives.Seed(player, start, new DateOnly(start.Year, 12, 31));
+            Org.Objectives.Seed(player, start, new DateOnly(start.Year, 12, 31), world);
 
         RankingService.RecomputeAll(world, start, o.RankingsDepth);
         GlobalRankings.Recompute(world);

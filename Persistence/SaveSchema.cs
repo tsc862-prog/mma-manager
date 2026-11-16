@@ -240,7 +240,12 @@ internal static class SaveSchema
                 date TEXT NOT NULL, venue TEXT, venue_id INTEGER, region TEXT NOT NULL, tier TEXT NOT NULL, status TEXT NOT NULL,
                 fin_present INTEGER NOT NULL, attendance INTEGER, gate TEXT, ppv_buys INTEGER,
                 ppv_rev TEXT, production TEXT, payroll TEXT, main_card INTEGER NOT NULL DEFAULT 0,
-                hype_bonus REAL NOT NULL DEFAULT 0, format TEXT NOT NULL DEFAULT 'Card'
+                hype_bonus REAL NOT NULL DEFAULT 0, format TEXT NOT NULL DEFAULT 'Card', bracket_alternate INTEGER
+            );
+
+            CREATE TABLE event_bracket (
+                event_id INTEGER NOT NULL, ordinal INTEGER NOT NULL, round INTEGER NOT NULL, slot INTEGER NOT NULL,
+                red INTEGER, blue INTEGER, fight_id INTEGER, advanced INTEGER, how TEXT NOT NULL, withdrew INTEGER
             );
 
             CREATE TABLE fights (
@@ -250,7 +255,7 @@ internal static class SaveSchema
                 weight_miss INTEGER, overturned INTEGER NOT NULL DEFAULT 0,
                 out_present INTEGER NOT NULL, winner INTEGER, loser INTEGER,
                 method TEXT, end_round INTEGER, end_time INTEGER,
-                round_scores TEXT, open_weight INTEGER NOT NULL DEFAULT 0
+                round_scores TEXT, open_weight INTEGER NOT NULL DEFAULT 0, bracket_round INTEGER
             );
 
             CREATE TABLE decisions (

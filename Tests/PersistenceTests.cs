@@ -93,6 +93,17 @@ public class PersistenceTests
             world.Era.Bans.Add(new SceneBan { Country = "BRA", Since = world.CurrentDate.AddDays(-30), Until = world.CurrentDate.AddDays(60) });
             world.Era.Sanctions.Add(new Sanction { Country = "USA", Area = 2, On = world.CurrentDate.AddDays(-10), Promotion = world.Promotions.Keys.First() });
             world.Era.Sanctions.Add(new Sanction { Country = "JPN", On = world.CurrentDate.AddDays(-5) });
+            // A fought bracket (Origins): a slot with every field set, on a completed card with a bout in it.
+            var bracketNight = world.Events.Values.Where(e => e.Status == EventStatus.Completed && e.Card.Count > 0)
+                .OrderBy(e => e.Id.Value).First();
+            var bout = bracketNight.Card[0];
+            bracketNight.BracketAlternate = world.Fighters.Keys.Skip(7).First();
+            bracketNight.Bracket.Add(new BracketSlot
+            {
+                Round = 2, Slot = 1, Red = bout.RedCorner, Blue = bout.BlueCorner, Fight = bout.Id,
+                Advanced = bout.RedCorner, How = BracketHow.AlternateForWithdrawal, Withdrew = bout.BlueCorner,
+            });
+            bout.BracketRound = 2;
 
             // Origins fight rules on two promotions: one with every flag at its non-default value, one
             // with judges and every legal strike on (so each column holds a non-zero value somewhere).

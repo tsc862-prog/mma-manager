@@ -393,4 +393,78 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
         Assert.True(Era.AllowsScene(w, "CAN") && Era.AllowsScene(w, "NED"));
         Assert.Contains("Toronto", OriginsStory.View(w, r)!.Headline + OriginsStory.View(w, r)!.Body);
     }
+
+    // ---- the Origins screens' sim asks (PR #58) ---------------------------------------------
+
+    [Fact]
+    public void ABracketNight_DrawsThePreviewedField_AndSavesItsBracket()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, playerIndex: 0));
+        var cru = w.Get(w.PlayerPromotion)!;
+        var date = w.CurrentDate.AddDays(21);
+        var preview = TournamentService.PreviewField(w, cru, date, except: null);
+        Assert.True(preview.Full);
+        Assert.Equal(8, preview.Seeds.Count);
+        Assert.All(preview.Seeds, f => Assert.Equal(Sex.Male, f.Sex));
+        Assert.DoesNotContain(preview.Alternate, preview.Seeds);
+
+        var night = OriginsShows.ScheduleTournament(w, cru.Id, date)!;
+        var again = TournamentService.PreviewField(w, cru, date, except: night.Id);
+        Assert.Equal(preview.Seeds.Select(f => f.Id), again.Seeds.Select(f => f.Id));
+        var tick = new WorldTick();
+        while (w.CurrentDate < night.Date) tick.AdvanceWeeksStoppingForPlayer(w, 1);
+        if (night.Status == EventStatus.Scheduled) tick.RunEventLive(w, night, playByPlay: false);
+
+        // The bracket as it ran: round 1 seats the previewed seeds; every bout carries its round.
+        Assert.NotEmpty(night.Bracket);
+        var first = night.Bracket.Where(s => s.Round == 1).OrderBy(s => s.Slot).ToList();
+        Assert.Equal(4, first.Count);
+        Assert.Equal(again.Seeds.Select(f => f.Id).OrderBy(i => i.Value),
+            first.SelectMany(s => new[] { s.Red, s.Blue }).OfType<FighterId>().OrderBy(i => i.Value));
+        Assert.Equal(again.Alternate?.Id, night.BracketAlternate);
+        Assert.All(night.Card, f => Assert.NotNull(f.BracketRound));
+        Assert.All(night.Bracket.Where(s => s.Fight is not null),
+            s => Assert.Equal(s.Round, night.Card.Single(f => f.Id == s.Fight).BracketRound));
+        Assert.Equal(3, night.Bracket.Max(s => s.Round));                 // eight men: three rounds
+        Assert.Single(night.Bracket, s => s.Round == 3);                 // one final, however many walkovers came before it
+    }
+
+    [Fact]
+    public void OriginsObjectives_FitEachHousesCadence()
+    {
+        foreach (var (index, abbr, shows) in new[] { (0, "CRU", 3), (1, "SFA", 4), (2, "DLB", 5) })
+        {
+            var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(3, playerIndex: index));
+            var p = w.Get(w.PlayerPromotion)!;
+            Assert.Equal(abbr, p.Abbreviation);
+            var goal = p.Objectives.Single(o => o.Kind == ObjectiveKind.RunEvents);
+            Assert.Equal(shows, goal.Target);
+            Assert.Contains($"{shows} shows", goal.Description);
+        }
+        // Today's mode still asks for six.
+        var modern = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 3 });
+        Assert.Equal(6, modern.Get(modern.PlayerPromotion)!.Objectives.Single(o => o.Kind == ObjectiveKind.RunEvents).Target);
+    }
+
+    [Fact]
+    public void TheMediaLadder_NamesTheEraBroadcasters_InAnOriginsWorld()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(3));
+        var view = Core.Sim.Finance.MediaService.LadderView(w, w.Get(w.PlayerPromotion)!);
+        var today = new[] { "MainCard", "PrimeView", "BoxSeat", "Combat One", "PrimeSport", "Streamflix" };
+        Assert.All(view, r => Assert.DoesNotContain(today, n => r.Terms.Contains(n)));
+        Assert.Contains(view, r => r.Kind == MediaKind.PpvCarrier && r.Terms.Contains("Keystone Event Network"));
+        Assert.Contains(view, r => r.Kind == MediaKind.CableSports && r.Gate.StartsWith("Not in this era yet"));
+    }
+
+    [Fact]
+    public void APlayersCard_DefaultsToTheHousesOwnRoom()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(4, playerIndex: 2));
+        var dlb = w.Get(w.PlayerPromotion)!;
+        var ev = new PlayerBooking().CreateEvent(w, w.CurrentDate.AddDays(21), city: dlb.HomeCity);
+        Assert.Equal(OriginsShows.HomeVenue(w, dlb)!.Id, ev.VenueId);
+        var none = new PlayerBooking().CreateEvent(w, w.CurrentDate.AddDays(28));
+        Assert.Equal(OriginsShows.HomeVenue(w, dlb)!.Id, none.VenueId);
+    }
 }

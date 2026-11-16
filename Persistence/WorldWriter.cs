@@ -853,14 +853,16 @@ internal sealed class WorldWriter
         using var ev = _c.Cmd(_tx,
             """
             INSERT INTO events (id, ordinal, promotion_id, name, date, venue, venue_id, region, tier, status,
-                fin_present, attendance, gate, ppv_buys, ppv_rev, production, payroll, main_card, hype_bonus, format)
-            VALUES ($id,$ord,$p,$n,$d,$v,$vid,$r,$tier,$s,$fp,$at,$g,$pb,$pr,$pc,$pay,$mc,$hb,$fmt)
+                fin_present, attendance, gate, ppv_buys, ppv_rev, production, payroll, main_card, hype_bonus, format, bracket_alternate)
+            VALUES ($id,$ord,$p,$n,$d,$v,$vid,$r,$tier,$s,$fp,$at,$g,$pb,$pr,$pc,$pay,$mc,$hb,$fmt,$ba)
             """);
+        using var slot = _c.Cmd(_tx,
+            "INSERT INTO event_bracket (event_id, ordinal, round, slot, red, blue, fight_id, advanced, how, withdrew) VALUES ($e,$o,$r,$s,$red,$blue,$f,$a,$h,$w)");
         using var fight = _c.Cmd(_tx,
             """
             INSERT INTO fights (id, event_id, ordinal, red, blue, weight_class, scheduled_rounds,
-                is_title, title_id, catchweight, weight_miss, overturned, out_present, winner, loser, method, end_round, end_time, round_scores, open_weight)
-            VALUES ($id,$e,$o,$red,$blue,$w,$sr,$it,$t,$cw,$wm,$ot,$op,$win,$lose,$m,$er,$et,$rs,$ow)
+                is_title, title_id, catchweight, weight_miss, overturned, out_present, winner, loser, method, end_round, end_time, round_scores, open_weight, bracket_round)
+            VALUES ($id,$e,$o,$red,$blue,$w,$sr,$it,$t,$cw,$wm,$ot,$op,$win,$lose,$m,$er,$et,$rs,$ow,$br)
             """);
         using var stat = _c.Cmd(_tx,
             """
@@ -885,6 +887,7 @@ internal sealed class WorldWriter
             ev.Bind("$mc", e.MainCardFights);
             ev.Bind("$hb", e.HypeBonus);
             ev.Bind("$fmt", e.Format.ToString());
+            ev.Bind("$ba", Db.IdN(e.BracketAlternate?.Value));
             if (e.Financials is { } fin)
             {
                 ev.Bind("$fp", 1);
@@ -901,6 +904,23 @@ internal sealed class WorldWriter
                 foreach (var p in new[] { "$at", "$g", "$pb", "$pr", "$pc", "$pay" }) ev.Bind(p, DBNull.Value);
             }
             ev.ExecuteNonQuery();
+
+            for (int i = 0; i < e.Bracket.Count; i++)
+            {
+                var b = e.Bracket[i];
+                slot.Parameters.Clear();
+                slot.Bind("$e", e.Id.Value);
+                slot.Bind("$o", i);
+                slot.Bind("$r", b.Round);
+                slot.Bind("$s", b.Slot);
+                slot.Bind("$red", Db.IdN(b.Red?.Value));
+                slot.Bind("$blue", Db.IdN(b.Blue?.Value));
+                slot.Bind("$f", Db.IdN(b.Fight?.Value));
+                slot.Bind("$a", Db.IdN(b.Advanced?.Value));
+                slot.Bind("$h", b.How.ToString());
+                slot.Bind("$w", Db.IdN(b.Withdrew?.Value));
+                slot.ExecuteNonQuery();
+            }
 
             for (int i = 0; i < e.Card.Count; i++)
             {
@@ -919,6 +939,7 @@ internal sealed class WorldWriter
                 fight.Bind("$wm", Db.IdN(f.WeightMissBy?.Value));
                 fight.Bind("$ot", f.OverturnedNc ? 1 : 0);
                 fight.Bind("$ow", f.OpenWeight ? 1 : 0);
+                fight.Bind("$br", Db.IdN(f.BracketRound));
                 if (f.Outcome is { } o)
                 {
                     fight.Bind("$op", 1);

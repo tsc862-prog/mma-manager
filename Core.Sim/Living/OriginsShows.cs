@@ -131,7 +131,7 @@ public static class OriginsShows
         {
             int size = Math.Max(2, promo.Rules.TournamentSize);
             // Only a house that could field the bracket today puts one on the books.
-            if (Bookable(world, promo, when, ForwardCalendar.Committed(world)).Count < size) return null;
+            if (!TournamentService.PreviewField(world, promo, when, null, size).Full) return null;   // (the one field rule: TournamentService)
             ev = NewTournament(world, promo, when, $"{promo.Name} {number}", room);
         }
         else
@@ -332,7 +332,7 @@ public static class OriginsShows
         if (world.Events.Values.Any(e => e.Promotion == promoId && e.Date == date && e.Status == EventStatus.Scheduled))
         { reason = "There's already a night on the books that day."; return null; }
         int size = Math.Max(2, promo.Rules.TournamentSize);
-        int fit = Bookable(world, promo, date, ForwardCalendar.Committed(world)).Count;
+        int fit = TournamentService.PreviewField(world, promo, date, null, size).Seeds.Count;   // the field rule the night itself draws by
         if (fit < size)
         { reason = $"You can field {fit} of the {size} men a bracket needs on that date. Sign more, or pick a later night."; return null; }
         if (PlayerVenue(world, promo, date, city) is not { } room)

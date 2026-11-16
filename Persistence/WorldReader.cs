@@ -852,6 +852,7 @@ internal sealed class WorldReader
                     MainCardFights = r.Int("main_card"),
                     HypeBonus = r.Dbl("hype_bonus"),
                     Format = r.Enum<EventFormat>("format"),
+                    BracketAlternate = r.IntN("bracket_alternate") is { } alt ? new FighterId(alt) : null,
                 };
                 if (r.Bool("fin_present"))
                 {
@@ -866,6 +867,23 @@ internal sealed class WorldReader
                     };
                 }
                 world.Events[ev.Id] = ev;
+            }
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM event_bracket ORDER BY event_id, ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            static FighterId? Fi(int? v) => v is { } x ? new FighterId(x) : null;
+            while (r.Read())
+            {
+                if (world.Get(new EventId(r.Int("event_id"))) is not { } ev) continue;
+                ev.Bracket.Add(new BracketSlot
+                {
+                    Round = r.Int("round"), Slot = r.Int("slot"),
+                    Red = Fi(r.IntN("red")), Blue = Fi(r.IntN("blue")),
+                    Fight = r.IntN("fight_id") is { } f ? new FightId(f) : null,
+                    Advanced = Fi(r.IntN("advanced")), How = r.Enum<BracketHow>("how"), Withdrew = Fi(r.IntN("withdrew")),
+                });
             }
         }
 
@@ -890,6 +908,7 @@ internal sealed class WorldReader
                     WeightMissBy = r.IntN("weight_miss") is { } wm ? new FighterId(wm) : null,
                     OverturnedNc = r.Bool("overturned"),
                     OpenWeight = r.Bool("open_weight"),
+                    BracketRound = r.IntN("bracket_round"),
                 };
                 if (r.Bool("out_present"))
                 {

@@ -21,11 +21,15 @@ public sealed partial class PlayerBooking
     {
         var promo = world.Get(world.PlayerPromotion);
         int number = NextCardNumber(world, promo);
-        if (promo is not null && city is { } want && !Org.OrgReach.CanBookIn(world, promo, want))
+        bool origins = world.Mode == WorldMode.Origins && promo is not null;
+        if (!origins && promo is not null && city is { } want && !Org.OrgReach.CanBookIn(world, promo, want))
             city = promo.HomeCity;
         if (promo is not null && tier > Org.OrgPerks.MaxEventTier(promo))
             tier = Org.OrgPerks.MaxEventTier(promo);   // a city outfit can't stage a PPV
+        // An Origins house books as its AI nights do: its own room by default (exile when a ban has closed it),
+        // or a room its size in a city he names that has a scene (awake or up for grabs) and no ban.
         var venue = promo is null ? null
+            : origins ? Living.OriginsShows.PlayerVenue(world, promo, date, city == promo!.HomeCity ? null : city)
             : city is { } chosen ? Geography.WorldMap.PickVenueIn(world, promo, chosen)
             : Geography.WorldMap.PickVenue(world, promo);
         var ev = new Event
