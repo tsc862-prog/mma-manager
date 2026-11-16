@@ -180,6 +180,11 @@ public static class OriginsStart
     public static IReadOnlyList<OriginsHouseCard> Houses { get; } =
         OriginsPromotions.All.Select((s, i) => new OriginsHouseCard(s, i)).ToArray();
 
+    /// <summary>The words a ringside start leaves on the status line.</summary>
+    public const string RingsideSummary =
+        "1 January 1993. You have no promotion: you are watching from ringside as three small houses invent a sport. "
+        + "Found your own whenever you're ready.";
+
     public static string SummaryFor(OriginsPromotionSpec spec) =>
         $"1 January 1993. You run {spec.Name} out of {spec.HomeCity} with {spec.Balance} in the bank. "
         + "There are no weight classes, no television deals and no rulebook anyone agrees on yet. Put on your first night.";

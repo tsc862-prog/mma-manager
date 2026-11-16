@@ -42,6 +42,9 @@ public sealed class NewsViewModel : ObservableObject
     public bool WhoMyFighters { get => Who == MyFighters; set { if (value) Who = MyFighters; } }
     private void RaiseWho() { OnPropertyChanged(nameof(WhoEverything)); OnPropertyChanged(nameof(WhoMine)); OnPropertyChanged(nameof(WhoMyFighters)); }
 
+    /// <summary>The player runs a promotion (the "My promotion / My fighters" filters mean something).</summary>
+    public bool HasHouse { get; private set; } = true;
+
     private string _kind = AllKinds;
     public string Kind { get => _kind; set { if (Set(ref _kind, value ?? AllKinds)) Refilter(); } }
 
@@ -101,6 +104,10 @@ public sealed class NewsViewModel : ObservableObject
     {
         bool newWorld = !ReferenceEquals(world, _world);
         _world = world;
+        // Watching from ringside: no promotion and no fighters of his, so the "mine" filters go.
+        HasHouse = world.HasPlayer;
+        if (!HasHouse && _who != Everything) { _who = Everything; RaiseWho(); OnPropertyChanged(nameof(Who)); }
+        OnPropertyChanged(nameof(HasHouse));
         var player = world.PlayerPromotion;
         var mine = world.RosterOf(player).Select(f => f.Id).ToHashSet();
         _all = new List<Story>(world.News.Count);

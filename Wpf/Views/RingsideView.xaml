@@ -1,0 +1,153 @@
+<UserControl x:Class="MmaManager.Wpf.Views.RingsideView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls">
+    <!-- RINGSIDE: home for a player who has no promotion yet (Origins, watching). The story first (the chapter
+         the sport is in, and why the clock stopped), the standing call to found a house, then the people: the
+         houses, the names people are talking about, the nights, the scenes. Everything opens the existing apps.
+         DataContext = MainViewModel (the shell); the screen reads Ringside. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}"
+                  DataContext="{Binding Ringside}">
+        <StackPanel Margin="{StaticResource Space.Screen}" MaxWidth="1640">
+
+            <!-- Why the clock stopped (a big moment edged in gold) -->
+            <Border Style="{StaticResource RingsideStopBanner}" Tag="{Binding Stop.Big}"
+                    Visibility="{Binding HasStop, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding Stop.Kicker}" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource TextSoft}" />
+                    <TextBlock Text="{Binding Stop.Headline}" Style="{StaticResource Text.Title}" FontSize="18" Margin="0,2,0,0" />
+                    <TextBlock Text="{Binding Stop.Detail}" Style="{StaticResource Text.Note}" Foreground="{StaticResource TextSoft}" Margin="0,3,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- The story, and the call -->
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="400" />
+                </Grid.ColumnDefinitions>
+                <ContentControl Style="{StaticResource HeroPanel}" Focusable="False">
+                    <StackPanel>
+                        <TextBlock Text="{Binding DateLine}" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" />
+                        <TextBlock Style="{StaticResource Text.Display}" FontSize="32" Margin="0,2,0,0">
+                            <Run Text="{Binding EraName, Mode=OneWay}" /><Run Text="   " /><Run Text="{Binding EraLine, Mode=OneWay}" FontSize="12" FontFamily="Segoe UI" Foreground="{StaticResource TextSecondary}" />
+                        </TextBlock>
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="Pic" Width="96" Height="96" CornerRadius="10" ClipToBounds="True" Background="#14171C" Margin="0,2,16,0" VerticalAlignment="Top"
+                                    Visibility="{Binding HasChapterPicture, Converter={StaticResource BoolToVis}}">
+                                <Image Source="{Binding ChapterPicture}" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality">
+                                    <Image.Style>
+                                        <Style TargetType="Image">
+                                            <Setter Property="Stretch" Value="UniformToFill" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ChapterPictureIsLogo}" Value="True">
+                                                    <Setter Property="Stretch" Value="Uniform" />
+                                                    <Setter Property="Margin" Value="8" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
+                            </Border>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding ChapterKicker}" Style="{StaticResource Text.Kicker}" FontSize="10.5" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ChapterHeadline}" Style="{StaticResource Text.Title}" FontSize="21" Margin="0,3,0,0" />
+                                <TextBlock Text="{Binding ChapterBody}" Style="{StaticResource Text.Body}" Foreground="{StaticResource TextSoft}" LineHeight="20" Margin="0,5,0,0" />
+                                <DockPanel Margin="0,10,0,0">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="The Story So Far ▸" Command="{Binding OpenStoryCommand}" />
+                                    <TextBlock Text="{Binding ChapterTally}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </ContentControl>
+
+                <!-- The one standing call -->
+                <Border Grid.Column="2" Style="{StaticResource FoundCard}">
+                    <StackPanel>
+                        <TextBlock Text="YOU HAVE NO PROMOTION YET" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" />
+                        <TextBlock Text="Found your promotion" Style="{StaticResource Text.Display}" FontSize="27" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding FoundLine}" FontWeight="SemiBold" Foreground="{StaticResource Gold}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding FoundDetail}" Style="{StaticResource Text.Secondary}" LineHeight="18" Margin="0,6,0,0" />
+                        <Button Content="Found your promotion…" Command="{Binding FoundCommand}" Style="{StaticResource Button.Primary}"
+                                HorizontalAlignment="Stretch" Padding="14,9" FontSize="14.5" Margin="0,14,0,0"
+                                ToolTip="Name it, pick its home and its rules. You can still back out before the doors open." />
+                        <TextBlock Text="{Binding FoundRefusal}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneWarn}" Margin="0,6,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- The people -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.25*" MinWidth="380" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" MinWidth="320" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="400" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Panel}" VerticalAlignment="Top">
+                    <StackPanel>
+                        <controls:SectionHeader Title="The houses" Hint="{Binding HousesLine}" />
+                        <ItemsControl ItemsSource="{Binding Houses}" ItemTemplate="{StaticResource RingsideHouseTemplate}" Focusable="False" />
+                        <TextBlock Text="{Binding GoneLine}" Style="{StaticResource Text.Note}" Foreground="{StaticResource TextMuted}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Panel}" VerticalAlignment="Top">
+                    <StackPanel>
+                        <controls:SectionHeader Title="Names people are talking about" Hint="The best-known men in the sport. The read is the public one: nobody scouts for you yet." />
+                        <ItemsControl ItemsSource="{Binding Names}" ItemTemplate="{StaticResource FighterRowCardTemplate}" Focusable="False" />
+                        <TextBlock Text="Nobody has made a name yet. The first nights will."
+                                   Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextMuted}"
+                                   Visibility="{Binding HasNames, Converter={StaticResource InverseBoolToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="4">
+                    <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+                        <StackPanel>
+                            <controls:SectionHeader Title="Coming up" />
+                            <ItemsControl ItemsSource="{Binding NextNights}" ItemTemplate="{StaticResource RingsideNightTemplate}" Focusable="False" />
+                            <TextBlock Text="No night is on the calendar yet." Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextMuted}"
+                                       Visibility="{Binding HasNextNights, Converter={StaticResource InverseBoolToVis}}" />
+                            <controls:SectionHeader Title="Last nights" Margin="0,12,0,0" />
+                            <ItemsControl ItemsSource="{Binding LastNights}" ItemTemplate="{StaticResource RingsideNightTemplate}" Focusable="False" />
+                            <TextBlock Text="Nobody has fought yet." Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextMuted}"
+                                       Visibility="{Binding HasLastNights, Converter={StaticResource InverseBoolToVis}}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+                        <StackPanel>
+                            <controls:SectionHeader Title="Where the sport lives" Hint="A house can open only where there is a scene." />
+                            <ItemsControl ItemsSource="{Binding Scenes}" ItemTemplate="{StaticResource RingsideSceneTemplate}" Focusable="False" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Panel}" Visibility="{Binding HasComing, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <controls:SectionHeader Title="What's gathering" Hint="No dates: who writes these, and when, is still open." />
+                            <ItemsControl ItemsSource="{Binding Coming}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,8">
+                                            <TextBlock Style="{StaticResource Text.Kicker}" FontSize="10" Foreground="{StaticResource TextMuted}">
+                                                <Run Text="{Binding When, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding EraName, Mode=OneWay}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Heading}" FontSize="13.5" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -145,6 +145,7 @@ public sealed class DesktopViewModel : ObservableObject
         };
         foreach (var app in apps)
             (app.IsWorld ? WorldApps : PromotionApps).Add(app);
+        _houseApps = PromotionApps.ToList();
 
         OpenCommand = new RelayCommand<AppSpec>(a => { if (a is not null) Open(a.Id); });
         TaskbarClickCommand = new RelayCommand<OpenWindow>(w =>
@@ -180,6 +181,57 @@ public sealed class DesktopViewModel : ObservableObject
         }
     }
 
+    // --- Watching from ringside (an Origins world with no house of the player's) ---------------------
+    private readonly List<AppSpec> _houseApps;
+
+    private readonly AppSpec _ringside = new()
+    {
+        Id = "ringside", Title = "Ringside", Glyph = "🔔", Accent = "#E8B23A",
+        Create = () => new Views.RingsideView(), W = 1500, H = 860,
+    };
+
+    private readonly AppSpec _tryout = new()
+    {
+        Id = "tryout", Title = "Open Tryout", Glyph = "📣", Accent = "#E8B23A",
+        Create = () => new Views.TryoutView(), W = 1040, H = 560, Centered = true,
+    };
+
+    /// <summary>Apps that make sense while watching: the player's notes (a shortlist of names to sign one day).</summary>
+    private static readonly HashSet<string> WatchingApps = new() { "notes" };
+
+    private bool _observing;
+    /// <summary>True while the player has no promotion: Ringside replaces the house's apps.</summary>
+    public bool Observing => _observing;
+
+    /// <summary>"YOUR PROMOTION", or "RINGSIDE" while watching (the launcher's first section).</summary>
+    public string PromotionSectionTitle => _observing ? "RINGSIDE" : "YOUR PROMOTION";
+
+    /// <summary>
+    /// Switch the launcher between watching (Ringside and the notes only; every app that needs a house of the
+    /// player's is closed and taken off the desk) and running a house (the full set back, in its usual order).
+    /// </summary>
+    public void SetObserving(bool observing)
+    {
+        if (observing == _observing && PromotionApps.Contains(observing ? _ringside : _houseApps[0])) return;
+        _observing = observing;
+        var want = observing
+            ? new[] { _ringside }.Concat(_houseApps.Where(a => WatchingApps.Contains(a.Id))).ToList()
+            : _houseApps.ToList();
+        foreach (var open in Windows.Where(w => !want.Contains(w.Spec) && !w.Spec.IsWorld && w.Spec != _tryout).ToList()) Close(open);
+        PromotionApps.Clear();
+        foreach (var a in want) PromotionApps.Add(a);
+        OnPropertyChanged(nameof(Observing));
+        OnPropertyChanged(nameof(PromotionSectionTitle));
+    }
+
+    /// <summary>Put the Open Tryout app on the desk (a founded house's one free tryout is still to call) or take it off.</summary>
+    public void ShowTryoutApp(bool show)
+    {
+        bool has = PromotionApps.Contains(_tryout);
+        if (show && !has) PromotionApps.Insert(Math.Min(1, PromotionApps.Count), _tryout);
+        else if (!show && has && !Windows.Any(w => w.Spec == _tryout)) PromotionApps.Remove(_tryout);
+    }
+
     /// <summary>Launcher sections: your promotion's apps, then the world-research ones.</summary>
     public ObservableCollection<AppSpec> PromotionApps { get; } = new();
     public ObservableCollection<AppSpec> WorldApps { get; } = new();
@@ -193,6 +245,8 @@ public sealed class DesktopViewModel : ObservableObject
     /// <summary>Launch (or restore) an app by id.</summary>
     public void Open(string id)
     {
+        // While watching, the house's front page and its briefing are Ringside.
+        if (_observing && id is "home" or "briefing") id = "ringside";
         BeforeOpen?.Invoke(id);
         if (Windows.FirstOrDefault(w => w.Spec.Id == id) is { } existing)
         {

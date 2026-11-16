@@ -155,9 +155,16 @@ public sealed class EventsViewModel : ObservableObject
     public IReadOnlyList<string> LiveOn { get; private set; } = Array.Empty<string>();
     public bool HasLiveOn => LiveOn.Count > 0;
 
+    /// <summary>The player runs a promotion ("My events only" means something; hidden while watching from ringside).</summary>
+    public bool HasHouse { get; private set; } = true;
+
     public void Attach(World world)
     {
         _world = world;
+        HasHouse = world.HasPlayer;
+        if (!HasHouse) _mineOnly = false;
+        OnPropertyChanged(nameof(HasHouse));
+        OnPropertyChanged(nameof(MineOnly));
         RefreshList();
     }
 

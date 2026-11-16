@@ -33,7 +33,7 @@
                         <TextBlock Text="{Binding SelectedFighter.Physicals}" Margin="0,2,0,0" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="SCOUT " FontSize="16" VerticalAlignment="Center"
-                                       ToolTip="Your scouts' read — the truth may differ until they're proven" />
+                                       ToolTip="{Binding ScoutTip}" />
                             <TextBlock Text="{Binding SelectedFighter.Ovr}" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding SelectedFighter.Record}" FontSize="16" Margin="18,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
@@ -99,6 +99,7 @@
                                     ToolTip="Pin them to the shortlist in the Notes app" />
                             <Button Content="Contract talks" Command="{Binding NegotiateFighterCommand}"
                                     CommandParameter="{Binding SelectedFighter.Id}" Padding="9,4"
+                                    Visibility="{Binding IsObserving, Converter={StaticResource InverseBoolToVis}}"
                                     ToolTip="Open negotiations on the Contracts screen — free agents, or re-signing your own" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

@@ -2248,6 +2248,96 @@ public partial class App : Application
             return;
         }
 
+        // Watching from ringside (an Origins world with no house of the player's, seed 1993 unless --seed N):
+        // `MmaManager.Wpf --renderringside <ringside|found|founded|tryout> W H [--years N] [--months N] [--city NAME] [--name NAME] <path>`.
+        //   ringside  the Ringside app (after --years/--months of the spectator's clock: three-month skips, so the
+        //             last stop's banner shows; every stop is printed);
+        //   found     the Found Your Promotion window, a name typed and a city picked (--city, else the first open);
+        //   founded   the desktop just after founding: the full set of apps back, the Open Tryout panel on top;
+        //   tryout    the same after the tryout was called (the men it signed).
+        if (e.Args.Contains("--renderringside"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--renderringside");
+                string state = e.Args[at + 1];
+                int W = int.Parse(e.Args[at + 2]), H = int.Parse(e.Args[at + 3]);
+                string Arg(string flag, string fallback) => e.Args.Contains(flag) ? e.Args[Array.IndexOf(e.Args, flag) + 1] : fallback;
+                ulong seed = ulong.Parse(Arg("--seed", "1993"));
+                int years = int.Parse(Arg("--years", "0")), months = int.Parse(Arg("--months", "0"));
+                string p = e.Args[^1];
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(seed), OriginsStart.RingsideSummary);
+                var w0 = vm.LiveWorld!;
+                var until = w0.CurrentDate.AddYears(years).AddMonths(months);
+                while (w0.CurrentDate < until)
+                {
+                    vm.AdvanceQuarterCommand.Execute(null);
+                    if (vm.Ringside.Stop is { Big: true } s) Console.WriteLine($"RINGSIDE stop {w0.CurrentDate:d MMM yyyy}: {s.Headline}");
+                }
+                Console.WriteLine($"RINGSIDE {w0.CurrentDate:d MMM yyyy}: observing={vm.IsObserving}, apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}]");
+
+                var root = (FrameworkElement)win.Content;
+                void Snap(FrameworkElement el, int w, int h, string path)
+                {
+                    var size = new Size(w, h);
+                    for (int pass = 0; pass < 3; pass++)
+                    {
+                        el.Measure(size); el.Arrange(new Rect(size)); el.UpdateLayout();
+                        var t = System.Diagnostics.Stopwatch.StartNew();
+                        do System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                        while (Portraits.PendingThumbs > 0 && t.ElapsedMilliseconds < 15000);
+                    }
+                    var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+                    rtb.Render(el);
+                    var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                    using (var fs = File.Create(path)) enc.Save(fs);
+                    Console.WriteLine("RENDERRINGSIDE OK -> " + Path.GetFullPath(path));
+                }
+
+                FoundingViewModel Founding()
+                {
+                    var f = new FoundingViewModel(w0) { Name = Arg("--name", "Lantern Street Fighting") };
+                    string city = Arg("--city", "");
+                    f.SelectedCity = f.Cities.FirstOrDefault(c => c.Open && c.Name == city) ?? f.Cities.FirstOrDefault(c => c.Open) ?? f.SelectedCity;
+                    Console.WriteLine($"RINGSIDE founding: {f.Cities.Count(c => c.Open)} open of {f.Cities.Count} listed; city {f.SelectedCity?.Name}; abbreviation {f.Abbreviation}; "
+                                      + $"rules picks: minutes {f.MinuteChoices.Count}, gloves {f.GloveChoices.Count}, enclosure {f.EnclosureChoices.Count}");
+                    return f;
+                }
+
+                if (state == "found")
+                {
+                    var dlg = new FoundPromotionWindow(Founding(), interactive: false);
+                    Snap((FrameworkElement)dlg.Content, (int)dlg.Width, (int)dlg.Height, p);
+                }
+                else
+                {
+                    if (state is "founded" or "tryout")
+                    {
+                        // Lay the desk out first, so the centred Open Tryout panel knows the desk's size (as in play).
+                        root.Measure(new Size(W, H)); root.Arrange(new Rect(new Size(W, H))); root.UpdateLayout();
+                        var f = Founding();
+                        f.FoundCommand.Execute(null);
+                        if (f.Founded is null) throw new InvalidOperationException("founding refused: " + f.Error);
+                        vm.AfterFounding(f.Founded);
+                        Console.WriteLine($"RINGSIDE founded {f.Founded.Name} ({f.Founded.Abbreviation}): observing={vm.IsObserving}, apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}], "
+                                          + $"open [{string.Join(", ", vm.Desktop.Windows.Select(x => x.Spec.Id))}]; status: {vm.StatusText}");
+                        if (state == "tryout")
+                        {
+                            vm.Tryout.HoldCommand.Execute(null);
+                            Console.WriteLine($"RINGSIDE tryout: {vm.Tryout.Signed.Count} signed; ledger $0 lines skipped; status: {vm.StatusText}");
+                        }
+                    }
+                    else vm.Desktop.Open("ringside");
+                    Snap(root, W, H, p);
+                }
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERRINGSIDE FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
         // Offscreen screenshot of the New Game setup dialog: `MmaManager.Wpf --rendernewgame [--takeover ABBR] <path>`.
         if (e.Args.Contains("--rendernewgame"))
         {
@@ -2263,6 +2353,7 @@ public partial class App : Application
                         if (item is NewGameWindow.TakeoverRow r && r.Spec.Abbreviation == abbr) win.TakeoverBox.SelectedItem = item;
                 }
                 if (e.Args.Contains("--origins")) win.ChooseOrigins(int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]));
+                if (e.Args.Contains("--ringside")) win.ChooseRingside();   // Origins, watching from ringside
                 var root = (FrameworkElement)win.Content;
                 // The window sizes to its content: measure it at its width, then draw it at the height it wants.
                 for (int pass = 0; pass < 2; pass++)
@@ -2414,6 +2505,34 @@ public partial class App : Application
                         Region = MmaManager.Core.Model.Region.Europe,
                     },
                 }, "You founded New Wave Fighting.");
+                vm.SelectedFighter = vm.Roster.FirstOrDefault();
+            });
+            // Origins from ringside: no house of the player's (day one, then two years on).
+            Smoke("ringside", vm => vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside."));
+            Smoke("ringside+", vm =>
+            {
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                for (int i = 0; i < 8; i++) vm.AdvanceQuarterCommand.Execute(null);
+                vm.AdvanceChapterCommand.Execute(null);
+                // Save and load it back through the app's own load path (the autosave is off in harness runs).
+                string tmp = Path.Combine(Path.GetTempPath(), $"ringside-smoke-{Environment.ProcessId}.mmasave");
+                MmaManager.Persistence.SaveGame.Save(vm.LiveWorld!, tmp);
+                vm.LoadFromPath(tmp);
+                File.Delete(tmp);
+                if (!vm.IsObserving) throw new InvalidOperationException("a ringside save loaded back with a house");
+                Console.WriteLine($"OK    ringside+ saved and loaded at {vm.LiveWorld!.CurrentDate:d MMM yyyy}; apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}]");
+                vm.AdvanceWeekCommand.Execute(null);
+            });
+            Smoke("founded+", vm =>
+            {
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                for (int i = 0; i < 12; i++) vm.AdvanceQuarterCommand.Execute(null);
+                var f = new FoundingViewModel(vm.LiveWorld!) { Name = "Lantern Street Fighting" };
+                f.FoundCommand.Execute(null);
+                if (f.Founded is null) throw new InvalidOperationException("founding refused: " + f.Error);
+                vm.AfterFounding(f.Founded);
+                vm.Tryout.HoldCommand.Execute(null);
+                vm.AdvanceMonthCommand.Execute(null);
                 vm.SelectedFighter = vm.Roster.FirstOrDefault();
             });
 

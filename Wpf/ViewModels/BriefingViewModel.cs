@@ -1694,7 +1694,8 @@ public sealed class BriefingViewModel : ObservableObject
     // Money in and out since the baseline, with the biggest of each.
     private BriefingItem? MoneyLine(Promotion player, BriefingBaseline before)
     {
-        var entries = player.Ledger.Skip(before.LedgerCount).ToList();
+        // $0 lines (the free open tryout's mark) move no money: they never make a "$0 in, $0 out" line.
+        var entries = player.Ledger.Skip(before.LedgerCount).Where(e => e.Amount.Amount != 0).ToList();
         if (entries.Count == 0) return null;
         decimal inc = entries.Where(e => e.Amount.Amount > 0).Sum(e => e.Amount.Amount);
         decimal exp = -entries.Where(e => e.Amount.Amount < 0).Sum(e => e.Amount.Amount);

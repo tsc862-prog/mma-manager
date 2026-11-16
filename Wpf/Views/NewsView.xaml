@@ -37,7 +37,8 @@
 
                 <!-- plain filters -->
                 <WrapPanel Margin="0,12,0,0">
-                    <Border Style="{StaticResource Segmented}" Margin="0,0,14,6" VerticalAlignment="Top">
+                    <Border Style="{StaticResource Segmented}" Margin="0,0,14,6" VerticalAlignment="Top"
+                            Visibility="{Binding HasHouse, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <RadioButton Style="{StaticResource SegmentedOption}" Content="Everything" GroupName="newsWho" IsChecked="{Binding WhoEverything}" />
                             <RadioButton Style="{StaticResource SegmentedOption}" Content="My promotion" GroupName="newsWho" IsChecked="{Binding WhoMine}" />
