@@ -178,7 +178,7 @@ public static class OriginsWorldBuilder
         Org.StaffService.SeedMarket(world, rng);
         Org.StaffService.SeedFrontOffices(world, rng, useDesigned: false);
         if (world.Get(world.PlayerPromotion) is { } player)
-            Org.Objectives.Seed(player, start, new DateOnly(start.Year, 12, 31));
+            Org.Objectives.Seed(player, start, new DateOnly(start.Year, 12, 31), world);
 
         RankingService.RecomputeAll(world, start, o.RankingsDepth);
         GlobalRankings.Recompute(world);
@@ -224,7 +224,7 @@ public static class OriginsWorldBuilder
     /// potential, the name rolls are then overwritten), then every skill from his discipline profile, his
     /// real size, his disposition, his challenge-bout record if he has one, and his fame.
     /// </summary>
-    private static Fighter CreatePioneer(World world, FighterGenerator gen, OriginsPioneer row, DateOnly start)
+    internal static Fighter CreatePioneer(World world, FighterGenerator gen, OriginsPioneer row, DateOnly start)
     {
         var d = row.Fighter;
         var id = world.NewFighterId();

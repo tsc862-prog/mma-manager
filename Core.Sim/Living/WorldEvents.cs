@@ -83,6 +83,9 @@ public static class WorldEvents
         int m = Epoch(world, date);
         if (m < FirstCrossoverMonth || (m - FirstCrossoverMonth) % CrossoverEveryMonths != 0) return;
         if (!Era.Allows(world, Capability.Crossovers)) return;   // the sport isn't worth crossing over to yet (before any draw)
+        // These are today's celebrities (an influencer-boxer in 1999 would be an anachronism): an Origins
+        // world's "Crossovers" chapter means men crossing between promotions, not this (before any draw).
+        if (world.Mode == WorldMode.Origins) return;
 
         int occurrence = (m - FirstCrossoverMonth) / CrossoverEveryMonths;
         var c = Crossovers[occurrence % Crossovers.Length];
@@ -190,6 +193,9 @@ public static class WorldEvents
         int m = Epoch(world, date);
         if (m < FirstNewOrgMonth || (m - FirstNewOrgMonth) % NewOrgEveryMonths != 0) return;
         if (!Era.Allows(world, Capability.NewPromotions)) return;   // nobody else is starting one yet (before any draw)
+        // An Origins world founds its houses through its own timeline (OriginsFounding: open weight, the
+        // era's rules, a keyed stream), never through today's weight-class startups (before any draw).
+        if (world.Mode == WorldMode.Origins) return;
 
         // The market saturates on total size — but a LOCAL SCENE always exists.
         // With the ladder's doors open (v39 rate gate), the whole bottom rung can

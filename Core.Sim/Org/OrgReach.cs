@@ -18,6 +18,8 @@ public static class OrgReach
         if (world.Get(cityId) is not { } city) return false;
         // A country with no scene yet hosts no shows (Origins; always allowed in today's mode).
         if (!Living.Era.AllowsSceneIn(world, cityId)) return false;
+        // ...nor one the Backlash has closed (Origins; never in today's mode).
+        if (Living.Era.Banned(world, cityId, world.CurrentDate)) return false;
         var size = OrgSizing.SizeOf(promo);
         if (size == OrgSize.International) return true;
         if (city.Region != promo.BaseRegion) return false;

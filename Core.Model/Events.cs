@@ -47,6 +47,37 @@ public sealed class Event
     /// (the card fills as the bracket runs). Every card in today's mode is <see cref="EventFormat.Card"/>.
     /// </summary>
     public EventFormat Format { get; set; } = EventFormat.Card;
+
+    /// <summary>
+    /// A fought one-night bracket, slot by slot in the order the night ran it (round 1 first, each round's
+    /// slots top to bottom): who met, the bout (null for a walkover or an empty slot), who went through and
+    /// how. Empty for every other card (and for a bracket not yet drawn).
+    /// </summary>
+    public List<BracketSlot> Bracket { get; init; } = new();
+
+    /// <summary>The bracket's alternate (the next man in the house's order), whether or not he was needed.</summary>
+    public FighterId? BracketAlternate { get; set; }
+}
+
+/// <summary>How a bracket slot was filled for the next round (saved by name).</summary>
+public enum BracketHow { Won, JudgedDrawBetterSeed, Walkover, AlternateForWithdrawal, AlternateAfterDraw, NobodyAdvanced }
+
+/// <summary>One slot of a fought bracket (<see cref="Event.Bracket"/>).</summary>
+public sealed class BracketSlot
+{
+    /// <summary>The round, 1 = the first.</summary>
+    public int Round { get; init; }
+    /// <summary>The slot within its round, 0 = the top of the bracket.</summary>
+    public int Slot { get; init; }
+    public FighterId? Red { get; init; }
+    public FighterId? Blue { get; init; }
+    /// <summary>The bout fought in this slot; null for a walkover or an empty slot.</summary>
+    public FightId? Fight { get; init; }
+    /// <summary>Who went through (null when nobody did: both out and no alternate left).</summary>
+    public FighterId? Advanced { get; init; }
+    public BracketHow How { get; init; }
+    /// <summary>A winner who could not continue (the alternate, or nobody, went through instead).</summary>
+    public FighterId? Withdrew { get; init; }
 }
 
 /// <summary>What kind of night an <see cref="Event"/> is.</summary>
@@ -80,6 +111,9 @@ public sealed class Fight
     /// <see cref="WeightClass"/> is then only a filing key; label it "Open". Never set in today's mode.
     /// </summary>
     public bool OpenWeight { get; set; }
+
+    /// <summary>The bracket round of a one-night tournament bout (1 = the first); null for every other bout.</summary>
+    public int? BracketRound { get; set; }
 
     /// <summary>Who blew the scale at the weigh-in (fined; a title leaves the line — or the champ's waist — over it).</summary>
     public FighterId? WeightMissBy { get; set; }

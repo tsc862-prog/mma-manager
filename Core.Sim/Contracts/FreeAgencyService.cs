@@ -70,7 +70,7 @@ public static class FreeAgencyService
             // Roster growth is gated by SOLVENCY: an org in the red stops building
             // depth (card-minimum bodies only) and shops for cheap developable
             // prospects instead of names — nobody signs their way into the grave.
-            int distress = Org.Solvency.Distress(promo);
+            int distress = Org.Solvency.Distress(promo, world);
             decimal purseCeiling = distress == 0 ? decimal.MaxValue
                 : Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress);
 
@@ -79,7 +79,9 @@ public static class FreeAgencyService
             // (An Origins house runs ONE open division and every night needs its whole field: its floor is
             // what its own night takes. Today's mode keeps the old four.)
             int minBodies = world.Mode == WorldMode.Origins ? Living.OriginsShows.MinRoster(promo) : MinToRunDivision;
-            int target = distress > 0
+            int target = world.Mode == WorldMode.Origins
+                ? Living.OriginsShows.DivisionRosterTarget(promo, distress > 0)   // (a split house shares its depth among its divisions)
+                : distress > 0
                 ? minBodies
                 : Math.Max(minBodies, Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo)));
             foreach (var div in promo.Divisions)

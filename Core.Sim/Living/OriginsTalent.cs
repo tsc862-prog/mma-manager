@@ -187,8 +187,22 @@ public static class OriginsTalent
     /// that has shrunk below <see cref="TargetActives"/> (men also leave by routes the month doesn't count)
     /// draws a few more, up to four, from the gyms. Phase 3's scenes will grow the target.
     /// </summary>
-    public static int MonthlyIntake(int leavers, int actives) =>
-        leavers + Math.Clamp((TargetActives - actives) / 6, 0, 4);
+    public static int MonthlyIntake(int leavers, int actives) => MonthlyIntake(leavers, actives, TargetActives);
+
+    /// <summary>As above, against a target of its own (a sport with more houses needs more men).</summary>
+    public static int MonthlyIntake(int leavers, int actives, int target) =>
+        leavers + Math.Clamp((target - actives) / 6, 0, 4);
+
+    /// <summary>The houses' total demand for men on day one (three houses of a dozen), which <see cref="TargetActives"/> was tuned to.</summary>
+    public const int DayOneDemand = 36;
+
+    /// <summary>
+    /// The size the sport keeps up in this world: the day-one target, plus 1.3 men for every man the houses
+    /// want past day one's demand (a new house, a house split into divisions). A sport of more houses needs
+    /// more men, or the new ones starve the old.
+    /// </summary>
+    public static int TargetFor(World world) =>
+        TargetActives + (int)(1.3 * Math.Max(0, world.Promotions.Values.Where(p => !p.Defunct).Sum(OriginsShows.RosterDemand) - DayOneDemand));
 
     /// <summary>
     /// The month's intake of new men in an Origins world: young specialists from the countries that HAVE a

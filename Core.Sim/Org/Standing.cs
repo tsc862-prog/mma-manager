@@ -38,10 +38,10 @@ public static class Standing
     // the summit rare, but the giants must still LIVE there.)
     private const double TopTierCurve = 0.03;
 
-    /// <summary>After a settled card, score the show and move prestige/reputation.</summary>
     /// <summary>How much of a good night's prestige an Origins house banks (no screens to spread the word).</summary>
     public const double OriginsClimbFactor = 0.5;
 
+    /// <summary>After a settled card, score the show and move prestige/reputation.</summary>
     public static void AfterEvent(World world, Promotion promo, Event ev)
     {
         if (ev.Financials is not { } fin) return;

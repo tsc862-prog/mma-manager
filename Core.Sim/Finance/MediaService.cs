@@ -65,7 +65,14 @@ public static class MediaService
         /// </summary>
         public bool Qualifies(World world, Promotion promo) =>
             Living.Era.AllowsMedia(world, Kind) && Rule(world, promo);
+
+        /// <summary>The rung's going rate for this promotion: today's figure, or a share of it in a young sport (Origins).</summary>
+        public decimal FeeIn(World world, Promotion promo) =>
+            world.Mode == WorldMode.Origins ? Fee(promo) * OriginsFeeScale : Fee(promo);
     }
+
+    /// <summary>What a network pays an Origins house per event, as a share of today's rate (a sport nobody has heard of; sponsors pay the same share).</summary>
+    public const decimal OriginsFeeScale = 0.2m;
 
     private static readonly Rung[] Ladder =
     {
@@ -256,12 +263,38 @@ public static class MediaService
     /// <summary>A partner an offer could come from: free, and never pitched this promotion before.</summary>
     private static PartnerProfile? Suitor(World world, Promotion promo, Rung rung, SimRandom rng)
     {
-        var candidates = rung.Partners
+        var candidates = PartnersIn(world, rung)
             .Where(pp => !promo.CourtedBy.Contains(pp.Name)
                 && !promo.Offers.Any(o => o.Partner == pp.Name)
                 && (!IsExclusive(rung.Kind) || PartnerFree(world, pp.Name)))
             .ToList();
-        return candidates.Count == 0 ? null : candidates[rng.Range(0, candidates.Count - 1)];
+        return candidates.Count == 0 ? null : Pick(world, promo, candidates, rng);
+    }
+
+    private const ulong OriginsPartnerSalt = 0x0219_3ED1_0008UL;
+
+    /// <summary>
+    /// Who could carry a rung: today's partners, or in an Origins world the era's own broadcasters of that
+    /// kind that are on the air by now (<see cref="Generation.Origins.OriginsBroadcasters"/>; plain profiles:
+    /// the era's networks have no personalities yet). Empty in an Origins world before the first one airs.
+    /// </summary>
+    private static IReadOnlyList<PartnerProfile> PartnersIn(World world, Rung rung)
+    {
+        if (world.Mode != WorldMode.Origins) return rung.Partners;
+        int month = Living.OriginsTimeline.Month(world, world.CurrentDate);
+        return Generation.Origins.OriginsBroadcasters.Media
+            .Where(m => m.Media == rung.Kind && m.EarliestMonth <= month)
+            .OrderBy(m => m.EarliestMonth).ThenBy(m => m.Name, StringComparer.Ordinal)
+            .Select(m => ProfileOf(m.Name)).ToList();
+    }
+
+    /// <summary>One partner of a pool: a draw on the stream in today's mode (as ever), a keyed pick in an Origins world.</summary>
+    private static PartnerProfile Pick(World world, Promotion promo, IReadOnlyList<PartnerProfile> pool, SimRandom rng)
+    {
+        if (world.Mode != WorldMode.Origins) return pool[rng.Range(0, pool.Count - 1)];
+        double roll = Living.OriginsTimeline.Roll(world, OriginsPartnerSalt, (ulong)promo.Id.Value, (ulong)world.CurrentDate.DayNumber,
+            (ulong)pool.Count);
+        return pool[(int)(roll * pool.Count)];
     }
 
     // --- Exposure: what the screen does beyond the check ----------------------
@@ -422,7 +455,7 @@ public static class MediaService
     {
         foreach (var rung in Ladder
                      .Where(r => MediaLanes.LaneOf(r.Kind) == MediaLane.Linear && r.Qualifies(world, promo))
-                     .OrderByDescending(r => r.Fee(promo)))
+                     .OrderByDescending(r => r.FeeIn(world, promo)))
             if (TrySign(world, promo, rung, on, rng) is not null) break;
 
         var carrier = RungOf(MediaKind.PpvCarrier);
@@ -452,14 +485,14 @@ public static class MediaService
     /// <summary>Sign this rung with any free partner — null when the whole pool is spoken for.</summary>
     private static MediaDeal? TrySign(World world, Promotion promo, Rung rung, DateOnly on, SimRandom rng)
     {
-        var pool = rung.Partners.Where(pp => !IsExclusive(rung.Kind) || PartnerFree(world, pp.Name)).ToList();
+        var pool = PartnersIn(world, rung).Where(pp => !IsExclusive(rung.Kind) || PartnerFree(world, pp.Name)).ToList();
         if (pool.Count == 0) return null;
-        var profile = pool[rng.Range(0, pool.Count - 1)];
+        var profile = Pick(world, promo, pool, rng);
         var deal = new MediaDeal
         {
             Kind = rung.Kind,
             Partner = profile.Name,
-            RightsFeePerEvent = new Money(rung.Fee(promo) * profile.FeeScale),
+            RightsFeePerEvent = new Money(rung.FeeIn(world, promo) * profile.FeeScale),
             MonthsRemaining = rung.TermMonths,
             Requirements = AdjustTerms(rung.Terms(promo), profile.Strictness),
             SignedOn = on,
@@ -505,7 +538,7 @@ public static class MediaService
             var rung = RungOf(deal.Kind);
             if (deal.Strikes == 0 && rung.Qualifies(world, promo) && !rng.Chance(0.25))
             {
-                deal.RightsFeePerEvent = new Money(rung.Fee(promo) * ProfileOf(deal.Partner).FeeScale);
+                deal.RightsFeePerEvent = new Money(rung.FeeIn(world, promo) * ProfileOf(deal.Partner).FeeScale);
                 deal.MonthsRemaining = rung.TermMonths;
                 deal.SignedOn = date;
                 // A renewal is a new contract: today's term sheet, not the one
@@ -540,7 +573,7 @@ public static class MediaService
             // specialty). An org running its OWN platform isn't poachable.
             var current = DealIn(promo, MediaLanes.LaneOf(rung.Kind));
             bool upgrade = current is not null && current.Kind != rung.Kind
-                && rung.Fee(promo) > current.RightsFeePerEvent.Amount;
+                && rung.FeeIn(world, promo) > current.RightsFeePerEvent.Amount;
             if (!LaneOpen(promo, rung.Kind) && !upgrade) continue;
             if (!rng.Chance(0.5)) continue;   // the phone doesn't ring the instant you qualify
             if (Suitor(world, promo, rung, rng) is not { } profile) continue;   // nobody free who hasn't already pitched
@@ -558,7 +591,7 @@ public static class MediaService
         {
             Media = rung.Kind,
             Partner = profile.Name,
-            FeePerEvent = new Money(rung.Fee(promo) * profile.FeeScale),
+            FeePerEvent = new Money(rung.FeeIn(world, promo) * profile.FeeScale),
             Term = rung.TermMonths,
             Requirements = AdjustTerms(rung.Terms(promo), profile.Strictness),
             OfferedOn = date,
@@ -594,7 +627,7 @@ public static class MediaService
                 && !p.Offers.Any(o => o.Partner == partner)
                 && (LaneOpen(p, kind)
                     || (DealIn(p, MediaLanes.LaneOf(kind)) is { } cur && cur.Kind != kind
-                        && rung.Fee(p) > cur.RightsFeePerEvent.Amount)))
+                        && rung.FeeIn(world, p) > cur.RightsFeePerEvent.Amount)))
             .OrderByDescending(p => p.Prestige.Value)
             .FirstOrDefault();
         if (suitor is not null) MakeOffer(world, suitor, rung, ProfileOf(partner), date);
@@ -804,10 +837,30 @@ public static class MediaService
     /// <summary>The whole ladder, judged for this promotion — the Media desk's map of what's out there.</summary>
     public static IReadOnlyList<RungView> LadderView(World world, Promotion promo) =>
         Ladder.Select(r => new RungView(
-            r.Kind, Label(r.Kind), r.Qualifies(world, promo), Gate(r.Kind),
-            new Money(r.Fee(promo)),
+            r.Kind, Label(r.Kind), r.Qualifies(world, promo), GateIn(world, r.Kind),
+            new Money(r.FeeIn(world, promo)),
             string.Join("; ", r.Terms(promo).Select(x => DealCompliance.Describe(x)))
-            + $" · networks: {string.Join(", ", r.Partners.Select(pp => $"{pp.Name} ({pp.Tag})"))} — terms and money vary by house")).ToList();
+            + $" · networks: {Networks(world, r)} — terms and money vary by house")).ToList();
+
+    /// <summary>
+    /// Who could carry a rung, in words: today's partners, or in an Origins world the era's own broadcasters
+    /// of that kind (<see cref="Generation.Origins.OriginsBroadcasters"/>) that have come on the air by now.
+    /// </summary>
+    private static string Networks(World world, Rung r)
+    {
+        if (world.Mode != WorldMode.Origins)
+            return string.Join(", ", r.Partners.Select(pp => $"{pp.Name} ({pp.Tag})"));
+        int month = Living.OriginsTimeline.Month(world, world.CurrentDate);
+        var era = Generation.Origins.OriginsBroadcasters.Media.Where(m => m.Media == r.Kind && m.EarliestMonth <= month)
+            .OrderBy(m => m.EarliestMonth).ThenBy(m => m.Name, StringComparer.Ordinal).Select(m => m.Name).ToList();
+        return era.Count == 0 ? "none on the air yet" : string.Join(", ", era);
+    }
+
+    /// <summary>A rung's bar in words; in an Origins world a rung the sport has not got yet says so first.</summary>
+    private static string GateIn(World world, MediaKind kind) =>
+        world.Mode == WorldMode.Origins && !Living.Era.AllowsMedia(world, kind)
+            ? "Not in this era yet" + (Gate(kind) is { Length: > 0 } g ? " · then " + g : "")
+            : Gate(kind);
 
     private static string Gate(MediaKind kind) => kind switch
     {

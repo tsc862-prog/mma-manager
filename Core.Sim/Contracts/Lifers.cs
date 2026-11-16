@@ -182,7 +182,7 @@ public static class Lifers
     {
         if (f.Contract is not { } c || world.Get(c.Promotion) is not { } org) return null;
 
-        int distress = Solvency.Distress(org);
+        int distress = Solvency.Distress(org, world);
         if (distress > 0)
             return new(GrievanceKind.OrgInTrouble, distress >= 2
                 ? $"{org.Abbreviation} is fighting for its life and can't promise him a future"
