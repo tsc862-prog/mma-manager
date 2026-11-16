@@ -35,6 +35,11 @@
          legacy sidecar kept for packs without a manifest -->
     <Content Include="Assets\Painted\manifest.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Assets\Painted\manifest.json')" />
     <Content Include="Assets\Painted\tags.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Assets\Painted\tags.json')" />
+    <!-- Owners / founders / named staff (Assets\People) and media + sponsor logos (Assets\Brands): small,
+         fictional, tracked in git (unlike the 2.8 GB fighter pack). Written by E:/FighterArt
+         sync/synccorporate.py; see Wpf\Art\PeopleLibrary.cs and BrandLibrary.cs. Loaders fall back when absent. -->
+    <Content Include="Assets\People\**\*.*" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Assets\People')" />
+    <Content Include="Assets\Brands\**\*.*" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Assets\Brands')" />
   </ItemGroup>
 
 </Project>

@@ -278,6 +278,41 @@ public partial class App : Application
             return;
         }
 
+        // Corporate art through the loaders: `MmaManager.Wpf --rendercorporate <path>`. Every person (PeopleLibrary)
+        // and every logo (BrandLibrary), plus two unknown names to show the fallbacks.
+        if (e.Args.Contains("--rendercorporate"))
+        {
+            try
+            {
+                var people = Art.PeopleLibrary.Names.OrderBy(n => n, StringComparer.Ordinal).ToList();
+                people.Add("Unpictured Person"); people.Add("Dr. Missing Name");
+                var brands = Art.BrandLibrary.Names().ToList();
+                brands.Add("Unknown Partner Co."); brands.Add("Made Up Lager");
+                const int pc = 10, pcell = 100, bc = 12, bcell = 84;
+                int prow = (people.Count + pc - 1) / pc, brow = (brands.Count + bc - 1) / bc;
+                int width = Math.Max(pc * pcell, bc * bcell) + 16, height = prow * pcell + brow * bcell + 40;
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen())
+                {
+                    dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x2A, 0x2D, 0x34)), null, new Rect(0, 0, width, height));
+                    for (int i = 0; i < people.Count; i++)
+                        dc.DrawImage(Art.PeopleLibrary.Portrait(people[i]), new Rect(8 + i % pc * pcell, 8 + i / pc * pcell, pcell - 6, pcell - 6));
+                    int by = prow * pcell + 24;
+                    for (int i = 0; i < brands.Count; i++)
+                        dc.DrawImage(Art.BrandLibrary.Logo(brands[i]), new Rect(8 + i % bc * bcell, by + i / bc * bcell, bcell - 6, bcell - 6));
+                }
+                var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(dv);
+                var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                string p = e.Args.Length > 1 ? e.Args[^1] : "corporate.png";
+                using (var fs = File.Create(p)) enc.Save(fs);
+                Console.WriteLine($"RENDERCORPORATE OK ({people.Count} people, {brands.Count} logos) -> " + Path.GetFullPath(p));
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERCORPORATE FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
         // Contact sheet of auto-generated fight posters: `MmaManager.Wpf --renderposter <path>`.
         // Eighteen assorted variants off the designed world — every template, many
         // org palettes — written as a grid sheet plus full-size singles ("-1.png"...).
