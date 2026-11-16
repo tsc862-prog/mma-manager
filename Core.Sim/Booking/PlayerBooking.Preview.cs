@@ -38,17 +38,20 @@ public sealed partial class PlayerBooking
                         && (t.CurrentChampion is not { } champ || champ == red || champ == blue);
             card[at] = new Fight
             {
-                Id = bout.Id, RedCorner = red, BlueCorner = blue, WeightClass = bout.WeightClass,
+                Id = bout.Id, RedCorner = red, BlueCorner = blue, WeightClass = bout.WeightClass, OpenWeight = bout.OpenWeight,
                 ScheduledRounds = bout.ScheduledRounds, CatchweightLbs = bout.CatchweightLbs,
                 IsTitleFight = keep, Title = keep ? bout.Title : null,
             };
             return Project(world, copy);
         }
 
-        // As AddBout books it (at the bottom of the bill), then where the desk moves it.
+        // As AddBout books it (at the bottom of the bill, filed as AddBout files it), then where the desk moves it.
+        bool open = OpenWeight(world);
+        var band = open || r is null ? null : BandOf(world, r);
         card.Insert(0, new Fight
         {
-            Id = hypothetical, RedCorner = red, BlueCorner = blue, WeightClass = r?.WeightClass ?? default,
+            Id = hypothetical, RedCorner = red, BlueCorner = blue,
+            WeightClass = open ? Division.OpenClass : band?.WeightClass ?? r?.WeightClass ?? default, OpenWeight = open,
             ScheduledRounds = rounds, IsTitleFight = titleFight, Title = titleFight ? division?.Title : null,
         });
         int n = card.Count;
