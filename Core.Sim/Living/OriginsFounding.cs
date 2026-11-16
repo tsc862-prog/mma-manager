@@ -34,9 +34,15 @@ public static class OriginsFounding
     /// <summary>A new house's monthly chance once new promotions are part of the sport (and in the Boom).</summary>
     public const double GrowthChance = 0.03, BoomChance = 0.10;
 
-    /// <summary>The most houses alive at once: three plus two an era (the Boom raises it again).</summary>
+    /// <summary>
+    /// The chapter that starts the Boom's wave of foundings: the breakout night. (The wave itself is what fires
+    /// "boom-new-promotions", which needs fourteen houses alive: the ceiling must be above that BEFORE it fires.)
+    /// </summary>
+    public const string BoomStarts = "breakout-tv-moment";
+
+    /// <summary>The most houses alive at once: three plus two an era, eighteen once the Boom has begun.</summary>
     public static int Ceiling(World world) =>
-        world.Era.HasFired("boom-new-promotions") ? 18 : 3 + 2 * OriginsTimeline.CurrentEra(world);
+        world.Era.HasFired(BoomStarts) ? 18 : 3 + 2 * OriginsTimeline.CurrentEra(world);
 
     public static void RunMonthly(World world, DateOnly date)
     {
@@ -44,7 +50,7 @@ public static class OriginsFounding
         if (!world.Era.IsUnlocked(Capability.NewPromotions) && !rivalsLive) return;
         if (world.Promotions.Values.Count(p => !p.Defunct) >= Ceiling(world)) return;
         double chance = rivalsLive ? FirstRivalChance
-            : world.Era.HasFired("boom-new-promotions") ? BoomChance : GrowthChance;
+            : world.Era.HasFired(BoomStarts) ? BoomChance : GrowthChance;
         if (OriginsTimeline.Roll(world, FoundSalt, (ulong)date.DayNumber) >= chance) return;
         Found(world, date, null);
     }

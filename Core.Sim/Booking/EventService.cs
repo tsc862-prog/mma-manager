@@ -86,8 +86,12 @@ public sealed class EventService
         int roundSeconds = (world.Get(ev.Promotion)?.Rules.RoundMinutes ?? 5) * 60;
         // Early-era house rules (Origins); null for every promotion in today's mode = today's rules.
         var houseRules = world.Get(ev.Promotion)?.Rules.Fight;
+        var house = world.Get(ev.Promotion);
         foreach (var fight in ev.Card)
         {
+            // A bout inside a banded division (Origins weight split) keeps the size term; never in today's mode.
+            bool banded = world.Mode == WorldMode.Origins && !fight.OpenWeight && house is not null
+                && house.Divisions.Any(d => d.Lightest is not null && d.WeightClass == fight.WeightClass);
             // A rule set that fixes the rounds (one long round) is what the bout is fought over, so the
             // saved fight says so too. Round length has no field on Fight: it is the rules' (else the house's) minutes.
             if (houseRules?.Rounds is int fixedRounds) fight.ScheduledRounds = fixedRounds;
@@ -98,6 +102,7 @@ public sealed class EventService
                 RoundSeconds = roundSeconds,
                 GeneratePlayByPlay = playByPlay,
                 Rules = houseRules,
+                BandedSizeTerm = banded,
             };
             _engine.Simulate(fight, world, opts);
             ResultsProcessor.Apply(world, ev, fight);

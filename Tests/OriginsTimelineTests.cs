@@ -131,7 +131,14 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
         Assert.True(w.Promotions.Count > 3);
         // Every house founded after day one is of its era: open weight, or the lines the sport had drawn.
         foreach (var p in w.Promotions.Values.Where(p => p.Id.Value > 3))
-            Assert.True(p.Rules.Fight!.OpenWeight);
+            Assert.Equal(p.Divisions.Any(d => d.Open), p.Rules.Fight!.OpenWeight);   // open weight exactly when it runs no lines
+        // A split house (any house, founder or not) is no longer open weight, and its booked bouts say which division they are in.
+        foreach (var p in w.Promotions.Values.Where(p => p.Divisions.Any(d => !d.Open)))
+        {
+            Assert.False(p.Rules.Fight!.OpenWeight);
+            foreach (var e in w.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Scheduled))
+                Assert.All(e.Card, f => { Assert.False(f.OpenWeight); Assert.Contains(p.Divisions, d => d.WeightClass == f.WeightClass); });
+        }
 
         var star = w.Era.Chapter("first-star")!;
         Assert.NotNull(star.Fighter);
@@ -313,9 +320,23 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
         var champ = w.RosterOf(sfa.Id).OrderBy(f => f.WeightClass).ThenBy(f => f.Id.Value).First();
         belt.CurrentChampion = champ.Id;
         belt.Lineage.Add(new TitleReign { Champion = champ.Id, WonOn = Month(20) });
+        // A man promised a shot at the open belt.
+        var hopeful = w.RosterOf(sfa.Id).Where(f => f.Id != champ.Id).OrderByDescending(f => f.WeightClass).ThenBy(f => f.Id.Value).First();
+        var promise = new Promise
+        {
+            Id = w.NewPromiseId(), Fighter = hopeful.Id, Promotion = sfa.Id, Kind = PromiseKind.TitleShot,
+            Title = belt.Id, Made = Month(55), Deadline = Month(70),
+        };
+        w.Promises.Add(promise);
+        Assert.True(sfa.Rules.Fight!.OpenWeight);
 
         Assert.Contains(OriginsReforms.Options(w, sfa, w.CurrentDate), o => o.Chapter == "first-weight-split");
         Assert.True(OriginsReforms.Adopt(w, sfa, "first-weight-split", w.CurrentDate));
+        Assert.False(sfa.Rules.Fight!.OpenWeight);   // a split house fights inside its divisions and weighs in
+        // The promise follows the man's weight to the belt of his new division, same deadline.
+        Assert.True(promise.Live);
+        Assert.Equal(sfa.Divisions.Single(d => d.Matches(hopeful)).Title, promise.Title);
+        Assert.Equal(Month(70), promise.Deadline);
 
         Assert.DoesNotContain(sfa.Divisions, d => d.Open);
         var mw = sfa.Divisions.Single(d => d.WeightClass == WeightClass.Middleweight);
@@ -392,6 +413,136 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
         Assert.Equal(toronto.Id, r.City);
         Assert.True(Era.AllowsScene(w, "CAN") && Era.AllowsScene(w, "NED"));
         Assert.Contains("Toronto", OriginsStory.View(w, r)!.Headline + OriginsStory.View(w, r)!.Body);
+    }
+
+    // ---- PR #59 review fixes ---------------------------------------------------------------
+
+    [Fact]
+    public void ALicensedRegion_IsNeverBannedAgain_AndALicenceBeatsAnyBan()
+    {
+        var w = OriginsWorldTests.AiWorld(8);
+        var cru = House(w, "CRU");
+        var la = cru.HomeCity!.Value;
+        int area = w.Get(la)!.Area!.Value;
+        w.CurrentDate = Month(40);
+        OriginsBacklash.BanWave(w, w.CurrentDate, first: true);
+        Assert.True(Era.Banned(w, la, w.CurrentDate.AddDays(1)));
+
+        w.CurrentDate = Month(50);
+        OriginsBacklash.LicenceAtFounding(w, cru, w.CurrentDate);       // a licence for CRU's home region
+        Assert.False(Era.Banned(w, la, w.CurrentDate));
+
+        // The second wave never closes it again, and even a ban written over it would not hold.
+        OriginsBacklash.BanWave(w, Month(52), first: false);
+        Assert.DoesNotContain(w.Era.Bans, b => b.Area == area && b.Since > Month(50));
+        w.Era.Bans.Add(new SceneBan { Country = "USA", Area = area, Since = Month(53), Until = Month(90) });
+        Assert.False(Era.Banned(w, la, Month(60)));
+
+    }
+
+    [Fact]
+    public void EachBanLapse_IsAnnouncedExactlyOnce()
+    {
+        var w = OriginsWorldTests.AiWorld(9);
+        // Lapses on every day of a month, whatever weekday the ticks fall on.
+        var start = new DateOnly(1996, 3, 1);
+        for (int d = 0; d < 31; d++)
+            w.Era.Bans.Add(new SceneBan { Country = "USA", Area = d % 4, Since = start.AddDays(-400), Until = start.AddDays(d) });
+        int before = w.News.Count(n => n.Headline.StartsWith("The ban lapses"));
+        var tick = new DateOnly(1996, 1, 5);
+        for (int week = 0; week < 20; week++, tick = tick.AddDays(7))
+            if (tick.AddDays(-7).Month != tick.Month) { w.CurrentDate = tick; OriginsBacklash.RunMonthly(w, tick); }
+        Assert.Equal(31, w.News.Count(n => n.Headline.StartsWith("The ban lapses")) - before);
+    }
+
+    [Fact]
+    public void Distress_ReachesItsDeepestTier_AtAnOriginsHousesOwnCeiling()
+    {
+        var w = OriginsWorldTests.AiWorld(2);
+        var dlb = House(w, "DLB");
+        dlb.Balance = new Money(-40_000m);                               // past half of an Origins City house's 75,000
+        Assert.Equal(2, Solvency.Distress(dlb, w));
+        Assert.Equal(1, Solvency.Distress(dlb));                          // (today's scale, unchanged)
+        Assert.Equal(-75_000m, Solvency.CeilingFor(dlb, w));
+        var modern = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 2 });
+        var m = modern.Promotions.Values.First();
+        m.Balance = new Money(-40_000m);
+        Assert.Equal(Solvency.Distress(m), Solvency.Distress(m, modern));
+    }
+
+    [Fact]
+    public void TheBoomCanReachItsFourteenHouses_BeforeItsDeadline()
+    {
+        var w = OriginsWorldTests.AiWorld(3);
+        Assert.True(OriginsFounding.Ceiling(w) < 14);
+        Fired(w, Month(140), "breakout-tv-moment");
+        Assert.True(OriginsFounding.Ceiling(w) >= 14);
+        Assert.True(OriginsChapters.ByKey("boom-new-promotions").Structured.Value <= OriginsFounding.Ceiling(w));
+    }
+
+    [Fact]
+    public void ASignedDeal_CarriesAnEraName_AndSoDoesItsChapter()
+    {
+        var w = OriginsWorldTests.AiWorld(4);
+        var sfa = House(w, "SFA");
+        w.CurrentDate = Month(60);
+        sfa.Prestige = 30;                                              // regional, and past the specialty bar
+        sfa.TierClearance = OrgSizing.SizeOf(sfa);
+        Era.Unlock(w, Capability.SpecialtyCable);
+        var rng = new MmaManager.Core.Sim.Rng.SimRandom(5);
+        for (int m = 0; m < 24 && sfa.MediaDeals.Count == 0; m++) Core.Sim.Finance.MediaService.RunMonthly(w, sfa, w.CurrentDate, rng);
+        var deal = Assert.Single(sfa.MediaDeals);
+        Assert.Equal("Nocturne Cable", deal.Partner);
+        var doer = OriginsTimeline.Detect(w, OriginsChapters.ByKey("late-night-cable"), w.CurrentDate);
+        Assert.Equal("Nocturne Cable", doer?.Partner);
+
+        // Sponsors: every deal a house signs in its first years names an era brand.
+        var dlb = House(w, "DLB");
+        dlb.SponsorDeals.Clear();
+        for (int m = 0; m < 30; m++)
+        {
+            w.CurrentDate = Month(3 + m);
+            Core.Sim.Finance.Sponsorships.RunMonthly(w, dlb, w.CurrentDate, rng);
+        }
+        Assert.NotEmpty(dlb.SponsorDeals);
+        Assert.All(dlb.SponsorDeals, d => Assert.Contains(OriginsBroadcasters.Sponsors, s => s.Name == d.Partner));
+    }
+
+    [Fact]
+    public void ThePlayer_HearsWhatHeCanAdopt_AndIsToldWhyNot()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, playerIndex: 2));   // the Garage
+        var dlb = w.Get(w.PlayerPromotion)!;
+        w.CurrentDate = Month(40);
+        Assert.Equal("The sport isn't ready for that yet: nobody is asking for it.", OriginsReforms.Refusal(w, dlb, OriginsReforms.Rounds, w.CurrentDate));
+        Fired(w, Month(2), "crucible-first-night", "first-star");
+        Fired(w, Month(39), "press-turns");
+        Assert.Null(OriginsReforms.Refusal(w, dlb, OriginsReforms.Rounds, w.CurrentDate));
+        Assert.NotNull(OriginsReforms.Refusal(w, dlb, "first-weight-split", w.CurrentDate));
+
+        // The desk hears of it once, the month it opened.
+        OriginsReforms.RunMonthly(w, new DateOnly(1996, 4, 5));
+        OriginsReforms.RunMonthly(w, new DateOnly(1996, 5, 3));
+        Assert.Single(w.Mail, m => m.Subject == "We could adopt: Rounds and judges");
+
+        Assert.True(OriginsReforms.TryAdopt(w, dlb, OriginsReforms.Rounds, w.CurrentDate, out var none));
+        Assert.Null(none);
+        Assert.False(OriginsReforms.TryAdopt(w, dlb, OriginsReforms.Rounds, w.CurrentDate, out var why));
+        Assert.Equal("You already fight in rounds with judges.", why);
+    }
+
+    [Fact]
+    public void APlayersNight_IsRefused_WhenEveryHallIsBanned()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(4, playerIndex: 0));
+        w.CurrentDate = Month(40);
+        foreach (var code in Era.Scenes(w).ToList())
+            w.Era.Bans.Add(new SceneBan { Country = code, Since = Month(39), Until = Month(90) });
+        var ev = new PlayerBooking().TryCreateEvent(w, Month(41), out var refused);
+        Assert.Null(ev);
+        Assert.Contains("closed by a ban", refused);
+        Assert.Throws<InvalidOperationException>(() => new PlayerBooking().CreateEvent(w, Month(41)));
+        Assert.DoesNotContain(w.Events.Values, e => e.VenueId is null && e.Promotion == w.PlayerPromotion);
     }
 
     // ---- the Origins screens' sim asks (PR #58) ---------------------------------------------

@@ -17,8 +17,19 @@ public sealed partial class PlayerBooking
     /// A city beyond the promotion's reach tier (see <see cref="Org.OrgReach"/>)
     /// falls back to the HQ metro: you can't book Tokyo from a city outfit.
     /// </summary>
-    public Event CreateEvent(World world, DateOnly date, string? name = null, EventTier tier = EventTier.FightNight, CityId? city = null)
+    public Event CreateEvent(World world, DateOnly date, string? name = null, EventTier tier = EventTier.FightNight, CityId? city = null) =>
+        TryCreateEvent(world, date, out var refused, name, tier, city)
+        ?? throw new InvalidOperationException(refused);
+
+    /// <summary>
+    /// As <see cref="CreateEvent"/>, but null with the reason in words when no card can be created: an
+    /// Origins house whose every reachable hall a ban has closed has nowhere to put a night (it never gets a
+    /// card with no venue). Today's mode always creates the card.
+    /// </summary>
+    public Event? TryCreateEvent(World world, DateOnly date, out string? refused, string? name = null,
+        EventTier tier = EventTier.FightNight, CityId? city = null)
     {
+        refused = null;
         var promo = world.Get(world.PlayerPromotion);
         int number = NextCardNumber(world, promo);
         bool origins = world.Mode == WorldMode.Origins && promo is not null;
@@ -32,6 +43,11 @@ public sealed partial class PlayerBooking
             : origins ? Living.OriginsShows.PlayerVenue(world, promo, date, city == promo!.HomeCity ? null : city)
             : city is { } chosen ? Geography.WorldMap.PickVenueIn(world, promo, chosen)
             : Geography.WorldMap.PickVenue(world, promo);
+        if (origins && venue is null)
+        {
+            refused = "Every hall you could take that night to is closed by a ban. Win a licence (it needs rounds, judges and gloves), wait for the ban to lapse, or name a city abroad with a scene.";
+            return null;
+        }
         var ev = new Event
         {
             Id = world.NewEventId(),
@@ -86,9 +102,12 @@ public sealed partial class PlayerBooking
         { error = "Both fighters must be on your roster."; return false; }
         if (Contracts.DealWindow.OutOfDeal(world, r) || Contracts.DealWindow.OutOfDeal(world, b))
         { error = "A fighter's deal is up — re-sign them before you book them."; return false; }
-        // An open-weight house (Origins) matches any man against any man; everyone else keeps to the class.
+        // An open-weight house (Origins) matches any man against any man; a house split into weight bands
+        // (Origins) matches men of one band; everyone else keeps to the class.
         bool open = OpenWeight(world);
-        if (!open && r.WeightClass != b.WeightClass) { error = "Fighters must be in the same weight class."; return false; }
+        var band = open ? null : BandOf(world, r);
+        if (!open && r.WeightClass != b.WeightClass && (band is null || !band.Matches(b)))
+        { error = band is null ? "Fighters must be in the same weight class." : "Fighters must be in the same division."; return false; }
         if (r.Sex != b.Sex) { error = "A bout can't cross men's and women's divisions."; return false; }
         if (!r.IsMatchReady(ev.Date) || !b.IsMatchReady(ev.Date)) { error = "A fighter is injured or still recovering."; return false; }
         if (BookedOnCard(ev, red) || BookedOnCard(ev, blue)) { error = "A fighter is already on this card."; return false; }
@@ -114,7 +133,7 @@ public sealed partial class PlayerBooking
             Id = world.NewFightId(),
             RedCorner = red,
             BlueCorner = blue,
-            WeightClass = open ? Division.OpenClass : r.WeightClass,
+            WeightClass = open ? Division.OpenClass : band?.WeightClass ?? r.WeightClass,
             OpenWeight = open,
             ScheduledRounds = rounds,
             IsTitleFight = titleFight,
@@ -134,6 +153,14 @@ public sealed partial class PlayerBooking
 
     /// <summary>Does the player's house fight at open weight (an Origins house rule; never in today's mode)?</summary>
     private static bool OpenWeight(World world) => world.Get(world.PlayerPromotion)?.Rules.Fight?.OpenWeight == true;
+
+    /// <summary>The player's BANDED division this man fights in (Origins, after a weight split); null otherwise (always in today's mode).</summary>
+    private static Division? BandOf(World world, Fighter f) =>
+        world.Mode != WorldMode.Origins ? null
+        : world.Get(world.PlayerPromotion)?.Divisions.FirstOrDefault(d => d.Lightest is not null && d.Matches(f));
+
+    /// <summary>Is this man in the player's division filed under this class (a band takes several natural classes)?</summary>
+    private static bool InBand(World world, Fighter f, WeightClass wc) => BandOf(world, f)?.WeightClass == wc;
 
     /// <summary>
     /// Book one of your fighters against unnamed local talent — the small-org
@@ -200,7 +227,7 @@ public sealed partial class PlayerBooking
     /// <summary>Player-roster fighters available to book in a division (weight + sex; not already on this card).</summary>
     public IReadOnlyList<Fighter> AvailableRoster(World world, Event ev, WeightClass weightClass, Sex sex = Sex.Male) =>
         world.RosterOf(world.PlayerPromotion)
-            .Where(f => (f.WeightClass == weightClass || OpenWeight(world)) && f.Sex == sex && f.IsMatchReady(ev.Date) && !BookedOnCard(ev, f.Id)
+            .Where(f => (f.WeightClass == weightClass || OpenWeight(world) || InBand(world, f, weightClass)) && f.Sex == sex && f.IsMatchReady(ev.Date) && !BookedOnCard(ev, f.Id)
                         && !Contracts.DealWindow.OutOfDeal(world, f))
             .OrderByDescending(f => MatchmakingAdvisor.ScoutedRead(world, f))   // the scout's read, never the truth
             .ThenBy(f => f.Id.Value)
@@ -212,7 +239,7 @@ public sealed partial class PlayerBooking
         var f = world.Get(forFighter);
         if (f is null) return Array.Empty<Fighter>();
         return world.RosterOf(world.PlayerPromotion)
-            .Where(o => o.Id != forFighter && (o.WeightClass == f.WeightClass || OpenWeight(world)) && o.Sex == f.Sex && o.IsMatchReady(ev.Date) && !BookedOnCard(ev, o.Id)
+            .Where(o => o.Id != forFighter && (o.WeightClass == f.WeightClass || OpenWeight(world) || BandOf(world, f)?.Matches(o) == true) && o.Sex == f.Sex && o.IsMatchReady(ev.Date) && !BookedOnCard(ev, o.Id)
                         && !Contracts.DealWindow.OutOfDeal(world, o))
             .OrderByDescending(o => MatchmakingAdvisor.ScoutedRead(world, o))   // the scout's read, never the truth
             .ThenBy(o => o.Id.Value)

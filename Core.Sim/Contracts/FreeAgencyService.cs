@@ -70,7 +70,7 @@ public static class FreeAgencyService
             // Roster growth is gated by SOLVENCY: an org in the red stops building
             // depth (card-minimum bodies only) and shops for cheap developable
             // prospects instead of names — nobody signs their way into the grave.
-            int distress = Org.Solvency.Distress(promo);
+            int distress = Org.Solvency.Distress(promo, world);
             decimal purseCeiling = distress == 0 ? decimal.MaxValue
                 : Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress);
 

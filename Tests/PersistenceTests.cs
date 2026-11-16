@@ -104,6 +104,8 @@ public class PersistenceTests
                 Advanced = bout.RedCorner, How = BracketHow.AlternateForWithdrawal, Withdrew = bout.BlueCorner,
             });
             bout.BracketRound = 2;
+            // A banded division (an Origins weight split): the light division runs from flyweight up.
+            world.Promotions.Values.OrderBy(p => p.Id.Value).First().Divisions[0].Lightest = WeightClass.Flyweight;
 
             // Origins fight rules on two promotions: one with every flag at its non-default value, one
             // with judges and every legal strike on (so each column holds a non-zero value somewhere).

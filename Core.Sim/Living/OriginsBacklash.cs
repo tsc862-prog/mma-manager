@@ -102,6 +102,8 @@ public static class OriginsBacklash
         var homes = world.Promotions.Values.Where(p => !p.Defunct && p.HomeCity is { } hc && world.Get(hc) is { } c && c.Country == usa.Id)
             .Select(p => world.Get(p.HomeCity!.Value)!.Area).OfType<int>().ToHashSet();
         var bannedNow = Enumerable.Range(0, areas).Where(a => world.Era.Bans.Any(b => b.Country == "USA" && b.Area == a && b.ActiveOn(date))).ToHashSet();
+        // A region a commission has licensed is never banned again.
+        bool Licensed(int a) => world.Era.Sanctions.Any(s => s.Country == "USA" && (s.Area is null || s.Area == a));
 
         // The open region: the same one for every wave (a keyed pick among the regions no house calls home).
         var refuges = Enumerable.Range(0, areas).Where(a => !homes.Contains(a)).ToList();
@@ -113,13 +115,13 @@ public static class OriginsBacklash
         {
             foreach (int a in Enumerable.Range(0, areas))
             {
-                if (a == refuge || bannedNow.Contains(a)) continue;
+                if (a == refuge || bannedNow.Contains(a) || Licensed(a)) continue;
                 if (homes.Contains(a) || OriginsTimeline.Roll(world, BanSalt, (ulong)a, 1) < 0.5) close.Add(a);
             }
         }
         else
         {
-            var open = Enumerable.Range(0, areas).Where(a => a != refuge && !bannedNow.Contains(a)).ToList();
+            var open = Enumerable.Range(0, areas).Where(a => a != refuge && !bannedNow.Contains(a) && !Licensed(a)).ToList();
             if (open.Count > 0) close.Add(open[(int)(OriginsTimeline.Roll(world, BanSalt, 2) * open.Count)]);
         }
 
@@ -136,12 +138,35 @@ public static class OriginsBacklash
                     ? $"Legislators in {region} have closed every hall to the new fights. No promotion calls the region home, but nobody can run a card there now."
                     : $"Legislators in {region} have closed every hall to the new fights. {string.Join(" and ", hit.Select(p => p.Name))} must take {(hit.Count == 1 ? "its" : "their")} nights somewhere else until the ban lapses or a commission licenses the sport.",
                 hit.FirstOrDefault()?.Id ?? default);
-            if (hit.Any(p => p.Id == world.PlayerPromotion))
+            if (hit.FirstOrDefault(p => p.Id == world.PlayerPromotion) is { } me)
                 Mail.Post(world, date, MailCategory.BoardNote, Mail.Owner(world), $"We're banned at home",
                     $"{Cap(region)} has closed its halls to us. We can still run nights: in a region that hasn't banned the sport, or abroad where we're welcome. "
-                    + "A house that fights in rounds, with judges and gloves, can apply to a commission for a licence that lifts the ban.");
+                    + LicenceAdvice(world, me, date));
         }
         RelocateClosedCards(world, date);
+    }
+
+    /// <summary>
+    /// What it would take for this house to win a licence, honestly: the rules it still lacks (and whether the
+    /// sport lets it adopt them yet), and whether any commission is hearing the sport yet.
+    /// </summary>
+    public static string LicenceAdvice(World world, Promotion p, DateOnly date)
+    {
+        var lacks = new List<string>();
+        if (!OriginsReforms.HasRounds(p)) lacks.Add("rounds and judges");
+        if (!OriginsReforms.HasGloves(p)) lacks.Add("gloves");
+        var adoptable = OriginsReforms.Options(world, p, date).Select(o => o.Chapter).ToHashSet();
+        bool hearing = OriginsTimeline.IsOpen(world, "first-sanctioned-state", date);
+        if (lacks.Count == 0)
+            return hearing
+                ? "We already fight by the rules a commission asks for (rounds, judges, gloves): our application is in, and the commission considers it every month."
+                : "We already fight by the rules a commission will ask for (rounds, judges, gloves), but no commission will hear the sport yet. When one does, we're first in line.";
+        string need = $"A licence lifts the ban, but a commission will only license a house that fights in rounds, with judges and gloves. We still lack {string.Join(" and ", lacks)}.";
+        bool canNow = (lacks.Contains("rounds and judges") ? adoptable.Contains(OriginsReforms.Rounds) : true)
+                      && (lacks.Contains("gloves") ? adoptable.Contains(OriginsReforms.Gloves) : true);
+        return need + (canNow
+            ? " We can adopt them now (house rules)."
+            : " The sport isn't asking for all of that yet; we can adopt each as soon as it is, and I'll tell you when.");
     }
 
     /// <summary>The lean years begin: the bigger backers leave the American houses; only the local ones stay.</summary>
@@ -154,6 +179,9 @@ public static class OriginsBacklash
             p.Offers.RemoveAll(o => o.Media is null && Finance.Sponsorships.ArchetypeOf(o.Partner) is { } a && a != Capability.SponsorLocal);
             if (gone.Count == 0) continue;
             foreach (var d in gone) p.SponsorDeals.Remove(d);
+            if (p.Id == world.PlayerPromotion)
+                Mail.Post(world, date, MailCategory.General, "Commercial", "Sponsors are pulling out",
+                    $"With the sport under fire, {string.Join(" and ", gone.Select(d => d.Partner))} {(gone.Count == 1 ? "has" : "have")} taken {(gone.Count == 1 ? "its" : "their")} name off our canvas. Only hometown backers will talk to us for the next two years.");
             News.Post(world, date, NewsCategory.Finance, $"{string.Join(" and ", gone.Select(d => d.Partner))} pull{(gone.Count == 1 ? "s" : "")} out of {p.Name}",
                 "With the sport under fire, the bigger backers want their names off the canvas. Only the hometown sponsors are staying.", p.Id);
         }
@@ -189,13 +217,26 @@ public static class OriginsBacklash
             : now < baseline ? now + 1 : now;
     }
 
+    /// <summary>
+    /// Bans that ran out since the last monthly pass, each announced exactly once: the window runs from the
+    /// previous month's first weekly tick (exclusive) to this one (inclusive), so consecutive windows tile the
+    /// calendar whichever day of the week the ticks fall on. A ban a commission lifted first is not announced again.
+    /// </summary>
     private static void Lapses(World world, DateOnly date)
     {
-        var monthAgo = date.AddMonths(-1);
+        var last = PreviousMonthlyTick(date);
         foreach (var ban in world.Era.Bans)
-            if (ban.LiftedOn is null && ban.Until > monthAgo && ban.Until <= date)
+            if (ban.LiftedOn is null && ban.Until > last && ban.Until <= date)
                 News.Post(world, date, NewsCategory.General, $"The ban lapses in {RegionName(world, ban.Country, ban.Area)}",
                     "The law that closed the halls has run out and nobody has renewed it. The sport may come back.", default);
+    }
+
+    /// <summary>The first weekly tick of the previous month, counted back from this month's first tick (ticks are a week apart).</summary>
+    internal static DateOnly PreviousMonthlyTick(DateOnly tick)
+    {
+        var p = tick.AddDays(-7);
+        while (p.AddDays(-7).Month == p.Month) p = p.AddDays(-7);
+        return p;
     }
 
     private static void Licences(World world, DateOnly date)
@@ -292,12 +333,18 @@ public static class OriginsBacklash
                 ev.Venue = room.Name; ev.VenueId = room.Id; ev.Region = to.Region;
                 News.Post(world, date, NewsCategory.General, $"{ev.Name} moves to {to.Name}",
                     $"The ban closed the hall {promo.Abbreviation} had booked. The night goes on in {to.Name} instead.", promo.Id, aboutEvent: ev.Id);
+                if (promo.Id == world.PlayerPromotion)
+                    Mail.Post(world, date, MailCategory.General, "Matchmaking", $"{ev.Name} moves to {to.Name}",
+                        $"The ban closed the hall we had booked for {ev.Date:d MMMM}. I've moved the night to {room.Name} in {to.Name}; the card stands as it was.");
             }
             else
             {
                 ev.Status = EventStatus.Cancelled;
                 News.Post(world, date, NewsCategory.Withdrawal, $"{ev.Name} is called off",
                     $"The ban closed the hall {promo.Abbreviation} had booked, and there is nowhere left to take the night.", promo.Id, aboutEvent: ev.Id);
+                if (promo.Id == world.PlayerPromotion)
+                    Mail.Post(world, date, MailCategory.General, "Matchmaking", $"{ev.Name} is off",
+                        $"The ban closed the hall we had booked for {ev.Date:d MMMM}, and every hall we could reach is closed too. The night is cancelled.");
             }
         }
     }

@@ -50,6 +50,19 @@ public static class Solvency
         : promo.Balance.Amount <= DebtCeilingFor(promo) * 0.5m ? 2 : 1;
 
     /// <summary>
+    /// <see cref="Distress(Promotion)"/> against the ceiling this world actually folds at: an Origins house's is
+    /// <see cref="OriginsDebtScale"/> of today's, so its emergency tier starts at half of that (today's mode:
+    /// identical to the overload without the world).
+    /// </summary>
+    public static int Distress(Promotion promo, World world) =>
+        promo.Balance.Amount >= 0 ? 0
+        : promo.Balance.Amount <= CeilingFor(promo, world) * 0.5m ? 2 : 1;
+
+    /// <summary>The balance this promotion folds at in this world.</summary>
+    public static decimal CeilingFor(Promotion promo, World world) =>
+        DebtCeilingFor(promo) * (world.Mode == WorldMode.Origins ? OriginsDebtScale : 1m);
+
+    /// <summary>
     /// What fraction of the org's normal purse cap a distressed front office will
     /// still commit to one fighter — deep bargain territory, so the roster is
     /// rebuilt from prospects rather than names while the books recover.
@@ -63,7 +76,7 @@ public static class Solvency
             if (promo.Defunct) continue;   // bought earlier this pass
             bool isPlayer = promo.Id == world.PlayerPromotion;
             // A 1990s house (Origins) owes a 1990s sum before the doors close (never in today's mode).
-            decimal ceiling = DebtCeilingFor(promo) * (world.Mode == WorldMode.Origins ? OriginsDebtScale : 1m);
+            decimal ceiling = CeilingFor(promo, world);
 
             if (promo.Balance.Amount > ceiling)
             {

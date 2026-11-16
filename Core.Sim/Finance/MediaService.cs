@@ -263,12 +263,38 @@ public static class MediaService
     /// <summary>A partner an offer could come from: free, and never pitched this promotion before.</summary>
     private static PartnerProfile? Suitor(World world, Promotion promo, Rung rung, SimRandom rng)
     {
-        var candidates = rung.Partners
+        var candidates = PartnersIn(world, rung)
             .Where(pp => !promo.CourtedBy.Contains(pp.Name)
                 && !promo.Offers.Any(o => o.Partner == pp.Name)
                 && (!IsExclusive(rung.Kind) || PartnerFree(world, pp.Name)))
             .ToList();
-        return candidates.Count == 0 ? null : candidates[rng.Range(0, candidates.Count - 1)];
+        return candidates.Count == 0 ? null : Pick(world, promo, candidates, rng);
+    }
+
+    private const ulong OriginsPartnerSalt = 0x0219_3ED1_0008UL;
+
+    /// <summary>
+    /// Who could carry a rung: today's partners, or in an Origins world the era's own broadcasters of that
+    /// kind that are on the air by now (<see cref="Generation.Origins.OriginsBroadcasters"/>; plain profiles:
+    /// the era's networks have no personalities yet). Empty in an Origins world before the first one airs.
+    /// </summary>
+    private static IReadOnlyList<PartnerProfile> PartnersIn(World world, Rung rung)
+    {
+        if (world.Mode != WorldMode.Origins) return rung.Partners;
+        int month = Living.OriginsTimeline.Month(world, world.CurrentDate);
+        return Generation.Origins.OriginsBroadcasters.Media
+            .Where(m => m.Media == rung.Kind && m.EarliestMonth <= month)
+            .OrderBy(m => m.EarliestMonth).ThenBy(m => m.Name, StringComparer.Ordinal)
+            .Select(m => ProfileOf(m.Name)).ToList();
+    }
+
+    /// <summary>One partner of a pool: a draw on the stream in today's mode (as ever), a keyed pick in an Origins world.</summary>
+    private static PartnerProfile Pick(World world, Promotion promo, IReadOnlyList<PartnerProfile> pool, SimRandom rng)
+    {
+        if (world.Mode != WorldMode.Origins) return pool[rng.Range(0, pool.Count - 1)];
+        double roll = Living.OriginsTimeline.Roll(world, OriginsPartnerSalt, (ulong)promo.Id.Value, (ulong)world.CurrentDate.DayNumber,
+            (ulong)pool.Count);
+        return pool[(int)(roll * pool.Count)];
     }
 
     // --- Exposure: what the screen does beyond the check ----------------------
@@ -459,9 +485,9 @@ public static class MediaService
     /// <summary>Sign this rung with any free partner — null when the whole pool is spoken for.</summary>
     private static MediaDeal? TrySign(World world, Promotion promo, Rung rung, DateOnly on, SimRandom rng)
     {
-        var pool = rung.Partners.Where(pp => !IsExclusive(rung.Kind) || PartnerFree(world, pp.Name)).ToList();
+        var pool = PartnersIn(world, rung).Where(pp => !IsExclusive(rung.Kind) || PartnerFree(world, pp.Name)).ToList();
         if (pool.Count == 0) return null;
-        var profile = pool[rng.Range(0, pool.Count - 1)];
+        var profile = Pick(world, promo, pool, rng);
         var deal = new MediaDeal
         {
             Kind = rung.Kind,

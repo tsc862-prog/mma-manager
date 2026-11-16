@@ -315,7 +315,7 @@ public static class OriginsMode
                     o.Violations.Add($"{when}: {e.Name} staged on {e.Date:yyyy-MM-dd} in a banned region ({city.Name})");
             }
             foreach (var f in e.Card)
-                if (f.WeightMissBy is not null) o.Violations.Add($"{when}: {e.Name} had a weight miss");
+                if (f.WeightMissBy is not null && f.OpenWeight) o.Violations.Add($"{when}: {e.Name} had a weight miss at open weight");
         }
     }
 

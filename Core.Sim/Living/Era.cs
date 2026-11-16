@@ -101,6 +101,9 @@ public static class Era
     {
         if (world.Mode == WorldMode.Modern || world.Era.Bans.Count == 0) return false;
         if (world.Get(cityId) is not { } city || world.Get(city.Country) is not { } country) return false;
+        // A commission's licence beats any ban over its region (a licensed region is never closed again).
+        foreach (var s in world.Era.Sanctions)
+            if (s.Country == country.Code && (s.Area is null || s.Area == city.Area) && s.On <= date) return false;
         foreach (var ban in world.Era.Bans)
             if (ban.Country == country.Code && (ban.Area is null || ban.Area == city.Area) && ban.ActiveOn(date))
                 return true;

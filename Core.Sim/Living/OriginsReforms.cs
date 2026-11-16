@@ -98,9 +98,35 @@ public static class OriginsReforms
     /// gloves fire their chapter when it is live (this house was first); a weight line fires its chapter
     /// when a champion is crowned in it.
     /// </summary>
-    public static bool Adopt(World world, Promotion p, string chapter, DateOnly date)
+    public static bool Adopt(World world, Promotion p, string chapter, DateOnly date) =>
+        TryAdopt(world, p, chapter, date, out _);
+
+    /// <summary>
+    /// Why this house cannot make this reform today, in words for the screen; null when it can (it is one
+    /// of <see cref="Options"/>).
+    /// </summary>
+    public static string? Refusal(World world, Promotion p, string chapter, DateOnly date)
     {
-        if (!Options(world, p, date).Any(o => o.Chapter == chapter)) return false;
+        if (Options(world, p, date).Any(o => o.Chapter == chapter)) return null;
+        if (world.Mode != WorldMode.Origins) return "Today's sport has settled its rules.";
+        if (p.Defunct) return "The promotion has closed.";
+        bool weight = Ladder.Contains(chapter);
+        if (chapter != Rounds && chapter != Gloves && !weight) return "That is not a rule a house can change.";
+        if (chapter == Rounds && HasRounds(p)) return "You already fight in rounds with judges.";
+        if (chapter == Gloves && HasGloves(p)) return "Every man on your cards already wears gloves.";
+        if (weight && HasLines(p, chapter)) return "You have already drawn those weight lines.";
+        if (weight && p.Rules.ShowFormat == ShowFormat.GymChallenge) return "Challenge nights settle arguments between gyms; there are no belts to split.";
+        if (weight && (!HasRounds(p) || !HasGloves(p))) return "Adopt rounds, judges and gloves first: nobody splits a sport that still fights to a standstill bare-handed.";
+        if (weight && OriginsChapters.ByKey(chapter).Requires.Where(r => Ladder.Contains(r)).Any(r => !HasLines(p, r)))
+            return "One line at a time: draw the earlier weight lines first.";
+        return "The sport isn't ready for that yet: nobody is asking for it.";
+    }
+
+    /// <summary>As <see cref="Adopt"/>, with the reason in words when it refuses (<see cref="Refusal"/>).</summary>
+    public static bool TryAdopt(World world, Promotion p, string chapter, DateOnly date, out string? refused)
+    {
+        refused = Refusal(world, p, chapter, date);
+        if (refused is not null) return false;
         var rules = p.Rules.Fight ?? FightRules.Modern;
         switch (chapter)
         {
@@ -141,6 +167,7 @@ public static class OriginsReforms
     public static void RunMonthly(World world, DateOnly date)
     {
         int month = OriginsTimeline.Month(world, date);
+        TellThePlayer(world, date);
         foreach (var p in world.Promotions.Values.Where(p => !p.Defunct && p.Id != world.PlayerPromotion).OrderBy(p => p.Id.Value).ToList())
         {
             foreach (var option in Options(world, p, date))
@@ -151,6 +178,38 @@ public static class OriginsReforms
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// The player's desk hears of a reform the month it becomes open to his house (never twice: an option is
+    /// told when its chapter opened since the last monthly pass): what it is, what it does, and what it buys.
+    /// The AI never adopts for him; he answers through <see cref="Options"/> / <see cref="TryAdopt"/>.
+    /// </summary>
+    private static void TellThePlayer(World world, DateOnly date)
+    {
+        if (world.Get(world.PlayerPromotion) is not { Defunct: false } me) return;
+        var prev = OriginsBacklash.PreviousMonthlyTick(date);
+        foreach (var o in Options(world, me, date))
+        {
+            if (OpenOn(world, o.Chapter, prev)) continue;
+            string buys = o.Chapter switch
+            {
+                Rounds => " It answers the critics, and with gloves it is what a commission asks before it will license our cards.",
+                Gloves => " With rounds and judges it is what a commission asks before it will license our cards; equipment money follows the gloves.",
+                _ => " A belt for every weight: smaller men get fights they can win, and the first champion crowned in a new class makes history.",
+            };
+            Mail.Post(world, date, MailCategory.BoardNote, Mail.Owner(world), $"We could adopt: {o.Label}",
+                o.Detail + buys + " It's our call; nobody will make it for us.");
+        }
+    }
+
+    /// <summary>Was this chapter open (fired, or live) on a date? Read off the durable record, so the past answers the same.</summary>
+    private static bool OpenOn(World world, string chapter, DateOnly on)
+    {
+        if (world.Era.Chapter(chapter) is { } rec) return rec.FiredOn <= on;
+        var c = OriginsChapters.ByKey(chapter);
+        return OriginsTimeline.Month(world, on) >= c.EarliestMonth
+               && c.Requires.All(r => world.Era.Chapter(r) is { } rr && rr.FiredOn < on);
     }
 
     /// <summary>
@@ -217,6 +276,10 @@ public static class OriginsReforms
             d.Lightest = lightest == d.WeightClass ? null : lightest;
             below = d.WeightClass;
         }
+        // A house with weight lines is no longer open weight: its bouts are booked inside a division and weigh in.
+        // (The size term still applies inside a band: FightParams.BandedSizeTerm.)
+        if (p.Rules.Fight is { OpenWeight: true } rules) p.Rules.Fight = rules with { OpenWeight = false };
+
         // Keep the divisions in weight order (heaviest last), as a card is read.
         var others = p.Divisions.Where(d => d.Open || d.Sex != Sex.Male).ToList();
         p.Divisions.Clear();
@@ -238,12 +301,60 @@ public static class OriginsReforms
                 p.Id, champ.Id);
         }
 
+        // A title-shot promise names a belt: one the split retired, or a band the man no longer fights in, is
+        // re-pointed to the belt of his division now; with no belt there it is released, and he is told plainly.
+        foreach (var pr in world.Promises.Where(x => x.Live && x.Promotion == p.Id && x.Kind == PromiseKind.TitleShot && x.Title is not null)
+                     .OrderBy(x => x.Id).ToList())
+        {
+            if (world.Get(pr.Fighter) is not { } man) continue;
+            var now = lines.FirstOrDefault(d => d.Matches(man));
+            if (now?.Title == pr.Title) continue;
+            if (now?.Title is { } belt)
+            {
+                pr.Title = belt;
+                pr.Note = $"re-pointed to the {world.Get(belt)?.Name} when {p.Abbreviation} split by weight";
+                if (p.Id == world.PlayerPromotion)
+                    Mail.Post(world, date, MailCategory.FighterRequest, man.FullName, "My title shot moves with my weight",
+                        $"You promised me a shot at a belt that is gone or no longer mine to fight for. The {world.Get(belt)?.Name} is my division's now: I'll hold you to that one, same deadline.",
+                        aboutFighter: man.Id);
+            }
+            else
+            {
+                pr.State = PromiseState.Void;
+                pr.Resolved = date;
+                pr.Note = $"released: {p.Abbreviation}'s split left his division without a belt";
+                if (p.Id == world.PlayerPromotion)
+                    Mail.Post(world, date, MailCategory.FighterRequest, man.FullName, "The title shot you promised me is off",
+                        "The split left my division without a belt to fight for, so that promise can't be kept. Nobody's fault; I'm not holding it against you.",
+                        aboutFighter: man.Id);
+            }
+        }
+
         // Bouts already on the books that the new lines put across a division (or on a retired belt) come off
         // the card; the house tops its cards up from the right divisions before the night.
+        // The bouts that stay are relabelled by their division and weigh in like any division's bout.
+        var pulled = new List<string>();
         foreach (var ev in world.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Scheduled && e.Format == EventFormat.Card)
                      .OrderBy(e => e.Date).ThenBy(e => e.Id.Value))
-            ev.Card.RemoveAll(f => world.Get(f.RedCorner) is not { } a || world.Get(f.BlueCorner) is not { } b
-                || !lines.Any(d => d.Matches(a) && d.Matches(b) && (f.Title is null || d.Title == f.Title)));
+        {
+            foreach (var f in ev.Card.ToList())
+            {
+                var a = world.Get(f.RedCorner); var b = world.Get(f.BlueCorner);
+                var home = a is null || b is null ? null
+                    : lines.FirstOrDefault(d => d.Matches(a) && d.Matches(b) && (f.Title is null || d.Title == f.Title));
+                if (home is null)
+                {
+                    ev.Card.Remove(f);
+                    pulled.Add($"{a?.FullName ?? "?"} vs {b?.FullName ?? "?"} ({ev.Name})");
+                    continue;
+                }
+                f.WeightClass = home.WeightClass;
+                f.OpenWeight = false;
+            }
+        }
+        if (pulled.Count > 0 && p.Id == world.PlayerPromotion)
+            Mail.Post(world, date, MailCategory.General, "Matchmaking", "The new weight lines took bouts off our cards",
+                $"These bouts now cross a weight line and are off: {string.Join("; ", pulled)}. Rebook the men inside their new divisions.");
 
         RankingService.RecomputePromotion(world, p, date);
         foreach (var id in enterAtTop)
