@@ -90,11 +90,7 @@ public static class OriginsFounding
             city = world.Cities.Values.Where(c => c.Name == arrival.City).OrderBy(c => c.Id.Value).FirstOrDefault();
         else
         {
-            var taken = world.Promotions.Values.Where(p => !p.Defunct && p.HomeCity is not null).Select(p => p.HomeCity!.Value).ToHashSet();
-            var scenes = Era.Scenes(world).ToHashSet(StringComparer.Ordinal);
-            var options = world.Cities.Values
-                .Where(c => !taken.Contains(c.Id) && world.Get(c.Country) is { } k && scenes.Contains(k.Code) && !Era.Banned(world, c.Id, date))
-                .OrderBy(c => c.Id.Value).ToList();
+            var options = FoundableCities(world, date);
             if (options.Count == 0) return null;
             Span<double> weights = stackalloc double[options.Count];
             for (int i = 0; i < options.Count; i++)
@@ -117,7 +113,7 @@ public static class OriginsFounding
             abbr = abbr[..2] + (char)('A' + rng.Range(0, 25));
 
         var (bank, prestige) = arrival?.Abbreviation is { } ab && Authored.TryGetValue(ab, out var auth)
-            ? auth : (150_000m + rng.Range(0, 6) * 25_000m, rng.Range(4, 8));
+            ? auth : (NewcomerBank(rng.Range(0, NewcomerBankSteps)), rng.Range(4, 8));
         var (first, last) = Generation.NameData.Pool(country.Continent);
         string owner = arrival?.Lead ?? $"{rng.Pick(first)} {rng.Pick(last)}";
 
@@ -143,28 +139,9 @@ public static class OriginsFounding
         promo.TierClearance = Org.OrgSizing.SizeOf(promo);
         world.Promotions[promo.Id] = promo;
 
-        // Known at home, a little around its country.
-        foreach (var c in world.Cities.Values.OrderBy(c => c.Id.Value))
-        {
-            int value = c.Id == city.Id ? prestige + 10 : c.Country == city.Country ? prestige * 3 / 5 : 0;
-            if (value > 0) promo.PopularityByCity[c.Id] = Math.Clamp(value, 0, 100);
-        }
-
-        // --- its divisions: the lines the sport has drawn, or one open division --------
-        var lines = Enum.GetValues<WeightClass>()
-            .Where(wc => wc != WeightClass.Strawweight && world.Era.IsUnlocked(Capability.Class(wc))).ToList();
-        if (lines.Count > 0) OriginsReforms.DrawLines(world, promo, lines, date, announce: false);
-        else
-        {
-            var title = new Title
-            {
-                Id = world.NewTitleId(), Promotion = promo.Id, WeightClass = Division.OpenClass,
-                Name = $"{abbr} Open-weight Championship", Prestige = prestige,
-            };
-            world.Titles[title.Id] = title;
-            promo.Titles.Add(title.Id);
-            promo.Divisions.Add(new Division { WeightClass = Division.OpenClass, Sex = Sex.Male, Open = true, Title = title.Id });
-        }
+        // Known at home, a little around its country; the lines the sport has drawn, or one open division.
+        SeedPopularity(world, promo, city, prestige);
+        OpenDivisions(world, promo, prestige, date);
 
         // --- its men ---------------------------------------------------------------------
         int signed = SignFoundingRoster(world, promo, country.Code, date, rng);
@@ -189,22 +166,92 @@ public static class OriginsFounding
     {
         bool rounds = authored || world.Era.IsUnlocked(Capability.Rounds);
         bool gloves = authored || world.Era.IsUnlocked(Capability.Gloves);
-        return new FightRules
-        {
-            Rounds = rounds ? 3 : 1,
-            RoundMinutes = rounds ? 5 : 15 + 5 * rng.Range(0, 1),
-            Judges = rounds,
-            Gloves = gloves ? GloveType.ThinOpenFinger : rng.Chance(0.5) ? GloveType.Optional : GloveType.Bare,
-            OpenWeight = true,
-            Enclosure = rng.Chance(0.5) ? Enclosure.Ring : Enclosure.Cage,
-        };
+        // The draws stay in this order (the round's length, the gloves, the enclosure), each only when it is the house's choice.
+        int minutes = rounds ? 5 : 15 + 5 * rng.Range(0, 1);
+        var glove = gloves ? GloveType.ThinOpenFinger : rng.Chance(0.5) ? GloveType.Optional : GloveType.Bare;
+        var enclosure = rng.Chance(0.5) ? Enclosure.Ring : Enclosure.Cage;
+        return NewcomerRules(rounds, minutes, glove, enclosure);
     }
 
-    private static string Describe(Promotion p) =>
+    /// <summary>
+    /// A new house's fight rules from its choices: three timed rounds of five minutes with judges once the sport
+    /// fights that way, else one long round and no judges; its gloves; its enclosure; open weight (a house opened
+    /// after the sport has drawn weight lines takes them in <see cref="OpenDivisions"/>).
+    /// </summary>
+    internal static FightRules NewcomerRules(bool rounds, int singleRoundMinutes, GloveType gloves, Enclosure enclosure) => new()
+    {
+        Rounds = rounds ? 3 : 1,
+        RoundMinutes = rounds ? 5 : singleRoundMinutes,
+        Judges = rounds,
+        Gloves = gloves,
+        OpenWeight = true,
+        Enclosure = enclosure,
+    };
+
+    /// <summary>What a single long round runs before the sport has rounds (the AI rolls one; the player picks).</summary>
+    public static IReadOnlyList<int> SingleRoundMinutes { get; } = new[] { 15, 20 };
+
+    /// <summary>
+    /// The cities a new house may open in today, in id order: its country has a live scene, the Backlash has not
+    /// closed its halls, and no live house already calls it home.
+    /// </summary>
+    internal static List<City> FoundableCities(World world, DateOnly date)
+    {
+        var taken = TakenHomes(world);
+        var scenes = Era.Scenes(world).ToHashSet(StringComparer.Ordinal);
+        return world.Cities.Values
+            .Where(c => !taken.Contains(c.Id) && world.Get(c.Country) is { } k && scenes.Contains(k.Code) && !Era.Banned(world, c.Id, date))
+            .OrderBy(c => c.Id.Value).ToList();
+    }
+
+    /// <summary>The home cities of the live houses.</summary>
+    internal static HashSet<CityId> TakenHomes(World world) =>
+        world.Promotions.Values.Where(p => !p.Defunct && p.HomeCity is not null).Select(p => p.HomeCity!.Value).ToHashSet();
+
+    /// <summary>How many steps an AI newcomer's opening bank rolls over (zero to this many).</summary>
+    public const int NewcomerBankSteps = 6;
+
+    /// <summary>A newcomer's opening bank after <paramref name="steps"/> steps (the AI rolls them; the player gets a fixed pick).</summary>
+    public static decimal NewcomerBank(int steps) => 150_000m + steps * 25_000m;
+
+    /// <summary>Known at home, a little around its country.</summary>
+    internal static void SeedPopularity(World world, Promotion promo, City city, int prestige)
+    {
+        foreach (var c in world.Cities.Values.OrderBy(c => c.Id.Value))
+        {
+            int value = c.Id == city.Id ? prestige + 10 : c.Country == city.Country ? prestige * 3 / 5 : 0;
+            if (value > 0) promo.PopularityByCity[c.Id] = Math.Clamp(value, 0, 100);
+        }
+    }
+
+    /// <summary>The men's weight lines the sport has drawn (none before the first split).</summary>
+    internal static List<WeightClass> DrawnLines(World world) =>
+        Enum.GetValues<WeightClass>()
+            .Where(wc => wc != WeightClass.Strawweight && world.Era.IsUnlocked(Capability.Class(wc))).ToList();
+
+    /// <summary>A new house's divisions: the lines the sport has drawn, each with a vacant belt, else one open division with a vacant belt.</summary>
+    internal static void OpenDivisions(World world, Promotion promo, int prestige, DateOnly date)
+    {
+        var lines = DrawnLines(world);
+        if (lines.Count > 0) OriginsReforms.DrawLines(world, promo, lines, date, announce: false);
+        else
+        {
+            var title = new Title
+            {
+                Id = world.NewTitleId(), Promotion = promo.Id, WeightClass = Division.OpenClass,
+                Name = $"{promo.Abbreviation} Open-weight Championship", Prestige = prestige,
+            };
+            world.Titles[title.Id] = title;
+            promo.Titles.Add(title.Id);
+            promo.Divisions.Add(new Division { WeightClass = Division.OpenClass, Sex = Sex.Male, Open = true, Title = title.Id });
+        }
+    }
+
+    internal static string Describe(Promotion p) =>
         p.Divisions.Any(d => d.Open) ? "a vacant open-weight belt to fight for"
         : $"{p.Divisions.Count} weight divisions, each with a vacant belt";
 
-    private static string Initials(string name)
+    internal static string Initials(string name)
     {
         var letters = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(w => char.ToUpperInvariant(w[0])).ToList();
         while (letters.Count < 3) letters.Add(char.ToUpperInvariant(name.Where(char.IsLetter).Skip(letters.Count).FirstOrDefault('X')));
@@ -243,20 +290,28 @@ public static class OriginsFounding
         // Open tryouts: local men who have trained for this, green and glad of the chance.
         var gen = FighterGenerator.ForWorld(world);
         for (int guard = 0; signed < target && guard < target; guard++)
-        {
-            var f = OriginsTalent.Create(world, gen, date, countryCode, rng.Range(20, 27), rng.GaussianInt(42, 6, 30, 56));
-            OriginsTalent.FindGym(world, f);
-            f.DiscoveredBy = promo.Id;
-            if (!promo.Divisions.Any(d => d.Matches(f))) continue;   // a man the house has no division for walks back out
-            ContractLifecycle.Sign(world, f, new ContractOffer
-            {
-                Fighter = f.Id, Promotion = promo.Id,
-                PursePerFight = new Money(Negotiator.OriginsPurseFloor), WinBonus = new Money(Negotiator.OriginsPurseFloor / 2),
-                Fights = 3, Exclusive = true,
-            }, date);
-            signed++;
-        }
+            if (TryoutMan(world, gen, promo, countryCode, date, rng) is not null) signed++;
         return signed;
+    }
+
+    /// <summary>
+    /// One man from an open tryout of local men, green and glad of the chance, the house his discoverer: signed on
+    /// the tryout terms (the Origins purse floor, three fights, exclusive) when the house has a division for him,
+    /// else null (he walks back out a free agent). Two draws on <paramref name="rng"/>: his age, then his level.
+    /// </summary>
+    internal static Fighter? TryoutMan(World world, FighterGenerator gen, Promotion promo, string countryCode, DateOnly date, SimRandom rng)
+    {
+        var f = OriginsTalent.Create(world, gen, date, countryCode, rng.Range(20, 27), rng.GaussianInt(42, 6, 30, 56));
+        OriginsTalent.FindGym(world, f);
+        f.DiscoveredBy = promo.Id;
+        if (!promo.Divisions.Any(d => d.Matches(f))) return null;   // a man the house has no division for walks back out
+        ContractLifecycle.Sign(world, f, new ContractOffer
+        {
+            Fighter = f.Id, Promotion = promo.Id,
+            PursePerFight = new Money(Negotiator.OriginsPurseFloor), WinBonus = new Money(Negotiator.OriginsPurseFloor / 2),
+            Fights = 3, Exclusive = true,
+        }, date);
+        return f;
     }
 
     // ------------------------------------------------------------------ scheduled arrivals

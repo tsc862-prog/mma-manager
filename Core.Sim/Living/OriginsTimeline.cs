@@ -280,6 +280,10 @@ public static class OriginsTimeline
                 var alive = world.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value).ToList();
                 if (alive.Count < value) return null;
                 var newest = alive[^1];
+                // A house the player founded that is one of the houses making the count (it opened before the
+                // chapter could fire; a newcomer may have opened since) is the one the story credits.
+                int mine = world.HasPlayer ? alive.FindIndex(p => p.Id == world.PlayerPromotion) : -1;
+                if (mine >= value - 1) newest = alive[mine];
                 return new ChapterDoer(newest.Id, City: newest.HomeCity);
             }
             case "PromotionReachesTier":
