@@ -9,6 +9,17 @@ namespace MmaManager.Core.Sim.Booking;
 public sealed record OneNightResult(Event Event, Fighter? Champion, BracketNight Night);
 
 /// <summary>
+/// Who a bracket night would draw today (<see cref="TournamentService.PreviewField"/>): the seeds in order
+/// (seed 1 first), the alternate, the men who are in because the house promised them a place, and
+/// whether the bracket fills. The one rule the night itself, the AI's announcement, the player's booking
+/// and the screen all read.
+/// </summary>
+public sealed record FieldPreview(IReadOnlyList<Fighter> Seeds, Fighter? Alternate, IReadOnlyList<FighterId> Promised, int Size)
+{
+    public bool Full => Seeds.Count >= Size;
+}
+
+/// <summary>
 /// A one-night tournament: a single-elimination bracket, decided on one super-card. The whole thing
 /// runs at once — winners advance round by round on the same night — then settles like any other
 /// event and crowns a Grand Prix champion (prize money out of the promotion's pocket, and a headline).
@@ -90,15 +101,18 @@ public sealed class TournamentService
     }
 
     /// <summary>
-    /// The field, seeded by what the promotion THINKS of each man, and the alternate; null when it can't be
-    /// filled. Only men the house could book that night (<see cref="OriginsShows.CanBook"/>: fit, a fight left on
-    /// the deal, not in a re-sign window) and who aren't booked on another scheduled card. A man the house has
-    /// promised a place in the bracket (an open title-shot promise) gets in ahead of the order; seeding is
-    /// still by the scouts' read.
+    /// The field a bracket night would draw on <paramref name="date"/>, seeded by what the promotion THINKS of
+    /// each man, with the alternate (read-only; a short field comes back with <see cref="FieldPreview.Full"/>
+    /// false). Only men the house could book that night (<see cref="OriginsShows.CanBook"/>: fit, a fight left
+    /// on the deal, not in a re-sign window) and who aren't booked on another scheduled card (other than
+    /// <paramref name="except"/>, the night itself). An open-weight bracket is the men's; a class bracket its
+    /// class. A man the house has promised a place (an open title-shot promise) gets in ahead of the order;
+    /// seeding is still by the scouts' read. <paramref name="size"/> defaults to the house's bracket size.
     /// </summary>
-    private static (List<Fighter> Seeded, Fighter? Alternate)? Field(World world, Promotion promo, int size, DateOnly date,
-        WeightClass? wc, EventId? except)
+    public static FieldPreview PreviewField(World world, Promotion promo, DateOnly date, EventId? except,
+        int? size = null, WeightClass? wc = null)
     {
+        int n = size ?? Math.Max(2, promo.Rules.TournamentSize > 0 ? promo.Rules.TournamentSize : 8);
         var committed = new HashSet<FighterId>();
         foreach (var e in world.Events.Values)
             if (e.Status == EventStatus.Scheduled && e.Id != except && !LocalCircuit.IsLocalCard(e))
@@ -110,10 +124,18 @@ public sealed class TournamentService
                           Promised: world.Promises.Any(p => p.Live && p.Fighter == f.Id && p.Promotion == promo.Id && p.Kind == PromiseKind.TitleShot)))
             .ToList();
         var chosen = pool.OrderByDescending(x => x.Promised).ThenByDescending(x => x.Read).ThenBy(x => x.F.Id.Value)
-            .Take(size + 1).ToList();
-        if (chosen.Count < size) return null;
-        var field = chosen.Take(size).OrderByDescending(x => x.Read).ThenBy(x => x.F.Id.Value).Select(x => x.F).ToList();
-        return (field, chosen.Count > size ? chosen[size].F : null);
+            .Take(n + 1).ToList();
+        var seeds = chosen.Take(n).OrderByDescending(x => x.Read).ThenBy(x => x.F.Id.Value).ToList();
+        return new FieldPreview(seeds.Select(x => x.F).ToList(), chosen.Count > n ? chosen[n].F : null,
+            seeds.Where(x => x.Promised).Select(x => x.F.Id).ToList(), n);
+    }
+
+    /// <summary>The field the night draws, or null when it can't be filled (<see cref="PreviewField"/>).</summary>
+    private static (List<Fighter> Seeded, Fighter? Alternate)? Field(World world, Promotion promo, int size, DateOnly date,
+        WeightClass? wc, EventId? except)
+    {
+        var preview = PreviewField(world, promo, date, except, size, wc);
+        return preview.Full ? (preview.Seeds.ToList(), preview.Alternate) : null;
     }
 
     private OneNightResult Run(World world, Promotion promo, Event ev, List<Fighter> field, Fighter? alternate, Money prize,
@@ -145,6 +167,22 @@ public sealed class TournamentService
             injured: f => f.CurrentInjury is not null);
 
         _events.Settle(world, ev);
+
+        // The bracket as it ran, saved with the night (the screen draws it, walkovers and the alternate included).
+        ev.BracketAlternate = alternate?.Id;
+        ev.Bracket.Clear();
+        var slotInRound = new Dictionary<int, int>();
+        foreach (var b in night.Bouts)
+        {
+            int slot = slotInRound.GetValueOrDefault(b.Round);
+            slotInRound[b.Round] = slot + 1;
+            ev.Bracket.Add(new BracketSlot
+            {
+                Round = b.Round, Slot = slot, Red = b.Red, Blue = b.Blue, Fight = b.Fight, Advanced = b.Advanced,
+                How = Enum.Parse<BracketHow>(b.How.ToString()), Withdrew = b.Withdrew,
+            });
+            if (b.Fight is { } fid && ev.Card.FirstOrDefault(f => f.Id == fid) is { } fought) fought.BracketRound = b.Round;
+        }
 
         foreach (var b in night.Bouts)
             if (b.Withdrew is { } wid && world.Get(wid) is { } w)

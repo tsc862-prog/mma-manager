@@ -192,7 +192,7 @@ public sealed class WorldTick
             // The birth of the sport grows its own (Origins: specialists from the countries with a scene,
             // on the month's own stream, at a young sport's pace - it takes the shared stream nothing).
             report.Newgens = world.Mode == WorldMode.Origins
-                ? OriginsTalent.Intake(world, OriginsTalent.MonthlyIntake(report.Retired + report.Washouts, actives), after).Count
+                ? OriginsTalent.Intake(world, OriginsTalent.MonthlyIntake(report.Retired + report.Washouts, actives, OriginsTalent.TargetFor(world)), after).Count
                 : NewgenService.ForWorld(world).GenerateIntake(world, intake, rng).Count;
 
             // Expiring deals renew / get poached / hit the market (the player's own
@@ -262,7 +262,7 @@ public sealed class WorldTick
             if (after.Year != before.Year)
             {
                 if (world.Get(world.PlayerPromotion) is { } py)
-                    Org.Objectives.Seed(py, new DateOnly(after.Year, 1, 1), new DateOnly(after.Year, 12, 31));
+                    Org.Objectives.Seed(py, new DateOnly(after.Year, 1, 1), new DateOnly(after.Year, 12, 31), world);
                 Storylines.YearEndAwards(world, after);
             }
             Org.Objectives.Evaluate(world, after);
@@ -270,6 +270,11 @@ public sealed class WorldTick
             // Refresh the cross-org and pound-for-pound rankings.
             GlobalRankings.Recompute(world);
         }
+
+        // The sport's own history (Origins): chapters fire as the world earns them, and on the first week
+        // of a month the Backlash, rule reforms, new houses and scheduled arrivals move. Keyed rolls only:
+        // it takes nothing from the week's stream, and today's mode never enters.
+        if (world.Mode == WorldMode.Origins) OriginsTimeline.RunWeekly(world, after);
 
         // Whatever changed tonight comes off the calendar tonight, not next
         // week: the month's exits (expiries, cuts, retirements, sales, closures)

@@ -48,6 +48,13 @@ public sealed record FightParams
     /// </summary>
     public int OvertimeSeconds { get; init; }
 
+    /// <summary>
+    /// A bout inside a BANDED division (Origins, after a weight split: the light division runs from flyweight
+    /// to middleweight): the size term applies although the rules are not open weight. Only the Origins
+    /// booker sets it, and only on a custom rule set; today's same-class fights never carry it.
+    /// </summary>
+    public bool BandedSizeTerm { get; init; }
+
     public static FightParams ThreeRound { get; } = new() { ScheduledRounds = 3 };
     public static FightParams FiveRound { get; } = new() { ScheduledRounds = 5 };
     public static FightParams FastThreeRound { get; } = new() { ScheduledRounds = 3, GeneratePlayByPlay = false };

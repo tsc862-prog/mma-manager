@@ -207,9 +207,12 @@ public class EraTests
             Era.Unlock(world, Capability.Class(wc));
 
         int before = world.Promotions.Count;
-        var rng = new SimRandom(77);
-        for (int m = 14; m <= 14 + 12 * 6; m += 12)   // seven startup windows
-            WorldEvents.RunMonthly(world, world.StartDate.AddMonths(m), rng);
+        // Today's startups never run in an Origins world (its houses are founded by the timeline), and draw nothing.
+        Assert.False(Draws(r => WorldEvents.RunMonthly(world, world.StartDate.AddMonths(14), r)));
+        Assert.Equal(before, world.Promotions.Count);
+        // The Origins founding path opens the lines the sport has drawn, and only those.
+        for (int m = 14; m <= 14 + 12 * 6; m += 12)   // seven foundings
+            OriginsFounding.Found(world, world.StartDate.AddMonths(m), null);
 
         // Whatever launched, nothing anywhere runs a lightweight division or belt.
         Assert.All(world.Promotions.Values, p =>

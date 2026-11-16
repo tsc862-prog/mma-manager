@@ -124,11 +124,16 @@ public readonly record struct Capability(CapabilityKind Kind, string? Key = null
     public static readonly Capability CoPromotion = new(CapabilityKind.CoPromotion);
 }
 
+/// <summary>Which of a chapter's three narrations was told: somebody else did it, the player did, or it simply happened.</summary>
+public enum ChapterVariant { World, Player, Rival }
+
 /// <summary>
 /// A chapter of the sport's story that has happened: when, and (when somebody
 /// made it happen) who. The key names a row of the chapter table (Origins
 /// phase 2); <see cref="Note"/> is a small free payload for what the chapter
-/// needs to remember (a weight class, a country code).
+/// needs to remember (a weight class, a country code). <see cref="Variant"/>,
+/// <see cref="City"/> and <see cref="Partner"/> are fixed when it fires, so the
+/// story reads the same however long after it is told.
 /// </summary>
 public sealed class ChapterRecord
 {
@@ -137,6 +142,44 @@ public sealed class ChapterRecord
     public PromotionId? Promotion { get; init; }
     public FighterId? Fighter { get; init; }
     public string? Note { get; init; }
+
+    /// <summary>Which narration the story tells (saved by name).</summary>
+    public ChapterVariant Variant { get; init; }
+
+    /// <summary>Where it happened, when it happened somewhere (the night abroad, the licensed hall).</summary>
+    public CityId? City { get; init; }
+
+    /// <summary>The sponsor or broadcaster the chapter names, when it names one.</summary>
+    public string? Partner { get; init; }
+}
+
+/// <summary>
+/// The Backlash closing a region's halls to the sport (Origins): every card in that country's area
+/// (or the whole country when <see cref="Area"/> is null) is refused from <see cref="Since"/> until the
+/// ban lapses on <see cref="Until"/> or a commission lifts it (<see cref="LiftedOn"/>).
+/// </summary>
+public sealed class SceneBan
+{
+    public string Country { get; init; } = "";
+    public int? Area { get; init; }
+    public DateOnly Since { get; init; }
+    public DateOnly Until { get; init; }
+    public DateOnly? LiftedOn { get; set; }
+
+    public bool ActiveOn(DateOnly date) => date >= Since && date < Until && (LiftedOn is null || date < LiftedOn);
+}
+
+/// <summary>
+/// A commission's licence for a region (Origins): the region's halls are open to sanctioned cards from
+/// <see cref="On"/>. <see cref="Promotion"/> is the house whose application won it (null when the
+/// commission moved on its own).
+/// </summary>
+public sealed class Sanction
+{
+    public string Country { get; init; } = "";
+    public int? Area { get; init; }
+    public DateOnly On { get; init; }
+    public PromotionId? Promotion { get; init; }
 }
 
 /// <summary>
@@ -152,6 +195,12 @@ public sealed class EraState
 
     /// <summary>Unlocked capabilities by <see cref="Capability.Id"/>, ordinal order (deterministic iteration).</summary>
     public SortedSet<string> Unlocked { get; init; } = new(StringComparer.Ordinal);
+
+    /// <summary>Regions the Backlash closed to the sport, in the order they were closed (live and lapsed alike).</summary>
+    public List<SceneBan> Bans { get; init; } = new();
+
+    /// <summary>Regions a commission has licensed, in the order they were licensed.</summary>
+    public List<Sanction> Sanctions { get; init; } = new();
 
     public bool HasFired(string chapterKey) => Chapters.Any(c => c.Key == chapterKey);
     public ChapterRecord? Chapter(string chapterKey) => Chapters.FirstOrDefault(c => c.Key == chapterKey);

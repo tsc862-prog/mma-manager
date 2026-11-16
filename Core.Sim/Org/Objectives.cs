@@ -10,9 +10,13 @@ namespace MmaManager.Core.Sim.Org;
 /// </summary>
 public static class Objectives
 {
-    /// <summary>Give the player a fresh set of goals for the year ending <paramref name="deadline"/>.</summary>
-    public static void Seed(Promotion promo, DateOnly start, DateOnly deadline)
+    /// <summary>
+    /// Give the player a fresh set of goals for the year ending <paramref name="deadline"/>. In an Origins
+    /// world the show count fits the house's own cadence (<see cref="ShowsTarget"/>); today's mode asks for six.
+    /// </summary>
+    public static void Seed(Promotion promo, DateOnly start, DateOnly deadline, World? world = null)
     {
+        int shows = world?.Mode == WorldMode.Origins ? ShowsTarget(promo, start, deadline) : 6;
         promo.Objectives.Add(new Objective
         {
             Kind = ObjectiveKind.StayProfitable,
@@ -22,9 +26,20 @@ public static class Objectives
         promo.Objectives.Add(new Objective
         {
             Kind = ObjectiveKind.RunEvents,
-            Description = "Promote at least 6 shows this year.",
-            Target = 6, Start = start, Deadline = deadline,
+            Description = $"Promote at least {shows} show{(shows == 1 ? "" : "s")} this year.",
+            Target = shows, Start = start, Deadline = deadline,
         });
+    }
+
+    /// <summary>
+    /// The shows an Origins house can be asked for between two dates: four fifths of what its cadence allows
+    /// (a bracket every thirteen weeks is three a year, a ring every ten is four, the garage every eight is
+    /// five), at least one.
+    /// </summary>
+    public static int ShowsTarget(Promotion promo, DateOnly start, DateOnly deadline)
+    {
+        double weeks = (deadline.DayNumber - start.DayNumber + 1) / 7.0;
+        return Math.Max(1, (int)Math.Floor(weeks * 0.8 / OriginsShows.CadenceWeeks(promo)));
     }
 
     /// <summary>Resolve any objective that has been met or has hit its deadline.</summary>

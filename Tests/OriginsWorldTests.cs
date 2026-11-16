@@ -204,7 +204,8 @@ public class OriginsWorldTests : IClassFixture<OriginsYearFixture>
     public void AYear_EachHouseRunsNightsOfItsOwnFormat()
     {
         var w = _year.World;
-        foreach (var p in w.Promotions.Values)
+        var founders = OriginsPromotions.All.Select(s => s.Abbreviation).ToHashSet();
+        foreach (var p in w.Promotions.Values.Where(p => founders.Contains(p.Abbreviation)))
         {
             Assert.False(p.Defunct, $"{p.Abbreviation} folded in its first year");
             var nights = w.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Completed).ToList();
@@ -232,12 +233,18 @@ public class OriginsWorldTests : IClassFixture<OriginsYearFixture>
                 var a = w.Get(f.RedCorner)!; var b = w.Get(f.BlueCorner)!;
                 Assert.False(a.Camp is not null && a.Camp == b.Camp, $"{ev.Name}: {a.FullName} and {b.FullName} share a gym");
             });
-        // No club shows, no filler, no startups, no new capabilities.
+        // No club shows, no filler, no today's startups; a fourth house only once the rivals appear, and
+        // nothing unlocked beyond day one but what the year's chapters opened (the timeline, phase 2).
         Assert.DoesNotContain(w.Events.Values, e => e.Promotion.Value == 0);
         Assert.DoesNotContain(w.Fighters.Values, f => f.LocalTalent || f.Sex == Sex.Female);
-        Assert.Equal(3, w.Promotions.Count);
-        Assert.Equal(OriginsWorldBuilder.DayOneUnlocks.Count, w.Era.Unlocked.Count);
-        Assert.All(w.Promotions.Values, p => Assert.All(p.Divisions, d => Assert.True(d.Open)));
+        Assert.InRange(w.Promotions.Count, 3, 4);
+        if (w.Promotions.Count == 4) Assert.True(w.Era.HasFired("rivals-appear"));
+        var opened = OriginsWorldBuilder.DayOneUnlocks.Select(c => c.Id)
+            .Concat(w.Era.Chapters.SelectMany(r => OriginsChapters.ByKey(r.Key).Unlocks)
+                .Select(u => Era.TryFromChapterUnlock(u, out var cap) ? cap.Id : u))
+            .ToHashSet();
+        Assert.All(w.Era.Unlocked, id => Assert.Contains(id, opened));
+        Assert.All(w.Promotions.Values, p => Assert.All(p.Divisions, d => Assert.True(d.Open)));   // nobody splits by weight in 1993
         // New men turned pro, all from a country with a scene.
         var newcomers = w.Fighters.Values.Where(f => f.Id.Value > _year.DayOne.Fighters.Keys.Max(k => k.Value)).ToList();
         Assert.NotEmpty(newcomers);

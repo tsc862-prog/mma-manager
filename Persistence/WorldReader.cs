@@ -91,6 +91,36 @@ internal sealed class WorldReader
                     Promotion = r.IntN("promotion_id") is { } p ? new PromotionId(p) : null,
                     Fighter = r.IntN("fighter_id") is { } f ? new FighterId(f) : null,
                     Note = r.StrN("note"),
+                    Variant = r.Enum<ChapterVariant>("variant"),
+                    City = r.IntN("city_id") is { } c ? new CityId(c) : null,
+                    Partner = r.StrN("partner"),
+                });
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM era_bans ORDER BY ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.Era.Bans.Add(new SceneBan
+                {
+                    Country = r.Str("country"),
+                    Area = r.IntN("area"),
+                    Since = r.Date("since"),
+                    Until = r.Date("until"),
+                    LiftedOn = r.DateN("lifted_on"),
+                });
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM era_sanctions ORDER BY ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+                world.Era.Sanctions.Add(new Sanction
+                {
+                    Country = r.Str("country"),
+                    Area = r.IntN("area"),
+                    On = r.Date("granted_on"),
+                    Promotion = r.IntN("promotion_id") is { } p ? new PromotionId(p) : null,
                 });
         }
 
@@ -371,6 +401,7 @@ internal sealed class WorldReader
                     Sex = r.Enum<Sex>("sex"),
                     Title = title is null ? null : new TitleId(title.Value),
                     Open = r.Bool("open"),
+                    Lightest = r.StrN("lightest") is { } lightest ? Enum.Parse<WeightClass>(lightest) : null,
                 });
             }
         }
@@ -821,6 +852,7 @@ internal sealed class WorldReader
                     MainCardFights = r.Int("main_card"),
                     HypeBonus = r.Dbl("hype_bonus"),
                     Format = r.Enum<EventFormat>("format"),
+                    BracketAlternate = r.IntN("bracket_alternate") is { } alt ? new FighterId(alt) : null,
                 };
                 if (r.Bool("fin_present"))
                 {
@@ -835,6 +867,23 @@ internal sealed class WorldReader
                     };
                 }
                 world.Events[ev.Id] = ev;
+            }
+        }
+
+        using (var cmd = _c.Cmd(null, "SELECT * FROM event_bracket ORDER BY event_id, ordinal"))
+        using (var r = cmd.ExecuteReader())
+        {
+            static FighterId? Fi(int? v) => v is { } x ? new FighterId(x) : null;
+            while (r.Read())
+            {
+                if (world.Get(new EventId(r.Int("event_id"))) is not { } ev) continue;
+                ev.Bracket.Add(new BracketSlot
+                {
+                    Round = r.Int("round"), Slot = r.Int("slot"),
+                    Red = Fi(r.IntN("red")), Blue = Fi(r.IntN("blue")),
+                    Fight = r.IntN("fight_id") is { } f ? new FightId(f) : null,
+                    Advanced = Fi(r.IntN("advanced")), How = r.Enum<BracketHow>("how"), Withdrew = Fi(r.IntN("withdrew")),
+                });
             }
         }
 
@@ -859,6 +908,7 @@ internal sealed class WorldReader
                     WeightMissBy = r.IntN("weight_miss") is { } wm ? new FighterId(wm) : null,
                     OverturnedNc = r.Bool("overturned"),
                     OpenWeight = r.Bool("open_weight"),
+                    BracketRound = r.IntN("bracket_round"),
                 };
                 if (r.Bool("out_present"))
                 {

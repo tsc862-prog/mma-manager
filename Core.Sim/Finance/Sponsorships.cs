@@ -85,6 +85,54 @@ public static class Sponsorships
     /// <summary>Each archetype's era capability, in table order (the tests hold every archetype to its own Sponsor* kind).</summary>
     internal static IReadOnlyList<Capability> ArchetypeEras => Archetypes.Select(a => a.Era).ToList();
 
+    /// <summary>The era capability of the archetype a partner belongs to (today's names and the Origins era sponsors; null for anyone else).</summary>
+    internal static Capability? ArchetypeOf(string partner) => ArchetypeByPartner(partner)?.Era;
+
+    private static Archetype? ArchetypeByPartner(string partner)
+    {
+        foreach (var a in Archetypes)
+            if (Array.IndexOf(a.Partners, partner) >= 0) return a;
+        // An Origins era sponsor: its type names the archetype ("Local" is SponsorLocal).
+        if (Generation.Origins.OriginsBroadcasters.Sponsors.FirstOrDefault(s => s.Name == partner) is { } era)
+            foreach (var a in Archetypes)
+                if (a.Era.Id == "Sponsor" + era.Type) return a;
+        return null;
+    }
+
+    private const ulong OriginsSponsorSalt = 0x0219_5B05_0007UL;
+
+    /// <summary>
+    /// The brands of an archetype that would put a name on this house's canvas: today's names, or in an Origins
+    /// world the era sponsors of that type on the market by now (the house's own country first). Never empty in
+    /// today's mode.
+    /// </summary>
+    private static IReadOnlyList<string> PartnersFor(World world, Promotion promo, Archetype a, DateOnly date)
+    {
+        if (world.Mode != WorldMode.Origins) return a.Partners;
+        int month = Living.OriginsTimeline.Month(world, date);
+        string? home = promo.HomeCity is { } hc && world.Get(hc) is { } city ? world.Get(city.Country)?.Code : null;
+        return Generation.Origins.OriginsBroadcasters.Sponsors
+            .Where(s => "Sponsor" + s.Type == a.Era.Id && s.EarliestMonth <= month)
+            .OrderBy(s => s.HomeCountry == home ? 0 : 1).ThenBy(s => s.EarliestMonth).ThenBy(s => s.Name, StringComparer.Ordinal)
+            .Select(s => s.Name).ToList();
+    }
+
+    /// <summary>
+    /// One brand of an archetype for this house: today's mode draws from the stream as it always did; an
+    /// Origins world makes a keyed pick (a house's own country's brands first) and draws nothing.
+    /// </summary>
+    private static string? PickPartner(World world, Promotion promo, Archetype a, DateOnly date, SimRandom rng)
+    {
+        if (world.Mode != WorldMode.Origins) return a.Partners[rng.Range(0, a.Partners.Length - 1)];
+        var pool = PartnersFor(world, promo, a, date);
+        if (pool.Count == 0) return null;
+        string? home = promo.HomeCity is { } hc && world.Get(hc) is { } city ? world.Get(city.Country)?.Code : null;
+        var local = pool.Where(n => Generation.Origins.OriginsBroadcasters.Sponsors.Any(s => s.Name == n && s.HomeCountry == home)).ToList();
+        var from = local.Count > 0 ? local : pool;
+        double roll = Living.OriginsTimeline.Roll(world, OriginsSponsorSalt, (ulong)promo.Id.Value, (ulong)date.DayNumber, Living.OriginsTimeline.KeyHash(a.Label));
+        return from[(int)(roll * from.Count)];
+    }
+
     /// <summary>What an Origins sponsor pays per event, as a share of today's fee.</summary>
     public const decimal OriginsFeeScale = 0.2m;
 
@@ -123,16 +171,16 @@ public static class Sponsorships
     {
         var local = Archetypes[0];
         // Each piece only once its kind of brand will touch the sport (always, in today's mode).
-        if (Living.Era.Allows(world, local.Era))
+        if (Living.Era.Allows(world, local.Era) && PickPartner(world, promo, local, on, rng) is { } backer)
             promo.SponsorDeals.Add(new SponsorDeal
             {
-                Partner = local.Partners[rng.Range(0, local.Partners.Length - 1)],
+                Partner = backer,
                 FeePerEvent = FeeFor(local, promo),
                 EventsRemaining = 6,
                 Requirements = new(),   // the hometown backer asks nothing — they're just glad you exist
                 SignedOn = on,
             });
-        if (Living.Era.Allows(world, Archetypes[1].Era)) AddOffer(promo, Archetypes[1], on, rng);
+        if (Living.Era.Allows(world, Archetypes[1].Era)) AddOffer(world, promo, Archetypes[1], on, rng);
     }
 
     // --- The monthly market ---------------------------------------------------
@@ -156,11 +204,13 @@ public static class Sponsorships
         {
             var size = Org.OrgSizing.SizeOf(promo);
             var taken = promo.SponsorDeals.Select(d => d.Partner).ToHashSet();
+            // (The lean years of an Origins Backlash leave only the local backers calling; never in today's mode.)
+            bool lean = world.Mode == WorldMode.Origins && Living.OriginsTimeline.LeanFor(world, promo, date);
             var eligible = Archetypes.Where(a => size >= a.MinTier && Living.Era.Allows(world, a.Era)
-                && a.Partners.Any(n => !taken.Contains(n))).ToList();
+                && PartnersFor(world, promo, a, date).Any(n => !taken.Contains(n)) && (!lean || a == Archetypes[0])).ToList();
             if (eligible.Count > 0)
             {
-                var offer = AddOffer(promo, eligible[rng.Range(0, eligible.Count - 1)], date, rng);
+                var offer = AddOffer(world, promo, eligible[rng.Range(0, eligible.Count - 1)], date, rng);
                 if (promo.Id == world.PlayerPromotion && offer is not null)
                     Living.Mail.Post(world, date, MailCategory.General, "Commercial",
                         $"Sponsorship offer: {offer.Partner}",
@@ -173,9 +223,9 @@ public static class Sponsorships
             AiAccept(world, promo, date);
     }
 
-    private static DealOffer? AddOffer(Promotion promo, Archetype a, DateOnly date, SimRandom rng)
+    private static DealOffer? AddOffer(World world, Promotion promo, Archetype a, DateOnly date, SimRandom rng)
     {
-        var name = a.Partners[rng.Range(0, a.Partners.Length - 1)];
+        if (PickPartner(world, promo, a, date, rng) is not { } name) return null;
         if (promo.SponsorDeals.Any(d => d.Partner == name) || promo.Offers.Any(o => o.Partner == name))
             return null;
         var offer = new DealOffer
@@ -268,7 +318,7 @@ public static class Sponsorships
                 if (deal.Strikes == 0)
                 {
                     // A happy sponsor re-ups at what the promotion is worth NOW.
-                    var arch = Archetypes.FirstOrDefault(a => a.Partners.Contains(deal.Partner));
+                    var arch = ArchetypeByPartner(deal.Partner);
                     if (arch is not null) deal.FeePerEvent = FeeFor(arch, promo);
                     deal.EventsRemaining = 6;
                     deal.SignedOn = ev.Date;
