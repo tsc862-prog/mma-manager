@@ -1,0 +1,10 @@
+- [Deal window invariants](deal-window-invariants.md) — v45 player deals end; Settle-before-complete trap, harness org is AI, rng-after-roll rule
+- [Contracts staged plan](contracts-staged-plan.md) — owner's 2026-11-11 answers; stage 5 (PR #43) and stage 6 (PR #45) built; stage 7 (PR #46) merged 2026-11-13; stage 9 PR #48 (draft)
+- [Rival offers invariants](rival-offers-invariants.md) — v46 OfferMarket rules, call-rate tuning numbers, window interplay, id-reuse trap
+- [Free-agent offers invariants](free-agent-offers-invariants.md) — v47 stage 7: Holder=courting org, FA-pass deferral, final offer + one improvement, harness courting
+- [Origins era gates](origins-era-gates.md) — v49 phase 0: World.Mode/Era, Era.Allows gate placement rule, start-relative Epoch, observer-start notes
+- [Origins phase 1](origins-phase1.md) — v52 PR #55: 1993 build path, open division, OriginsShows, money levers + targets, review lessons
+- [Promises invariants](promises-invariants.md) — v48 stage 9: promises, distrust vs wariness (two reasons), matching right min() rule, first-person voice
+- [Origins follow-ups](origins-followups.md) — PR #60: band/open Desk replacements, bracket->card rounds rule, ClassFought, PlayerNotes
+- [Origins phase 2](origins-phase2.md) — v53 PR #59: timeline engine rules, contested caps, bans/licences, weight bands, the tuning that kept CRU alive
+- [Origins money](origins-money.md) — PR #64: why CRU/founded houses lost money, 1993 rent/room/bracket/prize/bank levers, RoomIn perf trap
