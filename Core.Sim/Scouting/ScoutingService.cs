@@ -211,6 +211,30 @@ public static class ScoutingService
         return Math.Clamp((int)Math.Round(trueAbility + dir * error), 1, 100);
     }
 
+    /// <summary>
+    /// What an outsider with no scouts and nobody on the books sees of this fighter (0-100): the same
+    /// deterministic error model as <see cref="PerceivedAbility(World?, Promotion, Fighter)"/> read by the
+    /// least informed evaluator there is - familiarity from the record (and a famous camp's exposure) only,
+    /// no own-roster floor, zero competence. An observer (no promotion of his own, <see cref="World.HasPlayer"/>
+    /// false) reads the world through this. A pure hash of the fighter's id: no RNG stream, stable across
+    /// save and load, never the true ability except where the record has made him fully known.
+    /// </summary>
+    public static int PublicRead(World world, Fighter f)
+    {
+        int trueAbility = FighterAbility.CurrentAbility(f);
+        double familiarity = Math.Max(Math.Min(f.Record.TotalBouts / (double)FullyKnownFights, 1.0),
+            Living.Camps.PublicExposure(world, f));
+        if (familiarity >= 0.999) return trueAbility;
+        double error = MaxError * (1 - familiarity);   // competence 0: the worst-scouted read in the world
+        double dir = SignedNoise(PublicEvaluator, f.Id.Value, salt: PublicSalt);
+        return Math.Clamp((int)Math.Round(trueAbility + dir * error), 1, 100);
+    }
+
+    // The outsider's slot in the (org, fighter) hash: no promotion carries id 0, and its own salt keeps the
+    // public read from lining up with any one house's misjudgement.
+    private const int PublicEvaluator = 0;
+    private const int PublicSalt = 0x0B5E;
+
     private static double Familiarity(Promotion org, Fighter f)
     {
         double fam = Math.Min(f.Record.TotalBouts / (double)FullyKnownFights, 1.0);

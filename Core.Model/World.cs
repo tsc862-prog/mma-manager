@@ -36,6 +36,14 @@ public sealed class World
 
     public PromotionId PlayerPromotion { get; set; }
 
+    /// <summary>
+    /// Does the player run a promotion? False for an observer (an Origins start that watches the sport
+    /// before founding a house) and for the all-AI harness worlds: <see cref="PlayerPromotion"/> is then
+    /// the default id 0, which no promotion ever carries (ids start at 1). Computed, never saved.
+    /// New code tests this instead of comparing <see cref="PlayerPromotion"/> with id 0.
+    /// </summary>
+    public bool HasPlayer => PlayerPromotion.Value != 0;
+
     /// <summary>How the world began: today's mature sport (the default) or the birth of the sport.</summary>
     public WorldMode Mode { get; set; } = WorldMode.Modern;
 

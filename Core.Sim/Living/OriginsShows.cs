@@ -326,6 +326,8 @@ public static class OriginsShows
     public static Event? ScheduleTournament(World world, PromotionId promoId, DateOnly date, out string? reason, string? name = null, CityId? city = null)
     {
         reason = null;
+        // Called for the player when he has no house (an observer): say so. (Tests also book AI houses' nights here.)
+        if (promoId == world.PlayerPromotion && Booking.PlayerBooking.NoHouse(world, out reason)) return null;
         if (world.Get(promoId) is not { Defunct: false } promo) { reason = "That promotion isn't running."; return null; }
         if (promo.Rules.ShowFormat != ShowFormat.OneNightTournament) { reason = $"{promo.Abbreviation} doesn't run one-night tournaments."; return null; }
         if (date <= world.CurrentDate) { reason = "Pick a date that hasn't happened yet."; return null; }
@@ -507,6 +509,7 @@ public static class OriginsShows
     public static Event? ScheduleCard(World world, PromotionId promoId, DateOnly date, IReadOnlyList<Matchup> card, string? name = null,
         CityId? city = null)
     {
+        if (promoId == world.PlayerPromotion && !world.HasPlayer) return null;   // an observer has no house to book for
         if (world.Get(promoId) is not { Defunct: false } promo || card.Count == 0 || date <= world.CurrentDate) return null;
         // His own room, a city he names (one with a scene, awake or up for grabs), or exile when a ban closed his room.
         if (PlayerVenue(world, promo, date, city) is not { } room) return null;
