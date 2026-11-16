@@ -526,7 +526,9 @@ public sealed class BriefingViewModel : ObservableObject
                 if (ev.Format == EventFormat.Tournament)
                 {
                     // A one-night bracket (Origins): nothing to watch bout by bout before it's drawn.
-                    Lede = $"Eight men, one night{Where(w, ev)}. The bracket is drawn from your roster tonight and fought round by round under the house rules; the clock waits until it is run.";
+                    var house = w.Get(ev.Promotion);
+                    string men = house is null ? "Eight" : HouseRules.Men(house);
+                    Lede = $"{char.ToUpperInvariant(men[0])}{men[1..]} men, one night{Where(w, ev)}. The bracket is drawn from your roster tonight and fought round by round under the house rules; the clock waits until it is run.";
                     Art = Poster(w, ev); ArtIsFramed = true;
                     if (SimTonightCommand is not null) Actions.Add(new BriefingAction("Run the bracket ▸", Then(SimTonightCommand), IsPrimary: true));
                     Actions.Add(new BriefingAction("The bracket desk", Do(() => OpenCard?.Invoke(ev.Id.Value))));
@@ -929,7 +931,8 @@ public sealed class BriefingViewModel : ObservableObject
                 Headline = "Nothing on the calendar.";
                 Lede = $"{roster} fighters and no show to fight on. Fighters want fights, and a promotion that goes dark slips out of the conversation.";
                 Art = LogoFactory.ForPromotion(player); ArtIsFramed = true;
-                Actions.Add(new BriefingAction("Plan a card ▸", Do(() => Navigate?.Invoke(Tab.Planner)), IsPrimary: true, Hint: "The Planner shows the open dates and the rival cards around them."));
+                bool bracketHouse = player.Rules.ShowFormat == ShowFormat.OneNightTournament;
+                Actions.Add(new BriefingAction(bracketHouse ? "Book a tournament ▸" : "Plan a card ▸", Do(() => Navigate?.Invoke(Tab.Planner)), IsPrimary: true, Hint: "The Planner shows the open dates and the rival cards around them."));
                 Actions.Add(new BriefingAction("Later", CarryOnCommand));
                 return;
             }
@@ -1274,7 +1277,7 @@ public sealed class BriefingViewModel : ObservableObject
             NextTitle = NextWhen = NextDetail = NextCountdown = NextCountdownUnit = "";
             NextPoster = null; _nextPosterEvent = -1;
             NoCardLine = "Nothing booked. Pick a date that doesn't clash with a bigger show nearby.";
-            NextActionText = "Plan a card ▸";
+            NextActionText = w.Get(w.PlayerPromotion)?.Rules.ShowFormat == ShowFormat.OneNightTournament ? "Book a tournament ▸" : "Plan a card ▸";
             NextCommand = Do(() => Navigate?.Invoke(Tab.Planner));
         }
 

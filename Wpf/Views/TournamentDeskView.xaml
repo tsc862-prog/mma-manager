@@ -65,12 +65,14 @@
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,12" Visibility="{Binding NoNext, Converter={StaticResource BoolToVis}}">
                             <StackPanel>
                                 <TextBlock Text="PUT A TOURNAMENT ON THE BOOKS" Style="{StaticResource Text.Kicker}" />
-                                <TextBlock Text="Pick the night. Nobody is drawn until then: the field is the fittest eight on your roster that day."
+                                <TextBlock Text="{Binding PickNightLine}"
                                            Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,10" />
                                 <StackPanel Orientation="Horizontal">
                                     <DatePicker SelectedDate="{Binding Date}" Width="190" VerticalAlignment="Center" />
                                     <Button Content="Book the night" Style="{StaticResource Button.Primary}" Command="{Binding ScheduleCommand}" Margin="12,0,0,0" />
                                 </StackPanel>
+                                <TextBlock Text="{Binding ShortLine}" Foreground="{StaticResource ToneWarn}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Visibility="{Binding HasShortLine, Converter={StaticResource BoolToVis}}" />
                                 <TextBlock Text="{Binding Error}" Foreground="{StaticResource ToneBad}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0"
                                            Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
                                 <TextBlock Text="{Binding CadenceLine}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -183,7 +185,7 @@
                                         <StackPanel>
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                             <TextBlock Style="{StaticResource Text.Caption}">
-                                                <Run Text="{Binding When, Mode=OneWay}" /><Run Text="  ·  won by " /><Run Text="{Binding Winner, Mode=OneWay}" />
+                                                <Run Text="{Binding When, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Winner, Mode=OneWay}" />
                                             </TextBlock>
                                         </StackPanel>
                                     </Button>

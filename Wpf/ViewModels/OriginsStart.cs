@@ -76,7 +76,7 @@ public static class HouseRules
         });
         if (r.RopeEscapes > 0)
             lines.Add($"{r.RopeEscapes} rope escapes a bout: the rope breaks a hold; past that, it costs points.");
-        if (!r.Elbows || !r.GroundedHeadPunches)
+        if (!r.Elbows || !r.GroundedHeadPunches || !r.GroundedKicks)
             lines.Add("On the ground: " + string.Join("; ", new[]
             {
                 r.Elbows ? null : "no elbows",
@@ -106,7 +106,15 @@ public static class HouseRules
 
     private static string Article(string word) => "aeiou".Contains(char.ToLowerInvariant(word[0])) ? "An" : "A";
 
-    private static string Number(int n) => n switch { 4 => "four", 8 => "eight", 16 => "sixteen", _ => n.ToString() };
+    private static string Number(int n) => n switch { 2 => "two", 4 => "four", 8 => "eight", 16 => "sixteen", _ => n.ToString() };
+
+    /// <summary>The bracket's size in words ("eight").</summary>
+    public static string Men(Promotion p) => Number(Math.Max(2, p.Rules.TournamentSize));
+
+    /// <summary>How the field is drawn, in the sim's terms (TournamentService.Field): the men fit to fight that
+    /// night, promised men first, then the top of your scouts' read.</summary>
+    public static string FieldRule(Promotion p) =>
+        $"the field is the top {Men(p)} by your scouts' read among the men fit to fight that night, a man you promised a place first";
 
     private static string JoinOr(IReadOnlyList<string> items) => items.Count switch
     {

@@ -1704,6 +1704,16 @@ public partial class App : Application
                     vm.StartWorld(WorldBuilder.Options.Origins(1993, house), OriginsHarness.Summary(house));
                     int weeks = e.Args.Contains("--weeks") ? int.Parse(e.Args[Array.IndexOf(e.Args, "--weeks") + 1]) : 0;
                     OriginsHarness.Play(vm, weeks, hold: e.Args.Contains("--holdnight"), bookNight: e.Args.Contains("--booknight"));
+                    if (e.Args.Contains("--nightin"))   // look at a night N days out on the desk's form
+                        vm.Tournament.Date = vm.LiveWorld!.CurrentDate.AddDays(int.Parse(e.Args[Array.IndexOf(e.Args, "--nightin") + 1])).ToDateTime(TimeOnly.MinValue);
+                    if (e.Args.Contains("--nightin")) vm.Tournament.ShowNextNight = true;
+                    if (e.Args.Contains("--bracketcase"))
+                    {
+                        // A planted hard-case bracket (walkovers, withdrawals, the alternate, overtime), shown on the desk.
+                        var night = OriginsHarness.PlantBracket(vm.LiveWorld!, e.Args[Array.IndexOf(e.Args, "--bracketcase") + 1]);
+                        vm.Contracts.OnChanged?.Invoke();
+                        vm.Tournament.ShowNight(night.Id);
+                    }
                 }
                 else
                     for (int i = 0; i < months; i++) vm.AdvanceMonthCommand.Execute(null);

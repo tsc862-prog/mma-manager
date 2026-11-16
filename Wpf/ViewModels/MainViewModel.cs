@@ -193,7 +193,16 @@ public sealed class MainViewModel : ObservableObject
     private void WireBriefing()
     {
         Briefing.Navigate = NavigateTo;
-        Briefing.OpenCard = id => { Booking.SelectEvent(new EventId(id)); NavigateTo(Tab.BookEvent); };
+        Briefing.OpenCard = id =>
+        {
+            Booking.SelectEvent(new EventId(id));
+            if (Tournament.Applies)
+            {
+                if (LiveWorld?.Get(new EventId(id)) is { Status: EventStatus.Completed }) Tournament.ShowNight(new EventId(id));
+                else Tournament.ShowNextNight = true;
+            }
+            NavigateTo(Tab.BookEvent);
+        };
         Briefing.OpenFighter = OpenFighter;
         Briefing.OpenEvent = id => OpenEventCommand.Execute(id);
         Briefing.Close = () =>

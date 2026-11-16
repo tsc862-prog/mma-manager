@@ -320,7 +320,7 @@ public sealed class DashboardViewModel : ObservableObject
             {
                 Number = booked ? "✓" : "2", Label = bracket ? "Put your first tournament on the books" : "Book your first card",
                 Detail = bracket
-                    ? (booked ? "The night is set. The fittest eight on your roster make the bracket." : "Pick the night. Nobody is drawn until then: the fittest eight on your roster make the bracket.")
+                    ? (booked ? $"The night is set. On the night, {HouseRules.FieldRule(player)}." : $"Pick the night. Nobody is drawn until then: {HouseRules.FieldRule(player)}.")
                     : booked ? "The card is set. Now sell it." : "Pick a date and a room, then match your fighters up. Start small.",
                 Done = booked, Current = signed && !booked,
                 ActionText = bracket ? "Book the night ▸" : "Book a card ▸", ActionCommand = BookCommand,
@@ -330,7 +330,7 @@ public sealed class DashboardViewModel : ObservableObject
                 Number = "3", Label = "Fight night",
                 Detail = booked && next is not null
                     ? $"{next.Name}, {next.Date:ddd d MMM}. Advance the calendar to get there."
-                    : bracket ? "Eight men, one night: run the bracket and crown the last man standing."
+                    : bracket ? $"{char.ToUpperInvariant(HouseRules.Men(player)[0])}{HouseRules.Men(player)[1..]} men, one night: run the bracket and crown the last man standing."
                     : "Watch it live from ringside or jump straight to the results.",
                 Current = signed && booked, IsLast = true,
                 ActionText = fightNight ? (bracket ? "Run the bracket ▸" : "Watch it live ▸") : "",

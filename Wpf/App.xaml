@@ -2281,7 +2281,7 @@
         </DataTemplate>
         <!-- One corner of a bracket bout (BracketCorner): seed, face, name; the winner bright, the loser dimmed. -->
         <DataTemplate x:Key="BracketCornerTemplate">
-            <Button Style="{StaticResource Button.Link}" HorizontalContentAlignment="Stretch" Padding="0"
+            <Button x:Name="row" Style="{StaticResource Button.Link}" HorizontalContentAlignment="Stretch" Padding="0"
                     Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Id}" ToolTip="Open the profile">
                 <DockPanel Margin="0,2">
                     <Border DockPanel.Dock="Left" Style="{StaticResource SeedBadge}" Height="20" MinWidth="22" Margin="0,0,7,0">
@@ -2300,9 +2300,14 @@
                     <Setter TargetName="name" Property="FontWeight" Value="SemiBold" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding HasTag}" Value="False"><Setter TargetName="tag" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <!-- an empty slot: nobody to open -->
+                <DataTrigger Binding="{Binding Id}" Value="0">
+                    <Setter TargetName="row" Property="IsHitTestVisible" Value="False" />
+                    <Setter TargetName="name" Property="FontStyle" Value="Italic" />
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
-        <!-- A bracket bout: two corners and how it ended. -->
+        <!-- A bracket bout: two corners, how it ended, and who went through when it wasn't simply the winner. -->
         <DataTemplate x:Key="BracketBoutTemplate">
             <Border Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
                     CornerRadius="{StaticResource Radius.Card}" Padding="9,6" Margin="0,6" VerticalAlignment="Center">
@@ -2310,6 +2315,8 @@
                     <ContentPresenter Content="{Binding Red}" ContentTemplate="{StaticResource BracketCornerTemplate}" />
                     <ContentPresenter Content="{Binding Blue}" ContentTemplate="{StaticResource BracketCornerTemplate}" />
                     <TextBlock Text="{Binding How}" Style="{StaticResource Text.Caption}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Aside}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneWarn}" TextWrapping="Wrap"
+                               Visibility="{Binding HasAside, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
             </Border>
         </DataTemplate>
