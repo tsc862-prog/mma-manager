@@ -12,6 +12,31 @@ namespace MmaManager.Core.Sim.Booking;
 public static class Financials
 {
     private const decimal TicketBase = 55m;
+
+    /// <summary>The base ticket in an Origins world (today's is 55).</summary>
+    public const decimal OriginsTicketBase = 20m;
+
+    /// <summary>The world's base ticket price (today's 55; an Origins world's 20: a sport nobody has heard of).</summary>
+    public static decimal TicketBaseOf(World world) => world.Mode == WorldMode.Origins ? OriginsTicketBase : TicketBase;
+
+    /// <summary>A seat's price at this prestige: today's 55 + 1.4 a point; 1993's (Origins) 20 + 0.6 a point.</summary>
+    public static decimal TicketPrice(World world, int prestige) =>
+        world.Mode == WorldMode.Origins ? OriginsTicketBase + prestige * OriginsTicketPerPrestige : TicketBase + prestige * 1.4m;
+
+    /// <summary>An Origins crowd as a share of what today's formula draws for the same names and fame.</summary>
+    public const double OriginsCrowdFactor = 0.5;
+
+    /// <summary>The ticket premium a one-night bracket commands (Origins; tournament nights exist only there).</summary>
+    public const decimal OriginsBracketTicketPremium = 1.35m;
+
+    /// <summary>What an Origins seat gains per prestige point (today's is 1.4).</summary>
+    public const decimal OriginsTicketPerPrestige = 0.4m;
+
+    /// <summary>
+    /// Putting on a 1993 night (Origins), before rent: a ring or a fence, a doctor, a few ushers and a
+    /// van; no television truck. Today's is 10,000 + 12 a head.
+    /// </summary>
+    public static decimal OriginsProduction(decimal attendance) => 4_000m + attendance * 9m;
     private const decimal PpvPrice = 45m;
 
     /// <summary>
@@ -148,16 +173,21 @@ public static class Financials
         // tour (an electric presser, a face-off brawl) puts people in seats.
         double market = promo is null ? 1.0 : Org.MarketShare.Factor(world, promo);
         int attendance = (int)((190 + prestige * 38 + drawPower * 30 + cityPop * 78 + regionPop * 14)
-            * (1 + marketing + grudge + counterProgramming + ev.HypeBonus * 0.6) * competition * interest * market);
+            * (1 + marketing + grudge + counterProgramming + ev.HypeBonus * 0.6) * competition * interest * market
+            // 1993 (Origins): a sport nobody has heard of draws a fraction of today's crowd for the same name.
+            * (world.Mode == WorldMode.Origins ? OriginsCrowdFactor : 1.0));
         // The building caps the house — a big draw in a small room leaves money on the table.
         var venue = ev.VenueId is { } vid ? world.Get(vid) : null;
         if (venue is not null && capByRoom) attendance = Math.Min(attendance, venue.Capacity);
 
         // Card scale: a marquee super-card commands premium pricing and PPV but costs more to stage.
         decimal gateMult = ev.Tier switch { EventTier.Ppv => 1.3m, EventTier.SuperCard => 1.6m, _ => 1.0m };
+        // A one-night bracket (Origins) is the spectacle people pay extra to see: dearer seats, same small production.
+        if (ev.Format == EventFormat.Tournament) gateMult *= OriginsBracketTicketPremium;
         decimal prodMult = ev.Tier switch { EventTier.Ppv => 1.4m, EventTier.SuperCard => 1.8m, _ => 1.0m };
 
-        decimal ticketPrice = TicketBase + prestige * 1.4m;
+        // 1993's seats (Origins) are a sport nobody has heard of in a hall that holds a few thousand.
+        decimal ticketPrice = TicketPrice(world, prestige);
         var gate = new Money(attendance * ticketPrice * gateMult);
 
         long ppvBuys = 0;
@@ -177,7 +207,9 @@ public static class Financials
         // staff and a rented cage, a packed arena is a television production.
         // (Rent rolls in so it flows through the box office and ledger.)
         var rent = venue?.Rent ?? Money.Zero;
-        var production = new Money((10_000m + attendance * 12m) * prodMult) + rent;
+        var production = world.Mode == WorldMode.Origins
+            ? new Money(OriginsProduction(attendance) * prodMult) + rent
+            : new Money((10_000m + attendance * 12m) * prodMult) + rent;
         var payroll = Payroll(world, ev) + PpvPointsPayroll(world, ev, ppvRevenue);
 
         return new EventFinancials

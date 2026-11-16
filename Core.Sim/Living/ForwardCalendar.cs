@@ -124,6 +124,8 @@ public static class ForwardCalendar
     public static void RunWeekly(World world, DateOnly date, Matchmaker matchmaker, EventService events)
     {
         Audit(world, date);
+        // The birth of the sport keeps its own calendar: brackets, rings and garage nights (Origins).
+        if (OriginsShows.Applies(world)) { OriginsShows.RunWeekly(world, date, events); return; }
         Announce(world, date, matchmaker, events, postNews: true);
         FillUndercards(world, date, matchmaker);
     }
@@ -921,6 +923,7 @@ public static class ForwardCalendar
     private static void RefreshVenue(World world, Promotion promo, Event ev)
     {
         if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;
+        if (world.Mode == WorldMode.Origins) return;   // the first promotions stay in their own rooms (no draws here)
         if (ev.VenueId is not { } current || world.Get(current) is not { } room) return;
         if (Geography.WorldMap.PickVenueIn(world, promo, room.City) is not { } fit || fit.Id == current) return;
         ev.VenueId = fit.Id;

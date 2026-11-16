@@ -90,7 +90,15 @@ public sealed class FighterValuation
             else if (a.Title.EndsWith("— bronze")) medal = Math.Max(medal, 4_000m);
         }
         purse += medal;
-        purse = Math.Max(1_500m, RoundTo(purse, 500m));
+        // A sport that has just been born (Origins) pays what its houses can pay: no man asks more than the
+        // richest house in the sport could put up for one purse. (Today's market has no such ceiling.)
+        // (Today's price is the man's standing; 1993's is that standing as a share of the sport's best purse:
+        // an unknown asks a few hundred dollars, a name half the ceiling, a champion all of it.)
+        if (world.Mode == WorldMode.Origins)
+            purse = OriginsMarketCeiling(world) * Math.Clamp(purse / OriginsFullAsk, 0.15m, 1m);
+        purse = world.Mode == WorldMode.Origins
+            ? Math.Max(Negotiator.OriginsPurseFloor, RoundTo(purse, 250m))   // a 1993 purse can be a few hundred dollars
+            : Math.Max(1_500m, RoundTo(purse, 500m));
 
         var askingPurse = new Money(purse);
         var askingWinBonus = new Money(RoundTo(purse * 0.75m, 500m));
@@ -119,6 +127,18 @@ public sealed class FighterValuation
     /// and 53% read 58+ against 33% and 48% who were truly 60+.
     /// </summary>
     public const int StarLevel = 74;
+
+    /// <summary>The modern ask that maps onto the whole Origins ceiling (a champion's money).</summary>
+    public const decimal OriginsFullAsk = 30_000m;
+
+    /// <summary>The most any live house in an Origins world can pay a man a fight (its purse cap).</summary>
+    public static decimal OriginsMarketCeiling(World world)
+    {
+        decimal best = 0m;
+        foreach (var p in world.Promotions.Values)
+            if (!p.Defunct) best = Math.Max(best, Negotiator.PurseCap(world, p));
+        return best;
+    }
 
     /// <summary>
     /// The discovered local's open-market floor, from the accolade the town saw:

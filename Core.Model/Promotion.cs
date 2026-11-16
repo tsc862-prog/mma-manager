@@ -214,6 +214,30 @@ public sealed class OrgRules
     /// promotion in today's mode.
     /// </summary>
     public FightRules? Fight { get; set; }
+
+    /// <summary>
+    /// What a night at this promotion IS (Origins): ordinary cards of single bouts (today's sport,
+    /// every promotion in today's mode), a one-night open-weight bracket, or a night of gym-against-gym
+    /// challenge matches. Read by the Origins show calendar; today's mode never sets it.
+    /// </summary>
+    public ShowFormat ShowFormat { get; set; } = ShowFormat.Card;
+
+    /// <summary>Fighters in a one-night bracket (<see cref="ShowFormat.OneNightTournament"/>); 0 otherwise.</summary>
+    public int TournamentSize { get; set; }
+
+    /// <summary>The winner's purse a one-night bracket pays (out of the promotion's pocket); zero otherwise.</summary>
+    public Money TournamentPrize { get; set; }
+}
+
+/// <summary>What a promotion's nights are (see <see cref="OrgRules.ShowFormat"/>).</summary>
+public enum ShowFormat
+{
+    /// <summary>A card of single bouts (today's sport).</summary>
+    Card,
+    /// <summary>A one-night single-elimination bracket: the night's winner is its champion.</summary>
+    OneNightTournament,
+    /// <summary>Challenge matches between rival gyms, a handful a night, no belts.</summary>
+    GymChallenge,
 }
 
 /// <summary>
@@ -233,8 +257,19 @@ public sealed class Division
 
     public TitleId? Title { get; set; }                  // null => no belt yet
 
-    /// <summary>This fighter belongs in this division (same weight AND same sex).</summary>
-    public bool Matches(Fighter f) => f.WeightClass == WeightClass && f.Sex == Sex;
+    /// <summary>
+    /// The OPEN division (Origins): no weight classes exist yet, so every fighter of the division's sex
+    /// belongs, whatever his natural class. <see cref="WeightClass"/> is then only a nominal key (the
+    /// heaviest class, <see cref="OpenClass"/>); fighters keep their own natural class for the day the
+    /// sport splits the division. Never set in today's mode.
+    /// </summary>
+    public bool Open { get; init; }
+
+    /// <summary>The nominal class an open division (and an open-weight bout) is filed under.</summary>
+    public const WeightClass OpenClass = WeightClass.Heavyweight;
+
+    /// <summary>This fighter belongs in this division (same weight AND same sex; any weight in an open division).</summary>
+    public bool Matches(Fighter f) => (Open || f.WeightClass == WeightClass) && f.Sex == Sex;
 }
 
 /// <summary>The weight classes contested in women's MMA (the lighter divisions).</summary>
@@ -274,4 +309,11 @@ public sealed class TitleReign
     public required DateOnly WonOn { get; init; }
     public DateOnly? LostOn { get; set; }                // null => current reign
     public int Defenses { get; set; }
+
+    /// <summary>
+    /// The reign ended without a defeat: the belt was vacated (he retired or left) or, at a one-night
+    /// tournament house, a bracket he was not in crowned somebody else. Set by the Origins paths only;
+    /// today's mode never reads or sets it.
+    /// </summary>
+    public bool Vacated { get; set; }
 }

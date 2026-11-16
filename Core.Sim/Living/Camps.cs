@@ -243,7 +243,10 @@ public static class Camps
         // A star founds a camp where their homeland lacks an elite room.
         bool homelandHasEliteRoom = world.Camps.Values.Any(c =>
             c.CoachQuality >= 70 && world.Get(c.City)?.Country == f.Country);
-        if (pop >= 60 && !homelandHasEliteRoom && rng.Chance(0.6))
+        // A country with no scene opens no gyms (Origins; always true in today's mode, so the roll is where it was).
+        if (pop >= 60 && !homelandHasEliteRoom
+            && Era.AllowsScene(world, world.Get(f.Country)?.Code ?? f.OriginCountryCode ?? "")
+            && rng.Chance(0.6))
         {
             var city = (f.HomeCity is { } hc ? world.Get(hc) : null)
                 ?? world.Cities.Values.Where(c => c.Country == f.Country)

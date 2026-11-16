@@ -63,7 +63,9 @@ internal static class SaveSchema
                 last_cleared_tier TEXT, last_cleared_on TEXT,
                 owner_name TEXT, owner_note TEXT, founded_year INTEGER NOT NULL DEFAULT 0,
                 fr_gloves TEXT, fr_rounds INTEGER, fr_round_minutes INTEGER, fr_judges INTEGER, fr_head_punches INTEGER,
-                fr_kicks INTEGER, fr_elbows INTEGER, fr_rope_escapes INTEGER, fr_open_weight INTEGER, fr_enclosure TEXT
+                fr_kicks INTEGER, fr_elbows INTEGER, fr_rope_escapes INTEGER, fr_open_weight INTEGER, fr_enclosure TEXT,
+                show_format TEXT NOT NULL DEFAULT 'Card', tournament_size INTEGER NOT NULL DEFAULT 0,
+                tournament_prize TEXT NOT NULL DEFAULT '0'
             );
 
             CREATE TABLE promotion_city_pop (
@@ -96,12 +98,13 @@ internal static class SaveSchema
 
             CREATE TABLE divisions (
                 promotion_id INTEGER NOT NULL, ordinal INTEGER NOT NULL,
-                weight_class TEXT NOT NULL, title_id INTEGER, sex TEXT NOT NULL DEFAULT 'Male'
+                weight_class TEXT NOT NULL, title_id INTEGER, sex TEXT NOT NULL DEFAULT 'Male',
+                open INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE division_rankings (
                 promotion_id INTEGER NOT NULL, weight_class TEXT NOT NULL, sex TEXT NOT NULL DEFAULT 'Male',
-                position INTEGER NOT NULL, fighter_id INTEGER NOT NULL
+                position INTEGER NOT NULL, fighter_id INTEGER NOT NULL, open INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE titles (
@@ -112,7 +115,7 @@ internal static class SaveSchema
 
             CREATE TABLE title_reigns (
                 title_id INTEGER NOT NULL, ordinal INTEGER NOT NULL, champion INTEGER NOT NULL,
-                won_on TEXT NOT NULL, lost_on TEXT, defenses INTEGER NOT NULL
+                won_on TEXT NOT NULL, lost_on TEXT, defenses INTEGER NOT NULL, vacated INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE fighters (
@@ -226,7 +229,7 @@ internal static class SaveSchema
                 date TEXT NOT NULL, venue TEXT, venue_id INTEGER, region TEXT NOT NULL, tier TEXT NOT NULL, status TEXT NOT NULL,
                 fin_present INTEGER NOT NULL, attendance INTEGER, gate TEXT, ppv_buys INTEGER,
                 ppv_rev TEXT, production TEXT, payroll TEXT, main_card INTEGER NOT NULL DEFAULT 0,
-                hype_bonus REAL NOT NULL DEFAULT 0
+                hype_bonus REAL NOT NULL DEFAULT 0, format TEXT NOT NULL DEFAULT 'Card'
             );
 
             CREATE TABLE fights (
@@ -236,7 +239,7 @@ internal static class SaveSchema
                 weight_miss INTEGER, overturned INTEGER NOT NULL DEFAULT 0,
                 out_present INTEGER NOT NULL, winner INTEGER, loser INTEGER,
                 method TEXT, end_round INTEGER, end_time INTEGER,
-                round_scores TEXT
+                round_scores TEXT, open_weight INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE decisions (

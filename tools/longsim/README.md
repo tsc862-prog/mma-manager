@@ -28,6 +28,15 @@ dotnet run --no-build -c Release -- playcheck 12 10         # a scripted human p
 dotnet run --no-build -c Release -- check 6 10 --soak       # + save/reload twin soak
 dotnet run --no-build -c Release -- determinism 3 3         # same seed twice
 dotnet run --no-build -c Release -- digest 3 3              # end-state digests (run under Debug and Release, diff the text)
+
+# 6) Origins mode (the 1993 world): N seeds x YEARS, each AI-run (twice, for determinism) and with a
+#    scripted player running one of the three houses (seed % 3), each run twice (determinism: world
+#    digest). Per-year summary per house, the phase-1 invariants (no weight-class or women's divisions,
+#    no media beyond the day-one unlocks, no startups, no club shows, every bout open weight, no
+#    weigh-ins), and a HEALTH line per run: no fold; each house at >= 60% of its cadence every year
+#    after the first; 80-160 active men; rosters >= OriginsShows.MinRoster; banks end within 0.4x-2.5x
+#    of the opening balance. Exit code 1 if any run is unhealthy. Seconds per seed: ~110 men.
+dotnet run --no-build -c Release -- origins 5 5
 ```
 
 Long runs: pipe to a log (`> sim.log 2>&1`) — a 30-year world takes ~5–6 min,

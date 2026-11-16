@@ -177,6 +177,15 @@ public static class Lifecycle
         var division = world.Get(title.Promotion)?.Divisions
             .FirstOrDefault(d => d.Title == title.Id);
 
+        // An open division's belt (Origins: a tournament belt, the ring's open-weight belt) is never
+        // handed down: it goes VACANT until the next bracket or title fight fills it. (No draws here.)
+        if (division is { Open: true })
+        {
+            if (reign is not null) reign.Vacated = true;
+            title.CurrentChampion = null;
+            return;
+        }
+
         FighterId? heir = null;
         if (division is not null)
         {

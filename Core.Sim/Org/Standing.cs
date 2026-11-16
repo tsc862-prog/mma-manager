@@ -39,6 +39,9 @@ public static class Standing
     private const double TopTierCurve = 0.03;
 
     /// <summary>After a settled card, score the show and move prestige/reputation.</summary>
+    /// <summary>How much of a good night's prestige an Origins house banks (no screens to spread the word).</summary>
+    public const double OriginsClimbFactor = 0.5;
+
     public static void AfterEvent(World world, Promotion promo, Event ev)
     {
         if (ev.Financials is not { } fin) return;
@@ -114,6 +117,8 @@ public static class Standing
             double media = Finance.MediaService.BrandFactor(promo);
             double reach = Math.Clamp((60.0 - promo.Prestige.Value) / 40.0, 0.0, 1.0);
             delta *= 1.0 + (media - 1.0) * reach;
+            // 1993 (Origins): no television and a sport with no name; word of a good night travels slowly.
+            if (world.Mode == WorldMode.Origins) delta *= OriginsClimbFactor;
         }
 
         // A brand doesn't climb twice as fast by running twice as often: past a

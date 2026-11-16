@@ -714,8 +714,9 @@ public sealed class NegotiationSession
             : new(PromiseTerm(kind), TermFeel.Pleased,
                 Promises.WorthWords(_world, _promo, _fighter, kind, fights, _exp, firstPerson: true) + " — and I'll hold you to it");
 
-    private static string PromiseTerm(PromiseKind kind) => kind switch
+    private string PromiseTerm(PromiseKind kind) => kind switch
     {
+        PromiseKind.TitleShot when Promises.IsBracketHouse(_promo) => "Promise: a place in the next tournament",
         PromiseKind.TitleShot => "Promise: title shot",
         PromiseKind.HomeShow => "Promise: home show",
         _ => "Promise: activity",

@@ -25,6 +25,12 @@ public static class RevenueService
     public static void SeedFounding(World world, Promotion promo, DateOnly on, SimRandom rng) =>
         Sponsorships.SeedFounding(world, promo, on, rng);
 
+    /// <summary>Mail-order money a month per prestige point in an Origins world (today's is 1,500).</summary>
+    public const decimal OriginsMerchPerPrestige = 150m;
+
+    /// <summary>The merch table's take per head at an Origins night (today's is 6).</summary>
+    public const decimal OriginsMerchPerHead = 1m;
+
     /// <summary>The monthly commercial tick for every live promotion.</summary>
     public static void CollectMonthly(World world, DateOnly date)
     {
@@ -40,8 +46,10 @@ public static class RevenueService
             // ALIVE — prestige sets the ceiling, recent shows set how much of it
             // actually sells. No cards in four months = nothing to wear.
             double activity = Math.Min(1.0, MediaService.EventsInWindow(world, promo, 120) / 3.0);
+            // (1993, Origins: a few tapes through the post and a T-shirt table; no television to sell anything.)
+            decimal perPoint = world.Mode == WorldMode.Origins ? OriginsMerchPerPrestige : 1_500m;
             Ledger.Income(promo, date, FinanceCategory.Merchandise,
-                new Money(promo.Prestige.Value * 1_500m * (decimal)activity), "Merchandise (mail order)");
+                new Money(promo.Prestige.Value * perPoint * (decimal)activity), "Merchandise (mail order)");
         }
     }
 
@@ -57,6 +65,8 @@ public static class RevenueService
         int attendance = ev.Financials?.Attendance ?? 0;
         if (attendance > 0)
             Ledger.Income(promo, ev.Date, FinanceCategory.Merchandise,
-                new Money(attendance * (6m + promo.Prestige.Value * 0.08m)), $"{ev.Name} — merch table");
+                new Money(attendance * (world.Mode == WorldMode.Origins
+                    ? OriginsMerchPerHead + promo.Prestige.Value * 0.05m   // 1993: a T-shirt table and a few programmes
+                    : 6m + promo.Prestige.Value * 0.08m)), $"{ev.Name} — merch table");
     }
 }
