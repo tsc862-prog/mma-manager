@@ -48,7 +48,7 @@ public sealed class Promise
     public int Fights { get; init; }
 
     /// <summary>For <see cref="PromiseKind.TitleShot"/>: the belt promised (his division's, when it was made); else null.</summary>
-    public TitleId? Title { get; init; }
+    public TitleId? Title { get; set; }   // (re-pointed when an Origins weight split retires the belt it named)
 
     public required DateOnly Made { get; init; }
 

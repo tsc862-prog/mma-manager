@@ -397,7 +397,7 @@ public sealed partial class BookingViewModel
         var red = new BillCorner(r, w, _advisor, body: mainEv, hostCity: host);
         var blue = new BillCorner(b, w, _advisor, body: mainEv, hostCity: host);
         var a = _advisor.Appraise(w, r.Id, b.Id);
-        string division = FighterRow.DivisionLabel(fight.WeightClass, r.Sex);
+        string division = fight.OpenWeight || Band(r) is null ? FighterRow.DivisionLabel(fight, r.Sex) : FighterRow.PickLabel(fight.WeightClass, r.Sex);
 
         // Why it sells: public facts only.
         var sells = new List<DeskTag>();
@@ -439,7 +439,7 @@ public sealed partial class BookingViewModel
         string rounds = $"{fight.ScheduledRounds} rd{(fight.ScheduledRounds == 1 ? "" : "s")}";
         string kicker = (mainEv ? "MAIN EVENT" : coMain ? "CO-MAIN EVENT" : label) + " · "
                         + (fight.IsTitleFight ? $"{division.ToUpperInvariant()} TITLE" : division.ToUpperInvariant())
-                        + $" · {fight.ScheduledRounds} ROUNDS";
+                        + $" · {HouseRules.Rounds(fight.ScheduledRounds, w.Get(w.PlayerPromotion)).ToUpperInvariant()}";
         string matchmaker = (mainEv || coMain) && !r.LocalTalent && !b.LocalTalent
             ? $"On what we've seen: {red.Short} reads {red.ReadText}, {blue.Short} {blue.ReadText}. {char.ToUpperInvariant(a.Summary[0])}{a.Summary[1..]}."
               + (HeadToHeadLine(r, b) is { Length: > 0 } h2h ? " " + h2h : "")
@@ -889,9 +889,9 @@ public sealed partial class BookingViewModel
             Desk = this, Proposal = s, Slot = slot,
             Red = new BillCorner(r, w, _advisor, hostCity: host) { Summary = CornerLine(rx, r) },
             Blue = new BillCorner(b, w, _advisor, hostCity: host) { Summary = CornerLine(bx, b) },
-            Division = FighterRow.DivisionLabel(s.WeightClass, r.Sex),
+            Division = Band(r) is null ? FighterRow.DivisionLabel(s.WeightClass, r.Sex) : FighterRow.PickLabel(s.WeightClass, r.Sex),
             Reason = s.Reason,
-            Terms = (s.TitleFight ? "Title fight · " : "") + $"{s.Rounds} rounds",
+            Terms = (s.TitleFight ? "Title fight · " : "") + HouseRules.Rounds(s.Rounds, w.Get(w.PlayerPromotion)),
             Read = s.Appraisal.Competitiveness >= 70 ? "a toss-up on our reads" : s.Appraisal.Competitiveness >= 45 ? "competitive on our reads"
                 : s.Appraisal.Competitiveness >= 25 ? "a clear favourite on our reads" : "lopsided on our reads",
             SlotLabel = slot switch { BoutSlot.MainEvent => "Main event", BoutSlot.CoMain => "Co-main", BoutSlot.MainCard => "Main card", _ => "Prelim" },
@@ -1008,7 +1008,7 @@ public sealed partial class BookingViewModel
             var slot = _pickSlot ?? _nextSlot;
             var outgoing = _replaceFight is { } rf && ev.Card.FirstOrDefault(f => f.Id == rf) is { } bout
                 ? (bout.RedCorner == stay ? bout.BlueCorner : bout.RedCorner) : (FighterId?)null;
-            var pool = facts.Values.Where(x => x.F.Id != stay && x.F.Id != outgoing && x.F.WeightClass == me.WeightClass && x.F.Sex == me.Sex);
+            var pool = facts.Values.Where(x => x.F.Id != stay && x.F.Id != outgoing && SameDivision(x.F, me));
             var appraisals = new Dictionary<FighterId, (MatchupAppraisal A, BoutProposal? P)>();
             // A new bout: the matchmaker's own read of each pair (PlayerBooking.Suggest). Changing a
             // corner keeps a booked bout (its slot, its belt), so it reads the appraisal alone.
@@ -1032,7 +1032,7 @@ public sealed partial class BookingViewModel
             LadderTitle = _replaceFight is not null ? $"Who could face {me.LastName} instead" : $"Opponents for {me.FirstName} {me.LastName}";
             LadderEmpty = FinderChips.Any(c => c.IsOn) || _search.Length > 0
                 ? "Nobody matches. Clear the search or a filter."
-                : $"Nobody else at {FighterRow.DivisionLabel(me.WeightClass, me.Sex)} on your roster.";
+                : $"Nobody else at {(Band(me) is null ? FighterRow.DivisionLabel(me) : DivisionOf(me).Label)} on your roster.";
             OnPropertyChanged(nameof(HasLadder));
             return;
         }
@@ -1046,7 +1046,7 @@ public sealed partial class BookingViewModel
         }
         // Browsing: the roster, any division unless the scope says otherwise.
         var scope = _scope?.Division;
-        var browse = facts.Values.Where(x => scope is null || (x.F.WeightClass == scope.WeightClass && x.F.Sex == scope.Sex));
+        var browse = facts.Values.Where(x => scope is null || InScope(x.F, scope));
         foreach (var x in Filter(browse))
             Ladder.Add(Clone(Row(x, "", PickLadderCommand), x.Ready, false, canFind: x.Ready));
         LadderTitle = _pickMode == PickMode.Local ? "Pick your fighter for the local bout" : "Pick the first corner";
@@ -1327,7 +1327,7 @@ public sealed partial class BookingViewModel
         var ev = SelectedEvent?.Model;
         // The finder's facts, search, scope and chips; the grid's own headers sort.
         var scope = _scope?.Division;
-        var facts = Facts().Values.Where(x => scope is null || (x.F.WeightClass == scope.WeightClass && x.F.Sex == scope.Sex));
+        var facts = Facts().Values.Where(x => scope is null || InScope(x.F, scope));
         var shown = Filter(facts).OrderBy(x => x.F.Sex).ThenBy(x => x.F.WeightClass).ThenBy(x => x.RankSort).ThenByDescending(x => x.Read).ThenBy(x => x.F.Id.Value);
         foreach (var x in shown)
         {
@@ -1346,7 +1346,7 @@ public sealed partial class BookingViewModel
                 Rank = x.Standing.Label,
                 RankSort = x.RankSort,
                 Name = $"{f.FirstName} {f.LastName}",
-                Division = FighterRow.DivisionLabel(f.WeightClass, f.Sex),
+                Division = FighterRow.DivisionLabel(f),
                 Record = f.Record.ToString(),
                 RecordSort = FighterRow.RecordKey(f.Record),
                 Streak = x.Streak > 0 ? $"W{x.Streak}" : x.Streak < 0 ? $"L{-x.Streak}" : "—",
@@ -1378,10 +1378,10 @@ public sealed partial class BookingViewModel
         var a = _world.Get(new FighterId(ids[0]));
         var b = _world.Get(new FighterId(ids[1]));
         if (a is null || b is null) return;
-        if (a.WeightClass != b.WeightClass || a.Sex != b.Sex) { Err($"{a.LastName} and {b.LastName} aren't in the same division."); return; }
+        if (!SameDivision(a, b)) { Err($"{a.LastName} and {b.LastName} aren't in the same division."); return; }
         OpenPicker(_nextSlot);
         PickMode = PickMode.Division;
-        SelectedDivision = Divisions.FirstOrDefault(d => d.WeightClass == a.WeightClass && d.Sex == a.Sex);
+        SelectedDivision = Divisions.FirstOrDefault(d => d == DivisionOf(a));
         // The better-placed fighter takes the red corner, as the matchmaker bills it.
         var first = _advisor.ByStanding(_world, new[] { a, b }).First();
         var second = first == a ? b : a;

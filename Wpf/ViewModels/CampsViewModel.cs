@@ -117,7 +117,7 @@ public sealed class CampsViewModel : ObservableObject
         {
             string org = f.Contract is { } c ? _world.Get(c.Promotion)?.Abbreviation ?? "FA" : "FA";
             string stipend = f.CampStipend ? " · stipend" : "";
-            Members.Add($"{f.FullName}   ·   {f.Record}   ·   {FighterRow.Pretty(f.WeightClass.ToString())}   ·   {org}{stipend}");
+            Members.Add($"{f.FullName}   ·   {f.Record}   ·   {FighterRow.DivisionLabel(f)}   ·   {org}{stipend}");
         }
     }
 

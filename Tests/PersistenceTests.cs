@@ -81,8 +81,31 @@ public class PersistenceTests
                 Key = "first-tv-deal", FiredOn = world.CurrentDate.AddDays(-20),
                 Promotion = world.Promotions.Keys.First(), Fighter = world.Fighters.Keys.Skip(6).First(),
                 Note = "Lightweight",
+                Variant = ChapterVariant.Rival, City = world.Cities.Keys.First(), Partner = "Nocturne Cable",
             });
             world.Era.Unlocked.Add(Capability.Class(WeightClass.Lightweight).Id);
+            // The Backlash (Origins phase 2): a region closed then licensed, and a whole country closed.
+            world.Era.Bans.Add(new SceneBan
+            {
+                Country = "USA", Area = 2, Since = world.CurrentDate.AddDays(-300), Until = world.CurrentDate.AddDays(400),
+                LiftedOn = world.CurrentDate.AddDays(-10),
+            });
+            world.Era.Bans.Add(new SceneBan { Country = "BRA", Since = world.CurrentDate.AddDays(-30), Until = world.CurrentDate.AddDays(60) });
+            world.Era.Sanctions.Add(new Sanction { Country = "USA", Area = 2, On = world.CurrentDate.AddDays(-10), Promotion = world.Promotions.Keys.First() });
+            world.Era.Sanctions.Add(new Sanction { Country = "JPN", On = world.CurrentDate.AddDays(-5) });
+            // A fought bracket (Origins): a slot with every field set, on a completed card with a bout in it.
+            var bracketNight = world.Events.Values.Where(e => e.Status == EventStatus.Completed && e.Card.Count > 0)
+                .OrderBy(e => e.Id.Value).First();
+            var bout = bracketNight.Card[0];
+            bracketNight.BracketAlternate = world.Fighters.Keys.Skip(7).First();
+            bracketNight.Bracket.Add(new BracketSlot
+            {
+                Round = 2, Slot = 1, Red = bout.RedCorner, Blue = bout.BlueCorner, Fight = bout.Id,
+                Advanced = bout.RedCorner, How = BracketHow.AlternateForWithdrawal, Withdrew = bout.BlueCorner,
+            });
+            bout.BracketRound = 2;
+            // A banded division (an Origins weight split): the light division runs from flyweight up.
+            world.Promotions.Values.OrderBy(p => p.Id.Value).First().Divisions[0].Lightest = WeightClass.Flyweight;
 
             // Origins fight rules on two promotions: one with every flag at its non-default value, one
             // with judges and every legal strike on (so each column holds a non-zero value somewhere).

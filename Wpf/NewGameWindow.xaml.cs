@@ -77,7 +77,32 @@ public partial class NewGameWindow : Window
             TakeoverBox.Items.Add(new TakeoverRow(spec, i));
         TakeoverBox.SelectedIndex = 0;
 
+        foreach (var house in OriginsStart.Houses) HouseBox.Items.Add(house);
+        HouseBox.SelectedIndex = 0;
+
         SeedBox.Text = Random.Shared.Next(1, 1_000_000).ToString();
+    }
+
+    /// <summary>Origins takes the window's room: the other two starts fold away while it is chosen.</summary>
+    private void OnModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (OriginsPanel is null || FoundPanel is null || TakeoverPanel is null) return;
+        bool origins = OriginsMode.IsChecked == true;
+        OriginsPanel.Visibility = origins ? Visibility.Visible : Visibility.Collapsed;
+        FoundPanel.Visibility = origins ? Visibility.Collapsed : Visibility.Visible;
+        TakeoverPanel.Visibility = origins ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnHouseChanged(object sender, RoutedEventArgs e)
+    {
+        if (HouseDetail is not null) HouseDetail.DataContext = HouseBox.SelectedItem;
+    }
+
+    /// <summary>Harness hook: show the Origins choice with one house picked.</summary>
+    internal void ChooseOrigins(int house)
+    {
+        OriginsMode.IsChecked = true;
+        HouseBox.SelectedIndex = Math.Clamp(house, 0, HouseBox.Items.Count - 1);
     }
 
     private void OnScaleChanged(object sender, RoutedEventArgs e)
@@ -136,6 +161,12 @@ public partial class NewGameWindow : Window
             };
             Summary = $"You founded {name} — {new Money(scale.Balance)} in the bank, an empty gym, and "
                       + $"{city ?? FighterRow.Pretty(region.ToString())} as home turf. Hire your fighters, book loud, climb.";
+        }
+        else if (OriginsMode.IsChecked == true)
+        {
+            var house = (OriginsHouseCard)(HouseBox.SelectedItem ?? HouseBox.Items[0]);
+            Result = WorldBuilder.Options.Origins(seed, house.Index);
+            Summary = OriginsStart.SummaryFor(house.Spec);
         }
         else
         {

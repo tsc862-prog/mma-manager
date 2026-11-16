@@ -96,7 +96,7 @@ internal sealed partial class Bout
         _ss = new SimRandom(SimRandom.Mix(subSeed, 0x5709_9A6E_0003UL));
         _rules = p.Rules ?? FightRules.Modern;
         _custom = !_rules.IsModern || p.RedStart is not null || p.BlueStart is not null;
-        _size = _custom && _rules.OpenWeight;
+        _size = _custom && (_rules.OpenWeight || p.BandedSizeTerm);
         _rounds = Math.Max(1, _rules.Rounds ?? p.ScheduledRounds);
         RoundSeconds = !_custom ? Math.Clamp(p.RoundSeconds, 60, 600)
                      : Math.Clamp(_rules.RoundMinutes is int m ? m * 60 : p.RoundSeconds, 60, MaxRoundSeconds);

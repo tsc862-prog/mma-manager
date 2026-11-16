@@ -2433,5 +2433,183 @@
             </Style.Triggers>
         </Style>
 
+        <!-- ===================== ORIGINS: the 1993 houses and the bracket ===================== -->
+        <!-- A house rule in plain words: a small accent bullet and wrapped text. -->
+        <DataTemplate x:Key="RuleLineTemplate">
+            <DockPanel Margin="0,0,0,5">
+                <Ellipse DockPanel.Dock="Left" Width="5" Height="5" Fill="{DynamicResource OrgAccent}" VerticalAlignment="Top" Margin="0,7,9,0" />
+                <TextBlock Text="{Binding}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" />
+            </DockPanel>
+        </DataTemplate>
+        <!-- The seed number on a field card or a bracket line. -->
+        <Style x:Key="SeedBadge" TargetType="Border">
+            <Setter Property="MinWidth" Value="26" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PanelEdge}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style x:Key="SeedBadge.Text" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+        </Style>
+        <!-- One man in a tournament field (FieldEntry): face, seed, what he is, why he's in or out. -->
+        <DataTemplate x:Key="FieldEntryTemplate">
+            <Button Style="{StaticResource CardButton}" Width="292" Height="96" Margin="0,0,10,10"
+                    Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Id}" ToolTip="Open the profile">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="72" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border CornerRadius="8,0,0,8" ClipToBounds="True" Background="{StaticResource SurfaceSunken}">
+                        <Image Source="{Binding Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                    <Border x:Name="seed" Style="{StaticResource SeedBadge}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4" Background="#E6161A1F">
+                        <TextBlock Text="{Binding Seed}" Style="{StaticResource SeedBadge.Text}" Foreground="{StaticResource Gold}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,7,8,6">
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Heading}" FontSize="14" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding Craft, Mode=OneWay}" Foreground="{StaticResource TextSoft}" /><Run Text="  ·  " /><Run Text="{Binding Size, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource Text.Caption}">
+                            <Run Text="{Binding Record, Mode=OneWay}" /><Run Text="  ·  scouts: " /><Run Text="{Binding Read, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock x:Name="note" Text="{Binding Note}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" Margin="0,2,0,0" ToolTip="{Binding Note}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Seed}" Value=""><Setter TargetName="seed" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasNote}" Value="False"><Setter TargetName="note" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <!-- One corner of a bracket bout (BracketCorner): seed, face, name; the winner bright, the loser dimmed. -->
+        <DataTemplate x:Key="BracketCornerTemplate">
+            <Button x:Name="row" Style="{StaticResource Button.Link}" HorizontalContentAlignment="Stretch" Padding="0"
+                    Command="{x:Static mvvm:AppCommands.OpenFighter}" CommandParameter="{Binding Id}" ToolTip="Open the profile">
+                <DockPanel Margin="0,2">
+                    <Border DockPanel.Dock="Left" Style="{StaticResource SeedBadge}" Height="20" MinWidth="22" Margin="0,0,7,0">
+                        <TextBlock Text="{Binding Seed}" Style="{StaticResource SeedBadge.Text}" FontSize="10.5" />
+                    </Border>
+                    <Border DockPanel.Dock="Left" Width="26" Height="26" CornerRadius="13" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" Margin="0,0,8,0">
+                        <Image Source="{Binding Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" />
+                    </Border>
+                    <TextBlock x:Name="tag" DockPanel.Dock="Right" Text="{Binding Tag}" FontSize="10.5" Foreground="{StaticResource ToneWarn}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    <TextBlock x:Name="name" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12.5" Foreground="{StaticResource TextMuted}" />
+                </DockPanel>
+            </Button>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Won}" Value="True">
+                    <Setter TargetName="name" Property="Foreground" Value="{StaticResource TextPrimary}" />
+                    <Setter TargetName="name" Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasTag}" Value="False"><Setter TargetName="tag" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <!-- an empty slot: nobody to open -->
+                <DataTrigger Binding="{Binding Id}" Value="0">
+                    <Setter TargetName="row" Property="IsHitTestVisible" Value="False" />
+                    <Setter TargetName="name" Property="FontStyle" Value="Italic" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <!-- A bracket bout: two corners, how it ended, and who went through when it wasn't simply the winner. -->
+        <DataTemplate x:Key="BracketBoutTemplate">
+            <Border Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                    CornerRadius="{StaticResource Radius.Card}" Padding="9,6" Margin="0,6" VerticalAlignment="Center">
+                <StackPanel>
+                    <ContentPresenter Content="{Binding Red}" ContentTemplate="{StaticResource BracketCornerTemplate}" />
+                    <ContentPresenter Content="{Binding Blue}" ContentTemplate="{StaticResource BracketCornerTemplate}" />
+                    <TextBlock Text="{Binding How}" Style="{StaticResource Text.Caption}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Aside}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneWarn}" TextWrapping="Wrap"
+                               Visibility="{Binding HasAside, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <!-- A chapter of the sport's story (ChapterCard): who it was about, the headline the world read, the
+             telling, and what it opened. The Briefing and The Story So Far both use it. A chapter the player's
+             house wrote is edged in its accent. -->
+        <Style x:Key="ChapterCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardFill}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PanelEdge}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsYours}" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource OrgAccent}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="ChapterCardTemplate">
+            <Border Style="{StaticResource ChapterCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="pic" Width="72" Height="72" CornerRadius="8" ClipToBounds="True" VerticalAlignment="Top" Margin="0,2,14,0"
+                            Background="{StaticResource SurfaceSunken}">
+                        <Image x:Name="img" Source="{Binding Picture}" Stretch="UniformToFill" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                    <StackPanel Grid.Column="1">
+                        <DockPanel>
+                            <TextBlock x:Name="yours" DockPanel.Dock="Right" Text="{Binding YoursText}" Style="{StaticResource Text.Kicker}" FontSize="10.5"
+                                       Foreground="{DynamicResource OrgAccent}" Margin="10,0,0,0" />
+                            <TextBlock Style="{StaticResource Text.Kicker}" FontSize="10.5" Foreground="{StaticResource Gold}" TextTrimming="CharacterEllipsis">
+                                <Run Text="{Binding When, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Title, Mode=OneWay}" />
+                            </TextBlock>
+                        </DockPanel>
+                        <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.Heading}" FontSize="16" TextWrapping="Wrap" Margin="0,3,0,0" />
+                        <TextBlock Text="{Binding Body}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" LineHeight="19" Margin="0,4,0,0" />
+                        <TextBlock x:Name="who" Text="{Binding Who}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource TextSoft}" Margin="0,6,0,0" />
+                        <TextBlock x:Name="opened" Text="{Binding Opened}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        <TextBlock x:Name="note" Text="{Binding Note}" Style="{StaticResource Text.Caption}" FontStyle="Italic" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasPicture}" Value="False"><Setter TargetName="pic" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding PictureIsLogo}" Value="True"><Setter TargetName="img" Property="Stretch" Value="Uniform" /><Setter TargetName="img" Property="Margin" Value="6" /></DataTrigger>
+                <DataTrigger Binding="{Binding IsYours}" Value="False"><Setter TargetName="yours" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasWho}" Value="False"><Setter TargetName="who" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasOpened}" Value="False"><Setter TargetName="opened" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasNote}" Value="False"><Setter TargetName="note" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <!-- A reform of the house rules (ReformCard, HQ): what it does and buys, and Adopt (it asks first), or
+             why not yet. The Adopt button runs the ItemsControl's DataContext.AdoptReformCommand. -->
+        <DataTemplate x:Key="ReformCardTemplate">
+            <Border x:Name="card" Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                    CornerRadius="{StaticResource Radius.Card}" Padding="12,10" Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock x:Name="kicker" Text="{Binding Kicker}" Style="{StaticResource Text.Kicker}" FontSize="10.5" Foreground="{StaticResource TextMuted}" />
+                    <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Heading}" FontSize="14.5" Margin="0,2,0,0" />
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                    <ItemsControl x:Name="buys" ItemsSource="{Binding Buys}" ItemTemplate="{StaticResource RuleLineTemplate}" Focusable="False" Margin="0,6,0,0" />
+                    <TextBlock x:Name="why" Text="{Binding Refusal}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneWarn}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    <Button x:Name="adopt" Content="Adopt it…" Style="{StaticResource Button.Soft}" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="14,5" FontSize="12.5"
+                            Command="{Binding DataContext.AdoptReformCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding Chapter}" ToolTip="Asks first: a reform can't be undone" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding CanAdopt}" Value="True">
+                    <Setter TargetName="card" Property="BorderBrush" Value="{DynamicResource OrgAccent}" />
+                    <Setter TargetName="kicker" Property="Foreground" Value="{StaticResource ToneGood}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CanAdopt}" Value="False"><Setter TargetName="adopt" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasRefusal}" Value="False"><Setter TargetName="why" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasBuys}" Value="False"><Setter TargetName="buys" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
     </Application.Resources>
 </Application>

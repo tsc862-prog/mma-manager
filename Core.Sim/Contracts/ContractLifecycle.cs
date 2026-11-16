@@ -271,7 +271,7 @@ public static class ContractLifecycle
             else
             {
                 var exp = Valuation.Evaluate(world, f);
-                int distress = Org.Solvency.Distress(promo);
+                int distress = Org.Solvency.Distress(promo, world);
                 if (distress > 0 && exp.AskingPurse.Amount >
                     Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
                 {

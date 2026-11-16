@@ -15,7 +15,7 @@ public sealed class GlobalRankRow
         RankSort = rank == 0 ? int.MaxValue : rank;
         Name = f.FullName;
         Org = f.Contract is { } c ? (w.Get(c.Promotion)?.Abbreviation ?? "—") : "Free agent";
-        Division = FighterRow.DivisionLabel(f.WeightClass, f.Sex);
+        Division = FighterRow.DivisionLabel(f);
         Ovr = FighterRow.Scouted(w, f);
         Record = f.Record.ToString();
         RecordSort = FighterRow.RecordKey(f.Record);
@@ -52,9 +52,24 @@ public sealed class WorldRankingsViewModel : ObservableObject
         set { if (Set(ref _selectedDivision, value)) RefreshDivision(); }
     }
 
+    /// <summary>The sport has weight classes to rank (always, today; not in 1993).</summary>
+    public bool HasDivisions { get; private set; } = true;
+    public string NoDivisionsLine => "Every man in the sport fights at open weight, so the pound-for-pound list is the only ranking there is. "
+        + "When the sport splits into weight classes, their rankings appear here.";
+
     public void Attach(World world)
     {
         _world = world;
+        // Only the classes the sport has split out (every one, today).
+        var classes = Enum.GetValues<WeightClass>().Where(w => FighterRow.ClassExists(w, Sex.Male)).ToList();
+        if (!classes.SequenceEqual(Divisions))
+        {
+            Divisions.Clear();
+            foreach (var c in classes) Divisions.Add(c);
+            if (!classes.Contains(_selectedDivision) && classes.Count > 0) { _selectedDivision = classes[0]; OnPropertyChanged(nameof(SelectedDivision)); }
+        }
+        HasDivisions = classes.Count > 0;
+        OnPropertyChanged(nameof(HasDivisions));
         PoundForPound.Clear();
         int rank = 1;
         foreach (var id in world.PoundForPound)
@@ -65,7 +80,7 @@ public sealed class WorldRankingsViewModel : ObservableObject
     private void RefreshDivision()
     {
         Division.Clear();
-        if (_world is null || !_world.GlobalRankings.TryGetValue(SelectedDivision, out var ids)) return;
+        if (_world is null || !HasDivisions || !_world.GlobalRankings.TryGetValue(SelectedDivision, out var ids)) return;
         int rank = 1;
         foreach (var id in ids)
             if (_world.Get(id) is { } f) Division.Add(new GlobalRankRow(rank++, f, _world));

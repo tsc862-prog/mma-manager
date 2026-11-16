@@ -191,7 +191,7 @@ public sealed class FighterRow
 
     public string Name => _f.FullName;
     public int Age => _f.AgeOn(_w.CurrentDate);
-    public string Division => DivisionLabel(_f.WeightClass, _f.Sex);
+    public string Division => DivisionLabel(_f);
     public string Style => Pretty(_f.PrimaryStyle.ToString());
     public int Ovr => Scouted(_w, _f);
     public string Record => _f.Record.ToString();
@@ -628,9 +628,105 @@ public sealed class FighterRow
         return sb.ToString();
     }
 
-    /// <summary>A weight class labelled with sex — men's is the bare name, women's is prefixed.</summary>
+    /// <summary>A weight class labelled with sex — men's is the bare name, women's is prefixed.
+    /// In a world whose sport has not split this class out yet (Origins) it is "Open weight".</summary>
     public static string DivisionLabel(WeightClass wc, Sex sex) =>
+        !ClassExists(wc, sex) ? OpenLabel
+        : sex == Sex.Female ? $"Women's {Pretty(wc.ToString())}" : Pretty(wc.ToString());
+
+    /// <summary>
+    /// A fighter's division line: his class; in an open-weight sport his size ("92 kg · open weight"); after
+    /// a weight split, the band his house fights him in ("Middleweight · 72 kg" for a light man in the light band).
+    /// </summary>
+    public static string DivisionLabel(Fighter f)
+    {
+        // His own house first: at an open-weight house every man is open weight, whatever another house has
+        // split; at a banded house he is in its band. Only then the sport's classes. (Today: never a house rule.)
+        if (HouseDivision(f) is { } own)
+            return own.Open ? $"{Kilos(f)} kg · open weight"
+                : own.Lightest is not null && own.WeightClass != f.WeightClass ? $"{ClassName(own.WeightClass, own.Sex)} · {Kilos(f)} kg"
+                : ClassName(own.WeightClass, own.Sex);
+        if (ClassExists(f.WeightClass, f.Sex)) return DivisionLabel(f.WeightClass, f.Sex);
+        // A free agent whose class nobody fights: the sport is still open weight, or he waits for a line.
+        return Enum.GetValues<WeightClass>().Any(c => ClassExists(c, f.Sex)) ? $"{Kilos(f)} kg" : $"{Kilos(f)} kg · open weight";
+    }
+
+    /// <summary>
+    /// The Origins division his own house fights him in when the era makes it matter: its open division, or the
+    /// weight band he falls in. Null in today's mode, for a free agent, or at a house of single classes.
+    /// </summary>
+    public static Division? HouseDivision(Fighter f)
+    {
+        if (EraWorld is not { Mode: WorldMode.Origins } w || f.Contract?.Promotion is not { } pid || w.Get(pid) is not { } house) return null;
+        return house.Divisions.FirstOrDefault(d => d.Open && d.Sex == f.Sex)
+               ?? house.Divisions.FirstOrDefault(d => !d.Open && d.Lightest is not null && d.Matches(f));
+    }
+
+    /// <summary>A bout's division: "Open weight" for an open-weight bout (never its filing class).</summary>
+    public static string DivisionLabel(Fight fight, Sex sex) => fight.OpenWeight ? OpenLabel : DivisionLabel(fight.WeightClass, sex);
+
+    /// <summary>
+    /// A division's label: "Open weight" for the open division; a weight BAND (an Origins house after its split)
+    /// with the weights it takes ("Middleweight · up to 185 lb", "Heavyweight · over 185 lb").
+    /// </summary>
+    public static string DivisionLabel(Division d) =>
+        d.Open ? OpenLabel
+        : d.Lightest is { } lo ? $"{ClassName(d.WeightClass, d.Sex)} · {BandRange(lo, d.WeightClass)}"
+        : ClassName(d.WeightClass, d.Sex);
+
+    /// <summary>The weights a band takes, in pounds: "up to 185 lb", "over 185 lb", "156 to 185 lb".</summary>
+    public static string BandRange(WeightClass lightest, WeightClass heaviest) =>
+        lightest == WeightClass.Strawweight ? $"up to {WeightClasses.LimitLbs(heaviest)} lb"
+        : heaviest == WeightClass.Heavyweight ? $"over {WeightClasses.LimitLbs(lightest - 1)} lb"
+        : $"{WeightClasses.LimitLbs(lightest - 1) + 1} to {WeightClasses.LimitLbs(heaviest)} lb";
+
+    /// <summary>A band's weights for a narrow picker: "≤185 lb", "&gt;185 lb", "156–185 lb".</summary>
+    private static string ShortRange(WeightClass lightest, WeightClass heaviest) =>
+        lightest == WeightClass.Strawweight ? $"≤{WeightClasses.LimitLbs(heaviest)} lb"
+        : heaviest == WeightClass.Heavyweight ? $">{WeightClasses.LimitLbs(lightest - 1)} lb"
+        : $"{WeightClasses.LimitLbs(lightest - 1) + 1}–{WeightClasses.LimitLbs(heaviest)} lb";
+
+    /// <summary>A class's bare name with the sex ("Middleweight", "Women's Flyweight"), no era check.</summary>
+    private static string ClassName(WeightClass wc, Sex sex) =>
         sex == Sex.Female ? $"Women's {Pretty(wc.ToString())}" : Pretty(wc.ToString());
+
+    /// <summary>
+    /// A picker's label for a division (weight + sex) at one house (default: the player's): that house's band
+    /// when it has one there, so the light band of 1997 reads "Middleweight (≤185 lb)", and that house's open
+    /// division reads "Open weight". Never another house's range.
+    /// </summary>
+    public static string PickLabel(WeightClass wc, Sex sex, PromotionId? house = null)
+    {
+        if (EraWorld is { Mode: WorldMode.Origins } w && w.Get(house ?? w.PlayerPromotion) is { } h)
+        {
+            if (h.Divisions.FirstOrDefault(d => !d.Open && d.WeightClass == wc && d.Sex == sex) is { Lightest: { } lo } band)
+                return $"{ClassName(band.WeightClass, band.Sex)} ({ShortRange(lo, band.WeightClass)})";
+            if (wc == MmaManager.Core.Model.Division.OpenClass && h.Divisions.Any(d => d.Open && d.Sex == sex)) return OpenLabel;
+        }
+        return DivisionLabel(wc, sex);
+    }
+
+    public const string OpenLabel = "Open weight";
+
+    /// <summary>A man's natural weight in kilograms.</summary>
+    public static int Kilos(Fighter f) => (int)Math.Round(f.NaturalWeightLbs / 2.2046);
+
+    /// <summary>
+    /// The world the labels are read in (set whenever a world attaches). Only its era is read: has the sport
+    /// split this class out yet? Always yes in today's mode, so today's labels never change.
+    /// </summary>
+    public static World? EraWorld { get; set; }
+
+    /// <summary>
+    /// Does any house fight at this class (always, in today's mode)? The sim's <see cref="MmaManager.Core.Sim.Living.Era.ClassFought"/>:
+    /// the era has it, or a live house has drawn the line (before its first champion unlocks it for the sport).
+    /// </summary>
+    public static bool ClassExists(WeightClass wc, Sex sex) =>
+        EraWorld is not { Mode: WorldMode.Origins } w || MmaManager.Core.Sim.Living.Era.ClassFought(w, wc, sex);
+
+    /// <summary>A title's division label (the open belt reads "Open weight", whatever class it is filed under).</summary>
+    public static string TitleDivision(World w, Title t, Sex sex = Sex.Male) =>
+        w.Get(t.Promotion)?.Divisions.FirstOrDefault(d => d.Title == t.Id) is { } d ? DivisionLabel(d) : DivisionLabel(t.WeightClass, sex);
 
     /// <summary>
     /// Sort key for a "12-3" record column (grids sort the display string
@@ -642,7 +738,12 @@ public sealed class FighterRow
 /// <summary>A division choice (weight + sex) for the booking and rankings pickers.</summary>
 public sealed record DivisionPick(WeightClass WeightClass, Sex Sex)
 {
-    public string Label => FighterRow.DivisionLabel(WeightClass, Sex);
+    /// <summary>The house whose divisions label this pick (the Rankings' viewed promotion); null = the player's.
+    /// Not part of equality: the same weight and sex is the same pick at any house.</summary>
+    public PromotionId? House { get; init; }
+    public string Label => FighterRow.PickLabel(WeightClass, Sex, House);
+    public bool Equals(DivisionPick? other) => other is not null && other.WeightClass == WeightClass && other.Sex == Sex;
+    public override int GetHashCode() => HashCode.Combine(WeightClass, Sex);
     public override string ToString() => Label;
 }
 

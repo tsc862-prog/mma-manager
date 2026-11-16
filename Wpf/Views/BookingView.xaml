@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
              xmlns:controls="clr-namespace:MmaManager.Wpf.Controls"
+             xmlns:local="clr-namespace:MmaManager.Wpf.Views"
              controls:Adaptive.CompactBelowHeight="760"
              controls:Adaptive.NarrowBelowWidth="1420">
     <!-- THE CARD DESK. The fight card is the screen: the main event large with
@@ -495,6 +496,10 @@
         </DataTemplate>
     </UserControl.Resources>
 
+    <!-- A one-night-tournament house (Origins) has no card to build: the Bracket Desk stands in for the Card Desk. -->
+    <Grid>
+    <local:TournamentDeskView DataContext="{Binding Tournament}" Visibility="{Binding Applies, Converter={StaticResource BoolToVis}}" />
+    <Grid Visibility="{Binding Tournament.Applies, Converter={StaticResource InverseBoolToVis}}">
     <Grid x:Name="Root" DataContext="{Binding Booking}" Background="{StaticResource Bg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -1136,6 +1141,12 @@
                                     </ItemsControl>
                                 </StackPanel>
 
+                                <!-- the house rules every bout tonight is fought under (an Origins house; none today) -->
+                                <StackPanel Visibility="{Binding HasHouseRules, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="The house rules" Style="{StaticResource Text.Heading}" Margin="0,16,0,6" />
+                                    <ItemsControl ItemsSource="{Binding HouseRuleLines}" ItemTemplate="{StaticResource RuleLineTemplate}" Focusable="False" />
+                                </StackPanel>
+
                                 <!-- the partners -->
                                 <TextBlock Text="What partners want from this card" Style="{StaticResource Text.Heading}" Margin="0,16,0,2" />
                                 <TextBlock Text="{Binding PartnersSummary}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
@@ -1562,5 +1573,7 @@
                 </DockPanel>
             </Border>
         </Grid>
+    </Grid>
+    </Grid>
     </Grid>
 </UserControl>

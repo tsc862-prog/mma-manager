@@ -15,7 +15,7 @@ public sealed class FreeAgentRow
     {
         Id = f.Id;
         Name = f.FullName;
-        Division = FighterRow.DivisionLabel(f.WeightClass, f.Sex);
+        Division = FighterRow.DivisionLabel(f);
         // Men's divisions light→heavy, then women's — so the Division column
         // sorts into the two blocks instead of interleaving them alphabetically.
         DivisionSort = (int)f.Sex * 100 + (int)f.WeightClass;
@@ -61,7 +61,7 @@ public sealed class MyContractRow
     {
         Id = f.Id;
         Name = f.FullName;
-        Division = FighterRow.DivisionLabel(f.WeightClass, f.Sex);
+        Division = FighterRow.DivisionLabel(f);
         Purse = f.Contract?.PursePerFight.ToString() ?? "—";
         PurseSort = f.Contract?.PursePerFight.Amount ?? 0m;
         FightsLeft = f.Contract?.FightsRemaining ?? 0;
@@ -123,10 +123,14 @@ public sealed class ContractsViewModel : ObservableObject
     // --- Free-agent market filters ------------------------------------------
     // Men's divisions, then the women's ones — each its own filter entry, so the
     // two sides of the sport browse separately.
-    public ObservableCollection<string> DivisionFilters { get; } = new(
+    public ObservableCollection<string> DivisionFilters { get; } = new(DivisionFilterLabels());
+
+    // (In an open-weight sport every class reads "Open weight": one entry, and no women's divisions yet.)
+    private static List<string> DivisionFilterLabels() =>
         new[] { "All divisions" }
             .Concat(Enum.GetValues<WeightClass>().Select(w => FighterRow.DivisionLabel(w, Sex.Male)))
-            .Concat(WomensDivisions.Classes.Select(w => FighterRow.DivisionLabel(w, Sex.Female))));
+            .Concat(WomensDivisions.Classes.Where(w => FighterRow.ClassExists(w, Sex.Female)).Select(w => FighterRow.DivisionLabel(w, Sex.Female)))
+            .Distinct().ToList();
 
     private string _faDivision = "All divisions";
     public string FaDivision { get => _faDivision; set { if (Set(ref _faDivision, value)) RefreshFreeAgents(); } }
@@ -221,6 +225,15 @@ public sealed class ContractsViewModel : ObservableObject
     public void Attach(World world)
     {
         _world = world;
+        var filters = DivisionFilterLabels();
+        if (!filters.SequenceEqual(DivisionFilters))
+        {
+            var keep = FaDivision;
+            DivisionFilters.Clear();
+            foreach (var f in filters) DivisionFilters.Add(f);
+            _faDivision = filters.Contains(keep) ? keep : filters[0];
+            OnPropertyChanged(nameof(FaDivision));
+        }
         ClearTarget();
         RefreshLists();
     }
@@ -325,7 +338,7 @@ public sealed class ContractsViewModel : ObservableObject
         HasTarget = true;
         TargetName = f.FullName;
         TargetPortrait = Portraits.For(f, _world);
-        TargetSub = $"Scouted {FighterRow.Scouted(_world, f)} · {FighterRow.DivisionLabel(f.WeightClass, f.Sex)} · {f.Record}"
+        TargetSub = $"Scouted {FighterRow.Scouted(_world, f)} · {FighterRow.DivisionLabel(f)} · {f.Record}"
                     + $" · {FreeAgentRow.HometownOf(f, _world)}"
                     + (own ? $" · {f.Contract?.FightsRemaining ?? 0} fight(s) left" : " · free agent");
         // Quote the number the negotiating room will open at — a small hall's

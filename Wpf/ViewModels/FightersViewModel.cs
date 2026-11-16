@@ -173,7 +173,7 @@ public sealed class FightersViewModel : ObservableObject
         DivisionOptions.Add(new FilterOption { Label = "Every division", Key = AnyDivision });
         foreach (var sex in new[] { Sex.Male, Sex.Female })
             foreach (var wc in Enum.GetValues<WeightClass>())
-                if (world.Fighters.Values.Any(f => f.Sex == sex && f.WeightClass == wc && f.Status != FighterStatus.Retired))
+                if (FighterRow.ClassExists(wc, sex) && world.Fighters.Values.Any(f => f.Sex == sex && f.WeightClass == wc && f.Status != FighterStatus.Retired))
                     DivisionOptions.Add(new FilterOption { Label = FighterRow.DivisionLabel(wc, sex), Key = $"{(int)sex}:{(int)wc}" });
         _division = DivisionOptions[0];
         OnPropertyChanged(nameof(Division));

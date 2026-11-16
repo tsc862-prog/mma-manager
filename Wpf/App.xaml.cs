@@ -1720,6 +1720,47 @@ public partial class App : Application
                         },
                     }, "You founded New Wave Fighting.");
                 }
+                else if (e.Args.Contains("--origins"))
+                {
+                    // An Origins career (1 January 1993): --origins <0 Crucible | 1 Shinken | 2 Duelo>,
+                    // then --weeks N of play (each fight night of yours simmed as it comes, unless
+                    // --holdnight leaves the last one waiting on the fight-night bar).
+                    int house = int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]);
+                    vm.StartWorld(WorldBuilder.Options.Origins(1993, house), OriginsHarness.Summary(house));
+                    // --months N plays N months first (years of the story); --reform adopts every reform HQ
+                    // offers as it opens; --untilchapter N then plays on (at most N weeks) until a chapter fires.
+                    int weeks = e.Args.Contains("--weeks") ? int.Parse(e.Args[Array.IndexOf(e.Args, "--weeks") + 1]) : 0;
+                    int omonths = e.Args.Contains("--months") ? months : 0;
+                    bool reform = e.Args.Contains("--reform") || e.Args.Contains("--rulesonly");
+                    OriginsHarness.RulesOnly = e.Args.Contains("--rulesonly");
+                    OriginsHarness.Play(vm, weeks, hold: e.Args.Contains("--holdnight"), bookNight: e.Args.Contains("--booknight"), months: omonths, reform: reform, busy: e.Args.Contains("--busy"), stopAtBan: e.Args.Contains("--stopatban"));
+                    if (e.Args.Contains("--rankorg"))   // the Rankings app viewing another house (by abbreviation)
+                    {
+                        string abbr = e.Args[Array.IndexOf(e.Args, "--rankorg") + 1];
+                        vm.Desktop.Open("rankings");
+                        vm.SelectedOrg = vm.Organizations.FirstOrDefault(p => p.Abbreviation == abbr) ?? vm.SelectedOrg;
+                        Console.WriteLine($"ORIGINS rankings of {vm.SelectedOrg?.Abbreviation}: picks [{string.Join(" | ", vm.RankingDivisions.Select(p => p.Label))}]; divisions [{string.Join(" | ", vm.SelectedOrg?.Divisions.Select(FighterRow.DivisionLabel) ?? Array.Empty<string>())}]");
+                    }
+                    if (e.Args.Contains("--nochapters"))
+                    {
+                        // The Story's empty-era state (harness only: the world is the harness's own).
+                        vm.LiveWorld!.Era.Chapters.Clear();
+                        vm.Contracts.OnChanged?.Invoke();
+                    }
+                    if (e.Args.Contains("--untilchapter"))
+                        OriginsHarness.UntilChapter(vm, int.Parse(e.Args[Array.IndexOf(e.Args, "--untilchapter") + 1]), reform, e.Args.Contains("--busy"));
+                    if (e.Args.Contains("--replacecheck")) OriginsHarness.ReplaceCheck(vm);   // a band bout's corner changed through the desk
+                    if (e.Args.Contains("--nightin"))   // look at a night N days out on the desk's form
+                        vm.Tournament.Date = vm.LiveWorld!.CurrentDate.AddDays(int.Parse(e.Args[Array.IndexOf(e.Args, "--nightin") + 1])).ToDateTime(TimeOnly.MinValue);
+                    if (e.Args.Contains("--nightin")) vm.Tournament.ShowNextNight = true;
+                    if (e.Args.Contains("--bracketcase"))
+                    {
+                        // A planted hard-case bracket (walkovers, withdrawals, the alternate, overtime), shown on the desk.
+                        var night = OriginsHarness.PlantBracket(vm.LiveWorld!, e.Args[Array.IndexOf(e.Args, "--bracketcase") + 1]);
+                        vm.Contracts.OnChanged?.Invoke();
+                        vm.Tournament.ShowNight(night.Id);
+                    }
+                }
                 else
                     for (int i = 0; i < months; i++) vm.AdvanceMonthCommand.Execute(null);
                 if (e.Args.Contains("--card"))
@@ -1874,6 +1915,12 @@ public partial class App : Application
                     Console.WriteLine($"RENDERAPP fighters index (scouted read for every active fighter) {vm.FightersPage.LastIndexMs} ms, filter {vm.FightersPage.LastFilterMs} ms; {vm.FightersPage.CountLine}");
                 Layout();
                 Console.WriteLine($"RENDERAPP this app alone: rebuild {attach} ms + relayout {clock.ElapsedMilliseconds - attach} ms");
+                if (e.Args.Contains("--rankorg"))   // (a refresh puts the viewed house back to the player's: view the rival again)
+                {
+                    string abbr = e.Args[Array.IndexOf(e.Args, "--rankorg") + 1];
+                    vm.SelectedOrg = vm.Organizations.FirstOrDefault(p => p.Abbreviation == abbr) ?? vm.SelectedOrg;
+                    Layout();
+                }
                 if (e.Args.Contains("--advance"))
                 {
                     // A week of the world going by with this app open (sim tick + every refresh + relayout).
@@ -2173,9 +2220,19 @@ public partial class App : Application
                     foreach (var item in win.TakeoverBox.Items)
                         if (item is NewGameWindow.TakeoverRow r && r.Spec.Abbreviation == abbr) win.TakeoverBox.SelectedItem = item;
                 }
+                if (e.Args.Contains("--origins")) win.ChooseOrigins(int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]));
                 var root = (FrameworkElement)win.Content;
+                // The window sizes to its content: measure it at its width, then draw it at the height it wants.
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    root.Measure(new Size(win.Width, double.PositiveInfinity));
+                    root.Arrange(new Rect(new Size(win.Width, root.DesiredSize.Height))); root.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                }
                 root.Measure(new Size(win.Width, double.PositiveInfinity));
                 int W = (int)win.Width, H = (int)Math.Ceiling(root.DesiredSize.Height);
+                Console.WriteLine($"RENDERNEWGAME window {W}x{H}");
                 var size = new Size(W, H);
                 root.Measure(size); root.Arrange(new Rect(size)); root.UpdateLayout();
                 System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(

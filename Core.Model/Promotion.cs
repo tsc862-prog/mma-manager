@@ -268,8 +268,18 @@ public sealed class Division
     /// <summary>The nominal class an open division (and an open-weight bout) is filed under.</summary>
     public const WeightClass OpenClass = WeightClass.Heavyweight;
 
-    /// <summary>This fighter belongs in this division (same weight AND same sex; any weight in an open division).</summary>
-    public bool Matches(Fighter f) => (Open || f.WeightClass == WeightClass) && f.Sex == Sex;
+    /// <summary>
+    /// A BANDED division (Origins, after the first weight split): every natural class from this one up to
+    /// <see cref="WeightClass"/> belongs ("heavy and light": the light division is filed as middleweight and
+    /// takes every man at or under it). Null = a single class, as in today's mode. Never set in today's mode.
+    /// </summary>
+    public WeightClass? Lightest { get; set; }
+
+    /// <summary>This fighter belongs in this division (same weight AND same sex; any weight in an open division; any class in its band).</summary>
+    public bool Matches(Fighter f) =>
+        (Open || f.WeightClass == WeightClass
+         || (Lightest is { } lo && f.WeightClass >= lo && f.WeightClass <= WeightClass))
+        && f.Sex == Sex;
 }
 
 /// <summary>The weight classes contested in women's MMA (the lighter divisions).</summary>

@@ -160,6 +160,26 @@ public sealed class DesktopViewModel : ObservableObject
     /// window state, not the game, so screens must be pointed home explicitly.</summary>
     public object? ScreenContext { get; set; }
 
+    // The Story So Far: an Origins world's history. Installed only while one is loaded, so today's
+    // desktop never shows it.
+    private readonly AppSpec _story = new()
+    {
+        Id = "story", Title = "The Story So Far", Glyph = "📜", Accent = "#D9B26F", IsWorld = true,
+        Create = () => new Views.StoryView(), W = 1240, H = 800,
+    };
+
+    /// <summary>Install or remove the Story So Far app (and close it when a modern world loads).</summary>
+    public void ShowStoryApp(bool show)
+    {
+        bool has = WorldApps.Contains(_story);
+        if (show && !has) WorldApps.Insert(0, _story);
+        else if (!show && has)
+        {
+            WorldApps.Remove(_story);
+            if (Windows.FirstOrDefault(w => w.Spec.Id == "story") is { } open) Close(open);
+        }
+    }
+
     /// <summary>Launcher sections: your promotion's apps, then the world-research ones.</summary>
     public ObservableCollection<AppSpec> PromotionApps { get; } = new();
     public ObservableCollection<AppSpec> WorldApps { get; } = new();

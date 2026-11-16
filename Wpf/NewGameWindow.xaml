@@ -7,11 +7,11 @@
     <Border x:Name="Root" Background="{StaticResource Bg}" Padding="22,18">
         <StackPanel>
             <TextBlock Text="START A NEW CAREER" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Gold}" />
-            <TextBlock Text="Build a fight promotion from nothing — or take the keys to an established one."
+            <TextBlock Text="Build a fight promotion from nothing, take the keys to an established one, or go back to 1993 and the night the sport began."
                        Foreground="{StaticResource TextSecondary}" Margin="0,4,0,14" />
 
             <!-- ============ Found a new promotion ============ -->
-            <RadioButton x:Name="FoundMode" IsChecked="True" GroupName="Mode" Foreground="{StaticResource TextPrimary}">
+            <RadioButton x:Name="FoundMode" IsChecked="True" GroupName="Mode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged">
                 <StackPanel Margin="4,0,0,0">
                     <TextBlock Text="Found a new promotion" FontWeight="SemiBold" FontSize="14" />
                     <TextBlock Text="Zero to hero: a small bankroll, the fighters nobody signed, and everything to prove."
@@ -19,7 +19,7 @@
                 </StackPanel>
             </RadioButton>
 
-            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+            <Border x:Name="FoundPanel" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
                     CornerRadius="4" Padding="14,10" Margin="22,8,0,14"
                     IsEnabled="{Binding IsChecked, ElementName=FoundMode}">
                 <Grid>
@@ -59,7 +59,7 @@
             </Border>
 
             <!-- ============ Take over an existing promotion ============ -->
-            <RadioButton x:Name="TakeoverMode" GroupName="Mode" Foreground="{StaticResource TextPrimary}">
+            <RadioButton x:Name="TakeoverMode" GroupName="Mode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged">
                 <StackPanel Margin="4,0,0,0">
                     <TextBlock Text="Take over an existing promotion" FontWeight="SemiBold" FontSize="14" />
                     <TextBlock Text="Skip the climb and run one of the world's established organizations."
@@ -67,7 +67,7 @@
                 </StackPanel>
             </RadioButton>
 
-            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+            <Border x:Name="TakeoverPanel" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
                     CornerRadius="4" Padding="6" Margin="22,8,0,14"
                     IsEnabled="{Binding IsChecked, ElementName=TakeoverMode}">
                 <Grid>
@@ -107,6 +107,77 @@
                         </ScrollViewer>
                     </Border>
                 </Grid>
+            </Border>
+
+            <!-- ============ Origins: the birth of the sport ============ -->
+            <RadioButton x:Name="OriginsMode" GroupName="Mode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged" Unchecked="OnModeChanged">
+                <StackPanel Margin="4,0,0,0">
+                    <TextBlock Text="Origins: 1 January 1993" FontWeight="SemiBold" FontSize="14" />
+                    <TextBlock Text="The sport has no name yet. Three tiny promotions on three continents, no weight classes, no television deals, no rulebook anyone agrees on. Run one of them."
+                               Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap" />
+                </StackPanel>
+            </RadioButton>
+
+            <Border x:Name="OriginsPanel" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    CornerRadius="4" Padding="12" Margin="22,8,0,14" Visibility="Collapsed">
+                <StackPanel>
+                    <!-- the three houses -->
+                    <ListBox x:Name="HouseBox" BorderThickness="0" Background="Transparent" SelectionChanged="OnHouseChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="2,4">
+                                    <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="20" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" Margin="0,0,9,0">
+                                        <Image Source="{Binding FounderFace}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Place}" Foreground="{StaticResource TextMuted}" FontSize="11" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- the chosen house: who, where, what they think this is, its rules, its bank -->
+                    <Grid x:Name="HouseDetail" Margin="2,10,2,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <Border Width="150" Height="150" CornerRadius="8" ClipToBounds="True" Background="{StaticResource SurfaceSunken}"
+                                    ToolTip="{Binding FounderBio}" ToolTipService.ShowDuration="60000">
+                                <Image Source="{Binding FounderFace}" Stretch="UniformToFill" />
+                            </Border>
+                            <TextBlock Text="{Binding FounderName}" FontWeight="SemiBold" FontSize="13.5" Margin="0,7,0,0" />
+                            <TextBlock Text="{Binding FounderLine}" Foreground="{StaticResource TextMuted}" FontSize="11" />
+                            <TextBlock Text="{Binding FounderLead}" Foreground="{StaticResource TextSecondary}" FontSize="11.5" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,5,0,0" ToolTip="{Binding FounderBio}" ToolTipService.ShowDuration="60000" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <DockPanel>
+                                <Image DockPanel.Dock="Left" Source="{Binding Logo}" Width="34" Height="34" Margin="0,0,10,0" VerticalAlignment="Top" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+                                    <TextBlock Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap">
+                                        <Run Text="{Binding Place, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Since, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Room, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DockPanel>
+                            <TextBlock Text="{Binding Niche}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" TextWrapping="Wrap" Margin="0,8,0,4" />
+                            <TextBlock Text="{Binding Lore}" Foreground="{StaticResource TextSecondary}" FontSize="12" TextWrapping="Wrap" />
+                            <TextBlock Text="THE HOUSE RULES" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondary}" Margin="0,10,0,4" />
+                            <ItemsControl ItemsSource="{Binding Rules}" ItemTemplate="{StaticResource RuleLineTemplate}" Focusable="False" />
+                            <TextBlock Margin="0,6,0,0" FontSize="12.5">
+                                <Run Text="Opening bank " Foreground="{StaticResource TextSecondary}" /><Run Text="{Binding Bank, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
             </Border>
 
             <!-- ============ Seed + go ============ -->

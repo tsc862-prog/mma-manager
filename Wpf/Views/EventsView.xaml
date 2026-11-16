@@ -110,7 +110,8 @@
                         </Border>
 
                         <!-- The card, bout by bout -->
-                        <ScrollViewer Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding HasBracket, Converter={StaticResource InverseBoolToVis}}">
                             <ItemsControl ItemsSource="{Binding Card}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -216,6 +217,33 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- A one-night tournament (Origins): the night as a bracket, round by round -->
+                        <ScrollViewer Grid.Column="1" Margin="12,0,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding HasBracket, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                                    <Run Text="Champion: " /><Run Text="{Binding BracketChampion, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Gold}" />
+                                </TextBlock>
+                                <ItemsControl ItemsSource="{Binding Bracket.Rounds}" Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Width="236" Margin="0,0,12,0">
+                                                <TextBlock DockPanel.Dock="Top" Text="{Binding Name}" Style="{StaticResource Text.Kicker}" Foreground="{DynamicResource OrgAccent}" />
+                                                <ItemsControl ItemsSource="{Binding Bouts}" ItemTemplate="{StaticResource BracketBoutTemplate}" Focusable="False">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate><UniformGrid Columns="1" /></ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                </ItemsControl>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
                         </ScrollViewer>
                     </Grid>
                 </DockPanel>
