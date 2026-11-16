@@ -151,6 +151,10 @@ public sealed class EventsViewModel : ObservableObject
     private bool _finInRed;
     public bool FinInRed { get => _finInRed; private set => Set(ref _finInRed, value); }
 
+    /// <summary>The partners a scheduled card airs on (exact names; empty for a card already fought).</summary>
+    public IReadOnlyList<string> LiveOn { get; private set; } = Array.Empty<string>();
+    public bool HasLiveOn => LiveOn.Count > 0;
+
     public void Attach(World world)
     {
         _world = world;
@@ -195,6 +199,9 @@ public sealed class EventsViewModel : ObservableObject
             DetailTitle = "";
             DetailSub = "";
             FinLine = "";
+            LiveOn = Array.Empty<string>();
+            OnPropertyChanged(nameof(LiveOn));
+            OnPropertyChanged(nameof(HasLiveOn));
             return;
         }
 
@@ -226,6 +233,12 @@ public sealed class EventsViewModel : ObservableObject
                     : $"Scheduled  ·  {ev.Card.Count} bout{(ev.Card.Count == 1 ? "" : "s")} booked";
         }
         Bracket = BracketBoard.From(_world, ev);
+
+        // Live on: a card still to come airs on the promotion's partners (deals are public — the org page
+        // lists them). A card already fought keeps no record of who aired it, so nothing is claimed for it.
+        LiveOn = ev.Status == EventStatus.Scheduled ? BookingViewModel.AirsOn(_world.Get(ev.Promotion), ev) : new List<string>();
+        OnPropertyChanged(nameof(LiveOn));
+        OnPropertyChanged(nameof(HasLiveOn));
 
         // Billing order: the main event tops the page.
         for (int i = ev.Card.Count - 1; i >= 0; i--)

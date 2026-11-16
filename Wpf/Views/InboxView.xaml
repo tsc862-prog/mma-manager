@@ -114,6 +114,10 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
+                                <DockPanel>
+                                <!-- an offer letter: the partner's mark, as it would sit on the canvas -->
+                                <ContentControl DockPanel.Dock="Left" Style="{StaticResource BrandMark}" Content="{Binding OfferBrand}" Width="104" Height="60"
+                                                VerticalAlignment="Top" Margin="0,2,16,0" Visibility="{Binding HasOfferBrand, Converter={StaticResource BoolToVis}}" />
                                 <StackPanel>
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding DueText}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneWarn}" FontWeight="SemiBold" />
@@ -139,6 +143,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </StackPanel>
+                                </DockPanel>
                             </Border>
 
                             <!-- follow it to who/what it's about -->

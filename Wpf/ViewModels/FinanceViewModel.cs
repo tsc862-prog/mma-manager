@@ -63,11 +63,16 @@ public sealed class SponsorRow
         Strikes = d.Strikes == 0 ? "" : $"⚠ {d.Strikes}/{MmaManager.Core.Sim.Finance.Sponsorships.StrikeLimit}";
     }
     public string Partner { get; }
+    /// <summary>The logo key (DealRowTemplate reads PartnerName / Line on both deal rows).</summary>
+    public string PartnerName => Partner;
+    /// <summary>The second line on a deal row: what they ask for.</summary>
+    public string Line => Terms;
     public string Fee { get; }
     public decimal FeeSort { get; }
     public string Left { get; }
     public string Terms { get; }
     public string Strikes { get; }
+    public bool HasStrikes => Strikes.Length > 0;
 }
 
 /// <summary>An active media rights deal (or the in-house streaming platform's summary row).</summary>
@@ -77,6 +82,8 @@ public sealed class MediaRow
     {
         Kind = MmaManager.Core.Sim.Finance.MediaService.Label(d.Kind);
         Partner = $"{d.Partner} · {MmaManager.Core.Sim.Finance.MediaService.TagOf(d.Partner)}";
+        PartnerName = d.Partner;
+        Tag = MmaManager.Core.Sim.Finance.MediaService.TagOf(d.Partner);
         Fee = d.Kind == MediaKind.PpvCarrier
             ? $"{MmaManager.Core.Sim.Finance.MediaService.PpvShare(promo):P0} of buys"
             : $"{d.RightsFeePerEvent}/ev";
@@ -89,6 +96,8 @@ public sealed class MediaRow
     {
         Kind = "in-house streaming";
         Partner = s.Name;
+        PartnerName = s.Name;
+        Tag = "ours";
         Fee = $"{s.Subscribers:N0} subs";
         FeeSort = s.Subscribers;
         Left = "ours";
@@ -97,11 +106,17 @@ public sealed class MediaRow
     }
     public string Kind { get; }
     public string Partner { get; }
+    /// <summary>The partner's exact name (the logo key); <see cref="Partner"/> adds the tag.</summary>
+    public string PartnerName { get; }
+    public string Tag { get; }
+    /// <summary>The second line on a deal row: the screen and the partner's tag.</summary>
+    public string Line => $"{Kind}  ·  {Tag}";
     public string Fee { get; }
     public decimal FeeSort { get; }
     public string Left { get; }
     public string Terms { get; }
     public string Strikes { get; }
+    public bool HasStrikes => Strikes.Length > 0;
 }
 
 /// <summary>A sponsor or network offer waiting for an answer.</summary>
@@ -121,6 +136,7 @@ public sealed class OfferRow
         Expires = o.ExpiresOn.ToString("d MMM");
     }
     public DealOffer Offer { get; }
+    public bool IsMedia => Offer.Media is not null;
     public string Kind { get; }
     public string Partner { get; }
     public string Fee { get; }
@@ -248,5 +264,14 @@ public sealed class FinanceViewModel : ObservableObject
             Offers.Add(new OfferRow(o));
 
         foreach (var e in Enumerable.Reverse(promo.Ledger).Take(25)) Recent.Add(new TxnRow(e));
+        OnPropertyChanged(nameof(NoSponsors));
+        OnPropertyChanged(nameof(NoOffers));
     }
+
+    public bool NoSponsors => Sponsors.Count == 0;
+
+    private bool _showSponsorTable;
+    /// <summary>Sponsor deals as the dense sortable table instead of logo rows (kept for the session).</summary>
+    public bool ShowSponsorTable { get => _showSponsorTable; set => Set(ref _showSponsorTable, value); }
+    public bool NoOffers => Offers.Count == 0;
 }
