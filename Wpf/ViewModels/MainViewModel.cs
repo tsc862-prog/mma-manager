@@ -114,6 +114,9 @@ public sealed class MainViewModel : ObservableObject
         if (!HeadlessAutoBoot)
             Booking.Confirm = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep the event");
+        if (!HeadlessAutoBoot)
+            Org.Confirm = (heading, body, detail, confirm) =>
+                MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
         Dashboard.Navigate = NavigateTo;                  // home-page shortcuts jump to their screen
         Dashboard.GetWorld = () => _world;                // the desk acts on the live world
         Dashboard.OnDecisionMade = RefreshAll;            // a decision moves loyalty/rankings/money
@@ -216,6 +219,7 @@ public sealed class MainViewModel : ObservableObject
         Briefing.AcceptDecisionCommand = Dashboard.AcceptDecisionCommand;   // OnDecisionMade refreshes everything
         Briefing.DeclineDecisionCommand = Dashboard.DeclineDecisionCommand;
         Briefing.AdvanceWeekCommand = AdvanceWeekCommand;
+        Briefing.OpenStoryCommand = new RelayCommand(() => Desktop.Open("story"));
         if (!HeadlessAutoBoot)
             // One confirm for costly desk answers, on every surface (Home, Inbox, Briefing
             // all run Dashboard.AcceptDecisionCommand).
@@ -517,6 +521,8 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The Monday briefing: why the clock stopped, the fix, what happened, what's next.</summary>
     public BriefingViewModel Briefing { get; } = new();
+    /// <summary>The Story So Far (Origins only).</summary>
+    public StoryViewModel Story { get; } = new();
 
     
 
@@ -744,6 +750,9 @@ public sealed class MainViewModel : ObservableObject
 
     private string _championText = "";
     public string ChampionText { get => _championText; private set => Set(ref _championText, value); }
+
+    private string _championKicker = "CHAMPION";
+    public string ChampionKicker { get => _championKicker; private set => Set(ref _championKicker, value); }
 
     private string _championReign = "";
     public string ChampionReign { get => _championReign; private set => Set(ref _championReign, value); }
@@ -1236,6 +1245,9 @@ public sealed class MainViewModel : ObservableObject
         Notes.Attach(_world);
         OrgsPage.Attach(_world);
         Planner.Attach(_world);
+        // The Story So Far is an Origins app: on the desktop only while an Origins world is loaded.
+        Desktop.ShowStoryApp(_world.Mode == WorldMode.Origins);
+        if (_world.Mode == WorldMode.Origins) Story.Attach(_world);
         if (Desktop.Windows.Any(w => w.Spec.Id == "briefing")) Briefing.Attach(_world);   // (opening it attaches it)
         RefreshDeskNotes(player);
     }
@@ -1277,6 +1289,10 @@ public sealed class MainViewModel : ObservableObject
                     Core.Sim.Geography.Reputation.OrgInRegion(_world, org, region)));
 
         var div = org?.Divisions.FirstOrDefault(d => d.WeightClass == RankingDivision.WeightClass && d.Sex == RankingDivision.Sex);
+        // Which division of THIS house the pick lands on, when the era makes it ambiguous (its open division,
+        // or a weight band after its split): "CHAMPION · OPEN WEIGHT". Today it stays "CHAMPION".
+        ChampionKicker = div is not null && _world.Mode == WorldMode.Origins
+            ? $"CHAMPION  ·  {FighterRow.DivisionLabel(div).ToUpperInvariant()}" : "CHAMPION";
         if (div is null) return;
 
         if (div.Title is { } tid && _world.Get(tid) is { CurrentChampion: { } cid } title && _world.Get(cid) is { } champ)

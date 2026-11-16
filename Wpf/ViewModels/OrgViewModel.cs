@@ -91,7 +91,7 @@ public sealed class ObjectiveRow
 }
 
 /// <summary>The org screen: hire/fire back-office staff and track the owner's objectives.</summary>
-public sealed class OrgViewModel : ObservableObject
+public sealed partial class OrgViewModel : ObservableObject
 {
     private World? _world;
     public Action? OnChanged { get; set; }
@@ -210,7 +210,7 @@ public sealed class OrgViewModel : ObservableObject
     public IReadOnlyList<string> HouseRuleLines { get; private set; } = Array.Empty<string>();
     public bool HasOwnRules => HouseRuleLines.Count > 0;
     public string HouseRulesBlurb => HasOwnRules
-        ? "How your house fights, as it was founded. Every card you book is fought under these rules."
+        ? "How your house fights. Every card you book is fought under these rules."
         : "How your promotion runs its fights. Applies to every card you book from here on.";
     public int[] StandardRoundOptions { get; } = { 2, 3, 5 };
     public int[] TitleRoundOptions { get; } = { 3, 5 };
@@ -325,6 +325,8 @@ public sealed class OrgViewModel : ObservableObject
             .Select(d => new DivisionPick(d.WeightClass, d.Sex)).ToHashSet();
         foreach (var pick in _world.RosterOf(promo.Id)
                      .Where(f => f.Status != FighterStatus.Retired)
+                     // (a man inside a titled weight band, after an Origins split, already has his belt)
+                     .Where(f => !promo.Divisions.Any(d => d.Lightest is not null && d.Title is not null && d.Matches(f)))
                      .Select(f => new DivisionPick(f.WeightClass, f.Sex))
                      .Distinct()
                      .Where(p => !openHouse && !titled.Contains(p))
@@ -345,6 +347,7 @@ public sealed class OrgViewModel : ObservableObject
         OnPropertyChanged(nameof(HouseRuleLines));
         OnPropertyChanged(nameof(HasOwnRules));
         OnPropertyChanged(nameof(HouseRulesBlurb));
+        RefreshReforms(promo);
         if (SelectedBeltless is not { } sel || !BeltlessDivisions.Contains(sel))
             SelectedBeltless = BeltlessDivisions.FirstOrDefault();
 

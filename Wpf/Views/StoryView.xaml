@@ -1,0 +1,76 @@
+<UserControl x:Class="MmaManager.Wpf.Views.StoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls">
+    <!-- THE STORY SO FAR (Origins only): the sport's history as this world has written it. The era the
+         sport is in leads, then the eras before it; every chapter is told as the world heard it, with the
+         face or the house it was about. The right rail is where the sport stands and a vague look ahead.
+         DataContext = MainViewModel (the shell); the screen reads Story. -->
+    <Grid Background="{StaticResource Bg}" DataContext="{Binding Story}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="320" />
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="{StaticResource Space.Screen}" MaxWidth="1120" HorizontalAlignment="Left">
+                <TextBlock Text="The Story So Far" Style="{StaticResource Text.Display}" FontSize="30" />
+                <TextBlock Text="{Binding TallyLine}" Style="{StaticResource Text.Secondary}" Margin="0,4,0,14" />
+                <ItemsControl ItemsSource="{Binding Eras}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,18">
+                                <DockPanel Margin="0,0,0,10">
+                                    <Border x:Name="now" DockPanel.Dock="Left" Background="{DynamicResource OrgAccentDim}" CornerRadius="{StaticResource Radius.Pill}"
+                                            Padding="8,2" Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding NowText}" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" />
+                                    </Border>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Span}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Heading}" FontSize="19" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <ItemsControl ItemsSource="{Binding Chapters}" ItemTemplate="{StaticResource ChapterCardTemplate}" Focusable="False" />
+                                <TextBlock x:Name="empty" Text="Nothing yet in this era that the history books will keep."
+                                           Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextMuted}" Visibility="Collapsed" />
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsCurrent}" Value="False"><Setter TargetName="now" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                <DataTrigger Binding="{Binding Chapters.Count}" Value="0"><Setter TargetName="empty" Property="Visibility" Value="Visible" /></DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Where the sport stands, and what is coming (never a date: no spoilers). -->
+        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                      Background="{StaticResource SurfaceSunken}">
+            <StackPanel Margin="16">
+                <TextBlock Text="{Binding EraNumberText}" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" />
+                <TextBlock Text="{Binding EraName}" Style="{StaticResource Text.Display}" FontSize="28" TextWrapping="Wrap" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding YearLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,4,0,18" />
+
+                <controls:SectionHeader Title="What's coming" />
+                <TextBlock Text="The sport doesn't keep a calendar. These are the stories gathering; who writes them, and when, is still open."
+                           Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                <ItemsControl ItemsSource="{Binding Coming}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                                    CornerRadius="{StaticResource Radius.Card}" Padding="12,9" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource Text.Kicker}" FontSize="10.5" Foreground="{StaticResource TextMuted}">
+                                        <Run Text="{Binding When, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding EraName, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Heading}" FontSize="14" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Nothing is gathering yet." Style="{StaticResource Text.Secondary}"
+                           Visibility="{Binding HasComing, Converter={StaticResource InverseBoolToVis}}" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

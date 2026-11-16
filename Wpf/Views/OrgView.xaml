@@ -192,6 +192,23 @@
                                    FontSize="11" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,2,0,8" />
                         <ItemsControl ItemsSource="{Binding HouseRuleLines}" ItemTemplate="{StaticResource RuleLineTemplate}" Focusable="False" Margin="0,0,0,6"
                                       Visibility="{Binding HasOwnRules, Converter={StaticResource BoolToVis}}" />
+                        <!-- Origins: the reforms the sport is asking for (adopt one, or see why not yet), and a ban at home. -->
+                        <StackPanel Visibility="{Binding ShowReforms, Converter={StaticResource BoolToVis}}" Margin="0,6,0,6">
+                            <Border Background="{StaticResource ToneBadDim}" BorderBrush="{StaticResource ToneBad}" BorderThickness="1" CornerRadius="{StaticResource Radius.Card}"
+                                    Padding="12,9" Margin="0,0,0,10" Visibility="{Binding HasBanLine, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="BANNED AT HOME" Style="{StaticResource Text.Kicker}" FontSize="10.5" Foreground="{StaticResource ToneBad}" />
+                                    <TextBlock Text="{Binding BanLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="Reforms" FontWeight="Bold" Margin="0,0,0,2" />
+                            <TextBlock Text="The sport changes its rules one house at a time. Whatever you adopt is fought on every card from then on."
+                                       FontSize="11" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                            <ItemsControl ItemsSource="{Binding Reforms}" ItemTemplate="{StaticResource ReformCardTemplate}" Focusable="False" />
+                            <TextBlock Text="{Binding ReformsDoneLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                                       Visibility="{Binding HasReformsDoneLine, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneGood}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="150" />

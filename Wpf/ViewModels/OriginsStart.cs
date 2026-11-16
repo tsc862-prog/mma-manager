@@ -31,8 +31,14 @@ public static class HouseRules
     {
         if (p?.Rules.Fight is not { IsModern: false } r) return Array.Empty<string>();
         var lines = Lines(r, r.Rounds ?? p.Rules.StandardRounds, r.RoundMinutes ?? p.Rules.RoundMinutes, bracket: p.Rules.ShowFormat == ShowFormat.OneNightTournament);
+        // After a weight split: the lines the house has drawn, heaviest first, each with the weights it takes.
+        var bands = p.Divisions.Where(d => !d.Open && d.Sex == Sex.Male).OrderByDescending(d => d.WeightClass).ToList();
+        if (!r.OpenWeight && bands.Count > 0)
+            lines.Insert(0, "Weight classes: " + string.Join("; ", bands.Select(d =>
+                d.Lightest is { } lo ? $"{FighterRow.Pretty(d.WeightClass.ToString()).ToLowerInvariant()} ({FighterRow.BandRange(lo, d.WeightClass)})"
+                : FighterRow.Pretty(d.WeightClass.ToString()).ToLowerInvariant())) + ".");
         // A founding house's own words for its fouls and its finishes (the authored rule set, by abbreviation).
-        if (OriginsPromotions.All.FirstOrDefault(s => s.Abbreviation == p.Abbreviation) is { } spec) Authored(lines, spec);
+        if (OriginsPromotions.All.FirstOrDefault(s => s.Abbreviation == p.Abbreviation) is { } spec) Authored(lines, spec, r);
         return lines;
     }
 
@@ -45,11 +51,14 @@ public static class HouseRules
     }
 
     // The authored "not allowed" list says everything the ground line does, and more: one or the other.
-    private static void Authored(List<string> lines, OriginsPromotionSpec spec)
+    // (A house that has since adopted judges also ends bouts on their decision: the founding list says so too.)
+    private static void Authored(List<string> lines, OriginsPromotionSpec spec, FightRules? now = null)
     {
         lines.RemoveAll(l => l.StartsWith("On the ground", StringComparison.Ordinal));
         lines.Add("Not allowed: " + string.Join(", ", spec.Rules.Banned) + ".");
-        lines.Add("A bout ends by " + JoinOr(spec.Rules.WaysToWin) + ".");
+        var ways = spec.Rules.WaysToWin.ToList();
+        if (now is { Judges: true } && !ways.Any(w => w.Contains("judges", StringComparison.OrdinalIgnoreCase))) ways.Add("judges' decision");
+        lines.Add("A bout ends by " + JoinOr(ways) + ".");
     }
 
     private static List<string> Lines(FightRules r, int rounds, int minutes, bool bracket)

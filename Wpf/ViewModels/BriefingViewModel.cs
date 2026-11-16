@@ -195,12 +195,41 @@ public sealed class BriefingViewModel : ObservableObject
         _digest = new();
         _collapsed = new(); _collapsedSummary = null;
         _digestWindow = "";
+        _chapterKeys = new();
         _world = null;
         ShowEverything = false;
     }
 
     public BriefingKind Kind => _stop?.Kind ?? BriefingKind.Desk;
-    public bool IsQuiet => Kind == BriefingKind.Quiet;
+    /// <summary>Nothing needs the player and nothing in the sport's story moved (a new chapter opens the window, never a toast).</summary>
+    public bool IsQuiet => Kind == BriefingKind.Quiet && _chapterKeys.Count == 0;
+
+    // --- A new chapter of the sport's story (Origins) --------------------------------
+    // Keys only (the chapters that fired since the last stop and haven't been shown); the cards are
+    // rebuilt from the world on every redraw. Today's mode never has any.
+    private List<string> _chapterKeys = new();
+
+    /// <summary>The chapters that fired since the last stop, oldest first (an Origins world; empty today).</summary>
+    public ObservableCollection<ChapterCard> Chapters { get; } = new();
+    public bool HasChapters => Chapters.Count > 0;
+    public string ChaptersTitle => Chapters.Count > 1 ? $"{Chapters.Count} new chapters in the story of the sport" : "A new chapter in the story of the sport";
+
+    /// <summary>Opens The Story So Far (wired by the shell).</summary>
+    public ICommand? OpenStoryCommand { get; set; }
+
+    private void TakeChapters(World w, DateOnly since)
+    {
+        _chapterKeys = w.Mode != WorldMode.Origins ? new()
+            : OriginsStory.Since(w, since).Select(c => c.Key).Where(k => _announced.Add("chapter:" + k)).ToList();
+    }
+
+    private void BuildChapters(World w)
+    {
+        Chapters.Clear();
+        if (w.Mode != WorldMode.Origins) return;
+        foreach (var key in _chapterKeys)
+            if (w.Era.Chapter(key) is { } rec && OriginsStory.View(w, rec) is { } view) Chapters.Add(new ChapterCard(w, view));
+    }
     /// <summary>The fighter a rival-offer headline is about (0 for any other headline).</summary>
     public int StopFighterId => _stop is { Kind: BriefingKind.RivalOffer } s ? s.EventId : 0;
 
@@ -232,6 +261,7 @@ public sealed class BriefingViewModel : ObservableObject
 
         _stop = stop;
         _announced.Add(stop.Key);
+        TakeChapters(w, before.Date);
         _digest = Digest(w, before, holes, skipHole: stop.Kind is BriefingKind.MainEventLost or BriefingKind.CardHole ? (stop.EventId, stop.OutId) : null);
         // The headline already is the offer: its own letter doesn't repeat in the digest.
         if (stop.Kind == BriefingKind.RivalOffer && w.Get(new FighterId(stop.EventId)) is { } courted)
@@ -258,6 +288,7 @@ public sealed class BriefingViewModel : ObservableObject
     {
         _stop = new Stop(BriefingKind.CardDone, $"done:{ev.Id.Value}", w.CurrentDate, 0, ev.Id.Value);
         _announced.Add(_stop.Key);
+        TakeChapters(w, before.Date);
         _collapsed = new(); _collapsedSummary = null;
         _digest = CardDigest(w, before, ev);
         _digestWindow = $"Tonight at {ev.Name}  ·  {Plural(ev.Card.Count(f => f.Outcome is not null), "bout")}";
@@ -337,6 +368,7 @@ public sealed class BriefingViewModel : ObservableObject
         BuildHeadline(w, needs);
         BuildWaiting(w, needs);
         BuildNext(w);
+        BuildChapters(w);
         if (_stop is null) { _collapsed = new(); _collapsedSummary = null; _digest = DeskDigest(w); _digestWindow = ""; }
         FillDigest();
         OnPropertyChanged(string.Empty);   // everything above is plain properties: redraw it all

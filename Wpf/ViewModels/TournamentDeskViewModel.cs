@@ -74,8 +74,7 @@ public sealed record BracketRound(string Name, IReadOnlyList<BracketBoutView> Bo
 
 /// <summary>
 /// How a fought one-night tournament went, slot by slot, in the sim's own shape (<see cref="BracketBout"/>).
-/// THE ONE PLACE the screen learns the bracket: today it is replayed from the card (the sim does not save the
-/// night yet); when the sim saves the bracket, <see cref="Read"/> returns the saved one and nothing else changes.
+/// THE ONE PLACE the screen learns the bracket: it reads the bracket the sim saved with the night.
 /// </summary>
 public static class BracketNightReader
 {
@@ -84,98 +83,31 @@ public static class BracketNightReader
     public sealed record Night(int Size, IReadOnlyList<FighterId> Seeds, FighterId? Alternate,
         IReadOnlyList<BracketBout> Bouts, FighterId? Champion, bool FinalDrawn);
 
-    /// <summary>The night, or null when the card can't be read as a bracket of this house's size.</summary>
+    /// <summary>
+    /// The night as the sim saved it (<see cref="Event.Bracket"/>), or null for a night that isn't a fought
+    /// bracket. Seeds come off round one's slots (slot k holds seeds Order[2k] and Order[2k+1]); the champion
+    /// is whoever the final sent through.
+    /// </summary>
     public static Night? Read(World w, Event ev)
     {
-        if (ev.Format != EventFormat.Tournament || ev.Status != EventStatus.Completed) return null;
-        var promo = w.Get(ev.Promotion);
-        int size = promo?.Rules.TournamentSize is > 1 and var s ? s : 8;
-        int half = size / 2;
-        var card = ev.Card;
-        if (card.Count < half) return null;
-        bool judges = promo?.Rules.Fight?.Judges ?? true;
+        if (ev.Format != EventFormat.Tournament || ev.Status != EventStatus.Completed || ev.Bracket.Count == 0) return null;
+        var first = ev.Bracket.Where(s => s.Round == 1).OrderBy(s => s.Slot).ToList();
+        int size = first.Count * 2;
+        if (size < 2 || first.Any(s => s.Red is null || s.Blue is null)) return null;
         var order = OneNightBracket.Order(size);
-
-        // Round one is always full (the night is cancelled when it can't be): slot i holds seed order[i]+1,
-        // and round one's bouts are the first on the card, slot pair by slot pair.
         var seeds = new FighterId[size];
-        for (int k = 0; k < half; k++) { seeds[order[2 * k]] = card[k].RedCorner; seeds[order[2 * k + 1]] = card[k].BlueCorner; }
-        var rank = new Dictionary<FighterId, int>();
-        for (int i = 0; i < size; i++) rank[seeds[i]] = i;
+        for (int k = 0; k < first.Count; k++) { seeds[order[2 * k]] = first[k].Red!.Value; seeds[order[2 * k + 1]] = first[k].Blue!.Value; }
 
-        // Who the night crowned (the durable record: an accolade dated that night).
-        FighterId? champion = w.Fighters.Values
-            .FirstOrDefault(f => f.Accolades.Any(a => a.Date == ev.Date && a.Title == $"Won {ev.Name}"))?.Id;
-        // The alternate, if he came in: a man on the card, or the champion, who wasn't in the field.
-        FighterId? alternate = card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }).Cast<FighterId?>()
-            .FirstOrDefault(id => !rank.ContainsKey(id!.Value))
-            ?? (champion is { } c && !rank.ContainsKey(c) ? champion : null);
-        if (alternate is { } alt) rank[alt] = size;   // ranked below every seed
-
-        bool FightsAfter(FighterId id, int index)
-        {
-            for (int i = index + 1; i < card.Count; i++)
-                if (card[i].RedCorner == id || card[i].BlueCorner == id) return true;
-            return false;
-        }
-
-        // Replay the slots exactly as OneNightBracket.Run fills them; who went on is read off the card.
-        var slots = order.Select(i => (FighterId?)seeds[i]).ToList();
-        var bouts = new List<BracketBout>();
-        int next = 0, round = 1;
-        bool altUsed = false, finalDrawn = false;
-        while (slots.Count > 1)
-        {
-            bool final = slots.Count == 2;
-            var nextSlots = new List<FighterId?>();
-            for (int i = 0; i + 1 < slots.Count; i += 2)
-            {
-                var red = slots[i]; var blue = slots[i + 1];
-                if (red is null || blue is null)
-                {
-                    var through = red ?? blue;
-                    bouts.Add(new BracketBout(round, red, blue, null, null, through,
-                        through is null ? BracketAdvance.NobodyAdvanced : BracketAdvance.Walkover));
-                    nextSlots.Add(through);
-                    continue;
-                }
-                if (next >= card.Count) return null;
-                var fight = card[next];
-                if (!((fight.RedCorner == red && fight.BlueCorner == blue) || (fight.RedCorner == blue && fight.BlueCorner == red))) return null;
-                int at = next++;
-                var o = fight.Outcome;
-                FighterId? winner = o?.Winner is { } wid && (wid == red || wid == blue) ? wid : null;
-                var how = BracketAdvance.Won;
-                bool drawOut = false;
-                if (winner is null)
-                {
-                    if (judges) { winner = rank.GetValueOrDefault(red.Value) <= rank.GetValueOrDefault(blue.Value) ? red : blue; how = BracketAdvance.JudgedDrawBetterSeed; }
-                    else drawOut = true;
-                }
-                FighterId? withdrew = null;
-                if (winner is { } wn && !final && !FightsAfter(wn, at) && wn != champion)
-                {
-                    withdrew = wn;     // won it, and is nowhere later in the night: he could not go on
-                    winner = null;
-                }
-                if (winner is null && !final && alternate is not null && !altUsed)
-                {
-                    winner = alternate;
-                    altUsed = true;
-                    how = drawOut ? BracketAdvance.AlternateAfterDraw : BracketAdvance.AlternateForWithdrawal;
-                }
-                else if (winner is null)
-                {
-                    how = BracketAdvance.NobodyAdvanced;
-                    if (final) finalDrawn = drawOut;
-                }
-                bouts.Add(new BracketBout(round, red, blue, fight.Id, o, winner, how, withdrew));
-                nextSlots.Add(winner);
-            }
-            slots = nextSlots;
-            round++;
-        }
-        return new Night(size, seeds, altUsed ? alternate : null, bouts, champion, finalDrawn);
+        var outcomes = ev.Card.ToDictionary(f => f.Id, f => f.Outcome);
+        var bouts = ev.Bracket.OrderBy(s => s.Round).ThenBy(s => s.Slot)
+            .Select(s => new BracketBout(s.Round, s.Red, s.Blue, s.Fight,
+                s.Fight is { } fid ? outcomes.GetValueOrDefault(fid) : null,
+                s.Advanced, Enum.Parse<BracketAdvance>(s.How.ToString()), s.Withdrew))
+            .ToList();
+        var final = bouts[^1];
+        bool altUsed = bouts.Any(b => b.How is BracketAdvance.AlternateForWithdrawal or BracketAdvance.AlternateAfterDraw);
+        bool finalDrawn = final.Fight is not null && final.Advanced is null && final.Withdrew is null && final.Outcome?.Winner is null;
+        return new Night(size, seeds, altUsed ? ev.BracketAlternate : null, bouts, final.Advanced, finalDrawn);
     }
 }
 
@@ -447,7 +379,7 @@ public sealed class TournamentDeskViewModel : ObservableObject
         foreach (var e in world.Events.Values.Where(e => e.Promotion == promo.Id && e.Format == EventFormat.Tournament && e.Status == EventStatus.Completed)
                      .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id.Value))
         {
-            var winner = world.Fighters.Values.FirstOrDefault(f => f.Accolades.Any(a => a.Date == e.Date && a.Title == $"Won {e.Name}"));
+            var winner = BracketNightReader.Read(world, e)?.Champion is { } cid ? world.Get(cid) : null;
             Past.Add(new PastNight(e.Id.Value, e.Name, e.Date.ToString("d MMM yyyy"), winner is null ? "no champion" : $"won by {winner.FullName}"));
         }
 
@@ -465,10 +397,9 @@ public sealed class TournamentDeskViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Who is fit to fight on the night and how the field would be drawn. Bookability is the sim's
-    /// (<see cref="OriginsShows.CanBook"/>, <see cref="ForwardCalendar.IsCommitted"/>); the order is the sim's
-    /// stated rule (promised men first, then the scouts' read; the next man is the alternate). The night
-    /// draws the field itself; this is the preview.
+    /// Who is fit to fight on the night and how the field would be drawn: the sim's own preview
+    /// (<see cref="Core.Sim.Booking.TournamentService.PreviewField"/>, the rule the night draws by). Everyone
+    /// else on the roster is listed with the plain reason he is out. The night draws the field itself.
     /// </summary>
     private void RefreshField()
     {
@@ -476,27 +407,28 @@ public sealed class TournamentDeskViewModel : ObservableObject
         if (_world?.Get(_world.PlayerPromotion) is not { } promo || !Applies) return;
         var w = _world;
         var date = DateOnly.FromDateTime(_date);
-        int size = Math.Max(2, promo.Rules.TournamentSize);
-        var fit = new List<(Fighter F, bool Promised, int Read)>();
-        foreach (var f in w.RosterOf(promo.Id).Where(f => f.Status != FighterStatus.Retired && f.Sex == Sex.Male).OrderBy(f => f.Id.Value))
-        {
-            string? why = OriginsShows.CanBook(w, promo, f, date)
-                ? ForwardCalendar.CommittedTo(w, f.Id, _next) is { } other ? $"Booked on {other.Name}" : null
-                : WhyNot(w, f, date);
-            bool promised = w.Promises.Any(p => p.Live && p.Fighter == f.Id && p.Promotion == promo.Id && p.Kind == PromiseKind.TitleShot);
-            if (why is null) fit.Add((f, promised, FighterRow.Scouted(w, f)));
-            else LeftOut.Add(new FieldEntry(f, w, "", why, CardTone.Bad));
-        }
-        var chosen = fit.OrderByDescending(x => x.Promised).ThenByDescending(x => x.Read).ThenBy(x => x.F.Id.Value).ToList();
-        var seeds = chosen.Take(size).OrderByDescending(x => x.Read).ThenBy(x => x.F.Id.Value).ToList();
+        var preview = Core.Sim.Booking.TournamentService.PreviewField(w, promo, date, _next);
+        int size = preview.Size;
+        var seeds = preview.Seeds;
         for (int i = 0; i < seeds.Count; i++)
-            Field.Add(new FieldEntry(seeds[i].F, w, $"{i + 1}", seeds[i].Promised ? "Promised a place: in ahead of the order" : "", seeds[i].Promised ? CardTone.Good : CardTone.Neutral));
-        if (chosen.Count > size)
-            Field.Add(new FieldEntry(chosen[size].F, w, "Alt", "Alternate: in if a winner can't go on", CardTone.Info));
-        foreach (var spare in chosen.Skip(size + 1))
-            LeftOut.Add(new FieldEntry(spare.F, w, "", $"Fit; outside the top {HouseRules.Men(promo)}", CardTone.Neutral));
+        {
+            bool promised = preview.Promised.Contains(seeds[i].Id);
+            Field.Add(new FieldEntry(seeds[i], w, $"{i + 1}", promised ? "Promised a place: in ahead of the order" : "", promised ? CardTone.Good : CardTone.Neutral));
+        }
+        if (preview.Alternate is { } alternate)
+            Field.Add(new FieldEntry(alternate, w, "Alt", "Alternate: in if a winner can't go on", CardTone.Info));
+        var drawn = seeds.Select(f => f.Id).ToHashSet();
+        if (preview.Alternate is { } a2) drawn.Add(a2.Id);
+        var spares = new List<FieldEntry>();
+        foreach (var f in w.RosterOf(promo.Id).Where(f => f.Status != FighterStatus.Retired && f.Sex == Sex.Male && !drawn.Contains(f.Id)).OrderBy(f => f.Id.Value))
+        {
+            if (!OriginsShows.CanBook(w, promo, f, date)) LeftOut.Add(new FieldEntry(f, w, "", WhyNot(w, f, date), CardTone.Bad));
+            else if (ForwardCalendar.CommittedTo(w, f.Id, _next) is { } other) LeftOut.Add(new FieldEntry(f, w, "", $"Booked on {other.Name}", CardTone.Bad));
+            else spares.Add(new FieldEntry(f, w, "", $"Fit; outside the top {HouseRules.Men(promo)}", CardTone.Neutral));
+        }
+        foreach (var s in spares) LeftOut.Add(s);
 
-        FieldShort = seeds.Count < size;
+        FieldShort = !preview.Full;
         FieldHeadline = FieldShort ? $"{seeds.Count} of the {size} men a bracket needs" : (HasNext ? "The field as it stands" : "The field you'd draw");
         FieldLine = FieldShort
             ? $"On {date:d MMMM} you can field {seeds.Count} fit men. Sign more fighters, or pick a later night."

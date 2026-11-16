@@ -15,7 +15,7 @@ internal static class OriginsHarness
 
     /// <summary>Advance week by week; a fight night of ours is simmed when it arrives (the last one is
     /// left on the bar when <paramref name="hold"/>).</summary>
-    public static void Play(MainViewModel vm, int weeks, bool hold, bool bookNight = false)
+    public static void Play(MainViewModel vm, int weeks, bool hold, bool bookNight = false, int months = 0, bool reform = false, bool busy = false, bool stopAtBan = false)
     {
         if (bookNight && vm.Tournament.Applies)
         {
@@ -23,13 +23,86 @@ internal static class OriginsHarness
             vm.Tournament.ScheduleCommand.Execute(null);
             Console.WriteLine($"ORIGINS booked a bracket night: {vm.Tournament.Status}{vm.Tournament.Error}");
         }
+        // Months first (the long haul: years of the sport's story), then weeks.
+        for (int i = 0; i < months; i++)
+        {
+            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+            if (busy) KeepBusy(vm);
+            vm.AdvanceMonthCommand.Execute(null);
+            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+            if (reform) Reform(vm);
+            if (i % 12 == 11 || vm.Org.HasBanLine) Console.WriteLine($"ORIGINS {vm.LiveWorld?.CurrentDate:MMM yyyy}: {vm.LiveWorld?.Era.Chapters.Count} chapters, era {Core.Sim.Living.OriginsStory.CurrentEra(vm.LiveWorld!).Name}, bans {vm.LiveWorld!.Era.Bans.Count}, banned at home {vm.Org.HasBanLine}");
+            if (stopAtBan && vm.Org.HasBanLine) break;
+        }
         for (int i = 0; i < weeks; i++)
         {
             if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+            if (busy) KeepBusy(vm);
             vm.AdvanceWeekCommand.Execute(null);
+            if (reform) Reform(vm);
         }
         if (!hold && vm.IsFightNight) vm.SimTonightCommand.Execute(null);
-        Console.WriteLine($"ORIGINS played {weeks} weeks -> {vm.LiveWorld?.CurrentDate:d MMM yyyy}; fight night waiting: {vm.IsFightNight}");
+        Console.WriteLine($"ORIGINS played {months} months + {weeks} weeks -> {vm.LiveWorld?.CurrentDate:d MMM yyyy}; fight night waiting: {vm.IsFightNight}");
+    }
+
+    /// <summary>
+    /// Keep the house running nights the way a player would, through the screens: a bracket house books the Bracket
+    /// Desk's default night; a card house (after its split) books a card five weeks out, one bout per division.
+    /// </summary>
+    public static void KeepBusy(MainViewModel vm)
+    {
+        var w = vm.LiveWorld!;
+        // Keep a roster: sign free agents at their terms (through Contracts) while the house has fewer than twelve men.
+        for (int tries = 0; tries < 12 && w.RosterOf(w.PlayerPromotion).Count(f => f.Status != FighterStatus.Retired) < 12; tries++)
+        {
+            var row = vm.Contracts.FreeAgents.Skip(tries).FirstOrDefault();
+            if (row is null) break;
+            vm.Contracts.SelectedFreeAgent = row;
+            vm.Contracts.SignAtTheirTerms();
+        }
+        if (w.Events.Values.Any(e => e.Promotion == w.PlayerPromotion && e.Status == EventStatus.Scheduled)) return;
+        if (vm.Tournament.Applies) { vm.Tournament.ScheduleCommand.Execute(null); return; }
+        var bk = vm.Booking;
+        bk.NewEventDate = w.CurrentDate.AddDays(35).ToDateTime(TimeOnly.MinValue);
+        bk.NewEventCommand.Execute(null);
+        foreach (var div in bk.Divisions.ToList())
+        {
+            bk.SelectedDivision = div;
+            for (int k = 0; k < 2 && bk.RedOptions.Count > 0; k++)
+            {
+                bk.SelectedRed = bk.RedOptions[0];
+                if (bk.BlueOptions.Count == 0) break;
+                bk.SelectedBlue = bk.BlueOptions[0];
+                bk.AddBoutCommand.Execute(null);
+            }
+        }
+        vm.Contracts.OnChanged?.Invoke();
+    }
+
+    /// <summary>Adopt every reform HQ offers today, through HQ's own command (the harness has no confirm dialog).</summary>
+    public static void Reform(MainViewModel vm)
+    {
+        foreach (var r in vm.Org.Reforms.Where(r => r.CanAdopt).Select(r => (r.Chapter, r.Title)).ToList())
+        {
+            vm.Org.AdoptReformCommand.Execute(r.Chapter);
+            Console.WriteLine($"ORIGINS {vm.LiveWorld?.CurrentDate:d MMM yyyy} adopted '{r.Title}': {vm.Org.Status}");
+        }
+    }
+
+    /// <summary>Advance week by week until the briefing has a new chapter to tell (at most <paramref name="max"/> weeks).</summary>
+    public static void UntilChapter(MainViewModel vm, int max, bool reform, bool busy = false)
+    {
+        for (int i = 0; i < max; i++)
+        {
+            if (vm.IsFightNight) vm.SimTonightCommand.Execute(null);
+            if (busy) KeepBusy(vm);
+            vm.AdvanceWeekCommand.Execute(null);
+            if (vm.Briefing.HasChapters || vm.Briefing.Chapters.Count > 0) break;
+            vm.Briefing.Attach(vm.LiveWorld!);
+            if (vm.Briefing.HasChapters) break;
+            if (reform) Reform(vm);
+        }
+        Console.WriteLine($"ORIGINS until a chapter -> {vm.LiveWorld?.CurrentDate:d MMM yyyy}: {string.Join(" | ", vm.Briefing.Chapters.Select(c => c.Title))}");
     }
 
     /// <summary>
@@ -53,42 +126,68 @@ internal static class OriginsHarness
             Id = w.NewEventId(), Promotion = promo.Id, Name = $"{promo.Name} case {kase}", Date = w.CurrentDate,
             Format = EventFormat.Tournament, Status = EventStatus.Completed, Venue = "Pico Sports Pavilion",
         };
-        void F(FighterId red, FighterId blue, FighterId? winner, int round = 1, int secs = 400)
+        // The night as the sim saves it (Event.Bracket): slot by slot, round by round; a fought slot also puts its bout on the card.
+        var slotIn = new Dictionary<int, int>();
+        void Slot(int round, FighterId? red, FighterId? blue, FighterId? winner, FighterId? through, BracketHow how,
+            FighterId? withdrew = null, bool fought = true, int endRound = 1, int secs = 400)
         {
-            ev.Card.Add(new Fight
+            FightId? fid = null;
+            if (fought && red is { } r && blue is { } b)
             {
-                Id = w.NewFightId(), RedCorner = red, BlueCorner = blue, WeightClass = Division.OpenClass, OpenWeight = true, ScheduledRounds = 1,
-                Outcome = new FightOutcome
+                var fight = new Fight
                 {
-                    Winner = winner, Loser = winner is null ? null : winner == red ? blue : red,
-                    Method = winner is null ? FightMethod.Draw : FightMethod.SubmissionTap, EndRound = round, EndTimeSeconds = secs,
-                },
-            });
+                    Id = w.NewFightId(), RedCorner = r, BlueCorner = b, WeightClass = Division.OpenClass, OpenWeight = true, ScheduledRounds = 1,
+                    BracketRound = round,
+                    Outcome = new FightOutcome
+                    {
+                        Winner = winner, Loser = winner is null ? null : winner == r ? b : r,
+                        Method = winner is null ? FightMethod.Draw : FightMethod.SubmissionTap, EndRound = endRound,
+                        EndTimeSeconds = winner is null && endRound == 1 ? 1200 : secs,
+                    },
+                };
+                ev.Card.Add(fight);
+                fid = fight.Id;
+            }
+            int slot = slotIn.GetValueOrDefault(round);
+            slotIn[round] = slot + 1;
+            ev.Bracket.Add(new BracketSlot { Round = round, Slot = slot, Red = red, Blue = blue, Fight = fid, Advanced = through, How = how, Withdrew = withdrew });
         }
-        FighterId? champ = null;
+        const BracketHow Won = BracketHow.Won, Nobody = BracketHow.NobodyAdvanced, Walk = BracketHow.Walkover;
+        ev.BracketAlternate = kase == "c" ? null : A;
         switch (kase)
         {
             case "a":
-                F(S(1), S(8), S(1)); F(S(4), S(5), null, 1, 1200); F(S(2), S(7), S(2)); F(S(3), S(6), S(3));
-                F(S(1), A, S(1)); F(S(2), S(3), S(2)); champ = S(2); break;
+                Slot(1, S(1), S(8), S(1), S(1), Won); Slot(1, S(4), S(5), null, A, BracketHow.AlternateAfterDraw);
+                Slot(1, S(2), S(7), S(2), S(2), Won); Slot(1, S(3), S(6), S(3), S(3), Won);
+                Slot(2, S(1), A, S(1), null, Nobody, withdrew: S(1)); Slot(2, S(2), S(3), S(2), S(2), Won);
+                Slot(3, null, S(2), null, S(2), Walk, fought: false); break;
             case "b":
-                F(S(1), S(8), S(1)); F(S(4), S(5), null, 1, 1200); F(S(2), S(7), S(2)); F(S(3), S(6), S(3));
-                F(S(1), A, S(1)); F(S(2), S(3), S(2)); champ = S(1); break;
+                Slot(1, S(1), S(8), S(1), S(1), Won); Slot(1, S(4), S(5), null, A, BracketHow.AlternateAfterDraw);
+                Slot(1, S(2), S(7), S(2), S(2), Won); Slot(1, S(3), S(6), S(3), S(3), Won);
+                Slot(2, S(1), A, S(1), S(1), Won); Slot(2, S(2), S(3), S(2), null, Nobody, withdrew: S(2));
+                Slot(3, S(1), null, null, S(1), Walk, fought: false); break;
             case "c":
-                F(S(1), S(8), null, 1, 1200); F(S(4), S(5), null, 1, 1200); F(S(2), S(7), S(2)); F(S(3), S(6), S(3));
-                F(S(2), S(3), null, 1, 1200); break;
+                Slot(1, S(1), S(8), null, null, Nobody); Slot(1, S(4), S(5), null, null, Nobody);
+                Slot(1, S(2), S(7), S(2), S(2), Won); Slot(1, S(3), S(6), S(3), S(3), Won);
+                Slot(2, null, null, null, null, Nobody, fought: false); Slot(2, S(2), S(3), null, null, Nobody);
+                Slot(3, null, null, null, null, Nobody, fought: false); break;
             case "d":
-                F(S(1), S(8), null, 1, 1200); F(S(4), S(5), null, 1, 1200); F(S(2), S(7), null, 1, 1200); F(S(3), S(6), S(3));
-                F(A, S(3), null, 2, 300); break;
+                Slot(1, S(1), S(8), null, A, BracketHow.AlternateAfterDraw); Slot(1, S(4), S(5), null, null, Nobody);
+                Slot(1, S(2), S(7), null, null, Nobody); Slot(1, S(3), S(6), S(3), S(3), Won);
+                Slot(2, A, null, null, A, Walk, fought: false); Slot(2, null, S(3), null, S(3), Walk, fought: false);
+                Slot(3, A, S(3), null, null, Nobody, endRound: 2, secs: 300); break;
             case "e":
-                F(S(1), S(8), null, 1, 1200); F(S(4), S(5), S(4)); F(S(2), S(7), S(2)); F(S(3), S(6), S(3));
-                F(S(1), S(4), S(4)); F(S(2), S(3), S(3)); F(S(4), S(3), S(3)); champ = S(3); break;
+                Slot(1, S(1), S(8), null, S(1), BracketHow.JudgedDrawBetterSeed); Slot(1, S(4), S(5), S(4), S(4), Won);
+                Slot(1, S(2), S(7), S(2), S(2), Won); Slot(1, S(3), S(6), S(3), S(3), Won);
+                Slot(2, S(1), S(4), S(4), S(4), Won); Slot(2, S(2), S(3), S(3), S(3), Won);
+                Slot(3, S(4), S(3), S(3), S(3), Won); break;
             default:
-                F(S(1), S(8), S(1)); F(S(4), S(5), S(4)); F(S(2), S(7), S(2)); F(S(3), S(6), S(3));
-                F(S(1), S(4), S(1)); F(S(2), S(3), S(2)); F(S(1), S(2), S(1), 2, 100); champ = S(1); break;
+                Slot(1, S(1), S(8), S(1), S(1), Won); Slot(1, S(4), S(5), S(4), S(4), Won);
+                Slot(1, S(2), S(7), S(2), S(2), Won); Slot(1, S(3), S(6), S(3), S(3), Won);
+                Slot(2, S(1), S(4), S(1), S(1), Won); Slot(2, S(2), S(3), S(2), S(2), Won);
+                Slot(3, S(1), S(2), S(1), S(1), Won, endRound: 2, secs: 100); break;
         }
         w.Events[ev.Id] = ev;
-        if (champ is { } c) w.Get(c)!.Accolades.Add(new Accolade(ev.Date, $"Won {ev.Name}"));
         var night = BracketNightReader.Read(w, ev);
         Console.WriteLine($"BRACKET case {kase}: " + (night is null ? "UNREADABLE" : $"champion {w.Get(night.Champion ?? default)?.LastName ?? "none"}, final drawn {night.FinalDrawn}, alternate {(night.Alternate is { } a ? w.Get(a)?.LastName : "-")}"));
         if (night is not null)

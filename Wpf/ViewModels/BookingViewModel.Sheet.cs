@@ -211,7 +211,7 @@ public sealed partial class BookingViewModel
         var blue = CornerOf(b, r, false, bh, rh, host, titleFight, title);
 
         // The kicker and the one line on why it matters.
-        string divLabel = FighterRow.DivisionLabel(r.WeightClass, r.Sex);   // the bout's division ("Open weight" in 1993)
+        string divLabel = OpenHouse ? FighterRow.OpenLabel : DivisionOf(r).Label;   // the bout's division ("Open weight" in 1993, a band after the split)
         string slotWord = a.Source == SheetSource.Replace ? SlotLabelOf(ev, a.Replacing) : a.Slot switch
         {
             BoutSlot.MainEvent => "MAIN EVENT", BoutSlot.CoMain => "CO-MAIN", BoutSlot.MainCard => "MAIN CARD", _ => "PRELIM",
@@ -573,7 +573,9 @@ public sealed partial class BookingViewModel
             lines.Add(new SheetLine("Title picture", "A title eliminator: the winner should be next.", CardTone.Info));
         lines.Add(new SheetLine("Weight", OpenHouse
             ? $"Open weight: {FighterRow.Kilos(r)} kg against {FighterRow.Kilos(b)} kg, {HouseRules.Rounds(rounds, _world?.Get(_world.PlayerPromotion))}"
-            : $"{FighterRow.DivisionLabel(r)}, {rounds} rounds" + (r.WeightClass == b.WeightClass ? "" : " (a class mismatch)")));
+            : Band(r) is { } band
+                ? $"{FighterRow.DivisionLabel(band)}: {FighterRow.Kilos(r)} kg against {FighterRow.Kilos(b)} kg, {rounds} rounds" + (SameDivision(r, b) ? "" : " (a class mismatch)")
+                : $"{FighterRow.DivisionLabel(r)}, {rounds} rounds" + (r.WeightClass == b.WeightClass ? "" : " (a class mismatch)")));
         if (a.Source != SheetSource.Replace && a.Slot == BoutSlot.Prelim && appraisal.Appeal >= 60)
             lines.Add(new SheetLine("Slot", "A big fight for the prelims: the main card would sell it better.", CardTone.Info));
         if (appraisal.Stakes == Stakes.Mismatch)

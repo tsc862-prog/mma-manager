@@ -386,7 +386,7 @@ public sealed partial class BookingViewModel
         var red = new BillCorner(r, w, _advisor, body: mainEv, hostCity: host);
         var blue = new BillCorner(b, w, _advisor, body: mainEv, hostCity: host);
         var a = _advisor.Appraise(w, r.Id, b.Id);
-        string division = FighterRow.DivisionLabel(fight, r.Sex);
+        string division = fight.OpenWeight || Band(r) is null ? FighterRow.DivisionLabel(fight, r.Sex) : FighterRow.PickLabel(fight.WeightClass, r.Sex);
 
         // Why it sells: public facts only.
         var sells = new List<DeskTag>();
@@ -878,7 +878,7 @@ public sealed partial class BookingViewModel
             Desk = this, Proposal = s, Slot = slot,
             Red = new BillCorner(r, w, _advisor, hostCity: host) { Summary = CornerLine(rx, r) },
             Blue = new BillCorner(b, w, _advisor, hostCity: host) { Summary = CornerLine(bx, b) },
-            Division = FighterRow.DivisionLabel(s.WeightClass, r.Sex),
+            Division = Band(r) is null ? FighterRow.DivisionLabel(s.WeightClass, r.Sex) : FighterRow.PickLabel(s.WeightClass, r.Sex),
             Reason = s.Reason,
             Terms = (s.TitleFight ? "Title fight · " : "") + HouseRules.Rounds(s.Rounds, w.Get(w.PlayerPromotion)),
             Read = s.Appraisal.Competitiveness >= 70 ? "a toss-up on our reads" : s.Appraisal.Competitiveness >= 45 ? "competitive on our reads"
@@ -1021,7 +1021,7 @@ public sealed partial class BookingViewModel
             LadderTitle = _replaceFight is not null ? $"Who could face {me.LastName} instead" : $"Opponents for {me.FirstName} {me.LastName}";
             LadderEmpty = FinderChips.Any(c => c.IsOn) || _search.Length > 0
                 ? "Nobody matches. Clear the search or a filter."
-                : $"Nobody else at {FighterRow.DivisionLabel(me)} on your roster.";
+                : $"Nobody else at {(Band(me) is null ? FighterRow.DivisionLabel(me) : DivisionOf(me).Label)} on your roster.";
             OnPropertyChanged(nameof(HasLadder));
             return;
         }

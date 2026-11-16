@@ -1702,8 +1702,14 @@ public partial class App : Application
                     // --holdnight leaves the last one waiting on the fight-night bar).
                     int house = int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]);
                     vm.StartWorld(WorldBuilder.Options.Origins(1993, house), OriginsHarness.Summary(house));
+                    // --months N plays N months first (years of the story); --reform adopts every reform HQ
+                    // offers as it opens; --untilchapter N then plays on (at most N weeks) until a chapter fires.
                     int weeks = e.Args.Contains("--weeks") ? int.Parse(e.Args[Array.IndexOf(e.Args, "--weeks") + 1]) : 0;
-                    OriginsHarness.Play(vm, weeks, hold: e.Args.Contains("--holdnight"), bookNight: e.Args.Contains("--booknight"));
+                    int omonths = e.Args.Contains("--months") ? months : 0;
+                    bool reform = e.Args.Contains("--reform");
+                    OriginsHarness.Play(vm, weeks, hold: e.Args.Contains("--holdnight"), bookNight: e.Args.Contains("--booknight"), months: omonths, reform: reform, busy: e.Args.Contains("--busy"), stopAtBan: e.Args.Contains("--stopatban"));
+                    if (e.Args.Contains("--untilchapter"))
+                        OriginsHarness.UntilChapter(vm, int.Parse(e.Args[Array.IndexOf(e.Args, "--untilchapter") + 1]), reform, e.Args.Contains("--busy"));
                     if (e.Args.Contains("--nightin"))   // look at a night N days out on the desk's form
                         vm.Tournament.Date = vm.LiveWorld!.CurrentDate.AddDays(int.Parse(e.Args[Array.IndexOf(e.Args, "--nightin") + 1])).ToDateTime(TimeOnly.MinValue);
                     if (e.Args.Contains("--nightin")) vm.Tournament.ShowNextNight = true;
