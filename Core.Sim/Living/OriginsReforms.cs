@@ -33,6 +33,12 @@ public static class OriginsReforms
 
     private const ulong AdoptSalt = 0x0219_AD07_0003UL;
 
+    /// <summary>The rounds a card house fights once it adopts rounds (every bout, title bouts too).</summary>
+    public const int CardRounds = 3;
+
+    /// <summary>The rounds a bracket house fights once it adopts rounds: its man fights three times a night.</summary>
+    public const int BracketRounds = 2;
+
     /// <summary>How much likelier a house the Backlash has closed at home is to adopt the rules the critics ask for, a month.</summary>
     public const double BannedPressure = 0.10;
 
@@ -79,7 +85,7 @@ public static class OriginsReforms
                 if (HasLines(p, chapter)) continue;
                 if (OriginsTimeline.IsOpen(world, chapter, date)
                     && OriginsChapters.ByKey(chapter).Requires.Where(r => Ladder.Contains(r)).All(r => HasLines(p, r)))
-                    list.Add(new(chapter, LineLabel(chapter), LineDetail(chapter)));
+                    list.Add(new(chapter, LineLabel(chapter), LineDetail(p, chapter)));
                 break;   // one line at a time
             }
         return list;
@@ -89,9 +95,31 @@ public static class OriginsReforms
         ? "Split heavy and light"
         : "Add " + string.Join(" and ", LinesOf(chapter).Select(Name)) + " divisions";
 
-    private static string LineDetail(string chapter) => chapter == Ladder[0]
-        ? "The open-weight belt is retired (and a bracket house runs cards from now on). Men over two hundred pounds fight at heavyweight, everyone else at middleweight; each division gets a vacant belt."
-        : "Each new division gets a vacant belt; men move to the division their natural weight puts them in.";
+    private static string LineDetail(Promotion p, string chapter)
+    {
+        var bands = BandsAfter(p, chapter);
+        string lines;
+        if (bands.Count == 2)
+            lines = $"Men over {bands[0].Top} pounds fight at {Name(bands[1].Class).ToLowerInvariant()}, everyone else at {Name(bands[0].Class).ToLowerInvariant()}";
+        else
+            lines = "The divisions will be " + string.Join(", ", bands.Select((b, i) =>
+                $"{Name(b.Class).ToLowerInvariant()} {(i == 0 ? $"up to {b.Top}" : i == bands.Count - 1 ? $"over {bands[i - 1].Top}" : $"{bands[i - 1].Top + 1} to {b.Top}")} pounds"));
+        string bracket = p.Rules.ShowFormat == ShowFormat.OneNightTournament
+            ? $" The house gives up its one-night brackets for cards of single bouts, every bout over {CardRounds} rounds." : "";
+        return chapter == Ladder[0]
+            ? $"The open-weight belt is retired.{bracket} {lines}; each division gets a vacant belt."
+            : $"{lines}. Each new division gets a vacant belt; men move to the division their natural weight puts them in.{bracket}";
+    }
+
+    /// <summary>
+    /// The men's divisions this house would run after drawing a chapter's lines, lightest first, each with the
+    /// heaviest natural weight it takes (<see cref="WeightClasses.LimitLbs"/>); a band takes everyone over the
+    /// line below it, the lightest takes everyone under its own, the heaviest has no top.
+    /// </summary>
+    public static IReadOnlyList<(WeightClass Class, int Top)> BandsAfter(Promotion p, string chapter) =>
+        p.Divisions.Where(d => !d.Open && d.Sex == Sex.Male).Select(d => d.WeightClass)
+            .Concat(LinesOf(chapter)).Distinct().OrderBy(wc => wc)
+            .Select(wc => (wc, WeightClasses.LimitLbs(wc))).ToList();
 
     /// <summary>
     /// Make a reform at this house now. False when it is not one of <see cref="Options"/> today. Rounds and
@@ -116,6 +144,10 @@ public static class OriginsReforms
         if (chapter == Gloves && HasGloves(p)) return "Every man on your cards already wears gloves.";
         if (weight && HasLines(p, chapter)) return "You have already drawn those weight lines.";
         if (weight && p.Rules.ShowFormat == ShowFormat.GymChallenge) return "Challenge nights settle arguments between gyms; there are no belts to split.";
+        if (weight && !BeltHouse(p))
+            return p.Rules.ShowFormat == ShowFormat.OneNightTournament
+                ? "Your brackets crown a night's winner, not a champion: weight lines divide a belt, and the house has no men's belt to split."
+                : "Weight lines divide a belt, and the house has no men's belt to split.";
         if (weight && (!HasRounds(p) || !HasGloves(p))) return "Adopt rounds, judges and gloves first: nobody splits a sport that still fights to a standstill bare-handed.";
         if (weight && OriginsChapters.ByKey(chapter).Requires.Where(r => Ladder.Contains(r)).Any(r => !HasLines(p, r)))
             return "One line at a time: draw the earlier weight lines first.";
@@ -132,7 +164,7 @@ public static class OriginsReforms
         {
             case Rounds:
             {
-                int rounds = p.Rules.ShowFormat == ShowFormat.OneNightTournament ? 2 : 3;   // a bracket's man fights three times a night
+                int rounds = p.Rules.ShowFormat == ShowFormat.OneNightTournament ? BracketRounds : CardRounds;
                 p.Rules.Fight = rules with { Rounds = rounds, RoundMinutes = 5, Judges = true };
                 p.Rules.StandardRounds = rounds;
                 p.Rules.TitleRounds = rounds;
@@ -154,13 +186,26 @@ public static class OriginsReforms
                     // Eight men of every size in one night was the open-weight idea; weight classes end it.
                     // (A bracket already on the books is the house's last: it runs as announced, with no belt.)
                     p.Rules.ShowFormat = ShowFormat.Card;
+                    // A bracket's short rounds were for a man fighting three times a night; a card house fights
+                    // one bout a night, at the card standard (a split needs rounds, so the house has them).
+                    bool longer = p.Rules.Fight is { Rounds: { } had } && had < CardRounds;
+                    if (longer) TakeCardRounds(p);
                     News.Post(world, date, NewsCategory.General, $"{p.Name} ends its one-night brackets",
-                        $"No more eight-man nights: {p.Abbreviation} will run cards of single bouts, a champion in each weight class.", p.Id);
+                        $"No more eight-man nights: {p.Abbreviation} will run cards of single bouts, a champion in each weight class"
+                        + (longer ? $", every bout over {CardRounds} rounds." : "."), p.Id);
                 }
                 DrawLines(world, p, LinesOf(chapter), date);
                 break;
         }
         return true;
+    }
+
+    /// <summary>A house that has become a card house fights the card standard: <see cref="CardRounds"/> for every bout.</summary>
+    private static void TakeCardRounds(Promotion p)
+    {
+        if (p.Rules.Fight is { } rules) p.Rules.Fight = rules with { Rounds = CardRounds };
+        p.Rules.StandardRounds = CardRounds;
+        p.Rules.TitleRounds = CardRounds;
     }
 
     /// <summary>The month's AI reforms: each AI house weighs its open reforms on a keyed roll (one reform a month at most).</summary>

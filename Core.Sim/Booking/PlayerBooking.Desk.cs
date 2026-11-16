@@ -278,7 +278,7 @@ public sealed partial class PlayerBooking
         if (inF is null || stay is null) { error = "Fighter not found."; return false; }
         if (inF.Contract?.Promotion != world.PlayerPromotion) { error = "The replacement must be on your roster."; return false; }
         if (Contracts.DealWindow.OutOfDeal(world, inF)) { error = "The replacement's deal is up — re-sign them first."; return false; }
-        if (inF.WeightClass != bout.WeightClass) { error = "The replacement must be in the bout's weight class."; return false; }
+        if (!FitsBout(world, bout, stay, inF, out error)) return false;
         if (inF.Sex != stay.Sex) { error = "A bout can't cross men's and women's divisions."; return false; }
         if (!inF.IsMatchReady(ev.Date)) { error = "The replacement is injured or still recovering."; return false; }
         if (BookedOnCard(ev, incoming)) { error = "The replacement is already on this card."; return false; }
@@ -310,6 +310,7 @@ public sealed partial class PlayerBooking
             RedCorner = bout.RedCorner == outgoing ? incoming : bout.RedCorner,
             BlueCorner = bout.BlueCorner == outgoing ? incoming : bout.BlueCorner,
             WeightClass = bout.WeightClass,
+            OpenWeight = bout.OpenWeight,   // (an open-weight bout stays one; never set in today's mode)
             ScheduledRounds = bout.ScheduledRounds,
             CatchweightLbs = bout.CatchweightLbs,
             IsTitleFight = keepTitle,
@@ -320,6 +321,32 @@ public sealed partial class PlayerBooking
             world.Fighters.Remove(outgoing);
         Living.LocalCircuit.YieldTo(world, new[] { incoming });   // your booking beats a staged club card
         return true;
+    }
+
+    /// <summary>
+    /// Can this man take a corner of this booked bout, by weight (sex is checked by the caller)? Today's mode
+    /// keeps to the bout's class. In an Origins world, as <see cref="AddBout"/> books: an open-weight bout (or
+    /// house) takes any man, and a bout filed under a banded division takes any man of that band (the bout
+    /// is filed under the band's top class, so his natural class need not match it).
+    /// </summary>
+    private static bool FitsBout(World world, Fight bout, Fighter stay, Fighter incoming, out string? error)
+    {
+        error = null;
+        if (incoming.WeightClass == bout.WeightClass) return true;
+        if (world.Mode == WorldMode.Origins)
+        {
+            if (bout.OpenWeight || OpenWeight(world)) return true;
+            var division = world.Get(world.PlayerPromotion)?.Divisions
+                .FirstOrDefault(d => d.Lightest is not null && d.WeightClass == bout.WeightClass && d.Matches(stay));
+            if (division is not null)
+            {
+                if (division.Matches(incoming) || incoming.Sex != stay.Sex) return true;   // (the sexes: the caller's refusal)
+                error = "The replacement must be in the bout's division.";
+                return false;
+            }
+        }
+        error = "The replacement must be in the bout's weight class.";
+        return false;
     }
 
     // --- The room ------------------------------------------------------------
