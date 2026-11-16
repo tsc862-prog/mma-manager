@@ -76,8 +76,26 @@
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock Text="SPONSORS — PAID PER EVENT" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
-                        <ItemsControl ItemsSource="{Binding Sponsors}" ItemTemplate="{StaticResource DealRowTemplate}" Focusable="False" Margin="0,0,0,12" />
+                        <DockPanel Margin="0,0,0,4">
+                            <ToggleButton DockPanel.Dock="Right" Style="{StaticResource CardsTableToggle}" IsChecked="{Binding ShowSponsorTable}" />
+                            <TextBlock Text="SPONSORS — PAID PER EVENT" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Sponsors}" ItemTemplate="{StaticResource DealRowTemplate}" Focusable="False" Margin="0,0,0,12"
+                                      Visibility="{Binding ShowSponsorTable, Converter={StaticResource InverseBoolToVis}}" />
+                        <DataGrid ItemsSource="{Binding Sponsors}" IsReadOnly="True" HeadersVisibility="Column" Margin="0,0,0,12"
+                                  Visibility="{Binding ShowSponsorTable, Converter={StaticResource BoolToVis}}">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                    <Setter Property="ToolTip" Value="{Binding Terms}" />
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Partner" Binding="{Binding Partner}" Width="*" />
+                                <DataGridTextColumn Header="/event" Binding="{Binding Fee}" SortMemberPath="FeeSort" Width="100" ElementStyle="{StaticResource FigureIn}" />
+                                <DataGridTextColumn Header="Left" Binding="{Binding Left}" Width="56" ElementStyle="{StaticResource Figure}" />
+                                <DataGridTextColumn Header="" Binding="{Binding Strikes}" Width="46" />
+                            </DataGrid.Columns>
+                        </DataGrid>
                         <TextBlock Text="No sponsors yet. Brands call once the shows draw a crowd." Style="{StaticResource Text.Caption}" Margin="0,0,0,12"
                                    Visibility="{Binding NoSponsors, Converter={StaticResource BoolToVis}}" />
 

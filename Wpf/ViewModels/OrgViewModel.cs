@@ -140,6 +140,13 @@ public sealed class OrgViewModel : ObservableObject
     public bool HasOwner => Owner is not null;
     public bool NoStaff => MyStaff.Count == 0;
 
+    private bool _showStaffTable;
+    /// <summary>Staff and hiring as the dense sortable table instead of cards (kept for the session).</summary>
+    public bool ShowStaffTable { get => _showStaffTable; set => Set(ref _showStaffTable, value); }
+
+    /// <summary>Asks before a costly or destructive step (heading, body, detail, confirm text); null = go ahead (harness).</summary>
+    public Func<string, string, string, string, bool>? Confirm { get; set; }
+
     private bool _hasPosters;
     public bool HasPosters { get => _hasPosters; private set => Set(ref _hasPosters, value); }
 
@@ -367,8 +374,15 @@ public sealed class OrgViewModel : ObservableObject
     private void Fire()
     {
         if (_world?.Get(_world.PlayerPromotion) is not { } promo || SelectedStaff is null) return;
-        StaffService.Fire(_world, promo, SelectedStaff.Model.Role);
-        Status = $"Let go of {SelectedStaff.Name}.";
+        var who = SelectedStaff;
+        if (Confirm is { } ask && !ask(
+                $"Let {who.Name} go?",
+                $"{who.Name} leaves the {who.Role.ToLowerInvariant()} desk. The payroll saves {who.Salary} a month.",
+                $"The desk stays empty until you hire again, and {who.Name} goes back on the staff market, where any promotion can make the hire.",
+                $"Let {who.Name} go"))
+            return;
+        StaffService.Fire(_world, promo, who.Model.Role);
+        Status = $"Let go of {who.Name}.";
         Refresh();
         OnChanged?.Invoke();
     }

@@ -1799,6 +1799,9 @@ public partial class App : Application
                 {
                     vm.MyRoster.ShowTable = true;
                     vm.FightersPage.ShowTable = true;
+                    vm.Org.ShowStaffTable = true;
+                    vm.Finance.ShowSponsorTable = true;
+                    vm.Media.ShowDealTable = true;
                 }
                 if (e.Args.Contains("--bykind")) vm.News.ByKind = true;
                 if (e.Args.Contains("--syncfaces")) Portraits.SyncThumbs = true;   // A/B: the old full-size, UI-thread decode

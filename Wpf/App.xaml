@@ -1190,6 +1190,41 @@
             </Setter>
         </Style>
 
+        <!-- CardsTableToggle (ToggleButton): the small "Cards | Table" switch for a list that is cards by default;
+             IsChecked = the dense sortable table. Bind IsChecked to the screen's Show…Table (a session-long VM flag). -->
+        <Style x:Key="CardsTableToggle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ToolTip" Value="Cards, or the dense sortable table" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Style="{StaticResource Segmented}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border x:Name="cards" CornerRadius="5" Padding="9,2" Background="{StaticResource CardHover}">
+                                    <TextBlock x:Name="cardsText" Text="Cards" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" />
+                                </Border>
+                                <Border x:Name="table" CornerRadius="5" Padding="9,2" Background="Transparent">
+                                    <TextBlock x:Name="tableText" Text="Table" Foreground="{StaticResource TextSoft}" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="cards" Property="Background" Value="Transparent" />
+                                <Setter TargetName="cardsText" Property="Foreground" Value="{StaticResource TextSoft}" />
+                                <Setter TargetName="cardsText" Property="FontWeight" Value="Normal" />
+                                <Setter TargetName="table" Property="Background" Value="{StaticResource CardHover}" />
+                                <Setter TargetName="tableText" Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                <Setter TargetName="tableText" Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- SearchBox (TextBox): rounded field with a search icon; Tag = the placeholder text. -->
         <Style x:Key="SearchBox" TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />

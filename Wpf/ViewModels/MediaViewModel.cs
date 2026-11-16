@@ -20,18 +20,31 @@ public sealed class RungRow
             : r.Gate;
         Fee = r.Kind == MediaKind.PpvCarrier ? "50–60% of buys" : $"~{r.Fee}/ev";
         Terms = r.Terms;
-        // The networks on this rung, drawn as their marks. The rung's partner names live inside the sim's
-        // Ladder (only spelled out in the terms text), so the logos come from the art manifest's rung
-        // category for this kind; the full text stays in the tooltip. (Ask: world-sim to expose the
-        // partner names on RungView, then read them from there.)
-        var key = r.Kind.ToString();
-        Partners = Art.BrandLibrary.Names(Art.BrandKind.Media)
-            .Where(n => Art.BrandLibrary.Info(n, Art.BrandKind.Media) is { } b
-                        && string.Equals(b.Category.Replace("-", ""), key, StringComparison.OrdinalIgnoreCase))
+        // The networks on this rung, drawn as their marks (a name tile when one has no logo). The SIM is
+        // the source: RungView has no structured partner list yet, so the names are read from where the
+        // sim spells them today — the terms text, " · networks: A (tag), B (tag) — terms and money vary
+        // by house". (Ask: world-sim to expose RungView.Partners, then read that instead.) If the text
+        // can't be read, no marks are shown and the full terms stay as they were.
+        int cut = Terms.IndexOf(NetworksMark, StringComparison.Ordinal);
+        Partners = PartnersIn(Terms, cut)
             .Select(n => new RungPartner(n, deal?.Partner == n))
-            .OrderByDescending(p => p.OnAir).ThenBy(p => p.Name, StringComparer.Ordinal).ToList();
-        int cut = Terms.IndexOf(" · networks:", StringComparison.Ordinal);
+            .OrderByDescending(p => p.OnAir).ToList();
         ShortTerms = Partners.Count > 0 && cut > 0 ? Terms[..cut] : Terms;
+    }
+
+    private const string NetworksMark = " · networks: ";
+    private const string NetworksEnd = " — terms and money vary by house";
+
+    // "Combat One (standard), Octagon TV (flagship)" -> ["Combat One", "Octagon TV"], in the sim's order.
+    private static List<string> PartnersIn(string terms, int at)
+    {
+        if (at < 0) return new List<string>();
+        string list = terms[(at + NetworksMark.Length)..];
+        int end = list.IndexOf(NetworksEnd, StringComparison.Ordinal);
+        if (end >= 0) list = list[..end];
+        return list.Split(", ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => p.EndsWith(')') && p.LastIndexOf(" (", StringComparison.Ordinal) is > 0 and var open ? p[..open] : p)
+            .Where(n => n.Length > 0).ToList();
     }
     public string Label { get; }
     public bool Signed { get; }
@@ -61,6 +74,10 @@ public sealed class MediaViewModel : ObservableObject
     public ObservableCollection<MediaRow> Deals { get; } = new();
     public ObservableCollection<OfferRow> Offers { get; } = new();
     public ObservableCollection<RungRow> Ladder { get; } = new();
+
+    private bool _showDealTable;
+    /// <summary>Our deals as the dense sortable table instead of logo rows (kept for the session).</summary>
+    public bool ShowDealTable { get => _showDealTable; set => Set(ref _showDealTable, value); }
 
     private bool _hasStream;
     public bool HasStream { get => _hasStream; private set => Set(ref _hasStream, value); }

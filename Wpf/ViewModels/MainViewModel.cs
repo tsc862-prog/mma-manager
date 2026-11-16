@@ -101,6 +101,9 @@ public sealed class MainViewModel : ObservableObject
         Desktop.ScreenContext = this;       // app windows host the same screens the tabs do
         Contracts.OnChanged = RefreshAll;   // a signing/release moves the balance and roster
         Org.OnChanged = RefreshAll;         // hiring/firing changes staff and overhead
+        if (!HeadlessAutoBoot)
+            Org.Confirm = (heading, body, detail, confirm) =>
+                MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep them on");
         Camps.OnChanged = RefreshAll;       // a team deal / camp report moves the balance
         Booking.OnRunLive = RunLive;        // "run & watch" a card
         Booking.OpenContracts = () => NavigateTo(Tab.Contracts);   // empty roster: go sign someone

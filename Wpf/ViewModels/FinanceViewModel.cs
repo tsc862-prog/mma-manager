@@ -269,5 +269,9 @@ public sealed class FinanceViewModel : ObservableObject
     }
 
     public bool NoSponsors => Sponsors.Count == 0;
+
+    private bool _showSponsorTable;
+    /// <summary>Sponsor deals as the dense sortable table instead of logo rows (kept for the session).</summary>
+    public bool ShowSponsorTable { get => _showSponsorTable; set => Set(ref _showSponsorTable, value); }
     public bool NoOffers => Offers.Count == 0;
 }

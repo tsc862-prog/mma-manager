@@ -26,14 +26,33 @@
         <Grid Margin="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="480" />
-                <ColumnDefinition Width="460" />
+                <ColumnDefinition Width="500" />
             </Grid.ColumnDefinitions>
 
             <!-- Left: our deals, the platform, the offers -->
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,12,0">
                 <StackPanel>
-                    <TextBlock Text="ON THE AIR — OUR DEALS" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
-                    <ItemsControl ItemsSource="{Binding Deals}" ItemTemplate="{StaticResource DealRowTemplate}" Focusable="False" Margin="0,0,0,12" />
+                    <DockPanel Margin="0,0,0,4">
+                        <ToggleButton DockPanel.Dock="Right" Style="{StaticResource CardsTableToggle}" IsChecked="{Binding ShowDealTable}" />
+                        <TextBlock Text="ON THE AIR — OUR DEALS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Deals}" ItemTemplate="{StaticResource DealRowTemplate}" Focusable="False" Margin="0,0,0,12"
+                                  Visibility="{Binding ShowDealTable, Converter={StaticResource InverseBoolToVis}}" />
+                    <DataGrid ItemsSource="{Binding Deals}" IsReadOnly="True" HeadersVisibility="Column" Margin="0,0,0,12"
+                              Visibility="{Binding ShowDealTable, Converter={StaticResource BoolToVis}}">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                <Setter Property="ToolTip" Value="{Binding Terms}" />
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Screen" Binding="{Binding Kind}" Width="150" />
+                            <DataGridTextColumn Header="Partner" Binding="{Binding Partner}" Width="*" />
+                            <DataGridTextColumn Header="Pays" Binding="{Binding Fee}" SortMemberPath="FeeSort" Width="120" ElementStyle="{StaticResource FigureIn}" />
+                            <DataGridTextColumn Header="Left" Binding="{Binding Left}" Width="60" ElementStyle="{StaticResource Figure}" />
+                            <DataGridTextColumn Header="" Binding="{Binding Strikes}" Width="46" />
+                        </DataGrid.Columns>
+                    </DataGrid>
                     <TextBlock Text="Nobody airs us yet." Margin="0,0,0,12">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
@@ -133,8 +152,14 @@
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border x:Name="b" Padding="3" Margin="0,0,6,0" CornerRadius="5" BorderThickness="1" BorderBrush="Transparent" Opacity="0.8">
-                                                        <ContentControl Style="{StaticResource BrandMark}" Content="{Binding Name}" Width="72" Height="40" />
+                                                    <Border x:Name="b" Width="112" Padding="4,5,4,4" Margin="0,0,6,6" CornerRadius="6" BorderThickness="1"
+                                                            BorderBrush="Transparent" Background="{StaticResource SurfaceSunken}" Opacity="0.85" ToolTip="{Binding Name}">
+                                                        <StackPanel>
+                                                            <ContentControl Style="{StaticResource BrandMark}" Content="{Binding Name}" Width="100" Height="56" />
+                                                            <!-- the name, always: some marks are too fine to read at this size -->
+                                                            <TextBlock Text="{Binding Name}" FontSize="10.5" Foreground="{StaticResource TextSoft}" TextAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                                        </StackPanel>
                                                     </Border>
                                                     <DataTemplate.Triggers>
                                                         <DataTrigger Binding="{Binding OnAir}" Value="True">

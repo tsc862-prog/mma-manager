@@ -329,18 +329,11 @@ public sealed class MailViewModel : ObservableObject
                 _ when m.Category == MailCategory.FighterRequest => ("Fighter", "People"),
                 _ => ("Partner", "Money"),
             };
-            // A face only where the sender IS a named person: the owner's own "The Owner" note, or a desk
-            // whose holder has a real portrait (otherwise the desk keeps its icon). A partner writing in
-            // shows its logo.
-            string? person = from switch
-            {
-                "The Owner" when ownerName.Length > 0 => ownerName,
-                "PR" => player?.Staff.FirstOrDefault(s => s.Role == StaffRole.Marketing)?.Name,
-                "Scouting" => player?.Staff.FirstOrDefault(s => s.Role == StaffRole.Scouting)?.Name,
-                _ => null,
-            };
-            if (person is not null && (from == "The Owner" || CorporateArt.HasFace(person)))
-                pic = () => CorporateArt.Face(person);
+            // A face only where the sender IS a named person: the owner's own "The Owner" note. A desk
+            // ("PR", "Scouting") keeps its icon: the letter records no person, and whoever holds the desk
+            // today may not be who held it when it was written. A partner writing in shows its logo.
+            if (from == "The Owner" && ownerName.Length > 0)
+                pic = () => CorporateArt.Face(ownerName);
             else if (role == "Partner" && CorporateArt.HasBrand(from))
                 brand = from;
         }
