@@ -57,7 +57,7 @@ public class PlayerFoundingTests
         Assert.Equal(new[] { GloveType.Bare, GloveType.Optional }, choices.Gloves);
         Assert.Equal(new[] { Enclosure.Cage, Enclosure.Ring }, choices.Enclosures);
         Assert.True(choices.OpenWeight);
-        Assert.Equal(OriginsFounding.NewcomerBank(PlayerFounding.BankSteps), choices.Bank.Amount);   // (100k: 50k and two steps of 25k)
+        Assert.Equal(OriginsFounding.NewcomerBank(PlayerFounding.BankSteps), choices.Bank.Amount);   // (125k: 50k and three steps of 25k, the AI newcomers' median)
         Assert.Equal(5, choices.Prestige);
         Assert.NotEmpty(choices.Notes);
     }
