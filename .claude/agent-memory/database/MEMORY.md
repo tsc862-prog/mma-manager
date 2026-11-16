@@ -1,2 +1,3 @@
 - [Origins day-one canon](origins-day-one-canon.md) — 1993 content: 3 promos, 43 pioneers, voices; rules and feuds
 - [Origins timeline canon](origins-timeline-canon.md) — 54 chapters, era broadcasters/sponsors, arrivals; unlock-once rule, scene order, naming rules
+- [Narratives pass canon](narratives-pass-canon.md) — 2026-11 story webs across bios/owners/staff/Origins; text-only vs world-changing; claim-regex rules
