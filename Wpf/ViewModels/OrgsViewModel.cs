@@ -108,6 +108,10 @@ public sealed class OrgsViewModel : ObservableObject
 
     public ObservableCollection<OrgDealRow> Deals { get; } = new();
 
+    /// <summary>Whose house it is (null when nobody's name is on it).</summary>
+    public PersonCard? Owner { get; private set; }
+    public bool HasOwner => Owner is not null;
+
     private bool _hasDeals;
     public bool HasDeals { get => _hasDeals; private set => Set(ref _hasDeals, value); }
 
@@ -160,7 +164,10 @@ public sealed class OrgsViewModel : ObservableObject
             ? $"LEVEL: {OrgSizing.Label(standing.Tier)}  ·  {standing.Percent}% of the way to {OrgSizing.Label(next)}"
             : $"LEVEL: {OrgSizing.Label(standing.Tier)}  ·  the top of the sport";
         BalanceText = p.Balance.ToString();
-        Story = Core.Sim.Flavor.Biographer.Promotion(_world, p);
+        Story = PersonCard.StoryWithoutOwnerNote(Core.Sim.Flavor.Biographer.Promotion(_world, p), p);
+        Owner = PersonCard.OwnerOf(p);
+        OnPropertyChanged(nameof(Owner));
+        OnPropertyChanged(nameof(HasOwner));
         RulesLine = $"House rules: {p.Rules.RoundMinutes}-minute rounds  ·  {p.Rules.StandardRounds}-round bouts  ·  {p.Rules.TitleRounds}-round title fights";
 
         var roster = _world.RosterOf(p.Id).Where(f => f.Status != FighterStatus.Retired).ToList();

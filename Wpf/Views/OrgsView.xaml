@@ -80,7 +80,12 @@
                             </StackPanel>
                         </DockPanel>
                         <TextBlock Text="{Binding Story}" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
-                                   LineHeight="17" Margin="0,10,0,10" MaxHeight="72" TextTrimming="CharacterEllipsis" />
+                                   LineHeight="17" Margin="0,10,0,10" MaxHeight="72" TextTrimming="CharacterEllipsis" ToolTip="{Binding Story}" />
+                        <!-- whose house it is -->
+                        <Border Background="{StaticResource SurfaceSunken}" CornerRadius="{StaticResource Radius.Card}" Padding="12,10" Margin="0,0,0,12"
+                                Visibility="{Binding HasOwner, Converter={StaticResource BoolToVis}}">
+                            <ContentControl Content="{Binding Owner}" ContentTemplate="{StaticResource PersonCardTemplate}" Focusable="False" />
+                        </Border>
                     </StackPanel>
 
                     <Grid>
@@ -102,8 +107,9 @@
                                         <DataTemplate>
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1" Padding="0,6">
                                                 <DockPanel>
-                                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" Width="26" VerticalAlignment="Top" />
-                                                    <StackPanel>
+                                                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource BrandMark}" Content="{Binding Partner}"
+                                                                    Width="52" Height="30" Margin="0,0,10,0" />
+                                                    <StackPanel VerticalAlignment="Center">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="{Binding Partner}" FontWeight="SemiBold" />
                                                             <TextBlock Text="{Binding Kind}" FontSize="10.5" Foreground="{StaticResource TextFaint}" Margin="8,0,0,0" VerticalAlignment="Center" />

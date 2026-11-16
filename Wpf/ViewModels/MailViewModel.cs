@@ -6,6 +6,7 @@ using MmaManager.Core.Sim.Org;
 using Lifers = MmaManager.Core.Sim.Contracts.Lifers;
 using Promises = MmaManager.Core.Sim.Contracts.Promises;
 using MmaManager.Wpf.Art;
+using MmaManager.Wpf.Controls;
 using MmaManager.Wpf.Mvvm;
 
 namespace MmaManager.Wpf.ViewModels;
@@ -63,6 +64,12 @@ public sealed class LetterModel : ObservableObject
     public required string Icon { get; init; }
     public ImageSource? Picture { get { if (!_picLoaded) { _pic = _picture?.Invoke(); _picLoaded = true; } return _pic; } }
     public bool HasPicture => _picture is not null;
+    /// <summary>A partner writing in (the exact partner name, drawn as its logo in place of a face), or "".</summary>
+    public string Brand { get; init; } = "";
+    public bool HasBrand => Brand.Length > 0;
+    /// <summary>The sponsor or network an offer letter is about (its logo heads "what you can do"), or "".</summary>
+    public string OfferBrand { get; init; } = "";
+    public bool HasOfferBrand => OfferBrand.Length > 0;
     public required string When { get; init; }
     public required string FullDate { get; init; }
     public string Subject => Model.Subject;
@@ -287,12 +294,20 @@ public sealed class MailViewModel : ObservableObject
         string role;
         string icon;
         Func<ImageSource?>? pic = null;
+        string brand = "", offerBrand = "";
         string ownerName = player?.OwnerName ?? "";
         if (about is not null && about.FullName == from)
         {
             role = $"Fighter  ·  {FighterRow.DivisionLabel(about)}";
             icon = "People";
             pic = () => Portraits.Thumb(about, w);
+        }
+        else if (ownerName.Length > 0 && from == ownerName)
+        {
+            // The owner signs their own letters: their face (initials when there is no portrait yet).
+            role = $"Owner of {player!.Name}";
+            icon = "Building";
+            pic = () => CorporateArt.Face(ownerName);
         }
         else
         {
@@ -314,6 +329,13 @@ public sealed class MailViewModel : ObservableObject
                 _ when m.Category == MailCategory.FighterRequest => ("Fighter", "People"),
                 _ => ("Partner", "Money"),
             };
+            // A face only where the sender IS a named person: the owner's own "The Owner" note. A desk
+            // ("PR", "Scouting") keeps its icon: the letter records no person, and whoever holds the desk
+            // today may not be who held it when it was written. A partner writing in shows its logo.
+            if (from == "The Owner" && ownerName.Length > 0)
+                pic = () => CorporateArt.Face(ownerName);
+            else if (role == "Partner" && CorporateArt.HasBrand(from))
+                brand = from;
         }
 
         // --- folders by who sent it and what it is ---
@@ -447,6 +469,7 @@ public sealed class MailViewModel : ObservableObject
                 due = days <= 1 ? "Lapses tomorrow" : $"{days} days left";
                 note = $"{o.FeePerEvent} an event. The offer lapses on {o.ExpiresOn:d MMM}.";
                 var row = new OfferRow(o);
+                offerBrand = o.Partner;
                 actions.Add(new LetterAction { Text = "Sign the deal", Command = Then(accept), Parameter = row, IsPrimary = true });
                 actions.Add(new LetterAction { Text = "Turn it down", Command = Then(decline), Parameter = row });
                 actions.Add(new LetterAction { Text = media ? "Media desk ▸" : "Finance ▸", Command = OpenTabCommand, Parameter = media ? Tab.Media : Tab.Finance });
@@ -503,6 +526,8 @@ public sealed class MailViewModel : ObservableObject
             Sender = from,
             SenderRole = role,
             Icon = icon,
+            Brand = brand,
+            OfferBrand = offerBrand,
             When = m.Date == today ? "Today" : m.Date == today.AddDays(-1) ? "Yesterday" : m.Date.ToString("d MMM"),
             FullDate = m.Date.ToString("dddd d MMMM yyyy"),
             Snippet = snippet,

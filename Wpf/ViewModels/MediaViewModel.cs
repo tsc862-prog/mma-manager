@@ -20,6 +20,31 @@ public sealed class RungRow
             : r.Gate;
         Fee = r.Kind == MediaKind.PpvCarrier ? "50–60% of buys" : $"~{r.Fee}/ev";
         Terms = r.Terms;
+        // The networks on this rung, drawn as their marks (a name tile when one has no logo). The SIM is
+        // the source: RungView has no structured partner list yet, so the names are read from where the
+        // sim spells them today — the terms text, " · networks: A (tag), B (tag) — terms and money vary
+        // by house". (Ask: world-sim to expose RungView.Partners, then read that instead.) If the text
+        // can't be read, no marks are shown and the full terms stay as they were.
+        int cut = Terms.IndexOf(NetworksMark, StringComparison.Ordinal);
+        Partners = PartnersIn(Terms, cut)
+            .Select(n => new RungPartner(n, deal?.Partner == n))
+            .OrderByDescending(p => p.OnAir).ToList();
+        ShortTerms = Partners.Count > 0 && cut > 0 ? Terms[..cut] : Terms;
+    }
+
+    private const string NetworksMark = " · networks: ";
+    private const string NetworksEnd = " — terms and money vary by house";
+
+    // "Combat One (standard), Octagon TV (flagship)" -> ["Combat One", "Octagon TV"], in the sim's order.
+    private static List<string> PartnersIn(string terms, int at)
+    {
+        if (at < 0) return new List<string>();
+        string list = terms[(at + NetworksMark.Length)..];
+        int end = list.IndexOf(NetworksEnd, StringComparison.Ordinal);
+        if (end >= 0) list = list[..end];
+        return list.Split(", ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => p.EndsWith(')') && p.LastIndexOf(" (", StringComparison.Ordinal) is > 0 and var open ? p[..open] : p)
+            .Where(n => n.Length > 0).ToList();
     }
     public string Label { get; }
     public bool Signed { get; }
@@ -27,7 +52,14 @@ public sealed class RungRow
     public string Status { get; }
     public string Fee { get; }
     public string Terms { get; }
+    /// <summary>The terms without the list of network names (the marks show those).</summary>
+    public string ShortTerms { get; }
+    public IReadOnlyList<RungPartner> Partners { get; }
+    public bool HasPartners => Partners.Count > 0;
 }
+
+/// <summary>A network on a rung of the ladder (its exact name), and whether it airs us.</summary>
+public sealed record RungPartner(string Name, bool OnAir);
 
 /// <summary>
 /// The Media desk: who airs the promotion (one deal per lane — linear TV, a
@@ -42,6 +74,10 @@ public sealed class MediaViewModel : ObservableObject
     public ObservableCollection<MediaRow> Deals { get; } = new();
     public ObservableCollection<OfferRow> Offers { get; } = new();
     public ObservableCollection<RungRow> Ladder { get; } = new();
+
+    private bool _showDealTable;
+    /// <summary>Our deals as the dense sortable table instead of logo rows (kept for the session).</summary>
+    public bool ShowDealTable { get => _showDealTable; set => Set(ref _showDealTable, value); }
 
     /// <summary>The desk's one-line brief (today's lanes, or what a 1993 promoter can actually sell).</summary>
     public string Headline { get; private set; } = Today;

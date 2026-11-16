@@ -76,8 +76,14 @@
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock Text="SPONSORS — PAID PER EVENT" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
-                        <DataGrid ItemsSource="{Binding Sponsors}" IsReadOnly="True" HeadersVisibility="Column" Margin="0,0,0,12">
+                        <DockPanel Margin="0,0,0,4">
+                            <ToggleButton DockPanel.Dock="Right" Style="{StaticResource CardsTableToggle}" IsChecked="{Binding ShowSponsorTable}" />
+                            <TextBlock Text="SPONSORS — PAID PER EVENT" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Sponsors}" ItemTemplate="{StaticResource DealRowTemplate}" Focusable="False" Margin="0,0,0,12"
+                                      Visibility="{Binding ShowSponsorTable, Converter={StaticResource InverseBoolToVis}}" />
+                        <DataGrid ItemsSource="{Binding Sponsors}" IsReadOnly="True" HeadersVisibility="Column" Margin="0,0,0,12"
+                                  Visibility="{Binding ShowSponsorTable, Converter={StaticResource BoolToVis}}">
                             <DataGrid.RowStyle>
                                 <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
                                     <Setter Property="ToolTip" Value="{Binding Terms}" />
@@ -90,36 +96,13 @@
                                 <DataGridTextColumn Header="" Binding="{Binding Strikes}" Width="46" />
                             </DataGrid.Columns>
                         </DataGrid>
+                        <TextBlock Text="No sponsors yet. Brands call once the shows draw a crowd." Style="{StaticResource Text.Caption}" Margin="0,0,0,12"
+                                   Visibility="{Binding NoSponsors, Converter={StaticResource BoolToVis}}" />
 
-                        <TextBlock Text="SPONSOR OFFERS ON THE TABLE" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
-                        <ItemsControl ItemsSource="{Binding Offers}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6">
-                                        <DockPanel>
-                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Button Content="Sign" Padding="10,2" Margin="0,0,6,0"
-                                                        Command="{Binding DataContext.AcceptOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}" />
-                                                <Button Content="Pass" Padding="10,2"
-                                                        Command="{Binding DataContext.DeclineOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}" />
-                                            </StackPanel>
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding Partner}" FontWeight="Bold" />
-                                                    <TextBlock Text="{Binding Kind}" Foreground="{StaticResource TextSecondary}" Margin="8,0,0,0" />
-                                                </StackPanel>
-                                                <TextBlock Foreground="{StaticResource TextSecondary}" FontSize="11" TextWrapping="Wrap">
-                                                    <Run Text="{Binding Fee, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Term, Mode=OneWay}" /><Run Text=" · expires " /><Run Text="{Binding Expires, Mode=OneWay}" />
-                                                </TextBlock>
-                                                <TextBlock Text="{Binding Terms}" Foreground="{StaticResource TextFaint}" FontSize="11" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </DockPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <TextBlock Text="SPONSOR OFFERS ON THE TABLE" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+                        <ItemsControl ItemsSource="{Binding Offers}" ItemTemplate="{StaticResource OfferCardTemplate}" Focusable="False" />
+                        <TextBlock Text="Nobody is asking right now." Style="{StaticResource Text.Caption}"
+                                   Visibility="{Binding NoOffers, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
