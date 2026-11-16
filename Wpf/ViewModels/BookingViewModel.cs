@@ -281,6 +281,8 @@ public sealed partial class BookingViewModel : ObservableObject
     public FighterPick? SelectedBlue { get => _blue; set { if (Set(ref _blue, value) && !_quiet) UpdateAppraisal(); } }
 
     private int _rounds;
+    private int? _houseStandard;   // the house's standard bout length when the desk last looked
+    private bool _houseRulesMoved; // ...and it changed since (an Origins reform): the old pick isn't restored
     public int SelectedRounds { get => _rounds; set { if (Set(ref _rounds, value) && !_quiet && HasPairing) SyncPickSheet(); } }
 
     private bool _isTitle;
@@ -376,6 +378,7 @@ public sealed partial class BookingViewModel : ObservableObject
         }
 
         _quiet = true;
+        _houseRulesMoved = false;
         try
         {
             // Round options and default follow the org's ruleset.
@@ -391,7 +394,10 @@ public sealed partial class BookingViewModel : ObservableObject
                 if (!sameWorld) { IsTitleBout = false; SelectedRounds = promo.Rules.StandardRounds; }
                 // The house changed its rules under the desk (an Origins reform: one long round became timed rounds):
                 // a length the rules no longer offer falls back to the house's standard bout.
-                else if (!RoundsOptions.Contains(SelectedRounds)) SelectedRounds = promo.Rules.StandardRounds;
+                else if ((_houseRulesMoved = HouseRules.HasOwn(promo) && _houseStandard is { } was && was != promo.Rules.StandardRounds)
+                         || !RoundsOptions.Contains(SelectedRounds))
+                    SelectedRounds = promo.Rules.StandardRounds;   // (an Origins house's split moved it to cards of 3 rounds, say)
+                _houseStandard = promo.Rules.StandardRounds;
             }
 
             RefreshDivisions();
@@ -450,7 +456,7 @@ public sealed partial class BookingViewModel : ObservableObject
         // The appraisal re-derives the title box from the pairing; the player's
         // own tick and round count go back on top of it (Add Bout still checks them).
         if (SelectedRed is not null && SelectedBlue is not null) IsTitleBout = keep.Title;
-        if (RoundsOptions.Contains(keep.Rounds)) SelectedRounds = keep.Rounds;
+        if (RoundsOptions.Contains(keep.Rounds) && !_houseRulesMoved) SelectedRounds = keep.Rounds;
 
         if (dropped.Count > 0)
             Err("Things changed since you last looked: " + string.Join("; ", dropped) + ".");

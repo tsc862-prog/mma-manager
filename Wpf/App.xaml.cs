@@ -1706,7 +1706,8 @@ public partial class App : Application
                     // offers as it opens; --untilchapter N then plays on (at most N weeks) until a chapter fires.
                     int weeks = e.Args.Contains("--weeks") ? int.Parse(e.Args[Array.IndexOf(e.Args, "--weeks") + 1]) : 0;
                     int omonths = e.Args.Contains("--months") ? months : 0;
-                    bool reform = e.Args.Contains("--reform");
+                    bool reform = e.Args.Contains("--reform") || e.Args.Contains("--rulesonly");
+                    OriginsHarness.RulesOnly = e.Args.Contains("--rulesonly");
                     OriginsHarness.Play(vm, weeks, hold: e.Args.Contains("--holdnight"), bookNight: e.Args.Contains("--booknight"), months: omonths, reform: reform, busy: e.Args.Contains("--busy"), stopAtBan: e.Args.Contains("--stopatban"));
                     if (e.Args.Contains("--rankorg"))   // the Rankings app viewing another house (by abbreviation)
                     {
@@ -1723,6 +1724,7 @@ public partial class App : Application
                     }
                     if (e.Args.Contains("--untilchapter"))
                         OriginsHarness.UntilChapter(vm, int.Parse(e.Args[Array.IndexOf(e.Args, "--untilchapter") + 1]), reform, e.Args.Contains("--busy"));
+                    if (e.Args.Contains("--replacecheck")) OriginsHarness.ReplaceCheck(vm);   // a band bout's corner changed through the desk
                     if (e.Args.Contains("--nightin"))   // look at a night N days out on the desk's form
                         vm.Tournament.Date = vm.LiveWorld!.CurrentDate.AddDays(int.Parse(e.Args[Array.IndexOf(e.Args, "--nightin") + 1])).ToDateTime(TimeOnly.MinValue);
                     if (e.Args.Contains("--nightin")) vm.Tournament.ShowNextNight = true;

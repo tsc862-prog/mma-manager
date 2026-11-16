@@ -27,6 +27,7 @@ public sealed class ChapterCard
         PromotionId = c.Promotion?.Value ?? 0;
         Who = string.Join("  ·  ", new[] { c.FighterName, c.PromotionName }.Where(s => !string.IsNullOrEmpty(s)));
         Opened = c.Unlocked.Count == 0 ? "" : "Opened: " + string.Join(", ", c.Unlocked) + ".";
+        Note = OriginsStory.PlayerNote(c.Key) ?? "";   // what this chapter doesn't do yet, said plainly (the sim's words)
         if (c.Fighter is { } fid && w.Get(fid) is { } f) Picture = Portraits.Thumb(f, w);
         else if (c.Promotion is { } pid && w.Get(pid) is { } promo) { Picture = LogoFactory.ForPromotion(promo); PictureIsLogo = true; }
     }
@@ -41,6 +42,9 @@ public sealed class ChapterCard
     public bool HasWho => Who.Length > 0;
     public string Opened { get; }
     public bool HasOpened => Opened.Length > 0;
+    /// <summary>A quiet line when the chapter is told but not everything it says happens in play yet.</summary>
+    public string Note { get; }
+    public bool HasNote => Note.Length > 0;
     public bool IsYours { get; }
     public string YoursText => IsYours ? "YOUR CHAPTER" : "";
     public int FighterId { get; }

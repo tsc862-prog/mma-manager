@@ -71,7 +71,7 @@ public sealed partial class OrgViewModel
         if (OriginsReforms.Ladder.FirstOrDefault(c => !OriginsReforms.HasLines(promo, c)) is { } line) shut.Add(line);
         foreach (var c in shut.Where(c => open.All(o => o.Chapter != c)))
             if (OriginsReforms.Refusal(w, promo, c, today) is { } why)
-                Reforms.Add(new ReformCard { Chapter = c, Title = Label(c), Detail = What(c), Buys = Buys(w, promo, c), Refusal = why });
+                Reforms.Add(new ReformCard { Chapter = c, Title = Label(c), Detail = What(promo, c), Buys = Buys(w, promo, c), Refusal = why });
 
         if (promo.HomeCity is { } homeId && w.Get(homeId) is { } home && Era.Banned(w, home.Id, today))
             BanLine = $"{home.Name} has banned the sport: your own hall is closed to you. " + OriginsBacklash.LicenceAdvice(w, promo, today);
@@ -93,11 +93,19 @@ public sealed partial class OrgViewModel
         : chapter == OriginsReforms.Ladder[0] ? "Split heavy and light"
         : "Add " + string.Join(" and ", OriginsReforms.LinesOf(chapter).Select(OriginsReforms.Name)) + " divisions";
 
-    private static string What(string chapter) =>
-        chapter == OriginsReforms.Rounds ? "Timed rounds with a minute's rest; three judges score a fight that goes the distance."
-        : chapter == OriginsReforms.Gloves ? "Every man wears the same thin, open-fingered glove."
-        : chapter == OriginsReforms.Ladder[0] ? "Heavyweights and everyone lighter get a division and a belt each; the open-weight belt is retired."
-        : "Each new division gets a vacant belt; men move to the division their natural weight puts them in.";
+    // (An open reform shows the sim's own Detail; this is only for one that isn't open yet. The weight lines'
+    // bands come from the sim's BandsAfter, so they can't disagree with what adopting would draw.)
+    private static string What(Promotion promo, string chapter)
+    {
+        if (chapter == OriginsReforms.Rounds) return "Timed rounds with a minute's rest; three judges score a fight that goes the distance.";
+        if (chapter == OriginsReforms.Gloves) return "Every man wears the same thin, open-fingered glove.";
+        var bands = OriginsReforms.BandsAfter(promo, chapter);
+        string Band(int i) => OriginsReforms.Name(bands[i].Class).ToLowerInvariant() + " "
+            + (i == 0 ? $"up to {bands[i].Top} lb" : i == bands.Count - 1 ? $"over {bands[i - 1].Top} lb" : $"{bands[i - 1].Top + 1} to {bands[i].Top} lb");
+        string lines = "The divisions would be " + string.Join(", ", Enumerable.Range(0, bands.Count).Reverse().Select(Band)) + "; each new one gets a vacant belt.";
+        string bracket = promo.Rules.ShowFormat == ShowFormat.OneNightTournament ? " The house would give up its one-night brackets for cards of single bouts." : "";
+        return (chapter == OriginsReforms.Ladder[0] ? "The open-weight belt is retired. " : "") + lines + bracket;
+    }
 
     /// <summary>What a reform buys, from public facts: the licence it counts toward, and whose chapter it is.</summary>
     private static IReadOnlyList<string> Buys(World w, Promotion promo, string chapter)
@@ -109,11 +117,8 @@ public sealed partial class OrgViewModel
                 ? "The last rule a commission asks for: with it, a commission can license you (and a licence lifts a ban)."
                 : "One of the rules a commission asks for before it will license a house (rounds, judges and gloves).");
         else
-        {
-            lines.Add("A belt in every division: more title fights, and more champions to sell.");
-            if (chapter == OriginsReforms.Ladder[0] && promo.Rules.ShowFormat == ShowFormat.OneNightTournament)
-                lines.Add("Your one-night brackets end: the house runs cards of single bouts from then on.");
-        }
+            // (What the split does to the house's nights and weights is the card's own text: the sim's Detail.)
+            lines.Add("More belts: more title fights, and more champions to sell.");
         if (w.Era.Chapter(chapter) is { } done)
             lines.Add(done.Promotion == promo.Id
                 ? $"You were first, in {done.FiredOn.Year}: it is your chapter of the sport's story."

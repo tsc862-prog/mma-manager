@@ -2359,6 +2359,7 @@
                         <TextBlock Text="{Binding Body}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" LineHeight="19" Margin="0,4,0,0" />
                         <TextBlock x:Name="who" Text="{Binding Who}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource TextSoft}" Margin="0,6,0,0" />
                         <TextBlock x:Name="opened" Text="{Binding Opened}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        <TextBlock x:Name="note" Text="{Binding Note}" Style="{StaticResource Text.Caption}" FontStyle="Italic" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -2368,6 +2369,7 @@
                 <DataTrigger Binding="{Binding IsYours}" Value="False"><Setter TargetName="yours" Property="Visibility" Value="Collapsed" /></DataTrigger>
                 <DataTrigger Binding="{Binding HasWho}" Value="False"><Setter TargetName="who" Property="Visibility" Value="Collapsed" /></DataTrigger>
                 <DataTrigger Binding="{Binding HasOpened}" Value="False"><Setter TargetName="opened" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasNote}" Value="False"><Setter TargetName="note" Property="Visibility" Value="Collapsed" /></DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
         <!-- A reform of the house rules (ReformCard, HQ): what it does and buys, and Adopt (it asks first), or

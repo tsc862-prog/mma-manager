@@ -80,10 +80,60 @@ internal static class OriginsHarness
         vm.Contracts.OnChanged?.Invoke();
     }
 
+    /// <summary>
+    /// The band replace check (harness): at a split house, book a band bout between two natural light
+    /// heavyweights on a fresh card through the Card Desk, open "Change a corner" on it, and replace one corner
+    /// with another man of the band from the desk's own ladder. Signs light heavyweights first if short.
+    /// </summary>
+    public static void ReplaceCheck(MainViewModel vm)
+    {
+        var w = vm.LiveWorld!;
+        var promo = w.Get(w.PlayerPromotion)!;
+        var band = promo.Divisions.FirstOrDefault(d => !d.Open && d.Sex == Sex.Male && d.Lightest is { } lo
+                                                       && lo <= WeightClass.LightHeavyweight && d.WeightClass >= WeightClass.LightHeavyweight);
+        if (band is null) { Console.WriteLine("REPLACE no band takes light heavyweights at this house"); return; }
+        var date = w.CurrentDate.AddDays(42);
+        bool Free(Fighter f) => Core.Sim.Living.OriginsShows.CanBook(w, promo, f, date) && Core.Sim.Living.ForwardCalendar.CommittedTo(w, f.Id) is null;
+        foreach (var row in vm.Contracts.FreeAgents.ToList())
+        {
+            if (w.RosterOf(promo.Id).Count(f => f.WeightClass == WeightClass.LightHeavyweight && Free(f)) >= 2) break;
+            if (w.Get(row.Id) is not { WeightClass: WeightClass.LightHeavyweight, Sex: Sex.Male }) continue;
+            vm.Contracts.SelectedFreeAgent = row;
+            vm.Contracts.SignAtTheirTerms();
+        }
+        vm.Contracts.OnChanged?.Invoke();
+        var lhw = w.RosterOf(promo.Id).Where(f => f.WeightClass == WeightClass.LightHeavyweight && Free(f)).OrderBy(f => f.Id.Value).ToList();
+        if (lhw.Count < 2) { Console.WriteLine($"REPLACE only {lhw.Count} free light heavyweights"); return; }
+
+        var bk = vm.Booking;
+        bk.NewEventDate = date.ToDateTime(TimeOnly.MinValue);
+        bk.NewEventCommand.Execute(null);
+        bk.SelectedDivision = bk.Divisions.FirstOrDefault(d => d.WeightClass == band.WeightClass && d.Sex == Sex.Male);
+        bk.SelectedRed = bk.RedOptions.FirstOrDefault(o => o.Id == lhw[0].Id);
+        bk.SelectedBlue = bk.BlueOptions.FirstOrDefault(o => o.Id == lhw[1].Id);
+        bk.AddBoutCommand.Execute(null);
+        var bout = bk.Bouts.FirstOrDefault(b => b.Red.Id == lhw[0].Id.Value || b.Blue.Id == lhw[0].Id.Value);
+        Console.WriteLine($"REPLACE booked {lhw[0].FullName} ({lhw[0].WeightClass}) v {lhw[1].FullName} ({lhw[1].WeightClass}) in {FighterRow.DivisionLabel(band)}: {(bout is null ? "NOT ON THE CARD " + bk.Status : "on the card")}");
+        if (bout is null) return;
+        bk.ReplaceCornerCommand.Execute(bout);
+        var pick = bk.Ladder.FirstOrDefault(e => e.Available && w.Get(e.FighterId) is { } f && f.WeightClass != WeightClass.LightHeavyweight)
+                   ?? bk.Ladder.FirstOrDefault(e => e.Available);
+        Console.WriteLine($"REPLACE ladder: {bk.Ladder.Count} men, {bk.Ladder.Count(e => e.Available)} available; classes [{string.Join(", ", bk.Ladder.Select(e => w.Get(e.FighterId)?.WeightClass).Distinct())}]");
+        if (pick is null) { Console.WriteLine("REPLACE nobody available on the ladder"); return; }
+        var incoming = w.Get(pick.FighterId)!;
+        bk.ReplaceWithCommand.Execute(pick);
+        Console.WriteLine($"REPLACE in: {incoming.FullName} ({incoming.WeightClass}) -> status '{bk.Status}'");
+        vm.Contracts.OnChanged?.Invoke();
+    }
+
     /// <summary>Adopt every reform HQ offers today, through HQ's own command (the harness has no confirm dialog).</summary>
+    /// <summary>(--rulesonly: rounds and gloves, never a weight line, so the split stays on HQ's desk.)</summary>
+    public static bool RulesOnly { get; set; }
+
     public static void Reform(MainViewModel vm)
     {
-        foreach (var r in vm.Org.Reforms.Where(r => r.CanAdopt).Select(r => (r.Chapter, r.Title)).ToList())
+        foreach (var r in vm.Org.Reforms.Where(r => r.CanAdopt && (!RulesOnly || !Core.Sim.Living.OriginsReforms.Ladder.Contains(r.Chapter)))
+                     .Select(r => (r.Chapter, r.Title)).ToList())
         {
             vm.Org.AdoptReformCommand.Execute(r.Chapter);
             Console.WriteLine($"ORIGINS {vm.LiveWorld?.CurrentDate:d MMM yyyy} adopted '{r.Title}': {vm.Org.Status}");

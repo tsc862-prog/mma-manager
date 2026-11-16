@@ -647,7 +647,8 @@ public sealed class FighterRow
                 : own.Lightest is not null && own.WeightClass != f.WeightClass ? $"{ClassName(own.WeightClass, own.Sex)} · {Kilos(f)} kg"
                 : ClassName(own.WeightClass, own.Sex);
         if (ClassExists(f.WeightClass, f.Sex)) return DivisionLabel(f.WeightClass, f.Sex);
-        return _lines.Count > 0 ? $"{Kilos(f)} kg" : $"{Kilos(f)} kg · open weight";
+        // A free agent whose class nobody fights: the sport is still open weight, or he waits for a line.
+        return Enum.GetValues<WeightClass>().Any(c => ClassExists(c, f.Sex)) ? $"{Kilos(f)} kg" : $"{Kilos(f)} kg · open weight";
     }
 
     /// <summary>
@@ -714,26 +715,14 @@ public sealed class FighterRow
     /// The world the labels are read in (set whenever a world attaches). Only its era is read: has the sport
     /// split this class out yet? Always yes in today's mode, so today's labels never change.
     /// </summary>
-    public static World? EraWorld
-    {
-        get => _eraWorld;
-        set
-        {
-            _eraWorld = value;
-            // The weight lines houses have drawn (Origins): a line exists at a house from the day it is drawn,
-            // before the chapter that unlocks the class sport-wide fires (when its first champion is crowned).
-            _lines = value is { Mode: WorldMode.Origins }
-                ? value.Promotions.Values.Where(p => !p.Defunct).SelectMany(p => p.Divisions).Where(d => !d.Open)
-                    .Select(d => (d.WeightClass, d.Sex)).ToHashSet()
-                : new HashSet<(WeightClass, Sex)>();
-        }
-    }
-    private static World? _eraWorld;
-    private static HashSet<(WeightClass, Sex)> _lines = new();
+    public static World? EraWorld { get; set; }
 
-    /// <summary>Has the sport got this division yet (always, in today's mode)? Yes once the era has it, or a house has drawn the line.</summary>
+    /// <summary>
+    /// Does any house fight at this class (always, in today's mode)? The sim's <see cref="MmaManager.Core.Sim.Living.Era.ClassFought"/>:
+    /// the era has it, or a live house has drawn the line (before its first champion unlocks it for the sport).
+    /// </summary>
     public static bool ClassExists(WeightClass wc, Sex sex) =>
-        EraWorld is not { Mode: WorldMode.Origins } w || MmaManager.Core.Sim.Living.Era.AllowsDivision(w, wc, sex) || _lines.Contains((wc, sex));
+        EraWorld is not { Mode: WorldMode.Origins } w || MmaManager.Core.Sim.Living.Era.ClassFought(w, wc, sex);
 
     /// <summary>A title's division label (the open belt reads "Open weight", whatever class it is filed under).</summary>
     public static string TitleDivision(World w, Title t, Sex sex = Sex.Male) =>
