@@ -640,14 +640,25 @@ public sealed class FighterRow
     /// </summary>
     public static string DivisionLabel(Fighter f)
     {
+        // His own house first: at an open-weight house every man is open weight, whatever another house has
+        // split; at a banded house he is in its band. Only then the sport's classes. (Today: never a house rule.)
+        if (HouseDivision(f) is { } own)
+            return own.Open ? $"{Kilos(f)} kg · open weight"
+                : own.Lightest is not null && own.WeightClass != f.WeightClass ? $"{ClassName(own.WeightClass, own.Sex)} · {Kilos(f)} kg"
+                : ClassName(own.WeightClass, own.Sex);
         if (ClassExists(f.WeightClass, f.Sex)) return DivisionLabel(f.WeightClass, f.Sex);
-        if (EraWorld is { } w && f.Contract?.Promotion is { } pid && w.Get(pid) is { } house)
-        {
-            if (house.Divisions.FirstOrDefault(d => !d.Open && d.Lightest is not null && d.Matches(f)) is { } band)
-                return $"{ClassName(band.WeightClass, band.Sex)} · {Kilos(f)} kg";
-            if (house.Divisions.Any(d => d.Open && d.Sex == f.Sex)) return $"{Kilos(f)} kg · open weight";
-        }
         return _lines.Count > 0 ? $"{Kilos(f)} kg" : $"{Kilos(f)} kg · open weight";
+    }
+
+    /// <summary>
+    /// The Origins division his own house fights him in when the era makes it matter: its open division, or the
+    /// weight band he falls in. Null in today's mode, for a free agent, or at a house of single classes.
+    /// </summary>
+    public static Division? HouseDivision(Fighter f)
+    {
+        if (EraWorld is not { Mode: WorldMode.Origins } w || f.Contract?.Promotion is not { } pid || w.Get(pid) is not { } house) return null;
+        return house.Divisions.FirstOrDefault(d => d.Open && d.Sex == f.Sex)
+               ?? house.Divisions.FirstOrDefault(d => !d.Open && d.Lightest is not null && d.Matches(f));
     }
 
     /// <summary>A bout's division: "Open weight" for an open-weight bout (never its filing class).</summary>
@@ -679,17 +690,17 @@ public sealed class FighterRow
         sex == Sex.Female ? $"Women's {Pretty(wc.ToString())}" : Pretty(wc.ToString());
 
     /// <summary>
-    /// A picker's label for a division (weight + sex): the player's own band when his house has one there
-    /// (else any house's), so the light band of 1997 reads "Middleweight · up to 185 lb", not "Middleweight".
+    /// A picker's label for a division (weight + sex) at one house (default: the player's): that house's band
+    /// when it has one there, so the light band of 1997 reads "Middleweight (≤185 lb)", and that house's open
+    /// division reads "Open weight". Never another house's range.
     /// </summary>
-    public static string PickLabel(WeightClass wc, Sex sex)
+    public static string PickLabel(WeightClass wc, Sex sex, PromotionId? house = null)
     {
-        if (EraWorld is { Mode: WorldMode.Origins } w)
+        if (EraWorld is { Mode: WorldMode.Origins } w && w.Get(house ?? w.PlayerPromotion) is { } h)
         {
-            var mine = w.Get(w.PlayerPromotion)?.Divisions.FirstOrDefault(d => !d.Open && d.WeightClass == wc && d.Sex == sex);
-            var band = mine ?? w.Promotions.Values.OrderBy(p => p.Id.Value)
-                .SelectMany(p => p.Divisions).FirstOrDefault(d => !d.Open && d.Lightest is not null && d.WeightClass == wc && d.Sex == sex);
-            if (band is { Lightest: { } lo }) return $"{ClassName(band.WeightClass, band.Sex)} ({ShortRange(lo, band.WeightClass)})";
+            if (h.Divisions.FirstOrDefault(d => !d.Open && d.WeightClass == wc && d.Sex == sex) is { Lightest: { } lo } band)
+                return $"{ClassName(band.WeightClass, band.Sex)} ({ShortRange(lo, band.WeightClass)})";
+            if (wc == MmaManager.Core.Model.Division.OpenClass && h.Divisions.Any(d => d.Open && d.Sex == sex)) return OpenLabel;
         }
         return DivisionLabel(wc, sex);
     }
@@ -738,7 +749,12 @@ public sealed class FighterRow
 /// <summary>A division choice (weight + sex) for the booking and rankings pickers.</summary>
 public sealed record DivisionPick(WeightClass WeightClass, Sex Sex)
 {
-    public string Label => FighterRow.PickLabel(WeightClass, Sex);
+    /// <summary>The house whose divisions label this pick (the Rankings' viewed promotion); null = the player's.
+    /// Not part of equality: the same weight and sex is the same pick at any house.</summary>
+    public PromotionId? House { get; init; }
+    public string Label => FighterRow.PickLabel(WeightClass, Sex, House);
+    public bool Equals(DivisionPick? other) => other is not null && other.WeightClass == WeightClass && other.Sex == Sex;
+    public override int GetHashCode() => HashCode.Combine(WeightClass, Sex);
     public override string ToString() => Label;
 }
 

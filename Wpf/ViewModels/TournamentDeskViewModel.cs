@@ -131,7 +131,7 @@ public sealed class BracketBoard
     {
         if (BracketNightReader.Read(w, ev) is not { } night) return null;
         var promo = w.Get(ev.Promotion);
-        int rulesRounds = promo?.Rules.Fight?.Rounds ?? promo?.Rules.StandardRounds ?? 3;
+        int rulesRounds = promo?.Rules.Fight?.Rounds ?? promo?.Rules.StandardRounds ?? 3;   // (only for a bout missing from the card)
         int total = 0;
         for (int n = night.Size; n > 1; n /= 2) total++;
         var seedOf = new Dictionary<FighterId, int>();
@@ -164,7 +164,9 @@ public sealed class BracketBoard
             if (b.Fight is null)
                 return b.Advanced is null ? "Empty: nobody came through on either side" : $"Walkover: nobody was left to meet {Short(b.Advanced)}";
             if (b.Outcome is not { } o) return "";
-            string clock = o.EndRound > rulesRounds ? $"OT {o.EndTimeSeconds / 60}:{o.EndTimeSeconds % 60:00}"
+            // Overtime is past the rounds THIS bout was scheduled for (the house may have changed its rules since).
+            int scheduled = ev.Card.FirstOrDefault(f => f.Id == b.Fight)?.ScheduledRounds ?? rulesRounds;
+            string clock = o.EndRound > scheduled ?$"OT {o.EndTimeSeconds / 60}:{o.EndTimeSeconds % 60:00}"
                 : $"R{o.EndRound} {o.EndTimeSeconds / 60}:{o.EndTimeSeconds % 60:00}";
             return o.Winner is null ? $"Draw  ·  {clock}" : $"{FighterRow.Pretty(o.Method.ToString())}  ·  {clock}";
         }

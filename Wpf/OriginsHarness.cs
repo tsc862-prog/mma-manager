@@ -42,7 +42,8 @@ internal static class OriginsHarness
             if (reform) Reform(vm);
         }
         if (!hold && vm.IsFightNight) vm.SimTonightCommand.Execute(null);
-        Console.WriteLine($"ORIGINS played {months} months + {weeks} weeks -> {vm.LiveWorld?.CurrentDate:d MMM yyyy}; fight night waiting: {vm.IsFightNight}");
+        Console.WriteLine($"ORIGINS played {months} months + {weeks} weeks -> {vm.LiveWorld?.CurrentDate:d MMM yyyy}; fight night waiting: {vm.IsFightNight}; "
+            + $"classes that exist: [{string.Join(", ", Enum.GetValues<WeightClass>().Where(c => FighterRow.ClassExists(c, Sex.Male)))}]");
     }
 
     /// <summary>

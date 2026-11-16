@@ -55,6 +55,7 @@ public sealed record StoryEra(int Number, string Name, string Span, bool IsCurre
 {
     public string Heading => $"Era {Number}: {Name}";
     public string NowText => IsCurrent ? "NOW" : "";
+    public bool HasChapters => Chapters.Count > 0;
 }
 
 /// <summary>A chapter still to come, kept vague (no dates): its era, its title, and roughly when.</summary>
@@ -103,7 +104,7 @@ public sealed class StoryViewModel : ObservableObject
             Eras.Add(new StoryEra(g.Key, g.First().EraName, span, g.Key == era, cards));
         }
         if (Eras.All(e => e.Number != era))
-            Eras.Insert(0, new StoryEra(era, name, "now", true, Array.Empty<ChapterCard>()));
+            Eras.Insert(0, new StoryEra(era, name, "now", true, new List<ChapterCard>()));
 
         foreach (var c in OriginsStory.Coming(w)) Coming.Add(new ComingCard(c.EraName, c.Title, c.When));
         OnPropertyChanged(string.Empty);

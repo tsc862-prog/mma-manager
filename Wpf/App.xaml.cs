@@ -1708,6 +1708,19 @@ public partial class App : Application
                     int omonths = e.Args.Contains("--months") ? months : 0;
                     bool reform = e.Args.Contains("--reform");
                     OriginsHarness.Play(vm, weeks, hold: e.Args.Contains("--holdnight"), bookNight: e.Args.Contains("--booknight"), months: omonths, reform: reform, busy: e.Args.Contains("--busy"), stopAtBan: e.Args.Contains("--stopatban"));
+                    if (e.Args.Contains("--rankorg"))   // the Rankings app viewing another house (by abbreviation)
+                    {
+                        string abbr = e.Args[Array.IndexOf(e.Args, "--rankorg") + 1];
+                        vm.Desktop.Open("rankings");
+                        vm.SelectedOrg = vm.Organizations.FirstOrDefault(p => p.Abbreviation == abbr) ?? vm.SelectedOrg;
+                        Console.WriteLine($"ORIGINS rankings of {vm.SelectedOrg?.Abbreviation}: picks [{string.Join(" | ", vm.RankingDivisions.Select(p => p.Label))}]; divisions [{string.Join(" | ", vm.SelectedOrg?.Divisions.Select(FighterRow.DivisionLabel) ?? Array.Empty<string>())}]");
+                    }
+                    if (e.Args.Contains("--nochapters"))
+                    {
+                        // The Story's empty-era state (harness only: the world is the harness's own).
+                        vm.LiveWorld!.Era.Chapters.Clear();
+                        vm.Contracts.OnChanged?.Invoke();
+                    }
                     if (e.Args.Contains("--untilchapter"))
                         OriginsHarness.UntilChapter(vm, int.Parse(e.Args[Array.IndexOf(e.Args, "--untilchapter") + 1]), reform, e.Args.Contains("--busy"));
                     if (e.Args.Contains("--nightin"))   // look at a night N days out on the desk's form
@@ -1841,6 +1854,12 @@ public partial class App : Application
                     Console.WriteLine($"RENDERAPP fighters index (scouted read for every active fighter) {vm.FightersPage.LastIndexMs} ms, filter {vm.FightersPage.LastFilterMs} ms; {vm.FightersPage.CountLine}");
                 Layout();
                 Console.WriteLine($"RENDERAPP this app alone: rebuild {attach} ms + relayout {clock.ElapsedMilliseconds - attach} ms");
+                if (e.Args.Contains("--rankorg"))   // (a refresh puts the viewed house back to the player's: view the rival again)
+                {
+                    string abbr = e.Args[Array.IndexOf(e.Args, "--rankorg") + 1];
+                    vm.SelectedOrg = vm.Organizations.FirstOrDefault(p => p.Abbreviation == abbr) ?? vm.SelectedOrg;
+                    Layout();
+                }
                 if (e.Args.Contains("--advance"))
                 {
                     // A week of the world going by with this app open (sim tick + every refresh + relayout).

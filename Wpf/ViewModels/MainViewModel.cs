@@ -729,14 +729,29 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The divisions the Rankings screen offers: every class (today), or only the ones the sport
     /// has so far (an Origins world: the open division, filed under its nominal class, first).</summary>
-    private static List<DivisionPick> RankingPicks()
+    private List<DivisionPick> RankingPicks()
     {
         var all = Enum.GetValues<WeightClass>().Select(w => new DivisionPick(w, Sex.Male))
             .Concat(new[] { WeightClass.Strawweight, WeightClass.Flyweight, WeightClass.Bantamweight }
                 .Select(w => new DivisionPick(w, Sex.Female)));
         if (FighterRow.EraWorld is not { Mode: WorldMode.Origins }) return all.ToList();
+        // (Labelled by the house being viewed: its open division, or ITS band's weights, never the player's.)
+        var house = (_selectedOrg ?? _world?.Get(_world.PlayerPromotion))?.Id;
         return new[] { new DivisionPick(Division.OpenClass, Sex.Male) }
-            .Concat(all.Where(p => FighterRow.ClassExists(p.WeightClass, p.Sex))).Distinct().ToList();
+            .Concat(all.Where(p => FighterRow.ClassExists(p.WeightClass, p.Sex))).Distinct()
+            .Select(p => p with { House = house }).ToList();
+    }
+
+    /// <summary>Rebuild the Rankings picker when its picks or their labels changed (the viewed house), keeping the pick.</summary>
+    private void RefreshRankingPicks()
+    {
+        var picks = RankingPicks();
+        if (picks.Select(p => p.Label).SequenceEqual(RankingDivisions.Select(p => p.Label))) return;
+        var keep = _rankingDivision;
+        RankingDivisions.Clear();
+        foreach (var p in picks) RankingDivisions.Add(p);
+        _rankingDivision = picks.FirstOrDefault(p => p == keep) ?? picks[0];
+        OnPropertyChanged(nameof(RankingDivision));
     }
 
     private DivisionPick _rankingDivision = new(WeightClass.Lightweight, Sex.Male);
@@ -746,7 +761,7 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<Promotion> Organizations { get; } = new();
 
     private Promotion? _selectedOrg;
-    public Promotion? SelectedOrg { get => _selectedOrg; set { if (Set(ref _selectedOrg, value)) RefreshStandings(); } }
+    public Promotion? SelectedOrg { get => _selectedOrg; set { if (Set(ref _selectedOrg, value)) { RefreshRankingPicks(); RefreshStandings(); } } }
 
     private string _championText = "";
     public string ChampionText { get => _championText; private set => Set(ref _championText, value); }
@@ -1065,6 +1080,7 @@ public sealed class MainViewModel : ObservableObject
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
             Moments.Reset();
             Briefing.Reset();
+            Briefing.Loaded(_world);                             // chapters in the save were told already
             LastAdvance = $"Loaded {Path.GetFileName(path)}.";
             StatusText = "";   // the last career's results don't carry over
             IsGameStarted = true;
@@ -1159,13 +1175,6 @@ public sealed class MainViewModel : ObservableObject
     {
         if (_world is null) return;
         FighterRow.EraWorld = _world;   // every label below reads the sport's era (open weight in 1993)
-        var picks = RankingPicks();
-        if (!picks.SequenceEqual(RankingDivisions))
-        {
-            RankingDivisions.Clear();
-            foreach (var p in picks) RankingDivisions.Add(p);
-            if (!picks.Contains(_rankingDivision)) { _rankingDivision = picks[0]; OnPropertyChanged(nameof(RankingDivision)); }
-        }
         var player = _world.Get(_world.PlayerPromotion);
         Title = player is null ? "PromoterOS" : $"PromoterOS — {player.Name}";
         PlayerLogo = player is null ? null : LogoFactory.ForPromotion(player);
@@ -1206,6 +1215,7 @@ public sealed class MainViewModel : ObservableObject
         // field so we don't refresh standings twice during RefreshAll).
         _selectedOrg = _world.Get(_world.PlayerPromotion) ?? Organizations.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedOrg));
+        RefreshRankingPicks();   // (after the viewed house is known: the picks are labelled by it)
 
         // Stamp portrait personas onto the model: the marketable look baked into
         // each fighter's assigned portrait (glam/adonis/menace/inked/babyface)

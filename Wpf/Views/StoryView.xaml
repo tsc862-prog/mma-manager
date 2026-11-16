@@ -34,7 +34,7 @@
                             </StackPanel>
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding IsCurrent}" Value="False"><Setter TargetName="now" Property="Visibility" Value="Collapsed" /></DataTrigger>
-                                <DataTrigger Binding="{Binding Chapters.Count}" Value="0"><Setter TargetName="empty" Property="Visibility" Value="Visible" /></DataTrigger>
+                                <DataTrigger Binding="{Binding HasChapters}" Value="False"><Setter TargetName="empty" Property="Visibility" Value="Visible" /></DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

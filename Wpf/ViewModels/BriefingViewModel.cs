@@ -230,6 +230,16 @@ public sealed class BriefingViewModel : ObservableObject
         foreach (var key in _chapterKeys)
             if (w.Era.Chapter(key) is { } rec && OriginsStory.View(w, rec) is { } view) Chapters.Add(new ChapterCard(w, view));
     }
+
+    /// <summary>
+    /// A loaded save: every chapter already in it was told before the save (or is in The Story So Far), so the
+    /// first stop after a load doesn't tell a chapter dated the save day again. A chapter fires once, so its key
+    /// is enough and nothing is saved. (A new career tells its day-one chapters at the first stop.)
+    /// </summary>
+    public void Loaded(World w)
+    {
+        foreach (var c in w.Era.Chapters) _announced.Add("chapter:" + c.Key);
+    }
     /// <summary>The fighter a rival-offer headline is about (0 for any other headline).</summary>
     public int StopFighterId => _stop is { Kind: BriefingKind.RivalOffer } s ? s.EventId : 0;
 
