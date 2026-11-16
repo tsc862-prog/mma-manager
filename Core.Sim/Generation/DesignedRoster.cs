@@ -94,7 +94,7 @@ public static class DesignedRoster
         new("Noah", "Weiss", "Clockwork", Region.Europe, WeightClass.Lightweight, PrimaryStyle.Kickboxer, 27, 80, 13, 1, "VMMA", Champion: true, Popularity: 54, Country: "SUI",
             Bio: "A watchmaker's apprentice from Geneva — genuinely — who treats distance and timing as precision instruments. Weiss has lost once in fourteen fights; the defense is Swiss-engineered."),
         new("Andrei", "Codrea", "The Wolf", Region.Europe, WeightClass.Welterweight, PrimaryStyle.Wrestler, 30, 80, 17, 5, "VMMA", Champion: true, Popularity: 60, Country: "ROU",
-            Bio: "A shepherd's son from the Carpathians who came up through Romania's junior wrestling system on black bread and stubbornness. Codrea hunts takedowns in packs and finishes what he catches. Emil Toma of Ironhold is the other Romanian at the top of the sport, and the federation's dinners have been awkward since the war began."),
+            Bio: "A shepherd's son from the Carpathians who came up through Romania's junior wrestling system on black bread and stubbornness. Codrea hunts takedowns in packs and finishes what he catches. Emil Toma of Ironhold is the other Romanian at the top of the sport, and the federation's dinners have been awkward since the promotions fell out."),
         new("Yusuf", "Demir", "Anatolia", Region.MiddleEast, WeightClass.Middleweight, PrimaryStyle.ClinchFighter, 29, 79, 14, 3, "VMMA", Champion: true, Popularity: 50, Country: "TUR",
             Bio: "An oil-wrestling champion from Edirne carrying six centuries of grip fighting into the cage. Once Demir's hands lock, the fight happens where he says it happens."),
         new("Henrik", "Dahl", "North Star", Region.Europe, WeightClass.LightHeavyweight, PrimaryStyle.Striker, 31, 78, 15, 6, "VMMA", Champion: true, Popularity: 52, Country: "NOR",
@@ -182,7 +182,7 @@ public static class DesignedRoster
         new("Miron", "Kovac", "Cold Iron", Region.Europe, WeightClass.Lightweight, PrimaryStyle.Wrestler, 28, 78, 17, 3, "IFA", Champion: true, Popularity: 60, Country: "SRB", Loyalty: 72,
             Bio: "A product of Belgrade's hard school who slept on the gym mats he now headlines above. Kovac bleeds Ironhold black and calls VMMA 'the theatre in London'. Luka Petrovic, who learned his trade in the same Belgrade basement and signed with Vanguard, is the one former teammate Kovac refuses to name."),
         new("Emil", "Toma", "The Scythe", Region.Europe, WeightClass.Featherweight, PrimaryStyle.Kickboxer, 27, 76, 15, 2, "IFA", Champion: true, Popularity: 49, Country: "ROU", Loyalty: 66,
-            Bio: "A Bucharest butcher's son whose body kicks fold people at the waist. Toma answered VMMA's last contract overture with a one-word press release. Andrei Codrea of Vanguard is the other Romanian at the top of the sport, and the two of them have been seated at opposite ends of the federation's dinners since the war began."),
+            Bio: "A Bucharest butcher's son whose body kicks fold people at the waist. Toma answered VMMA's last contract overture with a one-word press release. Andrei Codrea of Vanguard is the other Romanian at the top of the sport, and the two of them have been seated at opposite ends of the federation's dinners since the promotions fell out."),
         new("Bohdan", "Marchenko", "Anvil", Region.Europe, WeightClass.Welterweight, PrimaryStyle.ClinchFighter, 29, 77, 16, 4, "IFA", Champion: true, Popularity: 47, Country: "GEO", Loyalty: 64,
             Bio: "Marchenko came up through Georgian chidaoba wrestling and an amateur career fought in unheated halls. What he grips, wilts. Zurab Kipiani of the Gulf and Giorgi Tsereteli on the open market are the other Georgians he drinks with, and the toasts are where the three of them argue about whose career is best."),
         new("Dmitri", "Volkov", "The Hammer", Region.Europe, WeightClass.Middleweight, PrimaryStyle.Wrestler, 31, 78, 21, 3, "IFA", Champion: true, Popularity: 62, Country: "RUS", Loyalty: 80,   // the IFA franchise
@@ -624,7 +624,7 @@ public static class DesignedRoster
             // The narratives pass: the four day-one feuds that had no reason written down.
             ["Marchand|Weiss"] = "Marchand says the champion's belt tells the wrong time; Weiss, who is a watchmaker's apprentice, says he fixes what is brought to him in working order.",
             ["Reyes|Zhang"] = "Reyes keeps arriving at Zhang's interviews uninvited, and Zhang has started answering the questions Reyes did not ask.",
-            ["Ozols|Urbonas"] = "One war each is a tie on paper, and each man keeps a different paper.",
+            ["Ozols|Urbonas"] = "One victory each is a tie on paper, and each man keeps a different paper.",
             ["Barone|Weeks"] = "Weeks says the belt lives on the wrong side of Woodward; Barone says Weeks has not worked a shift on the assembly line he keeps talking about.",
         };
 

@@ -165,7 +165,7 @@ public static class DesignedHeadlines
 
         // --- the narratives pass: the people behind the people --------------------------
         new(31, NewsCategory.Rivalry, "VMMA",
-            "Petrovic and Kovac: one Belgrade basement, split by the war",
+            "Petrovic and Kovac: one Belgrade basement, split by two banners",
             "They learned the trade in the same unheated Belgrade club. One signed with Vanguard and one would not, and neither has been heard to call the other.",
             "Luka Petrovic"),
         new(20, NewsCategory.General, "ICF",
