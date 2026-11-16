@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Generation;
 using MmaManager.Core.Sim.Generation.Origins;
@@ -36,15 +37,15 @@ public static partial class Biographer
         // Mentors first (his own, then his students), then blood, then friends.
         foreach (var (bond, o) in bonds.Where(x => x.Bond.Kind == RelationshipKind.Mentor && x.Bond.B == f.Id))
             lines.Add(new(PeopleKind.Mentor, o!.Id,
-                $"{His} mentor is {Name(world, o, bond)}{Status(world, o)}.{SeriesText(world, f, o, told)}"));
+                $"{His} mentor is {o.FullName}{Status(world, o)}.{Caption(f, o, bond)}{SeriesText(world, f, o, told)}"));
         foreach (var (bond, o) in bonds.Where(x => x.Bond.Kind == RelationshipKind.Mentor && x.Bond.A == f.Id))
             lines.Add(new(PeopleKind.Student, o!.Id,
-                $"{He} mentors {Name(world, o, bond)}{Status(world, o)}.{SeriesText(world, f, o, told)}"));
+                $"{He} mentors {o.FullName}{Status(world, o)}.{Caption(f, o, bond)}{SeriesText(world, f, o, told)}"));
         var kin = bonds.Where(x => x.Bond.Kind == RelationshipKind.Family).ToList();
         if (kin.Count > 0)
         {
             var (bond, o) = kin[0];
-            string text = $"Blood ties {(f.Sex == Sex.Female ? "her" : "him")} to {Name(world, o!, bond)}{Status(world, o!)}.{SeriesText(world, f, o!, told)}";
+            string text = $"Blood ties {(f.Sex == Sex.Female ? "her" : "him")} to {o!.FullName}{Kin(f, bond)}{Status(world, o!)}.{Caption(f, o, bond)}{SeriesText(world, f, o!, told)}";
             if (kin.Count > 1)
             {
                 var rest = kin.Skip(1).Take(3).ToList();
@@ -109,9 +110,25 @@ public static partial class Biographer
     public static string PeopleText(World world, Fighter f) =>
         string.Join(" ", People(world, f).Select(l => l.Text));
 
-    // "Name (note)" with the authored or earned note when the bond carries one.
-    private static string Name(World world, Fighter o, Relationship bond) =>
-        bond.Note is { Length: > 0 } n ? $"{o.FullName} ({n.TrimEnd().TrimEnd('.')})" : o.FullName;
+    // A bond's authored note, as a caption sentence of its own (it is a picture, not a label, and some are
+    // written from one side). Dropped when it names either person (generated ties write "younger brother
+    // of X" or "trains under X" from one side only, which would name the reader's own fighter).
+    private static string Caption(Fighter f, Fighter o, Relationship bond)
+    {
+        if (bond.Note is not { Length: > 0 } n) return "";
+        n = n.Trim().TrimEnd('.');
+        if (n.Contains(f.FullName, StringComparison.Ordinal) || n.Contains(o.FullName, StringComparison.Ordinal)
+            || Regex.IsMatch(n, @"^(son|daughter|younger (brother|sister)) of ")) return "";
+        return " " + char.ToUpperInvariant(n[0]) + n[1..] + ".";
+    }
+
+    // The generated family note is "younger brother of <elder>": from the elder's page it reads ", his younger brother".
+    private static string Kin(Fighter f, Relationship bond)
+    {
+        if (bond.A != f.Id || bond.Note is not { } n) return "";
+        var m = Regex.Match(n, @"^(son|daughter|younger (?:brother|sister)) of ");
+        return m.Success ? $", {(f.Sex == Sex.Female ? "her" : "his")} {m.Groups[1].Value}" : "";
+    }
 
     // ", now retired and head coach of X" / ", the reigning Y champion" / ", fighting for ABBR".
     private static string Status(World world, Fighter o)

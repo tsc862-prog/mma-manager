@@ -395,4 +395,41 @@ public class BondVoicesTests
                     Assert.DoesNotMatch(EraUnsafe, Quotes.Say(w, a, m, w.CurrentDate.AddDays(a.Id.Value % 50), b));
         Assert.Equal(Quotes.Say(w, kawabata, Moment.WinFinish, w.CurrentDate, hagiwara), Quotes.Say(w, kawabata, Moment.WinFinish, w.CurrentDate, hagiwara));
     }
+
+    [Fact]
+    public void ANoteIsNeverBracketed_AndNeverNamesTheOwnerOfThePage()
+    {
+        var w = Fresh();
+        new WorldTick().AdvanceWeeks(w, 156);          // generated family and camp bonds exist by now
+        var origins = new WorldBuilder().Build(WorldBuilder.Options.Origins(11));
+        int checkedLines = 0;
+        foreach (var world in new[] { w, origins })
+            foreach (var f in world.Fighters.Values)
+                foreach (var l in Biographer.People(world, f).Where(l => l.Kind is not (PeopleKind.Belt or PeopleKind.Camp or PeopleKind.Series)))
+                {
+                    checkedLines++;
+                    Assert.DoesNotContain(f.FullName, l.Text);
+                    // The only brackets are the status tails of a friend or family list.
+                    Assert.DoesNotMatch(@"\((?!fighting for|retired|a free agent)", l.Text);
+                    Assert.DoesNotMatch(@"(younger (brother|sister)|son|daughter) of ", l.Text);
+                }
+        Assert.True(checkedLines > 100);
+
+        // The elder's page derives the relation itself; the younger's page just names the elder.
+        var brodyShane = w.Relationships.FirstOrDefault(r => r.Kind == RelationshipKind.Family && r.Note is { } n && n.StartsWith("younger brother of"));
+        if (brodyShane is not null)
+        {
+            var elder = w.Get(brodyShane.A)!; var kid = w.Get(brodyShane.B)!;
+            Assert.Contains($"{kid.FullName}, his younger brother", Biographer.PeopleText(w, elder));
+            Assert.Contains(elder.FullName, Biographer.PeopleText(w, kid));
+        }
+    }
+
+    [Fact]
+    public void AnImageNote_FollowsAsItsOwnSentence()
+    {
+        var w = Fresh();
+        var text = Biographer.PeopleText(w, ByLast(w, "Brody"));
+        Assert.Contains("Alfie \"The Postman\" Rooke, now retired and head coach of Ironside MMA. The belt he once held, on the shoulders of a man in the room he bought.", text);
+    }
 }

@@ -115,42 +115,42 @@ public static class TieLines
         // --- A rematch: they have shared a cage before. Even series, then leading, then trailing. ----
         Add(TieKind.Rematch, L, true, true,
             "I'd been here with him before and I wasn't afraid of a repeat.",
-            "Somebody booked me against this man again. I'll win again, it's their money.");
+            "Somebody booked me against this man again. I'll win again, it's their money.", "I know him and he knows me. Tonight I knew a little more.");
         Add(TieKind.Rematch, L, false, true,
             "We know each other's game by now. He still made me earn it.",
-            "When you've shared a cage before, there's nowhere to hide. That's the best kind of fight.");
+            "When you've shared a cage before, there's nowhere to hide. That's the best kind of fight.", "Second look at the same problem, and I had a better answer ready.", "Nothing in there surprised either of us. That made it a proper fight.");
         Add(TieKind.Rematch, L, true, false,
             "I've seen him before and I'll see him again. Write that down.",
-            "Don't read anything into tonight. We're not finished, he knows it.");
+            "Don't read anything into tonight. We're not finished, he knows it.", "Nothing's settled until I say it is. Remember that.");
         Add(TieKind.Rematch, L, false, false,
-            "We know each other's game by now, and tonight he had the better read. Back to the gym.",
-            "He was a step ahead of me tonight. I know where that step is. I'll be there next time.");
+            "We know each other's game by now, and tonight he had the better read. Back to the gym.", "Nothing I showed him was new, and that's on me.",
+            "He was a step ahead of me tonight. I know where that step is. I'll be there next time.", "No secrets left between us, so the next one comes down to who wants it more.");
 
         Add(TieKind.Rematch, SeriesLean.Leads, true, true,
             "Same man, same result. Somebody should stop booking this.",
-            "I beat him before and I'd do it again before breakfast.");
+            "I beat him before and I'd do it again before breakfast.", "He's a good fighter. I just happen to be better against him.");
         Add(TieKind.Rematch, SeriesLean.Leads, false, true,
             "I beat him before and I wanted to prove it wasn't a one-off. It wasn't.",
-            "He had a plan for me this time. The plan wasn't enough.");
+            "He had a plan for me this time. The plan wasn't enough.", "He came with something new and I'd done my homework on it.", "Same man across from me and a different night. I'll take it.");
         Add(TieKind.Rematch, SeriesLean.Leads, true, false,
             "Don't read anything into this. I've beaten him before and I'll do it again.",
             "He got lucky tonight. Let him enjoy it, he's not getting another.");
         Add(TieKind.Rematch, SeriesLean.Leads, false, false,
             "I beat him before, and he went away and learned from it. That's a smart man, and I should've known.",
-            "He earned that one. I'll go back and work on the part he found.");
+            "He earned that one. I'll go back and work on the part he found.", "I had him figured and he had me better. That happens.");
 
         Add(TieKind.Rematch, SeriesLean.Trails, true, true,
             "He got his chance last time. This time I took mine.",
             "He beat me before. He can read about this one.");
         Add(TieKind.Rematch, SeriesLean.Trails, false, true,
             "He beat me before and I owed myself this one. I owed it for a long time.",
-            "I've thought about that other night for a long while. It's lighter now.");
+            "I've thought about that other night for a long while. It's lighter now.", "That one's been waiting a long time. It was worth the wait.");
         Add(TieKind.Rematch, SeriesLean.Trails, true, false,
             "He's beaten me before and I haven't had enough of him yet. Book it again.",
-            "He's gone home happy over me before. I won't let that become a habit.");
+            "He's gone home happy over me before. I won't let that become a habit.", "He's had my number and I'm taking it back, one night at a time.");
         Add(TieKind.Rematch, SeriesLean.Trails, false, false,
             "He's still got my number. I'd better find a new one.",
-            "He has the better of me so far. That tells me what to work on.");
+            "He has the better of me so far. That tells me what to work on.", "He's solved me before and tonight he did it again. Time to become a different problem.");
 
         // --- Friends --------------------------------------------------------------------
         Add(TieKind.Friend, L, true, true,
