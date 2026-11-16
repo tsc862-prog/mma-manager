@@ -13,7 +13,7 @@ namespace MmaManager.Core.Sim.Flavor;
 /// champions for promotions. Same entity, same words, so bios stay stable while
 /// still reading like prose rather than a stat dump.
 /// </summary>
-public static class Biographer
+public static partial class Biographer
 {
     // --- Fighters -----------------------------------------------------------
     public static string Fighter(World world, Fighter f)
@@ -64,6 +64,9 @@ public static class Biographer
         // Star power.
         if (f.Bio is null && (f.Intangibles.Popularity.Value >= 70 || f.Intangibles.Charisma.Value >= 78))
             sb.Append(" A genuine draw, they move tickets and turn heads on the mic.");
+
+        // The people around them, read off the world as it stands (authored text first, derived after).
+        if (PeopleText(world, f) is { Length: > 0 } people) sb.Append(' ').Append(people);
 
         return sb.ToString().Trim();
     }
