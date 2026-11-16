@@ -66,17 +66,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        NewGameCommand = new RelayCommand(NewGame);
-        SaveCommand = new RelayCommand(Save, () => _world is not null);
-        LoadCommand = new RelayCommand(Load);
+        // (Nothing that replaces or writes the world while a ringside skip is running: IsSkipping.)
+        NewGameCommand = new RelayCommand(NewGame, () => !IsSkipping);
+        SaveCommand = new RelayCommand(Save, () => _world is not null && !IsSkipping);
+        LoadCommand = new RelayCommand(Load, () => !IsSkipping);
         QuickStartCommand = new RelayCommand(QuickStart);
         ContinueCommand = new RelayCommand(ContinueCareer, () => HasContinue);
         ExitCommand = new RelayCommand(() => System.Windows.Application.Current?.Shutdown());
 
         // The front door's CONTINUE: the newest save in the default directory.
         RefreshContinue();
-        AdvanceWeekCommand = new RelayCommand(() => Advance(1));
-        AdvanceMonthCommand = new RelayCommand(() => Advance(4));
+        AdvanceWeekCommand = new RelayCommand(() => Advance(1), () => !IsSkipping);
+        AdvanceMonthCommand = new RelayCommand(() => Advance(4), () => !IsSkipping);
         ViewProfileCommand = new RelayCommand(() => NavigateTo(Tab.Fighter), () => SelectedFighter is not null);
         OpenFighterCommand = new RelayCommand<int>(OpenFighter);
         OpenInboxCommand = new RelayCommand(() => NavigateTo(Tab.Inbox));
@@ -793,6 +794,7 @@ public sealed partial class MainViewModel : ObservableObject
     // --- Actions ------------------------------------------------------------
     private void NewGame()
     {
+        if (IsSkipping) return;
         var dialog = new NewGameWindow();
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
             dialog.Owner = owner;
@@ -821,6 +823,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         // Generate fighters to match real portraits from the pack.
         _world = new WorldBuilder().Build(options with { IdentityCatalog = ArtCatalog });
+        Tryout.Welcome = "";   // a founding's "just opened" words belong to that career only
         Moments.Reset();
         Briefing.Reset();
         LastAdvance = summary;
@@ -832,7 +835,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void Advance(int weeks)
     {
-        if (_world is null) return;
+        if (_world is null || IsSkipping) return;
         // No house of the player's: the spectator's clock (stops on the sport's big moments, then Ringside).
         if (IsObserving) { AdvanceWatching(weeks, toChapter: false); return; }
         Moments.Reset();   // a moment never holds the clock: moving on takes it down (and what waited behind it)
@@ -857,7 +860,7 @@ public sealed partial class MainViewModel : ObservableObject
         StatusText = "";
 
         var before = BriefingBaseline.Take(_world);   // ids only: what the briefing compares against
-        var r = _tick.AdvanceWeeksStoppingForPlayer(_world, weeks);
+        var r = AdvanceWeekByWeek(weeks);
         LastAdvance =
             $"Advanced to {r.Date:d MMM yyyy}: {r.EventsRun} events, {r.Fights} fights " +
             $"({(r.Fights == 0 ? 0 : 100.0 * r.Finishes / r.Fights):0.0}% finishes), " +
@@ -1023,7 +1026,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void Save()
     {
-        if (_world is not { } world) return;
+        if (_world is not { } world || IsSkipping) return;
 
         // Default the save name to the org so a career's saves sort together.
         string name = world.Get(world.PlayerPromotion)?.Abbreviation.ToLowerInvariant() is { Length: > 0 } abbr
@@ -1076,6 +1079,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void Load()
     {
+        if (IsSkipping) return;
         var picker = new LoadGameWindow();
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
             picker.Owner = owner;
@@ -1089,6 +1093,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _world = SaveGame.Load(path);
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
+            Tryout.Welcome = "";
             Moments.Reset();
             Briefing.Reset();
             Briefing.Loaded(_world);                             // chapters in the save were told already
@@ -1188,6 +1193,40 @@ public sealed partial class MainViewModel : ObservableObject
         if (DeskNotes.Count == 1 && next is not null) DeskNotes.Add("all quiet — build something");
     }
 
+    /// <summary>
+    /// Stamp portrait personas onto the model: the marketable look baked into each fighter's assigned portrait
+    /// (glam/adonis/menace/inked/babyface) feeds draw power and popularity growth in the sim. The sim reads it, so
+    /// it must be stamped after EVERY week the app advances (not only when the screens refresh), or a multi-week
+    /// advance would give a different world from the same number of single weeks. (A sim task will stop the sim
+    /// depending on this UI-stamped field; until then this is the one place it is written.)
+    /// </summary>
+    private void StampPersonas()
+    {
+        if (_world is null) return;
+        foreach (var f in _world.Fighters.Values)
+            f.PersonaTag = Art.PaintedLibrary.PersonaFor(f) ?? f.PersonaTag;
+    }
+
+    /// <summary>
+    /// The ordinary advance, one week at a time (stamping personas after each, exactly as single Week clicks do),
+    /// stopping where <see cref="WorldTick.AdvanceWeeksStoppingForPlayer"/> would: a card of his due, a main event
+    /// lost, a rival's offer that needs him. Same weeks, same stops, same report as handing it all the weeks at once.
+    /// </summary>
+    private WorldTickReport AdvanceWeekByWeek(int weeks)
+    {
+        var total = new WorldTickReport { Date = _world.CurrentDate };
+        for (int i = 0; i < weeks; i++)
+        {
+            var week = _tick.AdvanceWeeksStoppingForPlayer(_world, 1);
+            total.Add(week);
+            total.PendingPlayerEvent ??= week.PendingPlayerEvent;
+            total.MainEventLost ??= week.MainEventLost;
+            StampPersonas();
+            if (week.PendingPlayerEvent is not null || week.MainEventLost is not null || week.OfferNeedsYou is not null) break;
+        }
+        return total;
+    }
+
     // --- Refresh ------------------------------------------------------------
     private void RefreshAll()
     {
@@ -1240,11 +1279,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedOrg));
         RefreshRankingPicks();   // (after the viewed house is known: the picks are labelled by it)
 
-        // Stamp portrait personas onto the model: the marketable look baked into
-        // each fighter's assigned portrait (glam/adonis/menace/inked/babyface)
-        // feeds draw power and popularity growth in the sim.
-        foreach (var f in _world.Fighters.Values)
-            f.PersonaTag = Art.PaintedLibrary.PersonaFor(f) ?? f.PersonaTag;
+        StampPersonas();
 
         // Index every simulated bout so fighter profiles can show their history.
         _fightIndex = _world.Events.Values

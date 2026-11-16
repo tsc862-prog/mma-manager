@@ -77,12 +77,7 @@ public static class HouseRules
             GloveType.ThinOpenFinger => "Thin open-fingered gloves for everyone.",
             _ => "Today's small open-fingered gloves.",
         });
-        lines.Add(r.Enclosure switch
-        {
-            Enclosure.Ring => "A roped ring.",
-            Enclosure.OpenFloor => "An open floor with the crowd around it: no ropes, no fence.",
-            _ => "A fenced ring.",
-        });
+        lines.Add(EnclosureLine(r.Enclosure) + ".");
         if (r.RopeEscapes > 0)
             lines.Add($"{r.RopeEscapes} rope escapes a bout: the rope breaks a hold; past that, it costs points.");
         if (!r.Elbows || !r.GroundedHeadPunches || !r.GroundedKicks)
@@ -94,6 +89,14 @@ public static class HouseRules
             }.Where(s => s is not null)) + ".");
         return lines;
     }
+
+    /// <summary>The fighting area in words ("A cage", "A roped ring"): the ONE wording, used by the house rules and the founding picks.</summary>
+    public static string EnclosureLine(Enclosure e) => e switch
+    {
+        Enclosure.Ring => "A roped ring",
+        Enclosure.OpenFloor => "An open floor with the crowd around it: no ropes, no fence",
+        _ => "A cage",
+    };
 
     /// <summary>What a night at this house is, in one line ("An eight-man bracket in one night, the winner takes $30,000").</summary>
     public static string NightLine(Promotion p) => p.Rules.ShowFormat switch

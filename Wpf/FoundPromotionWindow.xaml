@@ -23,8 +23,8 @@
                         ToolTip="Asks once more first: there is no going back to ringside" />
                 <Button DockPanel.Dock="Right" Content="Not yet" IsCancel="True" MinWidth="96" Padding="12,8" />
                 <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding BlockReason}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneWarn}" FontSize="12.5" />
                     <TextBlock Text="{Binding Error}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneBad}" FontSize="13" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Refusal}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneWarn}" />
                 </StackPanel>
             </DockPanel>
 

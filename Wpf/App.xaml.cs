@@ -2301,6 +2301,9 @@ public partial class App : Application
                     var f = new FoundingViewModel(w0) { Name = Arg("--name", "Lantern Street Fighting") };
                     string city = Arg("--city", "");
                     f.SelectedCity = f.Cities.FirstOrDefault(c => c.Open && c.Name == city) ?? f.Cities.FirstOrDefault(c => c.Open) ?? f.SelectedCity;
+                    // --enclosure ring|cage: pick the fighting area on the form (when the city leaves it open).
+                    if (e.Args.Contains("--enclosure"))
+                        f.Enclosure = f.EnclosureChoices.FirstOrDefault(c => string.Equals(c.Enclosure?.ToString(), Arg("--enclosure", ""), StringComparison.OrdinalIgnoreCase)) ?? f.Enclosure;
                     Console.WriteLine($"RINGSIDE founding: {f.Cities.Count(c => c.Open)} open of {f.Cities.Count} listed; city {f.SelectedCity?.Name}; abbreviation {f.Abbreviation}; "
                                       + $"rules picks: minutes {f.MinuteChoices.Count}, gloves {f.GloveChoices.Count}, enclosure {f.EnclosureChoices.Count}");
                     return f;
@@ -2323,6 +2326,7 @@ public partial class App : Application
                         vm.AfterFounding(f.Founded);
                         Console.WriteLine($"RINGSIDE founded {f.Founded.Name} ({f.Founded.Abbreviation}): observing={vm.IsObserving}, apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}], "
                                           + $"open [{string.Join(", ", vm.Desktop.Windows.Select(x => x.Spec.Id))}]; status: {vm.StatusText}");
+                        Console.WriteLine($"RINGSIDE picked \"{f.Enclosure?.Label}\"; the house rules now read: {string.Join(" | ", vm.Tryout.Rules)}");
                         if (state == "tryout")
                         {
                             vm.Tryout.HoldCommand.Execute(null);
@@ -2330,6 +2334,12 @@ public partial class App : Application
                         }
                     }
                     else vm.Desktop.Open("ringside");
+                    // --skipping: the taskbar as it reads while a Next Chapter skip is running (progress, Stop, the rest disabled).
+                    if (e.Args.Contains("--skipping"))
+                    {
+                        vm.ShowSkipStateForHarness($"Watching…  {w0.CurrentDate.AddDays(7 * 23):MMMM yyyy}  ·  23 weeks");
+                        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                    }
                     Snap(root, W, H, p);
                 }
             }
@@ -2469,6 +2479,12 @@ public partial class App : Application
                     try
                     {
                         foreach (var open in vm.Desktop.Windows.ToList()) vm.Desktop.Close(open);
+                        // An app can leave the desk when its window closes (the Open Tryout, once the tryout is held).
+                        if (!vm.Desktop.PromotionApps.Concat(vm.Desktop.WorldApps).Contains(spec))
+                        {
+                            Console.WriteLine($"OK    {label,-8} {spec.Id,-14} {spec.Title}  (left the desk when its window closed, as it should)");
+                            continue;
+                        }
                         vm.Desktop.Open(spec.Id);
                         if (!vm.Desktop.Windows.Any(w => w.Spec.Id == spec.Id))
                             throw new InvalidOperationException("the app window did not open");
@@ -2522,6 +2538,52 @@ public partial class App : Application
                 if (!vm.IsObserving) throw new InvalidOperationException("a ringside save loaded back with a house");
                 Console.WriteLine($"OK    ringside+ saved and loaded at {vm.LiveWorld!.CurrentDate:d MMM yyyy}; apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}]");
                 vm.AdvanceWeekCommand.Execute(null);
+            });
+            // Skips equal single weeks: three-month and Next Chapter skips vs the same number of Week clicks.
+            static string Fingerprint(MmaManager.Core.Model.World w) =>
+                $"{w.CurrentDate:yyyy-MM-dd} fighters {w.Fighters.Count} pop {w.Fighters.Values.Sum(f => (long)f.Intangibles.Popularity.Value)} "
+                + $"wins {w.Fighters.Values.Sum(f => (long)f.Record.Wins)} personas {w.Fighters.Values.Count(f => f.PersonaTag is { Length: > 0 })} "
+                + $"events {w.Events.Count} news {w.News.Count} chapters {w.Era.Chapters.Count} houses {w.Promotions.Count} "
+                + $"bank {w.Promotions.Values.Sum(p => p.Balance.Amount)}";
+            Smoke("skips", vm =>
+            {
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                var start = vm.LiveWorld!.CurrentDate;
+                // A stopped-early skip: three-month skips until one ends early on a big moment.
+                bool early = false;
+                for (int i = 0; i < 40 && !early; i++)
+                {
+                    vm.AdvanceQuarterCommand.Execute(null);
+                    early = vm.Ringside.Stop?.Kicker.StartsWith("TIME STOPPED EARLY", StringComparison.Ordinal) == true;
+                }
+                if (!early) throw new InvalidOperationException("no three-month skip stopped early in ten years");
+                Console.WriteLine($"OK    skips    stopped early: {vm.Ringside.Stop!.Kicker} | {vm.Ringside.Stop.Headline}");
+                // A Next Chapter skip.
+                int chapters = vm.LiveWorld.Era.Chapters.Count;
+                vm.AdvanceChapterCommand.Execute(null);
+                Console.WriteLine($"OK    skips    next chapter: {vm.Ringside.Stop!.Kicker} | {vm.Ringside.Stop.Headline} (chapters {chapters} -> {vm.LiveWorld.Era.Chapters.Count})");
+                // Stop pressed mid-skip (after the third week): the skip ends there, unless a big moment came first.
+                var before = vm.LiveWorld.CurrentDate;
+                vm.SkipProbe = n => { if (n == 3) vm.StopSkipCommand.Execute(null); };
+                vm.AdvanceChapterCommand.Execute(null);
+                vm.SkipProbe = null;
+                int ran = (vm.LiveWorld.CurrentDate.DayNumber - before.DayNumber) / 7;
+                if (ran > 3 || vm.IsSkipping) throw new InvalidOperationException($"Stop did not end the skip: {ran} weeks, skipping={vm.IsSkipping}");
+                Console.WriteLine($"OK    skips    stop pressed: {ran} weeks | {vm.Ringside.Stop!.Kicker}");
+                // Two more years of skips (Next Chapter and three months), so the comparison spans newgens and many nights.
+                while (vm.LiveWorld.CurrentDate < start.AddYears(3))
+                {
+                    vm.AdvanceChapterCommand.Execute(null);
+                    vm.AdvanceQuarterCommand.Execute(null);
+                }
+                // The same number of single Week clicks in a fresh world must give the same world.
+                int weeks = (vm.LiveWorld.CurrentDate.DayNumber - start.DayNumber) / 7;
+                var twin = (MainViewModel)new MainWindow().DataContext;
+                twin.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                for (int i = 0; i < weeks; i++) twin.AdvanceWeekCommand.Execute(null);
+                string a = Fingerprint(vm.LiveWorld), b = Fingerprint(twin.LiveWorld!);
+                if (a != b) throw new InvalidOperationException($"skips and single weeks differ after {weeks} weeks: skips {a} / weeks {b}");
+                Console.WriteLine($"OK    skips    {weeks} weeks by skips == {weeks} single weeks: {a}");
             });
             Smoke("founded+", vm =>
             {

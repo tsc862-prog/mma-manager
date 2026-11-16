@@ -217,12 +217,16 @@ public sealed class DesktopViewModel : ObservableObject
         var want = observing
             ? new[] { _ringside }.Concat(_houseApps.Where(a => WatchingApps.Contains(a.Id))).ToList()
             : _houseApps.ToList();
-        foreach (var open in Windows.Where(w => !want.Contains(w.Spec) && !w.Spec.IsWorld && w.Spec != _tryout).ToList()) Close(open);
+        // (The tryout panel goes too when he is back to watching: a ringside save loaded over a founded career.)
+        foreach (var open in Windows.Where(w => !want.Contains(w.Spec) && !w.Spec.IsWorld && (observing || w.Spec != _tryout)).ToList()) Close(open);
         PromotionApps.Clear();
         foreach (var a in want) PromotionApps.Add(a);
         OnPropertyChanged(nameof(Observing));
         OnPropertyChanged(nameof(PromotionSectionTitle));
     }
+
+    /// <summary>Is the free open tryout still on offer (set by the shell): its launcher stays on the desk while it is.</summary>
+    public Func<bool>? TryoutOffered { get; set; }
 
     /// <summary>Put the Open Tryout app on the desk (a founded house's one free tryout is still to call) or take it off.</summary>
     public void ShowTryoutApp(bool show)
@@ -375,6 +379,8 @@ public sealed class DesktopViewModel : ObservableObject
     {
         _layout[w.Spec.Id] = new WindowRect(w.X, w.Y, w.KeepW, w.KeepH, w.IsMaximized);
         Windows.Remove(w);
+        // The tryout's launcher outlives its window only while the tryout is still to call (closed with the X too).
+        if (w.Spec == _tryout) ShowTryoutApp(TryoutOffered?.Invoke() ?? false);
         if (w.IsActive && Windows.Count > 0)
             Focus(Windows.OrderByDescending(x => x.Z).First());
     }

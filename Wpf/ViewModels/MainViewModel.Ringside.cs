@@ -50,9 +50,10 @@ public sealed partial class MainViewModel
 
     private void WireRingside()
     {
-        AdvanceQuarterCommand = new RelayCommand(() => AdvanceWatching(13, toChapter: false), () => IsObserving);
-        AdvanceChapterCommand = new RelayCommand(() => AdvanceWatching(ChapterSkipWeeks, toChapter: true), () => IsObserving);
-        FoundPromotionCommand = new RelayCommand(FoundPromotion, () => IsObserving);
+        AdvanceQuarterCommand = new RelayCommand(() => AdvanceWatching(13, toChapter: false), () => IsObserving && !IsSkipping);
+        AdvanceChapterCommand = new RelayCommand(() => AdvanceWatching(ChapterSkipWeeks, toChapter: true), () => IsObserving && !IsSkipping);
+        FoundPromotionCommand = new RelayCommand(FoundPromotion, () => IsObserving && !IsSkipping);
+        StopSkipCommand = new RelayCommand(() => _stopSkip = true, () => IsSkipping);
         Ringside.FoundCommand = FoundPromotionCommand;
         Ringside.OpenStoryCommand = new RelayCommand(() => Desktop.Open("story"));
         Tryout.OnChanged = () =>
@@ -65,6 +66,7 @@ public sealed partial class MainViewModel
         };
         Tryout.BookCommand = new RelayCommand(() => { CloseTryout(); NavigateTo(Tab.BookEvent); });
         Tryout.LaterCommand = new RelayCommand(CloseTryout);
+        Desktop.TryoutOffered = () => TryoutApplies;
         var before = Desktop.BeforeOpen;
         Desktop.BeforeOpen = id =>
         {
@@ -77,21 +79,54 @@ public sealed partial class MainViewModel
 
     private void CloseTryout()
     {
-        if (Desktop.Windows.FirstOrDefault(w => w.Spec.Id == "tryout") is { } win) Desktop.Close(win);
-        Desktop.ShowTryoutApp(TryoutApplies);
+        if (Desktop.Windows.FirstOrDefault(w => w.Spec.Id == "tryout") is { } win) Desktop.Close(win);   // (Close re-checks the launcher)
     }
 
     // ------------------------------------------------------------------ the spectator's clock
+
+    // --- a skip in progress (the window stays alive: the loop yields to the dispatcher between weeks)
+    private bool _isSkipping, _stopSkip, _closingDown;
+    /// <summary>A ringside skip is running: advancing, founding, saving, loading and New Game wait for it.</summary>
+    public bool IsSkipping
+    {
+        get => _isSkipping;
+        private set { if (Set(ref _isSkipping, value)) System.Windows.Input.CommandManager.InvalidateRequerySuggested(); }
+    }
+    private string _skipProgress = "";
+    /// <summary>"Watching… March 1996  ·  23 weeks".</summary>
+    public string SkipProgress { get => _skipProgress; private set => Set(ref _skipProgress, value); }
+    /// <summary>Ends the running skip at the end of the current week.</summary>
+    public ICommand StopSkipCommand { get; private set; } = null!;
+
+    /// <summary>Harness hook: show the taskbar as it reads mid-skip (headless runs never yield, so it can't be caught live).</summary>
+    internal void ShowSkipStateForHarness(string progress) { IsSkipping = true; SkipProgress = progress; }
+
+    /// <summary>Harness hook: called after each week of a skip with the weeks done (lets a smoke run press Stop mid-skip).</summary>
+    internal Action<int>? SkipProbe { get; set; }
+
+    /// <summary>
+    /// The window is closing: end any running skip where it stands (between two weeks, so the world is whole),
+    /// keep that world in the autosave, and let the paused loop never touch the closed screens again.
+    /// </summary>
+    internal void EndSkipForClose()
+    {
+        if (!IsSkipping) return;
+        _stopSkip = true;
+        _closingDown = true;
+        Autosave();
+    }
 
     /// <summary>
     /// Run time from the seats, a week at a time, up to <paramref name="weeks"/>: stop at the end of any week in
     /// which a chapter fired or a house opened or folded, so he never skips past the moment he might want to step
     /// in. "To the next chapter" stops on those too, or after <see cref="ChapterSkipWeeks"/> with nothing.
-    /// Ringside then says why the clock stopped.
+    /// Ringside then says why the clock stopped. Every week is the sim's own single week, run on this (the UI)
+    /// thread in order, with personas stamped after it as a single Week click does; between weeks the loop yields
+    /// to the dispatcher so the window stays alive, shows progress and can be stopped (harness runs never yield).
     /// </summary>
-    private void AdvanceWatching(int weeks, bool toChapter)
+    private async void AdvanceWatching(int weeks, bool toChapter)
     {
-        if (_world is not { } w || !IsObserving) return;
+        if (_world is not { } w || !IsObserving || IsSkipping) return;
         Moments.Reset();
         StatusText = "";
         int chaptersBefore = w.Era.Chapters.Count;
@@ -99,16 +134,46 @@ public sealed partial class MainViewModel
         int events = 0, fights = 0, ran = 0;
         List<string> moments = new();
         string? headline = null, detail = null;
-        while (ran < weeks)
+        bool stoppedByHand = false;
+        _stopSkip = false;
+        IsSkipping = weeks > 1;
+        try
         {
-            var r = _tick.AdvanceWeeksStoppingForPlayer(w, 1);
-            events += r.EventsRun; fights += r.Fights; ran++;
-            if (BigMoments(w, chaptersBefore, liveBefore, moments, out headline, out detail)) break;
+            while (ran < weeks)
+            {
+                var r = _tick.AdvanceWeeksStoppingForPlayer(w, 1);
+                StampPersonas();
+                events += r.EventsRun; fights += r.Fights; ran++;
+                if (BigMoments(w, chaptersBefore, liveBefore, moments, out headline, out detail)) break;
+                SkipProbe?.Invoke(ran);
+                if (_stopSkip) { stoppedByHand = ran < weeks; break; }
+                if (IsSkipping)
+                {
+                    SkipProgress = $"Watching…  {w.CurrentDate:MMMM yyyy}  ·  {ran} week{(ran == 1 ? "" : "s")}";
+                    if (!HeadlessAutoBoot) await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                    if (_closingDown || _world != w) return;   // the window closed (or the world went) while we waited
+                    if (_stopSkip) { stoppedByHand = true; break; }
+                }
+            }
+        }
+        finally
+        {
+            if (!_closingDown) { IsSkipping = false; SkipProgress = ""; }
         }
 
         LastAdvance = $"Advanced to {w.CurrentDate:d MMM yyyy}: {events} night{(events == 1 ? "" : "s")}, {fights} fight{(fights == 1 ? "" : "s")}.";
         RefreshAll();
         Autosave();
+
+        if (stoppedByHand && moments.Count == 0)
+        {
+            Ringside.Stop = new RingsideStop($"YOU STOPPED THE CLOCK  ·  {w.CurrentDate:d MMMM yyyy}  ·  AFTER {Later(ran)}".ToUpperInvariant(),
+                events == 0 ? "A quiet stretch: no nights." : $"{events} night{(events == 1 ? "" : "s")}, {fights} fight{(fights == 1 ? "" : "s")}.",
+                "Nothing that changed the shape of the sport so far: no new chapter, no house opened or closed.", Big: false);
+            StatusText = $"You stopped the clock after {Later(ran)}.";
+            Desktop.Open("ringside");
+            return;
+        }
 
         bool early = moments.Count > 0 && ran < weeks;
         string span = toChapter ? Span(ran) : weeks switch { 1 => "The week", 4 => "The month", 13 => "Three months", _ => Span(ran) };

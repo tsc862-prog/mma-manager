@@ -216,6 +216,12 @@
                             <TextBlock Text="{Binding Mail.UnreadCount}" FontWeight="Bold" Foreground="{StaticResource Gold}" />
                         </StackPanel>
                     </Button>
+                    <!-- A ringside skip running: where it has got to, and the way to stop it at the end of this week -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0" Visibility="{Binding IsSkipping, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding SkipProgress}" FontWeight="SemiBold" Foreground="{StaticResource Gold}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Button Content="■ Stop" Command="{Binding StopSkipCommand}" FontWeight="SemiBold"
+                                ToolTip="Stop the clock at the end of this week" />
+                    </StackPanel>
                     <Button Content="Advance Week" Command="{Binding AdvanceWeekCommand}" />
                     <Button Content="Advance Month" Command="{Binding AdvanceMonthCommand}"
                             Background="{StaticResource Crimson}" BorderBrush="{StaticResource Crimson}" Foreground="White" FontWeight="SemiBold" />
@@ -224,8 +230,20 @@
                         <Button Content="3 Months" Command="{Binding AdvanceQuarterCommand}" Margin="6,0,0,0"
                                 ToolTip="Thirteen weeks; stops early if a chapter turns or a house opens or folds" />
                         <Button Content="Next Chapter ▸" Command="{Binding AdvanceChapterCommand}" Margin="6,0,0,0" FontWeight="SemiBold"
-                                Foreground="{StaticResource Gold}" BorderBrush="{StaticResource Gold}"
-                                ToolTip="Run until the story turns its next chapter (or a house opens or folds; at most five years)" />
+                                ToolTip="Run until the story turns its next chapter (or a house opens or folds; at most five years)">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                    <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </StackPanel>
                     <Border Width="1" Background="{StaticResource Border}" Margin="10,4" />
                     <StackPanel VerticalAlignment="Center">

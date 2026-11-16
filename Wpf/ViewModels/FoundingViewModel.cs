@@ -69,7 +69,7 @@ public sealed class FoundingViewModel : ObservableObject
             : $"The owner's targets run to the end of {today.Year}.";
         Refusal = _choices.Refusal ?? "";
 
-        FoundCommand = new RelayCommand(Found, () => CanFound);
+        FoundCommand = new RelayCommand(Found, () => BlockReason.Length == 0);
         SelectedCity = Cities.FirstOrDefault(c => c.Open) ?? Cities.FirstOrDefault();
     }
 
@@ -83,6 +83,7 @@ public sealed class FoundingViewModel : ObservableObject
             if (!Set(ref _name, value ?? "")) return;
             if (!_abbreviationEdited) { _abbreviation = PlayerFounding.SuggestAbbreviation(_w, _name); OnPropertyChanged(nameof(Abbreviation)); }
             Error = "";
+            Revalidate();
         }
     }
 
@@ -98,6 +99,7 @@ public sealed class FoundingViewModel : ObservableObject
             // Typing his own letters stops the suggestion following the name; clearing the box hands it back.
             _abbreviationEdited = v.Length > 0 && v != PlayerFounding.SuggestAbbreviation(_w, _name);
             Error = "";
+            Revalidate();
         }
     }
 
@@ -116,6 +118,7 @@ public sealed class FoundingViewModel : ObservableObject
             BuildPicks();
             Error = "";
             OnPropertyChanged(string.Empty);
+            Revalidate();
         }
     }
 
@@ -169,7 +172,7 @@ public sealed class FoundingViewModel : ObservableObject
         var r = _city.City.Rules;
         foreach (int m in r.SingleRoundMinutes) MinuteChoices.Add(new FoundingPick($"One {m}-minute round, no judges", Minutes: m));
         foreach (var g in r.Gloves) GloveChoices.Add(new FoundingPick(GloveWords(g), Gloves: g));
-        foreach (var e in r.Enclosures) EnclosureChoices.Add(new FoundingPick(e == Core.Model.Enclosure.Ring ? "A roped ring" : "A fenced cage", Enclosure: e));
+        foreach (var e in r.Enclosures) EnclosureChoices.Add(new FoundingPick(HouseRules.EnclosureLine(e), Enclosure: e));
         Minutes = MinuteChoices.FirstOrDefault();
         Gloves = GloveChoices.FirstOrDefault();
         Enclosure = EnclosureChoices.FirstOrDefault();
@@ -181,7 +184,7 @@ public sealed class FoundingViewModel : ObservableObject
                 : $"{r.StandardRounds} rounds of five minutes ({r.TitleRounds} for a title), with judges");
         else if (r.SingleRoundMinutes.Count == 1) fixedBits.Add($"one {r.SingleRoundMinutes[0]}-minute round, no judges");
         if (r.Gloves.Count == 1) fixedBits.Add(GloveWords(r.Gloves[0]).ToLowerInvariant());
-        if (r.Enclosures.Count == 1) fixedBits.Add(r.Enclosures[0] == Core.Model.Enclosure.Ring ? "a roped ring" : "a fenced cage");
+        if (r.Enclosures.Count == 1) fixedBits.Add(HouseRules.EnclosureLine(r.Enclosures[0]).ToLowerInvariant());
         FixedLine = fixedBits.Count == 0 ? "" : "Set by the sport here: " + string.Join("; ", fixedBits) + ".";
     }
 
@@ -194,6 +197,33 @@ public sealed class FoundingViewModel : ObservableObject
 
     // --- founding
     public string Refusal { get; }
+
+    /// <summary>
+    /// Why the doors can't open yet, checked before he is asked anything (empty when they can): the sim says no
+    /// house can be founded today, no city has room, the picked city is closed (the sim's own reason), or the name
+    /// or abbreviation is missing. The sim's full checks (a name or abbreviation already taken) still run on Found.
+    /// </summary>
+    public string BlockReason
+    {
+        get
+        {
+            if (!_choices.CanFound) return _choices.Refusal ?? "No promotion can be founded today.";
+            if (!Cities.Any(c => c.Open)) return "No city has room for a new house today: every scene with a crowd already has one, or its halls are closed.";
+            if (_city is null) return "Pick a city for the promotion's home.";
+            if (!_city.Open) return _city.Refusal ?? $"{_city.Name} can't take a new house today.";
+            if (Name.Trim().Length < 3) return "Give the promotion a name of at least three letters.";
+            if (Abbreviation.Trim().Length == 0) return "Give the promotion an abbreviation.";
+            return "";
+        }
+    }
+    public bool IsBlocked => BlockReason.Length > 0;
+
+    private void Revalidate()
+    {
+        OnPropertyChanged(nameof(BlockReason));
+        OnPropertyChanged(nameof(IsBlocked));
+        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+    }
     public bool CanFound => _choices.CanFound;
 
     private string _error = "";
@@ -211,7 +241,8 @@ public sealed class FoundingViewModel : ObservableObject
 
     private void Found()
     {
-        if (_city is null) { Error = "Pick a city for the promotion's home."; return; }
+        if (BlockReason is { Length: > 0 } blocked) { Error = blocked; return; }
+        if (_city is null) return;
         var spec = new PlayerFoundingSpec(Name, Abbreviation, _city.City.Id, Minutes?.Minutes, Gloves?.Gloves, Enclosure?.Enclosure);
         string body = $"{Name.Trim()} ({Abbreviation.Trim().ToUpperInvariant()}) opens in {_city.City.Name}, {_city.City.Country}, today, "
                     + $"with {Bank} in the bank, prestige {Prestige} and nobody signed.";
