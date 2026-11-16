@@ -182,7 +182,8 @@ public static class OriginsMode
             }
             int need = OriginsShows.MinRoster(p);
             int roster = world.RosterOf(p.Id).Count(f => f.Status == FighterStatus.Active);
-            if (roster < need) o.Problems.Add($"{p.Abbreviation} roster {roster} < {need}");
+            // (A house in the red keeps a thin, cheap roster on its way out: that is a fold coming, not a starved sport.)
+            if (roster < need && p.Balance.Amount >= 0) o.Problems.Add($"{p.Abbreviation} roster {roster} < {need}");
             if (s0 == 0) continue;   // a house founded during the run
             // (Money was a failure line in phase 1's five quiet years; the Backlash is meant to bite.)
             if (p.Balance.Amount < s0 * MoneyFloor) o.Notes.Add($"{p.Abbreviation} money down ({s0:N0} -> {p.Balance.Amount:N0})");
