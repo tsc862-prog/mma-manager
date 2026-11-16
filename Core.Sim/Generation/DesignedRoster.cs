@@ -684,5 +684,15 @@ public static class DesignedRoster
         new("Teodor Lund", "Dahl", RelationshipKind.Mentor, 55, "the Oslo firefighter who took the lighthouse up on his offer"),
         new("Kwabena Mensah", "Kofi Mensah", RelationshipKind.Family, 82, "uncle and nephew; the one who was exported, and the one who won't be"),
         new("Ahn", "Kang", RelationshipKind.Mentor, 70, "the Korean who took the belt from Japan, in the corner of the one who promises to do it again"),
+
+        // The narratives pass (WORLD-CHANGING: these are runtime ties, the bios already tell the story in text).
+        // Appended after the lost decade; the elder is A.
+        new("Pires", "Duarte", RelationshipKind.Mentor, 62, "the last champion of the dust, holding pads for the Monolith"),
+        new("Vieira", "Silva", RelationshipKind.Mentor, 55, "the notorious Curitiba room taught her the part her mother's program left out"),
+        new("Wongsawat", "Saengkham", RelationshipKind.Mentor, 72, "the Old Temple, and the boy who is told to finish his lunch"),
+        new("Rooke", "Brody", RelationshipKind.Mentor, 60, "the belt he once held, on the shoulders of a man in the room he bought"),
+        new("Solomona", "Rahiri", RelationshipKind.Mentor, 60, "the pads at Harbour City, and a refusal to pick a side"),
+        new("Fuentes", "Quiroga", RelationshipKind.Friend, 64, "Buenos Aires strawweights on Hugo Sosa's mats, one at the AFC and one at Cage Kings"),
+        new("Tsereteli", "Marchenko", RelationshipKind.Friend, 55, "a supra table for Georgians on different banners"),
     };
 }
