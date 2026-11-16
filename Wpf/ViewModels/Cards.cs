@@ -265,3 +265,37 @@ public sealed class JourneyStop
     public ICommand? ActionCommand { get; init; }
     public bool HasAction => ActionText.Length > 0 && Current;
 }
+
+/// <summary>
+/// A person who is not a fighter — a promotion's owner, a founder, a named member of staff — as the
+/// <c>PersonCardTemplate</c> draws them: the face (by the EXACT game name, initials when there is no
+/// portrait), a kicker ("OWNER"), the name and one line about them.
+/// </summary>
+public sealed class PersonCard
+{
+    public required string Name { get; init; }
+    /// <summary>The small caps line over the name ("OWNER  ·  SINCE 1997").</summary>
+    public string Kicker { get; init; } = "";
+    /// <summary>One line on them (the owner's note, a staff member's background).</summary>
+    public string Note { get; init; } = "";
+    public bool HasNote => Note.Length > 0;
+
+    /// <summary>
+    /// The press-kit story with the owner's note taken out, for a screen that shows the note on the owner's
+    /// card beside it (the biographer quotes it in the middle of the paragraph; said twice it reads as a bug).
+    /// </summary>
+    public static string StoryWithoutOwnerNote(string story, Promotion p)
+    {
+        if (p.OwnerName is not { Length: > 0 } || p.OwnerNote is not { Length: > 0 } note) return story;
+        string said = note.TrimEnd();
+        if (!said.EndsWith('.')) said += ".";
+        int at = story.IndexOf(said, StringComparison.Ordinal);
+        return at < 0 ? story : (story[..at] + story[(at + said.Length)..].TrimStart()).Trim();
+    }
+
+    /// <summary>The owner card for a promotion, or null when nobody but the player owns it (a founded house).</summary>
+    public static PersonCard? OwnerOf(Promotion p) =>
+        p.OwnerName is { Length: > 0 } name
+            ? new PersonCard { Name = name, Kicker = $"Owner of {p.Abbreviation}".ToUpperInvariant(), Note = p.OwnerNote ?? "" }
+            : null;
+}

@@ -28,6 +28,9 @@ namespace LongSim;
 /// <item>nothing is used before the sport has it: no media deal, staged night, weight division, title or
 /// woman before its chapter unlocked it (the first use IS the chapter, so the same week counts), and no
 /// night in a region a ban had closed;</item>
+/// <item>the sport spreads honestly (phase 3, the yearly SPORT line): every scene awake two months has a gym,
+/// every house a commission binds fights under the unified code, no list of the sport's best is published before
+/// the code, and no new man arrives cross-trained before the first famous camp;</item>
 /// <item>determinism: the same seed twice gives an identical world digest (<c>Check.WorldGraph.Digest</c>,
 /// every saved field), for the AI world and the scripted one.</item>
 /// </list>
@@ -172,6 +175,7 @@ public static class OriginsMode
             {
                 int year = world.StartDate.Year + y;
                 int newgens = 0, retired = 0, washouts = 0;
+                int firstNewId = world.Fighters.Keys.Select(k => k.Value).DefaultIfEmpty(0).Max() + 1;
                 var aliveAtStart = world.Promotions.Values.Where(p => !p.Defunct).Select(p => p.Id).ToHashSet();
                 do
                 {
@@ -203,6 +207,7 @@ public static class OriginsMode
                 } while (world.CurrentDate.Year == year);
                 Check(world, o);
                 YearLines(world, year, sb, newgens, retired, washouts);
+                SportLine(world, year, sb, firstNewId, o);
                 ChapterLines(world, year, sb);
 
                 int alive = world.Promotions.Values.Count(p => !p.Defunct);
@@ -508,6 +513,43 @@ public static class OriginsMode
     }
 
     /// <summary>
+    /// The sport spreading (phase 3), one line a year: the awake scenes and where the houses are, the gyms and how
+    /// many teach the whole game, the all-rounders among the active men and among the year's new men, the weight
+    /// classes the new men came in at, and whether the rankings across promotions are recognised. Also the phase 3
+    /// checks: every scene awake a month has a gym, every house the commissions bind fights their code, and no
+    /// list of the sport's best before the code.
+    /// </summary>
+    private static void SportLine(World world, int year, StringBuilder sb, int firstNewId, Outcome o)
+    {
+        var scenes = OriginsScenes.Scenes(world);
+        var active = world.Fighters.Values.Where(f => f.Status == FighterStatus.Active).ToList();
+        var fresh = world.Fighters.Values.Where(f => f.Id.Value >= firstNewId && !f.Designed).ToList();
+        double pct(int n, int d) => d == 0 ? 0 : 100.0 * n / d;
+        int crossGyms = world.Camps.Values.Count(c => OriginsCamps.CrossTrains(world, c));
+        var housesBy = world.Promotions.Values.Where(p => !p.Defunct && p.HomeCity is not null)
+            .GroupBy(p => world.Get(world.Get(p.HomeCity!.Value)!.Country)!.Code).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => $"{g.Key}:{g.Count()}");
+        var sizes = fresh.GroupBy(f => f.WeightClass).OrderBy(g => g.Key).Select(g => $"{g.Key.ToString()[..Math.Min(3, g.Key.ToString().Length)]}{g.Count()}");
+        int famous = world.Camps.Values.Count(c => c.Reputation >= 55);
+        var (arWins, arBouts) = OriginsTimeline.AllRounderRecord(world, world.CurrentDate.AddYears(-1));
+        sb.AppendLine($"  SPORT   scenes {scenes.Count} [{string.Join(" ", scenes.Select(s => s.Code))}]{(OriginsScenes.SecondCentre(world) is { } sc ? $" centre2 {sc}" : "")}  houses [{string.Join(" ", housesBy)}]  " +
+                      $"gyms {world.Camps.Count} ({crossGyms} whole-game, {famous} famous)  all-rounders {pct(active.Count(OriginsTalent.IsAllRounder), active.Count):0}% of active, " +
+                      $"{pct(fresh.Count(OriginsTalent.IsAllRounder), fresh.Count):0}% of {fresh.Count} new, won {arWins}/{arBouts} vs specialists  new sizes [{string.Join(" ", sizes)}]  " +
+                      $"code {world.Promotions.Values.Count(p => !p.Defunct && OriginsReforms.HasUnified(p))}/{world.Promotions.Values.Count(p => !p.Defunct)}  rankings {(OriginsReforms.RankingsRecognised(world) ? "recognised" : "house only")}");
+
+        // Phase 3 checks.
+        foreach (var s in scenes)
+            if (s.Gyms == 0 && world.CurrentDate > s.WokeOn.AddMonths(2)) o.Violations.Add($"{year}: scene {s.Code} awake since {s.WokeOn:yyyy-MM} has no gym");
+        foreach (var p in world.Promotions.Values.Where(p => !p.Defunct && OriginsReforms.BoundByCode(world, p) && !OriginsReforms.HasUnified(p)
+                     && !OriginsReforms.BracketBooked(world, p)))   // (a booked bracket runs as announced; the house takes the code after it)
+            o.Violations.Add($"{year}: {p.Abbreviation} is licensed but not under the code");
+        if (!OriginsReforms.RankingsRecognised(world) && (world.PoundForPound.Count > 0 || world.GlobalRankings.Values.Any(l => l.Count > 0)))
+            o.Violations.Add($"{year}: rankings across promotions published before the code");
+        if (!world.Era.HasFired(OriginsCamps.FirstCampChapter) && fresh.Any(f => f.PrimaryStyle == PrimaryStyle.WellRounded))
+            o.Violations.Add($"{year}: a cross-trained new man before the first famous camp");
+    }
+
+    /// <summary>
     /// The timeline's invariants, checked every year-end (and on day one): the chapter order, and nothing
     /// used before the sport has it. The first use of a contested capability IS its chapter (it fires the
     /// same tick), so a use up to a week before the unlock is the use that unlocked it.
@@ -644,6 +686,9 @@ public static class OriginsMode
             // ...and make the first reform the sport offers (rounds, gloves, a weight line): the player's own path to a chapter.
             if (OriginsReforms.Options(w, promo, today).FirstOrDefault() is { } reform)
                 OriginsReforms.Adopt(w, promo, reform.Chapter, today);
+            // ...and pay for the room most of his men train in to teach the whole game, when the bank can stand it.
+            if (OriginsCamps.Options(w, promo, today).FirstOrDefault() is { } room && promo.Balance.Amount > room.Cost.Amount * 4)
+                OriginsCamps.TryFund(w, promo, room.Camp, today, out _);
             // As the AI's signing pass holds its depth (FreeAgencyService): every man on the books counts (a man
             // recovering from his last night is still ours), each division to its share of the house's depth
             // (a split house fills its bands, not just a head count), and the house's own floor in all.

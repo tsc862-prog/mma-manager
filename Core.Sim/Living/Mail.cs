@@ -29,6 +29,9 @@ public static class Mail
     public static void Post(World world, DateOnly date, MailCategory category, string from, string subject, string body,
         FighterId? aboutFighter = null, EventId? aboutEvent = null)
     {
+        // No promotion, no inbox (an observer, or an all-AI harness world): mail starts when he founds a house.
+        // Nothing the sim decides reads the inbox outside the player's own branches.
+        if (!world.HasPlayer) return;
         // Don't re-send an identical still-unread message.
         if (world.Mail.Any(m => !m.Read && m.Subject == subject)) return;
         world.Mail.Add(new MailMessage

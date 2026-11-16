@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "brands": {
+    "Lantern Video Distribution": {
+      "file": "lantern-video-distribution.png",
+      "category": "tape-distributor",
+      "tag": "The tape that goes through the post.",
+      "era": 1,
+      "country": "USA"
+    },
+    "Keystone Event Network": {
+      "file": "keystone-event-network.png",
+      "category": "ppv-carrier",
+      "tag": "Events, in your living room, for a price.",
+      "era": 1,
+      "country": "USA"
+    },
+    "Nocturne Cable": {
+      "file": "nocturne-cable.png",
+      "category": "late-night-cable",
+      "tag": "Where the night shift lives.",
+      "era": 2,
+      "country": "USA"
+    },
+    "Marquee Home Events": {
+      "file": "marquee-home-events.png",
+      "category": "ppv-carrier",
+      "tag": "The big night, brought home.",
+      "era": 3,
+      "country": "USA"
+    },
+    "Hokuto Television": {
+      "file": "hokuto-television.png",
+      "category": "foreign-network",
+      "tag": "Friday nights, for the whole family.",
+      "era": 3,
+      "country": "JPN"
+    },
+    "Rede Litoral": {
+      "file": "rede-litoral.png",
+      "category": "foreign-network",
+      "tag": "O Brasil inteiro, todo sabado.",
+      "era": 3,
+      "country": "BRA"
+    },
+    "Frontline Sports Network": {
+      "file": "frontline-sports-network.png",
+      "category": "sports-cable",
+      "tag": "Everything that is a sport, all day.",
+      "era": 4,
+      "country": "USA"
+    },
+    "Northlight Sports": {
+      "file": "northlight-sports.png",
+      "category": "sports-cable",
+      "tag": "The north's own sports channel.",
+      "era": 4,
+      "country": "GBR"
+    },
+    "Harbor Broadcasting Company": {
+      "file": "harbor-broadcasting-company.png",
+      "category": "national-network",
+      "tag": "America's Saturday night.",
+      "era": 5,
+      "country": "USA"
+    },
+    "Austral Television": {
+      "file": "austral-television.png",
+      "category": "national-network",
+      "tag": "From Perth to Cairns.",
+      "era": 5,
+      "country": "AUS"
+    },
+    "Estrella Television": {
+      "file": "estrella-television.png",
+      "category": "national-network",
+      "tag": "Para toda la familia.",
+      "era": 5,
+      "country": "MEX"
+    },
+    "Gulf Horizon Media": {
+      "file": "gulf-horizon-media.png",
+      "category": "sports-cable",
+      "tag": "The region's sports, in every language.",
+      "era": 6,
+      "country": "UAE"
+    },
+    "Cascade Live": {
+      "file": "cascade-live.png",
+      "category": "streaming-platform",
+      "tag": "Your own channel, built for you.",
+      "era": 6,
+      "country": "USA"
+    },
+    "Skybridge Video": {
+      "file": "skybridge-video.png",
+      "category": "streamer",
+      "tag": "The sport, across the borders.",
+      "era": 6,
+      "country": "NED"
+    },
+    "Lumen Play": {
+      "file": "lumen-play.png",
+      "category": "streamer",
+      "tag": "Every night, anywhere.",
+      "era": 6,
+      "country": "USA"
+    },
+    "Tamarind Play": {
+      "file": "tamarind-play.png",
+      "category": "streamer",
+      "tag": "Aapka apna khel.",
+      "era": 6,
+      "country": "IND"
+    }
+  }
+}

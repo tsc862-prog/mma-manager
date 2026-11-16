@@ -15,8 +15,12 @@ public sealed class Camp
     public required string Name { get; init; }
     public required CityId City { get; init; }
 
-    /// <summary>What the room teaches best — members matching it grow faster.</summary>
-    public required PrimaryStyle Specialty { get; init; }
+    /// <summary>
+    /// What the room teaches best — members matching it grow faster. Settable: in an Origins world a
+    /// one-art room that takes up cross-training becomes <see cref="PrimaryStyle.WellRounded"/> (the
+    /// sim's <c>Living.OriginsCamps</c>). Saved as before; no shape change.
+    /// </summary>
+    public required PrimaryStyle Specialty { get; set; }
 
     /// <summary>The camp's name in the sport, 0–100. Grows with its members' wins and belts.</summary>
     public int Reputation { get; set; }

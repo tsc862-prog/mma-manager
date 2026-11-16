@@ -81,13 +81,14 @@ public sealed class MatchmakingAdvisor
     /// promotion's scouted read (<see cref="Scouting.ScoutingService.PerceivedAbility(World?, Promotion, Fighter)"/>),
     /// the same "Sct" figure the screens show. Never the true rating — two
     /// fighters the scouts read the same are the same to this advisor. A world
-    /// with no player promotion (a headless harness) has no scout, so it falls
-    /// back to the rating itself.
+    /// with no player promotion (an observer, or a headless harness) has no scout
+    /// of its own: it reads the public read (<see cref="Scouting.ScoutingService.PublicRead"/>),
+    /// never the truth.
     /// </summary>
     public static int ScoutedRead(World world, Fighter f) =>
         world.Get(world.PlayerPromotion) is { } mine
             ? Scouting.ScoutingService.PerceivedAbility(world, mine, f)
-            : FighterAbility.CurrentAbility(f);
+            : Scouting.ScoutingService.PublicRead(world, f);
 
     /// <summary>Appraise a potential red-vs-blue bout, from the player's scouted reads (never true ability).</summary>
     public MatchupAppraisal Appraise(World world, FighterId redId, FighterId blueId)

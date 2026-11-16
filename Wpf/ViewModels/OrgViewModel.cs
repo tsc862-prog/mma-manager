@@ -135,6 +135,18 @@ public sealed partial class OrgViewModel : ObservableObject
     public ObservableCollection<BeltRow> Belts { get; } = new();
     public ObservableCollection<PosterThumb> PosterWall { get; } = new();
 
+    /// <summary>The person you answer to (null on a promotion you founded: you are the owner).</summary>
+    public PersonCard? Owner { get; private set; }
+    public bool HasOwner => Owner is not null;
+    public bool NoStaff => MyStaff.Count == 0;
+
+    private bool _showStaffTable;
+    /// <summary>Staff and hiring as the dense sortable table instead of cards (kept for the session).</summary>
+    public bool ShowStaffTable { get => _showStaffTable; set => Set(ref _showStaffTable, value); }
+
+    /// <summary>Asks before a costly or destructive step (heading, body, detail, confirm text); null = go ahead (harness).</summary>
+    public Func<string, string, string, string, bool>? Confirm { get; set; }
+
     private bool _hasPosters;
     public bool HasPosters { get => _hasPosters; private set => Set(ref _hasPosters, value); }
 
@@ -300,7 +312,7 @@ public sealed partial class OrgViewModel : ObservableObject
         Reputation = promo.Reputation.Value;
 
         // The house: the press-kit story (authored lore leads) + the run so far.
-        Story = Core.Sim.Flavor.Biographer.Promotion(_world, promo);
+        Story = PersonCard.StoryWithoutOwnerNote(Core.Sim.Flavor.Biographer.Promotion(_world, promo), promo);
         var done = _world.Events.Values
             .Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Completed)
             .OrderBy(e => e.Date).ToList();
@@ -357,7 +369,12 @@ public sealed partial class OrgViewModel : ObservableObject
             PosterWall.Add(new PosterThumb(PosterFactory.For(_world, e), $"{e.Name}  ·  {e.Date:MMM yyyy}"));
         HasPosters = PosterWall.Count > 0;
 
+        Owner = PersonCard.OwnerOf(promo);
+        OnPropertyChanged(nameof(Owner));
+        OnPropertyChanged(nameof(HasOwner));
+
         foreach (var s in promo.Staff.OrderBy(s => s.Role)) MyStaff.Add(new StaffRow(s));
+        OnPropertyChanged(nameof(NoStaff));
         foreach (var s in _world.StaffMarket.OrderBy(s => s.Role).ThenByDescending(s => s.Quality))
             Market.Add(new StaffRow(s));
         foreach (var o in promo.Objectives.Where(o => o.Status == ObjectiveStatus.Active || o.Deadline >= _world.CurrentDate.AddMonths(-3)))
@@ -386,8 +403,15 @@ public sealed partial class OrgViewModel : ObservableObject
     private void Fire()
     {
         if (_world?.Get(_world.PlayerPromotion) is not { } promo || SelectedStaff is null) return;
-        StaffService.Fire(_world, promo, SelectedStaff.Model.Role);
-        Status = $"Let go of {SelectedStaff.Name}.";
+        var who = SelectedStaff;
+        if (Confirm is { } ask && !ask(
+                $"Let {who.Name} go?",
+                $"{who.Name} leaves the {who.Role.ToLowerInvariant()} desk. The payroll saves {who.Salary} a month.",
+                $"The desk stays empty until you hire again, and {who.Name} goes back on the staff market, where any promotion can make the hire.",
+                $"Let {who.Name} go"))
+            return;
+        StaffService.Fire(_world, promo, who.Model.Role);
+        Status = $"Let go of {who.Name}.";
         Refresh();
         OnChanged?.Invoke();
     }

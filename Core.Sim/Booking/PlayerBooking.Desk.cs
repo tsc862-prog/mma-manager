@@ -913,11 +913,12 @@ public sealed partial class PlayerBooking
     // --- Shared guards ---------------------------------------------------------
 
     // The read-only desk helpers answer for the player's own cards only.
-    private static bool IsMine(World world, Event ev) => ev.Promotion == world.PlayerPromotion;
+    // (An observer owns no card: the empty id must never match one.)
+    private static bool IsMine(World world, Event ev) => world.HasPlayer && ev.Promotion == world.PlayerPromotion;
 
     private static bool Editable(World world, Event ev, out string? error)
     {
-        error = null;
+        if (NoHouse(world, out error)) return false;
         if (ev.Promotion != world.PlayerPromotion) { error = "That isn't your card."; return false; }
         if (ev.Status != EventStatus.Scheduled) { error = "That card is no longer open for booking."; return false; }
         if (IsBracket(ev, out error)) return false;   // (never in today's mode)

@@ -168,7 +168,9 @@ public sealed class WorldTick
             {
                 double mult = Camps.GrowthMultiplier(world, f)
                             * (f.Contract?.Promotion == world.PlayerPromotion ? coach : 1.0);
-                FighterDevelopment.Advance(f, after, rng, Math.Min(mult, 1.35));
+                // (Origins: a man in a one-art room grows in his own half of the game only; today's mode never asks.)
+                FighterDevelopment.Advance(f, after, rng, Math.Min(mult, 1.35),
+                    world.Mode == WorldMode.Origins && OriginsCamps.TrainsOneArt(world, f));
             }
 
             report.Retired = Lifecycle.RollRetirements(world, after, rng);

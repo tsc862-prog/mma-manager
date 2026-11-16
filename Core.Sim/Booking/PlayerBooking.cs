@@ -30,6 +30,8 @@ public sealed partial class PlayerBooking
         EventTier tier = EventTier.FightNight, CityId? city = null)
     {
         refused = null;
+        // An observer has no house to book for: no card is ever created under the empty id.
+        if (NoHouse(world, out refused)) return null;
         var promo = world.Get(world.PlayerPromotion);
         int number = NextCardNumber(world, promo);
         bool origins = world.Mode == WorldMode.Origins && promo is not null;
@@ -93,6 +95,7 @@ public sealed partial class PlayerBooking
     public bool AddBout(World world, Event ev, FighterId red, FighterId blue, int rounds, bool titleFight, out string? error)
     {
         error = null;
+        if (NoHouse(world, out error)) return false;
         if (IsBracket(ev, out error)) return false;
         var r = world.Get(red);
         var b = world.Get(blue);
@@ -143,6 +146,16 @@ public sealed partial class PlayerBooking
         return true;
     }
 
+    /// <summary>The words an observer (no promotion of his own) hears from every booking mutator.</summary>
+    public const string NoHouseText = "You don't run a promotion yet. Found one to book fights.";
+
+    /// <summary>No house of the player's (<see cref="World.HasPlayer"/> false): refuse, with the reason.</summary>
+    internal static bool NoHouse(World world, out string? error)
+    {
+        error = world.HasPlayer ? null : NoHouseText;
+        return error is not null;
+    }
+
     /// <summary>A one-night tournament (Origins) has no card to book by hand: its bracket is drawn on the night.</summary>
     internal static bool IsBracket(Event ev, out string? error)
     {
@@ -170,6 +183,7 @@ public sealed partial class PlayerBooking
     public bool AddLocalBout(World world, Event ev, FighterId red, PrimaryStyle style, int rounds, out string? error)
     {
         error = null;
+        if (NoHouse(world, out error)) return false;
         if (IsBracket(ev, out error)) return false;
         var promo = world.Get(world.PlayerPromotion);
         var r = world.Get(red);
@@ -203,6 +217,7 @@ public sealed partial class PlayerBooking
     /// <summary>Remove a bout; with a world, an unfought local opponent evaporates back into the scene.</summary>
     public void RemoveBout(World? world, Event ev, FightId fight)
     {
+        if (world is not null && !world.HasPlayer) return;   // an observer edits nobody's card
         var removed = ev.Card.Where(f => f.Id == fight).ToList();
         ev.Card.RemoveAll(f => f.Id == fight);
         if (world is not null)
@@ -212,6 +227,7 @@ public sealed partial class PlayerBooking
 
     public void CancelEvent(World world, Event ev)
     {
+        if (!world.HasPlayer) return;   // an observer cancels nobody's card
         foreach (var f in ev.Card) ReleaseLocals(world, f);
         world.Events.Remove(ev.Id);
     }
@@ -249,14 +265,14 @@ public sealed partial class PlayerBooking
     /// <summary>The player's scheduled cards this fighter is booked on (date order).</summary>
     public static IReadOnlyList<Event> CardsBooking(World world, FighterId fighter) =>
         world.Events.Values
-            .Where(e => e.Promotion == world.PlayerPromotion && e.Status == EventStatus.Scheduled
+            .Where(e => world.HasPlayer && e.Promotion == world.PlayerPromotion && e.Status == EventStatus.Scheduled
                         && world.Get(e.Promotion) is not null && BookedOnCard(e, fighter))
             .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
             .ToList();
 
     public IEnumerable<Event> UpcomingEvents(World world) =>
         world.Events.Values
-            .Where(e => e.Promotion == world.PlayerPromotion && e.Status == EventStatus.Scheduled)
+            .Where(e => world.HasPlayer && e.Promotion == world.PlayerPromotion && e.Status == EventStatus.Scheduled)
             .OrderBy(e => e.Date)
             .ThenBy(e => e.Id.Value);
 
