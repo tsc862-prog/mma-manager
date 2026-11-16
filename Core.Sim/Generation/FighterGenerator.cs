@@ -35,12 +35,13 @@ public sealed class FighterGenerator
     public IReadOnlyList<Fighter> Populate(World world, int count, GenOptions? template = null)
     {
         var made = new List<Fighter>(count);
+        var names = NameRegistry.Build(world);
         for (int i = 0; i < count; i++)
         {
             var id = world.NewFighterId();
             var fighter = Generate(id, world.CurrentDate, template);
             AssignHometown(world, fighter);
-            EnsureUniqueName(world, fighter);
+            EnsureUniqueName(world, fighter, names);
             world.Fighters[id] = fighter;
             made.Add(fighter);
         }
@@ -51,6 +52,7 @@ public sealed class FighterGenerator
     public IReadOnlyList<Fighter> PopulateWomen(World world, int count, IReadOnlyList<WeightClass> classes)
     {
         var made = new List<Fighter>(count);
+        var names = NameRegistry.Build(world);
         for (int i = 0; i < count; i++)
         {
             var id = world.NewFighterId();
@@ -60,7 +62,7 @@ public sealed class FighterGenerator
                 WeightClass = classes[i % classes.Count],
             });
             AssignHometown(world, f);
-            EnsureUniqueName(world, f);
+            EnsureUniqueName(world, f, names);
             world.Fighters[id] = f;
             made.Add(f);
         }
@@ -574,39 +576,94 @@ public sealed class FighterGenerator
     /// on newgens and discoveries right before they enter the world — never on
     /// hand-authored designed names, and never on the intentional "Local X"
     /// filler (which is meant to repeat).
+    ///
+    /// Scope of "unique": every real fighter ever (active or retired), every named
+    /// staff member and owner, and the authored people not yet in the world (see
+    /// <see cref="NameRegistry"/>). <paramref name="keepSurname"/> is for a famous
+    /// name's junior, who shares the surname by design: only the first name moves (from anywhere in the
+    /// world's naming if his own culture has run out).
     /// </summary>
-    public void EnsureUniqueName(World world, Fighter f)
+    public void EnsureUniqueName(World world, Fighter f, bool keepSurname = false)
     {
         if (f.LocalTalent) return;
-        static string Key(string first, string last) => $"{first}|{last}";
+        EnsureUniqueName(world, f, NameRegistry.Build(world, f.Id), keepSurname);
+    }
 
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var takenNicknames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var o in world.Fighters.Values)
-        {
-            if (o.Id == f.Id || o.LocalTalent) continue;
-            taken.Add(Key(o.FirstName, o.LastName));
-            if (o.Nickname is { } n) takenNicknames.Add(n);
-        }
+    /// <summary>The same guarantee against a registry the caller keeps (a batch mints thousands: one set, not one per fighter).</summary>
+    internal void EnsureUniqueName(World world, Fighter f, NameRegistry names, bool keepSurname = false)
+    {
+        if (f.LocalTalent) return;
 
         var culture = f.OriginCountryCode is { } code ? WorldAtlas.ByCode(code)?.Culture : null;
         var rng = new SimRandom(SimRandom.Mix(_worldSeed, (ulong)f.Id.Value ^ 0x4E11_D3D0UL));
 
-        if (taken.Contains(Key(f.FirstName, f.LastName)))
+        if (names.Taken(f.FirstName, f.LastName))
         {
             var (firsts, lasts) = culture is not null
                 ? NameData.Pool(culture, f.Nationality, f.Sex)
                 : NameData.Pool(f.Nationality);
-            for (int attempt = 0; attempt < 16 && taken.Contains(Key(f.FirstName, f.LastName)); attempt++)
+            if (!keepSurname)
             {
-                f.LastName = rng.Pick(lasts);
-                if (attempt >= 8) f.FirstName = rng.Pick(firsts);   // deep collision: vary the first name too
+                // The original ladder, draw for draw: worlds it already resolved stay as they were.
+                for (int attempt = 0; attempt < 16 && names.Taken(f.FirstName, f.LastName); attempt++)
+                {
+                    f.LastName = rng.Pick(lasts);
+                    if (attempt >= 8) f.FirstName = rng.Pick(firsts);   // deep collision: vary the first name too
+                }
             }
+            if (names.Taken(f.FirstName, f.LastName)) ResolveDeep(f, names, firsts, lasts, keepSurname);
         }
 
         // The fight name: the first tries stay in the authored pools, then the
         // roll escalates into the combinatorial tail, which never runs dry.
-        for (int attempt = 0; f.Nickname is { } nick && takenNicknames.Contains(nick) && attempt < 16; attempt++)
+        for (int attempt = 0; f.Nickname is { } nick && names.NicknameTaken(nick) && attempt < 16; attempt++)
             f.Nickname = NameData.RollNickname(rng, culture, f.Nationality, f.Sex, attempt);
+
+        names.Add(f);
+    }
+
+    /// <summary>
+    /// A pool that is full (a culture has ten first names and a dozen surnames; the world has thousands of
+    /// men): widen the space, off its own keyed stream so the draws the fight name makes after this are
+    /// untouched. 1) a fresh first and surname from the pool; 2) a double-barrelled surname of two pool
+    /// surnames (a junior sharing a famous surname instead walks every first name in the world's naming);
+    /// 3) a generation suffix (II, III...), which cannot run out. Every step is hash-picked off
+    /// the fighter's id.
+    /// </summary>
+    private void ResolveDeep(Fighter f, NameRegistry names, IReadOnlyList<string> firsts, IReadOnlyList<string> lasts, bool keepSurname)
+    {
+        var rng = new SimRandom(SimRandom.Mix(_worldSeed, (ulong)f.Id.Value ^ 0x7A3E_C0DEUL));
+
+        for (int attempt = 0; attempt < 24 && names.Taken(f.FirstName, f.LastName); attempt++)
+        {
+            f.FirstName = rng.Pick(firsts);
+            if (!keepSurname) f.LastName = rng.Pick(lasts);
+        }
+        if (!names.Taken(f.FirstName, f.LastName)) return;
+
+        if (keepSurname)
+        {
+            // A famous surname keeps its blood: the junior's first name comes from anywhere in the world's
+            // naming (a walk of the whole list from a hash-picked start), never a different surname.
+            var every = NameData.AllFirstNames(f.Sex);
+            int start = rng.Range(0, every.Count - 1);
+            for (int i = 0; i < every.Count && names.Taken(f.FirstName, f.LastName); i++)
+                f.FirstName = every[(start + i) % every.Count];
+            if (!names.Taken(f.FirstName, f.LastName)) return;
+        }
+
+        for (int attempt = 0; !keepSurname && attempt < 48 && names.Taken(f.FirstName, f.LastName); attempt++)
+        {
+            f.FirstName = rng.Pick(firsts);
+            string a = rng.Pick(lasts);
+            string b = rng.Pick(lasts);
+            f.LastName = a == b ? a : $"{a}-{b}";
+        }
+        if (!names.Taken(f.FirstName, f.LastName)) return;
+
+        string stem = f.LastName.Split(' ')[0];
+        string[] numerals = { "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X" };
+        for (int n = 0; names.Taken(f.FirstName, f.LastName); n++)
+            f.LastName = n < numerals.Length ? $"{stem} {numerals[n]}" : $"{stem} {n + 2}";
     }
 }

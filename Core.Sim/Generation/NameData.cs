@@ -30,6 +30,19 @@ internal static class NameData
         return (first, last);
     }
 
+    private static readonly Lazy<IReadOnlyList<string>> AllMale = new(() =>
+        Cultures.Values.SelectMany(c => c.First).Concat(Pools.Values.SelectMany(p => p.First))
+            .Distinct(StringComparer.Ordinal).OrderBy(n => n, StringComparer.Ordinal).ToArray());
+    private static readonly Lazy<IReadOnlyList<string>> AllFemale = new(() =>
+        FemaleFirst.Values.SelectMany(l => l).Concat(InternationalFemale)
+            .Distinct(StringComparer.Ordinal).OrderBy(n => n, StringComparer.Ordinal).ToArray());
+
+    /// <summary>
+    /// Every first name of that sex in any culture, in a fixed (ordinal) order: the last-resort pool for a
+    /// famous family's junior whose own culture has run out of first names under the shared surname.
+    /// </summary>
+    public static IReadOnlyList<string> AllFirstNames(Sex sex) => sex == Sex.Female ? AllFemale.Value : AllMale.Value;
+
     // Female first names for the higher-frequency cultures; the rest borrow the
     // international pool (still paired with their own culture's surnames).
     private static readonly IReadOnlyList<string> InternationalFemale = new[]

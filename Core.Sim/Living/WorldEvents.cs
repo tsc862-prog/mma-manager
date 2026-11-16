@@ -58,6 +58,9 @@ public static class WorldEvents
     // homegrown stars still sit at ~79-85, and a crossover has to win to climb
     // past them. The influencer (pure casual hype) draws highest; the niche
     // Olympians least. A small seeded jitter is added at debut (see MaybeCrossover).
+    /// <summary>The crossover celebrities' full names, so the generator can reserve them (a generated man yields to an authored one).</summary>
+    internal static IEnumerable<string> CrossoverNames => Crossovers.Select(c => $"{c.First} {c.Last}");
+
     private static readonly Crossover[] Crossovers =
     {
         new("Bruno", "Castellano", "Iron Fist", "former undisputed boxing world champion",
