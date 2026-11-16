@@ -269,23 +269,32 @@ public static class OriginsShows
     }
 
     /// <summary>
-    /// The room an Origins house takes in a city: the one whose size best fits the crowd it can expect in a
-    /// young sport: 600 and 100 a prestige point, or most of what its last three nights drew when that is
-    /// more (a house in exile brings its crowd's habit with it), and a bigger room when those nights sold
-    /// out (a full house is a crowd turned away). Today's estimate fills halls the sport can't. Ties on id.
+    /// The room an Origins house takes in a city: the one that leaves the most of the night's gate once the
+    /// walls and the production are paid, for the crowd it can expect there. Before its first night that is
+    /// 600 and 100 a prestige point (a young sport); after, it is what its last three nights' cards would
+    /// have drawn in this city with no walls (the queue outside a sold-out night is a crowd it has seen; a
+    /// house in exile draws what a strange city gives it). Today's estimate fills halls the sport can't.
+    /// Ties on the closer fit, then id.
     /// </summary>
     public static Venue? RoomIn(World world, Promotion promo, CityId city)
     {
+        var rooms = world.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Id.Value).ToList();
+        if (rooms.Count == 0) return null;
         var recent = world.Events.Values
             .Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Completed && e.Financials is not null)
             .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id.Value).Take(3)
-            .Select(e => (Crowd: e.Financials!.Attendance, Seats: e.VenueId is { } v && world.Get(v) is { } room ? room.Capacity : 0))
             .ToList();
-        int drew = recent.Count == 0 ? 0 : (int)recent.Average(r => r.Crowd);
-        bool soldOut = recent.Count == 3 && recent.All(r => r.Seats > 0 && r.Crowd >= r.Seats * 0.95);
-        int expected = Math.Max(600 + 100 * promo.Prestige.Value, soldOut ? drew * 2 : drew * 4 / 5);
-        return world.Venues.Values.Where(v => v.City == city)
-            .OrderBy(v => Math.Abs(v.Capacity - expected)).ThenBy(v => v.Id.Value).FirstOrDefault();
+        int expected = recent.Count == 0
+            ? 600 + 100 * promo.Prestige.Value
+            : (int)recent.Average(e => Financials.DemandAt(world, e, rooms[0]));
+        decimal seat = Financials.TicketPrice(world, promo.Prestige.Value)
+                       * (promo.Rules.ShowFormat == ShowFormat.OneNightTournament ? Financials.OriginsBracketTicketPremium : 1m);
+        decimal Left(Venue v)
+        {
+            int crowd = Math.Min(v.Capacity, expected);
+            return crowd * seat - Financials.OriginsProduction(crowd) - Financials.RentOf(world, v).Amount;
+        }
+        return rooms.OrderByDescending(Left).ThenBy(v => Math.Abs(v.Capacity - expected)).ThenBy(v => v.Id.Value).First();
     }
 
     // --- Tournaments -------------------------------------------------------------

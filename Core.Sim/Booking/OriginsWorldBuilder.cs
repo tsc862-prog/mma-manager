@@ -43,7 +43,7 @@ public static class OriginsWorldBuilder
     /// <summary>The house's nights and its bracket purse, by abbreviation (authored rule sets say the size).</summary>
     private static readonly Dictionary<string, (ShowFormat Format, decimal Prize)> Formats = new(StringComparer.Ordinal)
     {
-        ["CRU"] = (ShowFormat.OneNightTournament, 30_000m),   // the winner's cheque is the whole pitch (a 1993 gate can pay this much)
+        ["CRU"] = (ShowFormat.OneNightTournament, 20_000m),   // the winner's cheque is the whole pitch: about a quarter of a good night's gate (no pay-per-view yet)
         ["SFA"] = (ShowFormat.Card, 0m),
         ["DLB"] = (ShowFormat.GymChallenge, 0m),
     };

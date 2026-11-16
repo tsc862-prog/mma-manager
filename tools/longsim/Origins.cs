@@ -32,7 +32,11 @@ namespace LongSim;
 /// every saved field), for the AI world and the scripted one.</item>
 /// </list>
 /// Money is reported (each founding house's bank against its opening one, as notes) but is no longer a
-/// failure once the Backlash can bite. Exit code 1 when any seed fails its health line or breaks an invariant.
+/// failure once the Backlash can bite. After the seeds, ORIGINS MONEY sums every seed's money: the founders'
+/// end banks and folds, how long new houses last, the scripted player's bank, and where a night's and a
+/// house-year's money goes by kind of house (with each night's no-walls demand, read the week it ran).
+/// <c>ORIGINS_NIGHTS=&lt;abbr&gt;</c> prints every night that house runs. Exit code 1 when any seed fails its
+/// health line or breaks an invariant.
 /// </summary>
 public static class OriginsMode
 {
@@ -46,6 +50,8 @@ public static class OriginsMode
         int years = args.Length > 2 ? int.Parse(args[2]) : 5;
         int failures = 0;
         var totals = new List<string>();
+        var aiRuns = new List<Outcome>();
+        var scriptedRuns = new List<Outcome>();
         for (int s = 1; s <= seeds; s++)
         {
             ulong seed = (ulong)s;
@@ -53,6 +59,7 @@ public static class OriginsMode
             var ai = RunOne(seed, years, player: null);
             bool aiSame = ai.Digest == RunOne(seed, years, player: null).Digest;
             var scripted = RunOne(seed, years, player: playerIndex);
+            aiRuns.Add(ai); scriptedRuns.Add(scripted);
             bool scriptedSame = scripted.Digest == RunOne(seed, years, player: playerIndex).Digest;
 
             Console.WriteLine($"===== origins seed {seed}, {years} years: AI-run =====");
@@ -68,6 +75,7 @@ public static class OriginsMode
         }
         Console.WriteLine("===== origins: all seeds =====");
         foreach (var t in totals) Console.WriteLine(t);
+        MoneyReport(aiRuns, scriptedRuns, years);
         Console.WriteLine(failures == 0 ? "ORIGINS HEALTH: OK" : $"ORIGINS HEALTH: {failures} seed(s) failed");
         return failures == 0 ? 0 : 1;
     }
@@ -86,6 +94,8 @@ public static class OriginsMode
         public List<string> Notes = new();
         public Dictionary<string, List<string>> Trace = new();
         public Dictionary<string, HashSet<FighterId>> LastRoster = new();
+        public List<House> Houses = new();
+        public int Years;
 
         public bool Healthy(bool deterministic) =>
             Exception is null && Violations.Count == 0 && Folds.Count == 0 && Problems.Count == 0 && deterministic;
@@ -103,6 +113,23 @@ public static class OriginsMode
             parts.Add(deterministic ? "deterministic (same seed twice, identical world digest)" : "NOT DETERMINISTIC");
             return $"HEALTH {(Healthy(deterministic) ? "OK" : "FAIL")}: " + string.Join(" | ", parts);
         }
+    }
+
+    /// <summary>One house's money over the run (the ORIGINS MONEY block reads these).</summary>
+    private sealed class House
+    {
+        public string Abbr = "";
+        public string Kind = "";            // founder, authored (a scripted arrival), founded (a generic new house)
+        public bool Player;
+        public double FoundedAt;            // years into the run
+        public double? FoldedAt;            // years into the run (null: alive at the end)
+        public decimal StartBank, EndBank;
+        public double YearsAlive;
+        public Dictionary<FinanceCategory, decimal> Ledger = new();
+        public int Nights;
+        public long Crowd, Seats, Demand;
+        public decimal Gate, Production, Rent, Payroll;
+        public decimal NightNet => Gate - Production - Payroll;
     }
 
     private static Outcome RunOne(ulong seed, int years, int? player)
@@ -134,6 +161,11 @@ public static class OriginsMode
 
         int fightersAtStart = world.Fighters.Count;
         int peakTarget = 0;
+        o.Years = years;
+        var firstSeen = world.Promotions.Values.ToDictionary(p => p.Id, _ => world.StartDate);
+        var bankAtFounding = world.Promotions.Values.ToDictionary(p => p.Id, p => p.Balance.Amount);
+        var foldedOn = new Dictionary<PromotionId, DateOnly>();
+        var demand = new Dictionary<PromotionId, long>();   // what each night would have drawn with no walls (read the week it ran)
         try
         {
             for (int y = 0; y < years; y++)
@@ -147,6 +179,27 @@ public static class OriginsMode
                     var r = tick.AdvanceWeek(world);
                     newgens += r.Newgens; retired += r.Retired; washouts += r.Washouts;
                     if (y >= years - 2) RosterTrace(world, o);
+                    var weekAgo = world.CurrentDate.AddDays(-7);
+                    foreach (var e in world.Events.Values.Where(e => e.Status == EventStatus.Completed && e.Date > weekAgo && e.Date <= world.CurrentDate))
+                    {
+                        demand[e.Promotion] = demand.GetValueOrDefault(e.Promotion) + Financials.Demand(world, e);
+                        // ORIGINS_NIGHTS=<abbr>: every night that house runs, with what drew its crowd (a diagnosis aid).
+                        if (Environment.GetEnvironmentVariable("ORIGINS_NIGHTS") is { } who && world.Get(e.Promotion) is { } ep && ep.Abbreviation == who)
+                        {
+                            var m = e.Card.Count > 0 ? e.Card[^1] : null;
+                            var hc = MmaManager.Core.Sim.Geography.WorldMap.CityOf(world, e);
+                            Console.WriteLine($"NIGHT seed {seed} {(player is null ? "AI" : "PL")} {e.Date:yyyy-MM-dd} {e.Name} crowd {e.Financials!.Attendance}/{(e.VenueId is { } nv ? world.Get(nv)?.Capacity : 0)} demand {Financials.Demand(world, e)} hype {e.HypeBonus:0.00} " +
+                                $"cityPop {(hc is { } c ? MmaManager.Core.Sim.Geography.Reputation.OrgInCity(ep, c) : -1)} regionPop {MmaManager.Core.Sim.Geography.Reputation.OrgInRegion(world, ep, e.Region)} prestige {ep.Prestige.Value} " +
+                                $"main {world.Get(m?.RedCorner ?? default)?.Intangibles.Popularity.Value}/{world.Get(m?.BlueCorner ?? default)?.Intangibles.Popularity.Value} bouts {e.Card.Count} clash {world.Events.Values.Any(o => Financials.IsClash(world, e.Promotion, e.Date, e.Id, o))}");
+                        }
+                    }
+                    foreach (var p in world.Promotions.Values)
+                    {
+                        // (A house founded this week: its opening bank is what it had before its first week's costs.)
+                        if (firstSeen.TryAdd(p.Id, world.CurrentDate))
+                            bankAtFounding[p.Id] = p.Balance.Amount - p.Ledger.Sum(l => l.Amount.Amount);
+                        if (p.Defunct) foldedOn.TryAdd(p.Id, world.CurrentDate);
+                    }
                 } while (world.CurrentDate.Year == year);
                 Check(world, o);
                 YearLines(world, year, sb, newgens, retired, washouts);
@@ -246,6 +299,39 @@ public static class OriginsMode
             if (p.Balance.Amount < s0 * MoneyFloor) o.Notes.Add($"{p.Abbreviation} money down ({s0:N0} -> {p.Balance.Amount:N0})");
             if (p.Balance.Amount > s0 * MoneyCeiling) o.Notes.Add($"{p.Abbreviation} money up ({s0:N0} -> {p.Balance.Amount:N0})");
         }
+        // Each house's money over the run, for the cross-seed ORIGINS MONEY block.
+        var founderAbbrs = OriginsPromotions.All.Select(x => x.Abbreviation).ToHashSet();
+        var arrivalNames = OriginsArrivals.All.Where(a => a.Kind == OriginsArrivalKind.Promotion).Select(a => a.Name).ToHashSet();
+        double YearsIn(DateOnly d) => (d.DayNumber - world.StartDate.DayNumber) / 365.25;
+        foreach (var p in world.Promotions.Values.OrderBy(p => p.Id.Value))
+        {
+            var h = new House
+            {
+                Abbr = p.Abbreviation,
+                Kind = founderAbbrs.Contains(p.Abbreviation) ? "founder" : arrivalNames.Contains(p.Name) ? "authored" : "founded",
+                Player = p.Id == world.PlayerPromotion,
+                FoundedAt = YearsIn(firstSeen.GetValueOrDefault(p.Id, world.StartDate)),
+                FoldedAt = foldedOn.TryGetValue(p.Id, out var fo) ? YearsIn(fo) : null,
+                StartBank = bankAtFounding.GetValueOrDefault(p.Id),
+                EndBank = p.Balance.Amount,
+                Demand = demand.GetValueOrDefault(p.Id),
+            };
+            h.YearsAlive = (h.FoldedAt ?? YearsIn(world.CurrentDate)) - h.FoundedAt;
+            foreach (var l in p.Ledger) h.Ledger[l.Category] = h.Ledger.GetValueOrDefault(l.Category) + l.Amount.Amount;
+            foreach (var e in world.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Completed && e.Financials is not null))
+            {
+                h.Nights++;
+                h.Crowd += e.Financials!.Attendance;
+                var room = e.VenueId is { } vid ? world.Get(vid) : null;
+                h.Seats += room?.Capacity ?? 0;
+                h.Rent += Financials.RentOf(world, room).Amount;
+                h.Gate += e.Financials.GateRevenue.Amount;
+                h.Production += e.Financials.ProductionCost.Amount;
+                h.Payroll += e.Financials.FighterPayroll.Amount;
+            }
+            o.Houses.Add(h);
+        }
+
         o.Chapters = world.Era.Chapters.Count;
         if (world.Fighters.Count <= fightersAtStart) o.Problems.Add("no new men turned pro");
         o.Banks = string.Join(", ", banks);
@@ -285,6 +371,93 @@ public static class OriginsMode
             lines.Add($"{world.CurrentDate:yyyy-MM-dd} active {active} counted {counted} outOfDeal {outOfDeal} bal {p.Balance.Amount / 1000m:0}k " +
                       $"fmt {p.Rules.ShowFormat} [{divs}] +{joined}" + (left.Count > 0 ? " -" + string.Join(", ", left) : ""));
         }
+    }
+
+    /// <summary>
+    /// ORIGINS MONEY: across every seed, the founders' end banks (and folds), how long new houses last, the
+    /// scripted player's bank, and where a house's money goes (per night and per house-year) by kind.
+    /// Read-only reporting; never a failure.
+    /// </summary>
+    private static void MoneyReport(List<Outcome> ai, List<Outcome> scripted, int years)
+    {
+        static string Dist(IEnumerable<decimal> xs)
+        {
+            var v = xs.OrderBy(x => x).ToList();
+            if (v.Count == 0) return "-";
+            decimal Q(double q) => v[(int)Math.Round(q * (v.Count - 1))];
+            return $"min {Q(0) / 1000m:0}k p25 {Q(0.25) / 1000m:0}k median {Q(0.5) / 1000m:0}k p75 {Q(0.75) / 1000m:0}k max {Q(1) / 1000m:0}k";
+        }
+        Console.WriteLine($"===== ORIGINS MONEY ({ai.Count} seeds, {years} years) =====");
+        var aiHouses = ai.SelectMany(o => o.Houses).ToList();
+        foreach (var abbr in OriginsPromotions.All.Select(x => x.Abbreviation))
+        {
+            var hs = aiHouses.Where(h => h.Abbr == abbr && h.Kind == "founder").ToList();
+            if (hs.Count == 0) continue;
+            int below = hs.Count(h => h.EndBank < h.StartBank);
+            Console.WriteLine($"AI founder {abbr} (start {hs[0].StartBank / 1000m:0}k): end bank {Dist(hs.Select(h => h.EndBank))}; " +
+                              $"below start {below}/{hs.Count}; folded {hs.Count(h => h.FoldedAt is not null)}/{hs.Count}");
+        }
+        foreach (var kind in new[] { "founded", "authored" })
+        {
+            var hs = aiHouses.Where(h => h.Kind == kind).ToList();
+            if (hs.Count == 0) continue;
+            string Survive(int y)
+            {
+                var old = hs.Where(h => h.FoundedAt <= years - y).ToList();
+                return old.Count == 0 ? $"{y}y n/a" : $"{y}y {old.Count(h => h.FoldedAt is null || h.FoldedAt - h.FoundedAt >= y)}/{old.Count}";
+            }
+            var folds = hs.Where(h => h.FoldedAt is not null).Select(h => h.FoldedAt!.Value - h.FoundedAt).OrderBy(x => x).ToList();
+            Console.WriteLine($"AI {kind} houses: {hs.Count} opened ({hs.Count / (double)ai.Count:0.0}/world), folded {folds.Count}, alive at the end {hs.Count(h => h.FoldedAt is null)}; " +
+                              $"survived {Survive(3)}, {Survive(6)}, {Survive(9)}; median age at fold {(folds.Count == 0 ? 0 : folds[folds.Count / 2]):0.0}y; " +
+                              $"opening bank {Dist(hs.Select(h => h.StartBank))}; end bank of the living {Dist(hs.Where(h => h.FoldedAt is null).Select(h => h.EndBank))}");
+            // A house's money a year: what it gained or lost per year alive (a folded house's to its fold).
+            Console.WriteLine($"   bank change a year: {Dist(hs.Select(h => (h.EndBank - h.StartBank) / (decimal)Math.Max(0.25, h.YearsAlive)))}");
+            foreach (int y in new[] { 6, 9, years })
+                if (y <= years) Console.WriteLine($"   houses of this kind alive at the end of year {y}: {hs.Count(h => h.FoundedAt <= y && (h.FoldedAt is null || h.FoldedAt > y)) / (double)ai.Count:0.00}/world");
+        }
+        // Where the money goes, by kind: per night, and per house-year by ledger line.
+        foreach (var kind in new[] { "founder", "founded", "authored" })
+        {
+            var hs = aiHouses.Where(h => h.Kind == kind).ToList();
+            int nights = hs.Sum(h => h.Nights);
+            if (nights == 0) continue;
+            double houseYears = hs.Sum(h => h.YearsAlive);
+            Console.WriteLine($"AI {kind} nights ({nights}): crowd {hs.Sum(h => h.Crowd) / (double)nights:0} in {hs.Sum(h => h.Seats) / (double)nights:0} seats (demand {hs.Sum(h => h.Demand) / (double)nights:0}) " +
+                              $"({100.0 * hs.Sum(h => h.Crowd) / Math.Max(1, hs.Sum(h => h.Seats)):0}% full), ticket {hs.Sum(h => h.Gate) / Math.Max(1, hs.Sum(h => h.Crowd)):0.0}/head; " +
+                              $"per night gate {hs.Sum(h => h.Gate) / nights / 1000m:0.0}k, production {(hs.Sum(h => h.Production) - hs.Sum(h => h.Rent)) / nights / 1000m:0.0}k + room {hs.Sum(h => h.Rent) / nights / 1000m:0.0}k, " +
+                              $"payroll {hs.Sum(h => h.Payroll) / nights / 1000m:0.0}k, net {hs.Sum(h => h.NightNet) / nights / 1000m:+0.0;-0.0}k; nights/house-year {nights / Math.Max(0.01, houseYears):0.0}");
+            var cats = hs.SelectMany(h => h.Ledger).GroupBy(kv => kv.Key).Select(g => (Cat: g.Key, Sum: g.Sum(kv => kv.Value)))
+                .Where(x => x.Sum != 0).OrderByDescending(x => Math.Abs(x.Sum)).ThenBy(x => x.Cat).ToList();
+            Console.WriteLine($"   per house-year ({houseYears:0} house-years): " + string.Join(", ", cats.Select(x => $"{x.Cat} {x.Sum / (decimal)houseYears / 1000m:+#,0.0;-#,0.0}k"))
+                              + $"; net {cats.Sum(x => x.Sum) / (decimal)houseYears / 1000m:+0.0;-0.0}k");
+        }
+        foreach (var abbr in OriginsPromotions.All.Select(x => x.Abbreviation))
+        {
+            var hs = aiHouses.Where(h => h.Abbr == abbr && h.Kind == "founder").ToList();
+            int nights = hs.Sum(h => h.Nights);
+            if (nights == 0) continue;
+            double hy = hs.Sum(h => h.YearsAlive);
+            var cats = hs.SelectMany(h => h.Ledger).GroupBy(kv => kv.Key).Select(g => (Cat: g.Key, Sum: g.Sum(kv => kv.Value)))
+                .Where(x => x.Sum != 0).OrderByDescending(x => Math.Abs(x.Sum)).ThenBy(x => x.Cat).ToList();
+            Console.WriteLine($"AI {abbr}: crowd {hs.Sum(h => h.Crowd) / (double)nights:0} in {hs.Sum(h => h.Seats) / (double)nights:0} seats (demand {hs.Sum(h => h.Demand) / (double)nights:0}), room {hs.Sum(h => h.Rent) / nights / 1000m:0.0}k/night, " +
+                              $"{nights / hy:0.0} nights/yr; per year " + string.Join(", ", cats.Select(x => $"{x.Cat} {x.Sum / (decimal)hy / 1000m:+#,0.0;-#,0.0}k")));
+        }
+        var players = scripted.SelectMany(o => o.Houses).Where(h => h.Player).ToList();
+        foreach (var g in players.GroupBy(h => h.Abbr).OrderBy(g => g.Key))
+        {
+            var hs = g.ToList();
+            Console.WriteLine($"scripted player at {g.Key} ({hs.Count} seeds, start {hs[0].StartBank / 1000m:0}k): end bank {Dist(hs.Select(h => h.EndBank))}; " +
+                              $"below start {hs.Count(h => h.EndBank < h.StartBank)}/{hs.Count}; folded {hs.Count(h => h.FoldedAt is not null)}/{hs.Count}");
+        }
+        var sh = scripted.SelectMany(o => o.Houses).ToList();
+        foreach (var abbr in OriginsPromotions.All.Select(x => x.Abbreviation))
+        {
+            var hs = sh.Where(h => h.Abbr == abbr && h.Kind == "founder" && !h.Player).ToList();
+            if (hs.Count > 0) Console.WriteLine($"   ({abbr} under the AI in the scripted worlds: end bank {Dist(hs.Select(h => h.EndBank))}, folded {hs.Count(h => h.FoldedAt is not null)}/{hs.Count})");
+        }
+        var shFounded = sh.Where(h => h.Kind == "founded").ToList();
+        if (shFounded.Count > 0)
+            Console.WriteLine($"   (founded houses in the scripted worlds: {shFounded.Count} opened, alive at the end {shFounded.Count(h => h.FoldedAt is null)})");
     }
 
     private static DateOnly? LastNight(World world, Promotion p) =>
@@ -458,6 +631,11 @@ public static class OriginsMode
             // Take whatever local sponsor knocks (no screens to sell yet).
             foreach (var offer in promo.Offers.Where(o => o.Media is null).ToList())
                 MmaManager.Core.Sim.Finance.Sponsorships.Accept(w, promo, offer, today);
+
+            // Keep the men whose deals are fought out (the player's re-sign window), as an owner does: at the
+            // table at their terms when they fit the house's purse cap (the shoestring script's renewal pass).
+            // Without it every deal lapsed and the house's stars walked: its crowds were a third smaller.
+            ShoeSweep.ReSignInWindow(w, promo, Negotiator.PurseCap(w, promo), _valuation);
 
             // Monthly: keep the house deep enough for its night (men whose deals are fought out don't count).
             if (today.Day > 7) return;

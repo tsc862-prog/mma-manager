@@ -67,6 +67,12 @@ public static class OriginsFounding
         "Fighting Championship", "Combat League", "Fight Night", "Challenge", "Open", "Fighting Association",
     };
 
+    /// <summary>
+    /// A new house's opening bank: <see cref="FoundingBankBase"/> and zero to six steps of
+    /// <see cref="FoundingBankStep"/> (one keyed draw; the money side's lever on how many new houses last).
+    /// </summary>
+    public const decimal FoundingBankBase = 50_000m, FoundingBankStep = 25_000m;
+
     /// <summary>The authored terms of an arriving promotion: its bank and prestige.</summary>
     private static readonly Dictionary<string, (decimal Bank, int Prestige)> Authored = new(StringComparer.Ordinal)
     {
@@ -117,7 +123,7 @@ public static class OriginsFounding
             abbr = abbr[..2] + (char)('A' + rng.Range(0, 25));
 
         var (bank, prestige) = arrival?.Abbreviation is { } ab && Authored.TryGetValue(ab, out var auth)
-            ? auth : (150_000m + rng.Range(0, 6) * 25_000m, rng.Range(4, 8));
+            ? auth : (FoundingBankBase + rng.Range(0, 6) * FoundingBankStep, rng.Range(4, 8));
         var (first, last) = Generation.NameData.Pool(country.Continent);
         string owner = arrival?.Lead ?? $"{rng.Pick(first)} {rng.Pick(last)}";
 
