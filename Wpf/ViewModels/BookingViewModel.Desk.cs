@@ -148,6 +148,15 @@ public sealed partial class BookingViewModel
     /// <summary>Who airs it ("on Arena+ and United Broadcasting"), "" when nobody does.</summary>
     public string BroadcastLine { get => _broadcastLine; private set { if (Set(ref _broadcastLine, value)) OnPropertyChanged(nameof(HasBroadcastLine)); } }
     public bool HasBroadcastLine => _broadcastLine.Length > 0;
+    /// <summary>The partners who air this card (exact names), drawn as their marks beside the line.</summary>
+    public IReadOnlyList<string> Airs { get; private set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Who airs a card of this promotion's: every media deal it holds, the PPV carrier only on a PPV night.
+    /// The same rule the Card Desk's broadcast line always used; the Events page reads it too.
+    /// </summary>
+    public static List<string> AirsOn(Promotion? promo, Event ev) =>
+        promo?.MediaDeals.Where(d => d.Kind != MediaKind.PpvCarrier || ev.Tier >= EventTier.Ppv).Select(d => d.Partner).ToList() ?? new();
     private bool _isDue;
     /// <summary>Fight night: the card's date has come (the two doors show: watch it or sim it).</summary>
     public bool IsDue { get => _isDue; private set => Set(ref _isDue, value); }
@@ -268,7 +277,7 @@ public sealed partial class BookingViewModel
         if (_world is null || SelectedEvent is null)
         {
             _projection = null;
-            EventName = ""; Tagline = ""; TierLabel = ""; DateLine = ""; RoomLine = ""; BroadcastLine = ""; IsDue = false;
+            EventName = ""; Tagline = ""; TierLabel = ""; DateLine = ""; RoomLine = ""; BroadcastLine = ""; Airs = Array.Empty<string>(); OnPropertyChanged(nameof(Airs)); IsDue = false;
             PaddingLine = ""; Poster = null; _posterKey = "";
             ClearNight();
             RaiseBill();
@@ -292,8 +301,10 @@ public sealed partial class BookingViewModel
         var city = venue is not null ? w.Get(venue.City) : null;
         RoomLine = venue is null ? (ev.Venue ?? "No room yet")
             : $"{venue.Name}, {city?.Name ?? "?"} · {venue.Capacity:N0} seats";
-        var airs = promo?.MediaDeals.Where(d => d.Kind != MediaKind.PpvCarrier || ev.Tier >= EventTier.Ppv).Select(d => d.Partner).ToList() ?? new();
+        var airs = AirsOn(promo, ev);
         BroadcastLine = airs.Count == 0 ? "" : "on " + JoinAnd(airs);
+        Airs = airs;
+        OnPropertyChanged(nameof(Airs));
         IsDue = ev.Date <= w.CurrentDate;
 
         // The bill, top-billed. A booked bout is on the main card when its place

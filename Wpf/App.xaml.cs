@@ -307,6 +307,10 @@ public partial class App : Application
                 string p = e.Args.Length > 1 ? e.Args[^1] : "corporate.png";
                 using (var fs = File.Create(p)) enc.Save(fs);
                 Console.WriteLine($"RENDERCORPORATE OK ({people.Count} people, {brands.Count} logos) -> " + Path.GetFullPath(p));
+                // What the screens draw (controls:CorporateArt): faces cropped, logos trimmed.
+                Console.WriteLine($"RENDERCORPORATE screens: {people.Count(MmaManager.Wpf.Controls.CorporateArt.HasFace)} real faces, "
+                    + $"{brands.Count(MmaManager.Wpf.Controls.CorporateArt.HasBrand)} trimmed logos; "
+                    + string.Join(", ", brands.Take(3).Select(b => MmaManager.Wpf.Controls.CorporateArt.Logo(b) is BitmapSource s ? $"{b} {s.PixelWidth}x{s.PixelHeight}" : $"{b} none")));
             }
             catch (Exception ex) { Console.WriteLine("RENDERCORPORATE FAIL: " + ex); }
             Environment.Exit(0);
@@ -1609,6 +1613,27 @@ public partial class App : Application
                     }
                     case "desk":
                         break;
+                    case "offer":
+                        // A sponsor and a network on the table; the desk leads with the most pressing call.
+                        PlantOffers(w);
+                        vm.Contracts.OnChanged?.Invoke();
+                        break;
+                    case "board":
+                    {
+                        // The board asks for a veteran off the books (harness plants the call the sim makes).
+                        var vet = w.RosterOf(w.PlayerPromotion).Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active)
+                            .OrderByDescending(f => f.AgeOn(w.CurrentDate)).ThenBy(f => f.Id.Value).First();
+                        w.Decisions.Add(new MmaManager.Core.Model.Decision
+                        {
+                            Id = w.Decisions.Count == 0 ? 1 : w.Decisions.Max(d => d.Id) + 1,
+                            Kind = MmaManager.Core.Model.DecisionKind.VeteranCut, Created = w.CurrentDate, Deadline = w.CurrentDate.AddDays(10),
+                            Fighter = vet.Id,
+                            Detail = $"The board wants {vet.FullName} off the books: an expensive name on a slide. Cut the deal and the payroll breathes; keep it and the board remembers.",
+                        });
+                        vm.Contracts.OnChanged?.Invoke();
+                        Console.WriteLine($"RENDERBRIEFING planted a veteran-cut call on {vet.FullName}");
+                        break;
+                    }
                     default:
                         throw new ArgumentException("unknown scenario " + scenario);
                 }
@@ -1780,10 +1805,44 @@ public partial class App : Application
                     vm.Contracts.OnChanged?.Invoke();
                 }
                 Console.WriteLine($"RENDERAPP world ready in {clock.ElapsedMilliseconds} ms");
+                if (e.Args.Contains("--offers")) { PlantOffers(vm.LiveWorld!); vm.Contracts.OnChanged?.Invoke(); }
+                // --hire <name>: hire that member of staff off the market the way the HQ screen does (exact name).
+                if (e.Args.Contains("--hire"))
+                {
+                    var w = vm.LiveWorld!;
+                    string who = e.Args[Array.IndexOf(e.Args, "--hire") + 1];
+                    if (w.StaffMarket.FirstOrDefault(s => s.Name == who) is { } hire)
+                    {
+                        MmaManager.Core.Sim.Org.StaffService.Hire(w, w.Get(w.PlayerPromotion)!, hire);
+                        vm.Contracts.OnChanged?.Invoke();
+                    }
+                    Console.WriteLine($"RENDERAPP hired {who}: {(w.Get(w.PlayerPromotion)!.Staff.Any(s => s.Name == who) ? "yes" : "not on the market")}");
+                }
+                // --boardcut: the board's veteran-cut call, answered yes through the sim's own Decisions.Accept,
+                // which posts the owner's letter (a letter signed by a named owner, for the inbox render).
+                if (e.Args.Contains("--boardcut"))
+                {
+                    var w = vm.LiveWorld!;
+                    var vet = w.RosterOf(w.PlayerPromotion).Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active)
+                        .OrderByDescending(f => f.AgeOn(w.CurrentDate)).ThenBy(f => f.Id.Value).First();
+                    var call = new MmaManager.Core.Model.Decision
+                    {
+                        Id = w.Decisions.Count == 0 ? 1 : w.Decisions.Max(d => d.Id) + 1,
+                        Kind = MmaManager.Core.Model.DecisionKind.VeteranCut, Created = w.CurrentDate, Deadline = w.CurrentDate.AddDays(10),
+                        Fighter = vet.Id, Detail = "The board wants an expensive name off the books.",
+                    };
+                    w.Decisions.Add(call);
+                    MmaManager.Core.Sim.Living.Decisions.Accept(w, call, w.CurrentDate);
+                    vm.Contracts.OnChanged?.Invoke();
+                    Console.WriteLine($"RENDERAPP board cut answered: {vet.FullName}");
+                }
                 if (e.Args.Contains("--table"))
                 {
                     vm.MyRoster.ShowTable = true;
                     vm.FightersPage.ShowTable = true;
+                    vm.Org.ShowStaffTable = true;
+                    vm.Finance.ShowSponsorTable = true;
+                    vm.Media.ShowDealTable = true;
                 }
                 if (e.Args.Contains("--bykind")) vm.News.ByKind = true;
                 if (e.Args.Contains("--syncfaces")) Portraits.SyncThumbs = true;   // A/B: the old full-size, UI-thread decode
@@ -1891,6 +1950,23 @@ public partial class App : Application
                 {
                     var name = e.Args[Array.IndexOf(e.Args, "--folder") + 1];
                     if (Enum.TryParse<MailFolder>(name, true, out var folder)) vm.Mail.ShowFolder(folder);
+                    Layout();
+                }
+                // --letterfrom <owner|offer|partner>: open the newest letter from the owner, an offer letter, or a partner writing in.
+                if (e.Args.Contains("--letterfrom"))
+                {
+                    string who = e.Args[Array.IndexOf(e.Args, "--letterfrom") + 1];
+                    string owner = MmaManager.Core.Sim.Living.Mail.Owner(vm.LiveWorld!);
+                    vm.Mail.ShowFolder(MailFolder.Everything);
+                    Layout();
+                    var letter = who switch
+                    {
+                        "owner" => vm.Mail.Letters.FirstOrDefault(l => l.Sender == owner || l.Sender == "The Owner"),
+                        "offer" => vm.Mail.Letters.FirstOrDefault(l => l.HasOfferBrand),
+                        _ => vm.Mail.Letters.FirstOrDefault(l => l.HasBrand),
+                    };
+                    vm.Mail.Selected = letter;
+                    Console.WriteLine($"RENDERAPP letter from {who}: '{letter?.Subject}' from {letter?.Sender} ({letter?.SenderRole}); face {letter?.HasPicture}, brand '{letter?.Brand}', offer brand '{letter?.OfferBrand}'");
                     Layout();
                 }
                 if (e.Args.Contains("--letter"))
@@ -2130,12 +2206,20 @@ public partial class App : Application
             return;
         }
 
-        // Offscreen screenshot of the New Game setup dialog: `MmaManager.Wpf --rendernewgame <path>`.
+        // Offscreen screenshot of the New Game setup dialog: `MmaManager.Wpf --rendernewgame [--takeover ABBR] <path>`.
         if (e.Args.Contains("--rendernewgame"))
         {
             try
             {
                 var win = new NewGameWindow();
+                // --takeover <ABBR>: the "take over" option picked, with that house selected (its owner's card shows).
+                if (e.Args.Contains("--takeover"))
+                {
+                    string abbr = e.Args[Array.IndexOf(e.Args, "--takeover") + 1];
+                    win.TakeoverMode.IsChecked = true;
+                    foreach (var item in win.TakeoverBox.Items)
+                        if (item is NewGameWindow.TakeoverRow r && r.Spec.Abbreviation == abbr) win.TakeoverBox.SelectedItem = item;
+                }
                 if (e.Args.Contains("--origins")) win.ChooseOrigins(int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]));
                 var root = (FrameworkElement)win.Content;
                 // The window sizes to its content: measure it at its width, then draw it at the height it wants.
@@ -2496,6 +2580,31 @@ public partial class App : Application
         for (DependencyObject? n = e; n is not null && !ReferenceEquals(n, root); n = VisualTreeHelper.GetParent(n))
             if (n is UIElement u && u.Visibility != Visibility.Visible) return false;
         return true;
+    }
+
+    // Harness only (people-and-brands renders): put one sponsor and one network offer on the player's
+    // table, with the letters the sim would post for them, so the offer cards, the briefing items and the
+    // offer letter have something to draw. Partners are real ladder / archetype names that have logos.
+    private static void PlantOffers(MmaManager.Core.Model.World w)
+    {
+        var p = w.Get(w.PlayerPromotion)!;
+        var today = w.CurrentDate;
+        string sponsor = new[] { "Summit Bank", "Meridian Airlines", "Atlas Watches", "Polar Cola" }
+            .First(n => p.SponsorDeals.All(d => d.Partner != n));
+        p.Offers.Add(new MmaManager.Core.Model.DealOffer
+        {
+            Partner = sponsor, FeePerEvent = new MmaManager.Core.Model.Money(120_000m), Term = 6,
+            OfferedOn = today, ExpiresOn = today.AddDays(40),
+        });
+        MmaManager.Core.Sim.Living.Mail.Post(w, today, MmaManager.Core.Model.MailCategory.General, "Commercial",
+            $"Sponsorship offer: {sponsor}", $"{sponsor} wants on the canvas: $120,000/event for 6 events. No strings. Answer on the Finance page before it lapses.");
+        p.Offers.Add(new MmaManager.Core.Model.DealOffer
+        {
+            Media = MmaManager.Core.Model.MediaKind.SpecialtyCable, Partner = "Octagon TV",
+            FeePerEvent = new MmaManager.Core.Model.Money(230_000m), Term = 12,
+            OfferedOn = today, ExpiresOn = today.AddDays(60),
+        });
+        Console.WriteLine($"HARNESS planted offers: {sponsor} (sponsor), Octagon TV (specialty cable)");
     }
 
     private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
