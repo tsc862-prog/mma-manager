@@ -75,4 +75,28 @@ public class BiographerTests
         var startup = new Promotion { Id = new PromotionId(999), Name = "Test Fights", Abbreviation = "TF" };
         Assert.Contains("promotion", Biographer.Promotion(world, startup));
     }
+
+    [Fact]
+    public void PromotionBio_DivisionWording_SingularOpenAndPlural()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 5 });
+        Promotion House(params Division[] divs)
+        {
+            var p = new Promotion { Id = new PromotionId(998), Name = "Wording Fights", Abbreviation = "WF" };
+            p.Divisions.AddRange(divs);
+            return p;
+        }
+
+        var open = Biographer.Promotion(world, House(new Division { WeightClass = Division.OpenClass, Open = true }));
+        Assert.Contains("at open weight", open);
+        Assert.DoesNotContain("weight classes", open);
+
+        var one = Biographer.Promotion(world, House(new Division { WeightClass = WeightClass.Lightweight }));
+        Assert.Contains("in 1 weight class.", one);
+
+        var two = Biographer.Promotion(world, House(
+            new Division { WeightClass = WeightClass.Middleweight, Lightest = WeightClass.Strawweight },
+            new Division { WeightClass = WeightClass.Heavyweight }));
+        Assert.Contains("across 2 weight classes", two);
+    }
 }
