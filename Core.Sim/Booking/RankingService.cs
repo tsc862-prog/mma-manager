@@ -66,6 +66,14 @@ public static class RankingService
     /// </summary>
     public static void RecomputeGlobal(World world, int depth = 25)
     {
+        // An Origins world has no rankings across promotions until the commissions agree one code: each house
+        // ranks its own men, and no list of the sport's best is published (always recognised in today's mode).
+        if (!Living.OriginsReforms.RankingsRecognised(world))
+        {
+            world.GlobalRankings.Clear();
+            world.PoundForPound.Clear();
+            return;
+        }
         var asOf = world.CurrentDate;
         var ctx = Context.Build(world, asOf);
         var (champions, elite) = GlobalElite(world);

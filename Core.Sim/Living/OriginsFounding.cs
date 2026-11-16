@@ -140,6 +140,7 @@ public static class OriginsFounding
         promo.Rules.RoundMinutes = promo.Rules.Fight.RoundMinutes ?? 5;
         promo.Rules.StandardRounds = promo.Rules.Fight.Rounds ?? 3;
         promo.Rules.TitleRounds = promo.Rules.StandardRounds;
+        OriginsReforms.FoundedUnder(world, promo);   // the unified code once there is one; a ring in the second centre
         promo.TierClearance = Org.OrgSizing.SizeOf(promo);
         world.Promotions[promo.Id] = promo;
 

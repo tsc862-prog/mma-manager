@@ -129,6 +129,8 @@ public static class OriginsShows
         Event ev;
         if (promo.Rules.ShowFormat == ShowFormat.OneNightTournament)
         {
+            // A licensed house the code now binds runs no new bracket: it takes the code once its last one is fought.
+            if (OriginsReforms.BoundByCode(world, promo)) return null;
             int size = Math.Max(2, promo.Rules.TournamentSize);
             // Only a house that could field the bracket today puts one on the books.
             if (!TournamentService.PreviewField(world, promo, when, null, size).Full) return null;   // (the one field rule: TournamentService)
@@ -330,6 +332,8 @@ public static class OriginsShows
         if (promoId == world.PlayerPromotion && Booking.PlayerBooking.NoHouse(world, out reason)) return null;
         if (world.Get(promoId) is not { Defunct: false } promo) { reason = "That promotion isn't running."; return null; }
         if (promo.Rules.ShowFormat != ShowFormat.OneNightTournament) { reason = $"{promo.Abbreviation} doesn't run one-night tournaments."; return null; }
+        if (OriginsReforms.BoundByCode(world, promo))
+        { reason = "Your licence now binds you to the commissions' code: no new one-night brackets. The house fights cards under the code once the bracket on the books is fought."; return null; }
         if (date <= world.CurrentDate) { reason = "Pick a date that hasn't happened yet."; return null; }
         if (world.Events.Values.Any(e => e.Promotion == promoId && e.Date == date && e.Status == EventStatus.Scheduled))
         { reason = "There's already a night on the books that day."; return null; }
@@ -428,6 +432,8 @@ public static class OriginsShows
         var perceived = pool.ToDictionary(f => f.Id, f => ScoutingService.PerceivedAbility(world, promo, f));
         var ordered = pool.OrderByDescending(f => perceived[f.Id]).ThenBy(f => f.Id.Value).ToList();
         int rounds = promo.Rules.Fight?.Rounds ?? promo.Rules.StandardRounds;
+        // (House rules that fix the rounds fix them for every bout; the unified code leaves them to the booking: five for a title.)
+        int titleRounds = promo.Rules.Fight?.Rounds ?? promo.Rules.TitleRounds;
         bool challenge = promo.Rules.ShowFormat == ShowFormat.GymChallenge;
         var used = new HashSet<FighterId>();
         // Each man's division: the house's one open division, or (once it has split by weight) the band his
@@ -454,10 +460,10 @@ public static class OriginsShows
                 var eligible = ranked.Select(world.Get).OfType<Fighter>()
                     .Where(c => c.Id != champ.Id && Matchmaker.Worthy(c) && !Bonds.WontFight(world, champ.Id, c.Id)).ToList();
                 var challenger = eligible.FirstOrDefault(c => Fresh(champ, c)) ?? eligible.FirstOrDefault();
-                if (challenger is not null) titleBout = new Matchup(champ.Id, challenger.Id, division.WeightClass, rounds, true, tid);
+                if (challenger is not null) titleBout = new Matchup(champ.Id, challenger.Id, division.WeightClass, titleRounds, true, tid);
             }
             else if (title.CurrentChampion is null && ranked.Count >= 2 && !Bonds.WontFight(world, ranked[0], ranked[1]))
-                titleBout = new Matchup(ranked[0], ranked[1], division.WeightClass, rounds, true, tid);
+                titleBout = new Matchup(ranked[0], ranked[1], division.WeightClass, titleRounds, true, tid);
             if (titleBout is { } tb) { used.Add(tb.Red); used.Add(tb.Blue); titleBouts.Add(tb); }
         }
 

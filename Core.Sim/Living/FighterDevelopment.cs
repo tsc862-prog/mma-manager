@@ -16,7 +16,13 @@ public static class FighterDevelopment
 {
     /// <summary>Advance a fighter one month of physical/technical development.</summary>
     /// <param name="growthMultiplier">Scales the growth rate (a head coach lifts this above 1.0).</param>
-    public static void Advance(Fighter f, DateOnly date, SimRandom rng, double growthMultiplier = 1.0)
+    /// <param name="oneArt">
+    /// The man trains one art only (an Origins world before his room cross-trains,
+    /// <see cref="OriginsCamps.TrainsOneArt"/>): his growth goes into his stronger half of the game (striking
+    /// or grappling) and his body and head, never the half nobody teaches him. Same draws as ever, over a
+    /// shorter list; false (today's mode, always) is the full list.
+    /// </param>
+    public static void Advance(Fighter f, DateOnly date, SimRandom rng, double growthMultiplier = 1.0, bool oneArt = false)
     {
         if (f.Status == FighterStatus.Retired) return;
 
@@ -45,7 +51,7 @@ public static class FighterDevelopment
             // budget to climb a few overall points a year.
             int bumps = Poissonish(rng, rate * Math.Min(gap, 30) * 0.55);
 
-            var skills = AllSkills(f);
+            var skills = oneArt ? OneArtSkills(f) : AllSkills(f);
             for (int i = 0; i < bumps; i++)
             {
                 if (FighterAbility.CurrentAbility(f) >= pa) break;
@@ -123,6 +129,25 @@ public static class FighterDevelopment
         new(() => f.Physical.Cardio, v => f.Physical.Cardio = v),
         new(() => f.Physical.Speed, v => f.Physical.Speed = v),
     };
+
+    /// <summary>
+    /// What a one-art room teaches: the half of the game the man is stronger in (the first seven of
+    /// <see cref="AllSkills"/> are striking, the next eight grappling; <see cref="OriginsTalent.StrikingMean"/>),
+    /// plus the head and the body. A tie goes to striking.
+    /// </summary>
+    private static IReadOnlyList<SkillRef> OneArtSkills(Fighter f)
+    {
+        var all = AllSkills(f);
+        bool striker = OriginsTalent.StrikingMean(f) >= OriginsTalent.GrapplingMean(f);
+        var list = new List<SkillRef>(all.Count);
+        for (int i = 0; i < all.Count; i++)
+        {
+            bool strikingSkill = i < 7, grapplingSkill = i is >= 7 and < 15;
+            if ((strikingSkill && !striker) || (grapplingSkill && striker)) continue;
+            list.Add(all[i]);
+        }
+        return list;
+    }
 
     private static IReadOnlyList<SkillRef> PhysicalSkills(Fighter f) => new SkillRef[]
     {
