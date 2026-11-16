@@ -21,7 +21,8 @@ namespace LongSim;
 /// (at least <see cref="CadenceShare"/> of the nights its cadence allows; the first year excepted);</item>
 /// <item>the sport keeps its size: ACTIVE men between <see cref="MinActives"/> and a ceiling that grows with
 /// the number of houses, at every year-end, and new men turned pro;</item>
-/// <item>rosters are replenished: every live house ends holding <c>OriginsShows.MinRoster</c>;</item>
+/// <item>rosters are replenished: every live solvent house ends holding <c>OriginsShows.MinRoster</c> men on its
+/// books (not retired, deal not run out: its signing pass's own count); how many are fit that day is a note;</item>
 /// <item>the chapter order holds: every fired chapter fired inside its window (by its deadline, a week's
 /// grace) and strictly after every chapter it requires;</item>
 /// <item>nothing is used before the sport has it: no media deal, staged night, weight division, title or
@@ -185,10 +186,17 @@ public static class OriginsMode
             }
             int need = OriginsShows.MinRoster(p);
             int roster = world.RosterOf(p.Id).Count(f => f.Status == FighterStatus.Active);
-            // (A house in the red keeps a thin, cheap roster on its way out: that is a fold coming, not a starved sport.)
+            // The floor counts the men on the books, as the house's own signing pass does: not retired and the
+            // deal not run out. A man recovering from the last night is still the house's (the check's last week
+            // is often a house's night), so how many are fit that day is a note, never a failure.
+            int onBooks = world.RosterOf(p.Id).Count(f => f.Status != FighterStatus.Retired && !DealWindow.OutOfDeal(world, f));
             if (roster < need && p.Balance.Amount >= 0)
+                o.Notes.Add($"{p.Abbreviation} {roster} of {onBooks} men fit at the end " +
+                            (LastNight(world, p) is { } ln ? $"({world.CurrentDate.DayNumber - ln.DayNumber} days after its last night)" : "(no night yet)"));
+            // (A house in the red keeps a thin, cheap roster on its way out: that is a fold coming, not a starved sport.)
+            if (onBooks < need && p.Balance.Amount >= 0)
             {
-                o.Problems.Add($"{p.Abbreviation} roster {roster} < {need}");
+                o.Problems.Add($"{p.Abbreviation} roster {onBooks} on the books < {need}");
                 var men = world.RosterOf(p.Id).ToList();
                 int counted = men.Count(f => f.Status != FighterStatus.Retired);
                 int target = OriginsShows.DivisionRosterTarget(p, MmaManager.Core.Sim.Org.Solvency.Distress(p, world) > 0)

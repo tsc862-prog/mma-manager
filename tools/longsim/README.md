@@ -34,7 +34,8 @@ dotnet run --no-build -c Release -- digest 3 3              # end-state digests 
 #    digest). Per-year summary per house, the phase-1 invariants (no weight-class or women's divisions,
 #    no media beyond the day-one unlocks, no startups, no club shows, every bout open weight, no
 #    weigh-ins), and a HEALTH line per run: no fold; each house at >= 60% of its cadence every year
-#    after the first; 80-160 active men; rosters >= OriginsShows.MinRoster; banks end within 0.4x-2.5x
+#    after the first; 80-160 active men; rosters >= OriginsShows.MinRoster men on the books (not retired,
+#    deal not run out; fit-today is a note); banks end within 0.4x-2.5x
 #    of the opening balance. Exit code 1 if any run is unhealthy. Seconds per seed: ~110 men.
 dotnet run --no-build -c Release -- origins 5 5
 ```
