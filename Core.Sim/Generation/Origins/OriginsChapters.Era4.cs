@@ -26,7 +26,7 @@ public static partial class OriginsChapters
             N("{Org} opens a new weight class",
               "{Fighter} of {Org} has won the first title in a new weight class in {City}. The ladder of divisions, which started with heavy and light, now has a middle. Other promotions will follow because their fighters will ask them to. For anyone between the extremes it is the best news in years. Local gyms say they will build a division of their own at once."),
             N("Four classes, then five",
-              "{Year}. The first weight line, drawn at two hundred pounds, left most fighters on the wrong side of someone's idea of fair. Now the divisions multiply: a light-heavyweight class for the men who are too big to be small and too small to be huge, and a welterweight class for the many who fall between. A fighter who spent his career guessing the weight of his opponent now gets a number and a fair fight."),
+              "{Year}. The first weight line, drawn at one hundred and eighty-five pounds, left most fighters on the wrong side of someone's idea of fair. Now the divisions multiply: a light-heavyweight class for the men who are too big to be small and too small to be huge, and a welterweight class for the many who fall between. A fighter who spent his career guessing the weight of his opponent now gets a number and a fair fight."),
             "The ladder fills in: light-heavyweight and welterweight arrive."),
 
         C("weight-ladder-lower", 4, "The Smaller Men Get Divisions", 108, 168, A("weight-ladder-middle"),

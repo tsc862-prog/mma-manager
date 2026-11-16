@@ -61,7 +61,7 @@ public static partial class OriginsChapters
             A("WeightClass:Bantamweight"),
             A("The bantamweight class opens."),
             N("{Org} opens the bantamweight division",
-              "Under one hundred and forty pounds the sport finds its quickest fighters, and {Org} gives them a division of their own. {Fighter} wins the first title in {City}, and the crowd, expecting something small, gets something blindingly fast. {Founder} has already booked the next three cards. The ladder of divisions is nearly full, and the men at the bottom of it have made themselves impossible to ignore."),
+              "Under one hundred and thirty-five pounds the sport finds its quickest fighters, and {Org} gives them a division of their own. {Fighter} wins the first title in {City}, and the crowd, expecting something small, gets something blindingly fast. {Founder} has already booked the next three cards. The ladder of divisions is nearly full, and the men at the bottom of it have made themselves impossible to ignore."),
             N("{Org} crowns {Fighter} at bantamweight",
               "{Fighter} is the first bantamweight champion, crowned by {Org} in {City}. The division is lighter than anything the sport has tried and faster than anything it has seen. Rival promotions had called it a sideshow; they are now ringing round for bantamweights. The new division will have eight ranked contenders by the end of the season, and a waiting list of promoters."),
             N("The smaller men get a champion",
