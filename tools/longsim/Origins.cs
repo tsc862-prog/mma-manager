@@ -512,7 +512,41 @@ public static class OriginsMode
                 .GroupBy(l => l.Category).Select(g => (Cat: g.Key, Sum: g.Sum(l => l.Amount.Amount)))
                 .Where(x => x.Sum != 0).OrderByDescending(x => Math.Abs(x.Sum)).ThenBy(x => x.Cat);
             sb.AppendLine("       money: " + string.Join(", ", money.Select(x => $"{x.Cat} {x.Sum / 1000m:+#,0;-#,0}k")));
+            if (!p.Defunct) sb.AppendLine("       " + RosterLine(world, p));
         }
+    }
+
+    /// <summary>
+    /// A house's year-end roster against what it wants, and its purse cap against what the free men in its
+    /// divisions ask (and how many would take its opening offer): read-only, the signing pass's own numbers.
+    /// </summary>
+    private static string RosterLine(World world, Promotion p)
+    {
+        bool distressed = MmaManager.Core.Sim.Org.Solvency.Distress(p, world) > 0;
+        var divs = p.Divisions.Where(d => d.Sex == Sex.Male).ToList();
+        int per = OriginsShows.DivisionRosterTarget(p, distressed);
+        var men = world.RosterOf(p.Id).Where(f => f.Status != FighterStatus.Retired).ToList();
+        int bookable = men.Count(f => OriginsShows.CanBook(world, p, f, world.CurrentDate.AddDays(28)));
+        decimal cap = Negotiator.PurseCap(world, p);
+        var negotiator = new Negotiator();
+        var valuation = new FighterValuation();
+        var pool = world.FreeAgents().Where(f => f.Status == FighterStatus.Active && divs.Any(d => d.Matches(f))).OrderBy(f => f.Id.Value).ToList();
+        int yes = 0;
+        var mine = new List<decimal>();
+        foreach (var fa in pool)
+        {
+            var exp = valuation.Evaluate(world, fa);
+            mine.Add(exp.AskingPurse.Amount);
+            var offer = negotiator.AiOpeningOffer(world, p, fa, exp);
+            if (negotiator.Evaluate(world, fa, offer, exp).Verdict == NegotiationVerdict.Accept) yes++;
+        }
+        mine.Sort();
+        string short_ = string.Join(" ", divs.Where(d => men.Count(f => d.Matches(f)) < per)
+            .Select(d => $"{(d.Open ? "Open" : d.WeightClass.ToString())}:{men.Count(f => d.Matches(f))}"));
+        return $"roster: {divs.Count} div x {per} = {per * Math.Max(1, divs.Count)} wanted, {men.Count} held ({bookable} bookable in 4w); " +
+               $"fmt {p.Rules.ShowFormat} cadence {OriginsShows.CadenceWeeks(p)}w; cap {cap:N0} (ceiling {FighterValuation.OriginsMarketCeiling(world):N0}); " +
+               $"free men in its divisions {pool.Count}, asks min {(mine.Count > 0 ? mine[0] : 0):N0} median {(mine.Count > 0 ? mine[mine.Count / 2] : 0):N0}, would accept {yes}" +
+               (distressed ? " DISTRESSED" : "") + (short_.Length > 0 ? $"; short: {short_}" : "");
     }
 
     /// <summary>
