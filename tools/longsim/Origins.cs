@@ -22,7 +22,7 @@ namespace LongSim;
 /// <item>the sport keeps its size: ACTIVE men between <see cref="MinActives"/> and a ceiling that grows with
 /// the number of houses, at every year-end, and new men turned pro;</item>
 /// <item>rosters are replenished: every live solvent house ends holding <c>OriginsShows.MinRoster</c> men on its
-/// books (not retired, deal not run out or still in the player's re-sign window); how many are fit that day is a note;</item>
+/// books (not retired, deal not run out, or run out in the last week and in the player's re-sign window); how many are fit that day is a note;</item>
 /// <item>the chapter order holds: every fired chapter fired inside its window (by its deadline, a week's
 /// grace) and strictly after every chapter it requires;</item>
 /// <item>nothing is used before the sport has it: no media deal, staged night, weight division, title or
@@ -247,9 +247,12 @@ public static class OriginsMode
             // The floor counts the men on the books, as the house's own signing pass does: not retired and the
             // deal not run out. A man recovering from the last night is still the house's (the check's last week
             // is often a house's night), so how many are fit that day is a note, never a failure.
-            // (A man in the player's re-sign window is still the house's to keep: the run's last night often ends
-            // a few deals the week the check samples, before the owner has had a week of his thirty days.)
-            int onBooks = world.RosterOf(p.Id).Count(f => f.Status != FighterStatus.Retired && (!DealWindow.OutOfDeal(world, f) || DealWindow.InWindow(world, f)));
+            // (A man whose deal ran out in the run's last week is still the house's to keep: the last night often
+            // ends a few deals the week the check samples, before the owner has had one of his thirty days. A man
+            // longer out of his deal than that is not counted: the owner has let him sit.)
+            bool JustOut(Fighter f) => DealWindow.InWindow(world, f) && f.Contract?.WindowEndsOn is { } ends
+                                       && ends.AddDays(-DealWindow.WindowDays) >= world.CurrentDate.AddDays(-7);
+            int onBooks = world.RosterOf(p.Id).Count(f => f.Status != FighterStatus.Retired && (!DealWindow.OutOfDeal(world, f) || JustOut(f)));
             if (roster < need && p.Balance.Amount >= 0)
                 o.Notes.Add($"{p.Abbreviation} {roster} of {onBooks} men fit at the end " +
                             (LastNight(world, p) is { } ln ? $"({world.CurrentDate.DayNumber - ln.DayNumber} days after its last night)" : "(no night yet)"));

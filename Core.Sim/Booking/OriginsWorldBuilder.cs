@@ -140,6 +140,8 @@ public static class OriginsWorldBuilder
                 f.Contract.PursePerFight = new Money(Contracts.Negotiator.OriginsPurseFloor);
                 f.Contract.WinBonus = new Money(Contracts.Negotiator.OriginsPurseFloor / 2);
             }
+            // (A bracket house pays no win bonuses: the cheque is the bonus. The signing's draws are kept.)
+            f.Contract.WinBonus = Contracts.Negotiator.WinBonusAt(world, house.Id, f.Contract.WinBonus);
             f.Loyalty = Math.Clamp(30 + (row.Fighter.Age - 24) * 2, 22, 58);
         }
 

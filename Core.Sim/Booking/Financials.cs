@@ -65,7 +65,7 @@ public static class Financials
         {
             Id = ev.Id, Promotion = ev.Promotion, Name = ev.Name, Date = ev.Date, VenueId = room.Id,
             Region = world.Get(room.City) is { } c ? c.Region : ev.Region,
-            Tier = ev.Tier, Format = ev.Format, Card = ev.Card,
+            Tier = ev.Tier, Format = ev.Format, Card = ev.Card, HypeBonus = ev.HypeBonus,
         };
         // (A past night's clash belongs to that week's calendar, not to the room: left out, which also keeps
         // this off a scan of every card in the world.)

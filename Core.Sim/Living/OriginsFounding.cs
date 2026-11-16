@@ -342,6 +342,8 @@ public static class OriginsFounding
                         f.Contract.PursePerFight = new Money(Negotiator.OriginsPurseFloor);
                         f.Contract.WinBonus = new Money(Negotiator.OriginsPurseFloor / 2);
                     }
+                    // (A bracket house pays no win bonuses: the cheque is the bonus. The signing's draws are kept.)
+                    f.Contract.WinBonus = Negotiator.WinBonusAt(world, house.Id, f.Contract.WinBonus);
                     RankingService.RecomputePromotion(world, house, date);
                 }
                 News.Post(world, date, NewsCategory.Debut, $"{f.FullName} turns professional",

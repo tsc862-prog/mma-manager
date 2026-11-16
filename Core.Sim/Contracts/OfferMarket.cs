@@ -179,7 +179,7 @@ public static class OfferMarket
         bool excl = Negotiator.WantsExclusivity(holder);
         var ours = new ContractOffer
         {
-            Fighter = f.Id, Promotion = holder.Id, WinBonus = o.WinBonus, SigningBonus = o.SigningBonus,
+            Fighter = f.Id, Promotion = holder.Id, WinBonus = Negotiator.WinBonusAt(world, holder.Id, o.WinBonus), SigningBonus = o.SigningBonus,
             Fights = o.Fights, Exclusive = excl, Round = 0,
         };
         decimal exact = HasMatchingRight(world, o)
@@ -193,7 +193,7 @@ public static class OfferMarket
         decimal home = HomeFactor(world, f, holder.Id);
         decimal neededValue = theirs * home * exclF / (1m + (decimal)appeal * 0.25m);
         decimal signingPerFight = o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount;
-        decimal purse = NegotiationSession.UpTo500(neededValue - 0.5m * o.WinBonus.Amount - signingPerFight);
+        decimal purse = NegotiationSession.UpTo500(neededValue - Negotiator.WinBonusWeight(world, holder.Id) * ours.WinBonus.Amount - signingPerFight);
 
         // Never under what he is paid now (unless skidding), nor under where his own
         // table would bottom out: matching is not a back door to a cheap renewal.
