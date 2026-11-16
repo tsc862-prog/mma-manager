@@ -838,6 +838,104 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
         </Style>
+
+        <!-- ================= People and brands (owners, staff, sponsors, media partners) =================
+             The ONE way a non-fighter face and a partner's logo are drawn. Content = the EXACT game name
+             (OwnerName, a staff Name, a deal's Partner); controls:CorporateArt does the lookup.
+             Sizes: faces 40-64 in rows, 64-96 on cards; marks 24-40 tall in rows, larger on offer cards. -->
+        <!-- PersonFace (ContentControl): a round head-and-shoulders on a soft disc; initials when there is no portrait. -->
+        <LinearGradientBrush x:Key="FaceDisc" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#454E5B" Offset="0" />
+            <GradientStop Color="#272D36" Offset="1" />
+        </LinearGradientBrush>
+        <Style x:Key="PersonFace" TargetType="ContentControl">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid ToolTip="{TemplateBinding Content}">
+                            <Ellipse Fill="{StaticResource FaceDisc}" />
+                            <Ellipse>
+                                <Ellipse.Fill>
+                                    <ImageBrush ImageSource="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static controls:CorporateArt.FaceOf}}"
+                                                Stretch="UniformToFill" />
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <Ellipse Stroke="{StaticResource BorderStrong}" StrokeThickness="1" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- BrandMark (ContentControl): the partner's logo fitted into the box; the name on a quiet tile when there is no logo. -->
+        <Style x:Key="BrandMark" TargetType="ContentControl">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid ToolTip="{TemplateBinding Content}">
+                            <Image x:Name="logo" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
+                                   Source="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static controls:CorporateArt.LogoOf}}" />
+                            <Border x:Name="tile" Visibility="Collapsed" CornerRadius="5" Background="{StaticResource SurfaceAlt}"
+                                    BorderBrush="{StaticResource BorderStrong}" BorderThickness="1" Padding="5,2">
+                                <Viewbox StretchDirection="DownOnly">
+                                    <TextBlock Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="96" TextWrapping="Wrap"
+                                               TextAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSoft}" />
+                                </Viewbox>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Content, RelativeSource={RelativeSource Self}, Converter={x:Static controls:CorporateArt.HasLogo}}" Value="False">
+                                <Setter TargetName="logo" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="tile" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- PersonCardTemplate: a PersonCard (an owner, a founder) — the face, a kicker, the name, one line about them. -->
+        <DataTemplate x:Key="PersonCardTemplate">
+            <DockPanel>
+                <ContentControl DockPanel.Dock="Left" Style="{StaticResource PersonFace}" Content="{Binding Name}" Width="64" Height="64" Margin="0,0,14,0" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Kicker}" Style="{StaticResource Text.Kicker}" FontSize="10.5" />
+                    <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Heading}" Margin="0,1,0,0" />
+                    <TextBlock Text="{Binding Note}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" LineHeight="17" Margin="0,4,0,0"
+                               Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </DockPanel>
+        </DataTemplate>
+        <!-- StaffCardTemplate: a StaffRow (hired or on the market) — face, role, name, where they came from, quality and pay.
+             Use inside a CardList so selection shows as the accent edge. -->
+        <DataTemplate x:Key="StaffCardTemplate">
+            <Border Background="{StaticResource CardFill}" CornerRadius="{StaticResource Radius.Card}" Padding="10,8">
+                <DockPanel>
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource PersonFace}" Content="{Binding Name}" Width="48" Height="48" Margin="0,0,12,0" />
+                    <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <TextBlock HorizontalAlignment="Right" FontFamily="Consolas" Foreground="{StaticResource TextSoft}">
+                            <Run Text="{Binding Salary, Mode=OneWay}" /><Run Text="/mo" Foreground="{StaticResource TextMuted}" />
+                        </TextBlock>
+                        <Border Style="{StaticResource Chip}" HorizontalAlignment="Right" Margin="0,4,0,0" Padding="7,1" ToolTip="Quality: how strong their effect is">
+                            <TextBlock Style="{StaticResource Chip.Text}" FontSize="11.5" FontWeight="SemiBold">
+                                <Run Text="Quality " Foreground="{StaticResource TextMuted}" /><Run Text="{Binding Quality, Mode=OneWay}" />
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Role}" Style="{StaticResource Text.Kicker}" FontSize="10" />
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Background}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" MaxHeight="32" TextTrimming="WordEllipsis"
+                                   ToolTip="{Binding Background}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </DataTemplate>
         <!-- One promise to keep on a profile (a PromiseRow): a quiet card, red-edged while AtRisk. -->
         <Style x:Key="PromiseCard" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardFill}" />
@@ -923,6 +1021,68 @@
             </Setter>
         </Style>
 
+        <!-- OfferCardTemplate: an OfferRow (a sponsor or a network on the table) — the partner's mark large,
+             who and what, the money and the term, their conditions, Sign / Pass. The host's DataContext
+             carries AcceptOfferCommand / DeclineOfferCommand (Finance and the Media desk both do). -->
+        <DataTemplate x:Key="OfferCardTemplate">
+            <Border Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                    CornerRadius="{StaticResource Radius.Card}" Padding="14,12" Margin="0,0,0,8">
+                <DockPanel>
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource BrandMark}" Content="{Binding Partner}"
+                                    Width="104" Height="60" VerticalAlignment="Top" Margin="0,2,16,0" />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="Sign" Style="{StaticResource Button.Primary}" Padding="18,5" FontSize="12.5" Margin="0,0,8,0"
+                                Command="{Binding DataContext.AcceptOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+                        <Button x:Name="pass" Content="Pass" Style="{StaticResource Button.Ghost}" Padding="14,4" FontSize="12.5"
+                                Command="{Binding DataContext.DeclineOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+                    </StackPanel>
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneWarn}" Margin="10,2,0,0">
+                                <Run Text="lapses " /><Run Text="{Binding Expires, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Text="{Binding Partner}" Style="{StaticResource Text.Heading}" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding Kind}" Style="{StaticResource Text.Caption}" Margin="0,1,0,0" />
+                        <TextBlock Margin="0,6,0,0" FontWeight="SemiBold">
+                            <Run Text="{Binding Fee, Mode=OneWay}" Foreground="{StaticResource Positive}" FontFamily="Consolas" />
+                            <Run Text="  ·  " Foreground="{StaticResource TextMuted}" /><Run Text="{Binding Term, Mode=OneWay}" Foreground="{StaticResource TextSoft}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding Terms}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsMedia}" Value="True">
+                    <Setter TargetName="pass" Property="ToolTip" Value="They only ask once — a passed network won't call again until it's back on the market" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- DealRowTemplate: a signed deal (SponsorRow / MediaRow: PartnerName, Line, Fee, Left, Strikes, Terms) —
+             the partner's mark, who and the one line on them, the money and what's left. Hover for every term. -->
+        <DataTemplate x:Key="DealRowTemplate">
+            <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1" Padding="2,7" Background="Transparent" ToolTip="{Binding Terms}">
+                <DockPanel>
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource BrandMark}" Content="{Binding PartnerName}" Width="72" Height="40" Margin="0,0,12,0" />
+                    <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="96">
+                        <TextBlock Text="{Binding Fee}" FontFamily="Consolas" FontWeight="SemiBold" Foreground="{StaticResource Positive}" HorizontalAlignment="Right" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding Strikes}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneBad}" FontWeight="SemiBold" Margin="0,0,8,0"
+                                       Visibility="{Binding HasStrikes, Converter={StaticResource BoolToVis}}" ToolTip="Strikes: missed terms. At the limit they walk." />
+                            <TextBlock Text="{Binding Left}" Style="{StaticResource Text.Caption}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding PartnerName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Line}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+
         <!-- BriefingItemTemplate: BriefingItem — a face (or a toned line icon), a kicker, one sentence,
              a line of detail and a link on the right. The digest and "also on your desk" both use it. -->
         <DataTemplate x:Key="BriefingItemTemplate">
@@ -932,12 +1092,13 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Grid Width="38" Height="38" VerticalAlignment="Top" Margin="0,1,12,0">
+                <Grid x:Name="slot" Width="38" Height="38" VerticalAlignment="Top" Margin="0,1,12,0">
                     <Ellipse x:Name="disc" Fill="{StaticResource Track}" />
                     <controls:Icon x:Name="icon" Kind="{Binding Icon}" Width="18" Height="18" Brush="{StaticResource TextSoft}" />
                     <Ellipse x:Name="face" Visibility="Collapsed" Stroke="{StaticResource PanelEdge}">
                         <Ellipse.Fill><ImageBrush ImageSource="{Binding Picture}" Stretch="UniformToFill" AlignmentY="Top" /></Ellipse.Fill>
                     </Ellipse>
+                    <ContentControl x:Name="brand" Style="{StaticResource BrandMark}" Content="{Binding Brand}" Width="56" Height="38" Visibility="Collapsed" />
                 </Grid>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock x:Name="kicker" Text="{Binding Kicker}" Style="{StaticResource Text.Kicker}" FontSize="10.5" Margin="0,0,0,1" TextTrimming="CharacterEllipsis" />
@@ -951,6 +1112,13 @@
                 <DataTrigger Binding="{Binding HasPicture}" Value="True">
                     <Setter TargetName="face" Property="Visibility" Value="Visible" />
                     <Setter TargetName="icon" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasBrand}" Value="True">
+                    <Setter TargetName="brand" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="icon" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="disc" Property="Visibility" Value="Collapsed" />
+                    <!-- a logo is wider than a face: the slot grows so a pill-shaped mark is still legible -->
+                    <Setter TargetName="slot" Property="Width" Value="56" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Kicker}" Value=""><Setter TargetName="kicker" Property="Visibility" Value="Collapsed" /></DataTrigger>
                 <DataTrigger Binding="{Binding HasDetail}" Value="False"><Setter TargetName="detail" Property="Visibility" Value="Collapsed" /></DataTrigger>
@@ -1837,18 +2005,27 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
                         <Grid>
-                            <Ellipse Fill="{StaticResource Track}" />
+                            <Ellipse x:Name="disc" Fill="{StaticResource Track}" />
                             <controls:Icon x:Name="icon" Kind="{Binding Content.Icon, RelativeSource={RelativeSource TemplatedParent}}" Brush="{StaticResource TextSoft}"
                                            Width="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static controls:Scale.Half}}"
                                            Height="{Binding ActualHeight, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static controls:Scale.Half}}" />
                             <Ellipse x:Name="face" Visibility="Collapsed">
                                 <Ellipse.Fill><ImageBrush ImageSource="{Binding Content.Picture, RelativeSource={RelativeSource TemplatedParent}}" Stretch="UniformToFill" AlignmentY="Top" /></Ellipse.Fill>
                             </Ellipse>
+                            <!-- a partner writing in (Content.Brand = its exact name): the logo, unclipped -->
+                            <ContentControl x:Name="brand" Style="{StaticResource BrandMark}" Content="{Binding Content.Brand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Width="{TemplateBinding Width}" Height="{TemplateBinding Height}" Visibility="Collapsed" />
                         </Grid>
                         <ControlTemplate.Triggers>
-                            <DataTrigger Binding="{Binding Content.HasPicture, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <DataTrigger Binding="{Binding Content.HasPicture, RelativeSource={RelativeSource Self}}" Value="True">
                                 <Setter TargetName="face" Property="Visibility" Value="Visible" />
                                 <Setter TargetName="icon" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Content.HasBrand, RelativeSource={RelativeSource Self}}" Value="True">
+                                <Setter TargetName="brand" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="icon" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="face" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="disc" Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

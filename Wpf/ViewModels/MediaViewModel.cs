@@ -20,6 +20,18 @@ public sealed class RungRow
             : r.Gate;
         Fee = r.Kind == MediaKind.PpvCarrier ? "50–60% of buys" : $"~{r.Fee}/ev";
         Terms = r.Terms;
+        // The networks on this rung, drawn as their marks. The rung's partner names live inside the sim's
+        // Ladder (only spelled out in the terms text), so the logos come from the art manifest's rung
+        // category for this kind; the full text stays in the tooltip. (Ask: world-sim to expose the
+        // partner names on RungView, then read them from there.)
+        var key = r.Kind.ToString();
+        Partners = Art.BrandLibrary.Names(Art.BrandKind.Media)
+            .Where(n => Art.BrandLibrary.Info(n, Art.BrandKind.Media) is { } b
+                        && string.Equals(b.Category.Replace("-", ""), key, StringComparison.OrdinalIgnoreCase))
+            .Select(n => new RungPartner(n, deal?.Partner == n))
+            .OrderByDescending(p => p.OnAir).ThenBy(p => p.Name, StringComparer.Ordinal).ToList();
+        int cut = Terms.IndexOf(" · networks:", StringComparison.Ordinal);
+        ShortTerms = Partners.Count > 0 && cut > 0 ? Terms[..cut] : Terms;
     }
     public string Label { get; }
     public bool Signed { get; }
@@ -27,7 +39,14 @@ public sealed class RungRow
     public string Status { get; }
     public string Fee { get; }
     public string Terms { get; }
+    /// <summary>The terms without the list of network names (the marks show those).</summary>
+    public string ShortTerms { get; }
+    public IReadOnlyList<RungPartner> Partners { get; }
+    public bool HasPartners => Partners.Count > 0;
 }
+
+/// <summary>A network on a rung of the ladder (its exact name), and whether it airs us.</summary>
+public sealed record RungPartner(string Name, bool OnAir);
 
 /// <summary>
 /// The Media desk: who airs the promotion (one deal per lane — linear TV, a

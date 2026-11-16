@@ -33,20 +33,17 @@
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,12,0">
                 <StackPanel>
                     <TextBlock Text="ON THE AIR — OUR DEALS" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
-                    <DataGrid ItemsSource="{Binding Deals}" IsReadOnly="True" HeadersVisibility="Column" Margin="0,0,0,12">
-                        <DataGrid.RowStyle>
-                            <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-                                <Setter Property="ToolTip" Value="{Binding Terms}" />
+                    <ItemsControl ItemsSource="{Binding Deals}" ItemTemplate="{StaticResource DealRowTemplate}" Focusable="False" Margin="0,0,0,12" />
+                    <TextBlock Text="Nobody airs us yet." Margin="0,0,0,12">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Deals.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
                             </Style>
-                        </DataGrid.RowStyle>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Screen" Binding="{Binding Kind}" Width="150" />
-                            <DataGridTextColumn Header="Partner" Binding="{Binding Partner}" Width="*" />
-                            <DataGridTextColumn Header="Pays" Binding="{Binding Fee}" SortMemberPath="FeeSort" Width="120" ElementStyle="{StaticResource FigureIn}" />
-                            <DataGridTextColumn Header="Left" Binding="{Binding Left}" Width="60" ElementStyle="{StaticResource Figure}" />
-                            <DataGridTextColumn Header="" Binding="{Binding Strikes}" Width="46" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                        </TextBlock.Style>
+                    </TextBlock>
 
                     <TextBlock Text="OUR OWN PLATFORM" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
                     <Border Style="{StaticResource Card}" Padding="10" Margin="0,0,0,12">
@@ -76,35 +73,7 @@
                     </Border>
 
                     <TextBlock Text="OFFERS ON THE TABLE" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
-                    <ItemsControl ItemsSource="{Binding Offers}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6">
-                                    <DockPanel>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="Sign" Padding="10,2" Margin="0,0,6,0"
-                                                    Command="{Binding DataContext.AcceptOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}" />
-                                            <Button Content="Pass" Padding="10,2"
-                                                    ToolTip="They only ask once — a passed network won't call again until it's back on the market"
-                                                    Command="{Binding DataContext.DeclineOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}" />
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Partner}" FontWeight="Bold" />
-                                                <TextBlock Text="{Binding Kind}" Foreground="{StaticResource TextSecondary}" Margin="8,0,0,0" />
-                                            </StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondary}" FontSize="11" TextWrapping="Wrap">
-                                                <Run Text="{Binding Fee, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Term, Mode=OneWay}" /><Run Text=" · expires " /><Run Text="{Binding Expires, Mode=OneWay}" />
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding Terms}" Foreground="{StaticResource TextFaint}" FontSize="11" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </DockPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding Offers}" ItemTemplate="{StaticResource OfferCardTemplate}" Focusable="False" />
                     <TextBlock Text="No offers right now. Networks call when the promotion is worth airing — grow the reach, build a star, keep running cards."
                                Foreground="{StaticResource TextFaint}" FontSize="11" TextWrapping="Wrap">
                         <TextBlock.Style>
@@ -128,7 +97,7 @@
                     <ItemsControl ItemsSource="{Binding Ladder}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6">
+                                <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6" ToolTip="{Binding Terms}">
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Opacity" Value="0.55" />
@@ -155,7 +124,27 @@
                                             </TextBlock>
                                         </DockPanel>
                                         <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextSecondary}" FontSize="11" />
-                                        <TextBlock Text="{Binding Terms}" Foreground="{StaticResource TextFaint}" FontSize="11" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ShortTerms}" Foreground="{StaticResource TextFaint}" FontSize="11" TextWrapping="Wrap" />
+                                        <!-- the networks on this rung: the one airing us lit, the rest quieter -->
+                                        <ItemsControl ItemsSource="{Binding Partners}" Margin="0,6,0,0" Focusable="False"
+                                                      Visibility="{Binding HasPartners, Converter={StaticResource BoolToVis}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="b" Padding="3" Margin="0,0,6,0" CornerRadius="5" BorderThickness="1" BorderBrush="Transparent" Opacity="0.8">
+                                                        <ContentControl Style="{StaticResource BrandMark}" Content="{Binding Name}" Width="72" Height="40" />
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding OnAir}" Value="True">
+                                                            <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                                            <Setter TargetName="b" Property="Opacity" Value="1" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>

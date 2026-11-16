@@ -558,6 +558,16 @@
                             ToolTip="Every room in this city, with the house and box office each would give" />
                     <TextBlock Text="{Binding BroadcastLine}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="10,0,0,0"
                                Visibility="{Binding HasBroadcastLine, Converter={StaticResource BoolToVis}}" />
+                    <ItemsControl ItemsSource="{Binding Airs}" Focusable="False" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ContentControl Style="{StaticResource BrandMark}" Content="{Binding}" Width="44" Height="24" Margin="0,0,6,0" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </WrapPanel>
             </StackPanel>
             <WrapPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" MaxWidth="560">
@@ -1136,12 +1146,15 @@
                                                     BorderThickness="3,0,0,0" BorderBrush="{StaticResource ToneGood}">
                                                 <StackPanel>
                                                     <DockPanel>
-                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Kind}" Style="{StaticResource Text.Caption}" />
-                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <ContentControl DockPanel.Dock="Left" Style="{StaticResource BrandMark}" Content="{Binding Name}" Width="52" Height="30" Margin="0,0,10,0" />
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Kind}" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" />
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
+                                                                <Run Text="{Binding Fee, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Strikes, Mode=OneWay}" />
+                                                            </TextBlock>
+                                                        </StackPanel>
                                                     </DockPanel>
-                                                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
-                                                        <Run Text="{Binding Fee, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Strikes, Mode=OneWay}" />
-                                                    </TextBlock>
                                                     <ItemsControl ItemsSource="{Binding Terms}" Margin="0,4,0,0" Focusable="False">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate>

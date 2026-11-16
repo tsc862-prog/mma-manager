@@ -82,6 +82,20 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <!-- who airs it (a card still to come) -->
+                        <StackPanel Orientation="Horizontal" Margin="0,-4,0,10" Visibility="{Binding HasLiveOn, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="LIVE ON" Style="{StaticResource Text.Kicker}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ItemsControl ItemsSource="{Binding LiveOn}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ContentControl Style="{StaticResource BrandMark}" Content="{Binding}" Width="56" Height="30" Margin="0,0,8,0" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
 
                     <Grid>

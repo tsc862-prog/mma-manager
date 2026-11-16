@@ -136,6 +136,9 @@ public sealed class BriefingItem
     public required string Icon { get; init; }
     public ImageSource? Picture { get; init; }
     public bool HasPicture => Picture is not null;
+    /// <summary>A sponsor or network the line is about (its exact name): its logo takes the icon's place. "" for none.</summary>
+    public string Brand { get; init; } = "";
+    public bool HasBrand => Brand.Length > 0;
     public string Kicker { get; init; } = "";
     public required string Text { get; init; }
     public string Detail { get; init; } = "";
@@ -282,6 +285,10 @@ public sealed class BriefingViewModel : ObservableObject
     public string ResolvedText { get; private set; } = "";
     public ObservableCollection<BriefingPerson> People { get; } = new();
     public bool HasPeople => People.Count > 0;
+    /// <summary>Who is speaking when the board asks for something (the owner, by exact name), or "".</summary>
+    public string VoiceName { get; private set; } = "";
+    public string VoiceLine { get; private set; } = "";
+    public bool HasVoice => VoiceName.Length > 0;
     public ObservableCollection<BriefingAction> Actions { get; } = new();
 
     public string DigestWindow => _digestWindow.Length > 0 ? _digestWindow : "Your promotion and your people, the last two weeks";
@@ -483,6 +490,7 @@ public sealed class BriefingViewModel : ObservableObject
         People.Clear();
         Actions.Clear();
         Art = null; ArtIsFramed = false;
+        VoiceName = VoiceLine = "";
         Quote = QuoteBy = "";
         IsResolved = false; ResolvedText = "";
         var player = w.Get(w.PlayerPromotion);
@@ -739,7 +747,14 @@ public sealed class BriefingViewModel : ObservableObject
                 Lede = d.Detail + $" Ignoring it past {d.Deadline:d MMM} counts as an answer.";
                 if (who is not null) { Art = Portraits.Body(who, w); People.Add(Person(w, who, FighterRow.DivisionLabel(who.WeightClass, who.Sex))); }
                 else if (target is not null) { Art = LogoFactory.ForPromotion(target); ArtIsFramed = true; }
+                else if (d.Kind == DecisionKind.SponsorShowcase && Controls.CorporateArt.Logo(d.Sponsor) is { } mark) { Art = mark; ArtIsFramed = true; }
                 else if (player is not null) { Art = LogoFactory.ForPromotion(player); ArtIsFramed = true; }
+                // The board asking: the owner who signs the letter, by name and face.
+                if (d.Kind == DecisionKind.VeteranCut && player?.OwnerName is { Length: > 0 } boss)
+                {
+                    VoiceName = boss;
+                    VoiceLine = $"{boss}  ·  owner of {player.Abbreviation}, asking";
+                }
 
                 if (AcceptDecisionCommand is not null && DeclineDecisionCommand is not null)
                 {
@@ -880,7 +895,8 @@ public sealed class BriefingViewModel : ObservableObject
                 Kicker = $"{kicker}  ·  AN OFFER ON THE TABLE  ·  LAPSES {(days <= 1 ? "TOMORROW" : $"{o.ExpiresOn:d MMM}".ToUpperInvariant())}";
                 Headline = media ? $"{o.Partner} wants to put you on air." : $"{o.Partner} wants to sponsor you.";
                 Lede = $"{o.FeePerEvent} an event. Say yes or no before {o.ExpiresOn:d MMM}, or the offer lapses on its own.";
-                if (player is not null) { Art = LogoFactory.ForPromotion(player); ArtIsFramed = true; }
+                if (Controls.CorporateArt.Logo(o.Partner) is { } mark) { Art = mark; ArtIsFramed = true; }
+                else if (player is not null) { Art = LogoFactory.ForPromotion(player); ArtIsFramed = true; }
                 Actions.Add(new BriefingAction(media ? "The media desk ▸" : "Finance ▸", Do(() => Navigate?.Invoke(media ? Tab.Media : Tab.Finance)), IsPrimary: true));
                 Actions.Add(new BriefingAction("Later", CarryOnCommand));
                 return;
@@ -1143,6 +1159,7 @@ public sealed class BriefingViewModel : ObservableObject
                     Waiting.Add(new BriefingItem
                     {
                         Icon = DeskCalls.Icon(d), Picture = who is null ? null : Portraits.Thumb(who, w),
+                        Brand = who is null && d.Kind == DecisionKind.SponsorShowcase && Controls.CorporateArt.HasBrand(d.Sponsor) ? d.Sponsor : "",
                         Text = DeskCalls.Title(w, d),
                         Detail = days <= 0 ? "Answer due today" : $"Answer by {d.Deadline:d MMM}",
                         Tone = days <= 7 ? CardTone.Bad : CardTone.Warn,
@@ -1179,6 +1196,7 @@ public sealed class BriefingViewModel : ObservableObject
                     Waiting.Add(new BriefingItem
                     {
                         Icon = media ? "Broadcast" : "Money",
+                        Brand = Controls.CorporateArt.HasBrand(o.Partner) ? o.Partner : "",
                         Text = media ? $"{o.Partner} has a media offer on the table" : $"{o.Partner} wants to sponsor you",
                         Detail = $"{o.FeePerEvent} an event  ·  lapses {o.ExpiresOn:d MMM}",
                         Tone = CardTone.Info,

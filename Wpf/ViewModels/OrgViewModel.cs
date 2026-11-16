@@ -135,6 +135,11 @@ public sealed class OrgViewModel : ObservableObject
     public ObservableCollection<BeltRow> Belts { get; } = new();
     public ObservableCollection<PosterThumb> PosterWall { get; } = new();
 
+    /// <summary>The person you answer to (null on a promotion you founded: you are the owner).</summary>
+    public PersonCard? Owner { get; private set; }
+    public bool HasOwner => Owner is not null;
+    public bool NoStaff => MyStaff.Count == 0;
+
     private bool _hasPosters;
     public bool HasPosters { get => _hasPosters; private set => Set(ref _hasPosters, value); }
 
@@ -290,7 +295,7 @@ public sealed class OrgViewModel : ObservableObject
         Reputation = promo.Reputation.Value;
 
         // The house: the press-kit story (authored lore leads) + the run so far.
-        Story = Core.Sim.Flavor.Biographer.Promotion(_world, promo);
+        Story = PersonCard.StoryWithoutOwnerNote(Core.Sim.Flavor.Biographer.Promotion(_world, promo), promo);
         var done = _world.Events.Values
             .Where(e => e.Promotion == promo.Id && e.Status == EventStatus.Completed)
             .OrderBy(e => e.Date).ToList();
@@ -328,7 +333,12 @@ public sealed class OrgViewModel : ObservableObject
             PosterWall.Add(new PosterThumb(PosterFactory.For(_world, e), $"{e.Name}  ·  {e.Date:MMM yyyy}"));
         HasPosters = PosterWall.Count > 0;
 
+        Owner = PersonCard.OwnerOf(promo);
+        OnPropertyChanged(nameof(Owner));
+        OnPropertyChanged(nameof(HasOwner));
+
         foreach (var s in promo.Staff.OrderBy(s => s.Role)) MyStaff.Add(new StaffRow(s));
+        OnPropertyChanged(nameof(NoStaff));
         foreach (var s in _world.StaffMarket.OrderBy(s => s.Role).ThenByDescending(s => s.Quality))
             Market.Add(new StaffRow(s));
         foreach (var o in promo.Objectives.Where(o => o.Status == ObjectiveStatus.Active || o.Deadline >= _world.CurrentDate.AddMonths(-3)))

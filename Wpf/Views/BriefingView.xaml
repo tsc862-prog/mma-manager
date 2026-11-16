@@ -107,6 +107,12 @@
                             <TextBlock Text="{Binding QuoteBy, StringFormat=— {0}}" Style="{StaticResource Text.Caption}" Margin="0,3,0,0" />
                         </StackPanel>
 
+                        <!-- Who is asking (the owner, when the board wants something) -->
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0" Visibility="{Binding HasVoice, Converter={StaticResource BoolToVis}}">
+                            <ContentControl Style="{StaticResource PersonFace}" Content="{Binding VoiceName}" Width="34" Height="34" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding VoiceLine}" Style="{StaticResource Text.Secondary}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+
                         <!-- The people it is about -->
                         <ItemsControl ItemsSource="{Binding People}" Margin="0,14,0,0" Focusable="False"
                                       Visibility="{Binding HasPeople, Converter={StaticResource BoolToVis}}">

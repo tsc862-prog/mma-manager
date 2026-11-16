@@ -1,6 +1,7 @@
 using System.Windows;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Booking;
+using MmaManager.Core.Sim.Org;
 using MmaManager.Wpf.ViewModels;
 
 namespace MmaManager.Wpf;
@@ -37,6 +38,22 @@ public partial class NewGameWindow : Window
     {
         public string Title => $"{Spec.Name} ({Spec.Abbreviation})";
         public string Detail => $"{FighterRow.Pretty(Spec.Region.ToString())} · prestige {Spec.Prestige} · {Spec.Balance}";
+
+        // The owner you would answer to: the designed owner stamped onto this house at world build
+        // (StaffService.SeedOwners matches by abbreviation, the same key used here).
+        private DesignedOwner? Owner => DesignedStaff.Owners.FirstOrDefault(o => o.Org == Spec.Abbreviation);
+        public string OwnerName => Owner?.Name ?? "";
+        public bool HasOwner => OwnerName.Length > 0;
+        public PersonCard? OwnerCard => Owner is { } o
+            ? new PersonCard
+            {
+                Name = o.Name,
+                Kicker = "YOU WOULD ANSWER TO",
+                Note = o.Note,
+            }
+            : null;
+        public string Lore => Spec.Lore ?? "";
+        public bool HasLore => Lore.Length > 0;
     }
 
     /// <summary>Set when the dialog closes with Start; null on cancel.</summary>

@@ -55,6 +55,26 @@
 
             <!-- ============ Column 0: THE HOUSE — who we are ============ -->
             <DockPanel Grid.Column="0" Margin="0,0,12,0">
+                <!-- Who you answer to: the owner's face and what they're like, then what they've asked of you -->
+                <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <ContentControl Content="{Binding Owner}" ContentTemplate="{StaticResource PersonCardTemplate}" Focusable="False" Margin="0,0,0,10"
+                                        Visibility="{Binding HasOwner, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="OWNER OBJECTIVES" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+                        <ItemsControl ItemsSource="{Binding Objectives}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,2">
+                                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" Margin="10,0,0,0">
+                                            <Run Text="{Binding Deadline, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Status, Mode=OneWay}" FontWeight="SemiBold" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
                 <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="THE HOUSE" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
@@ -237,39 +257,17 @@
                     </StackPanel>
                 </Border>
 
-                <TextBlock Text="Your staff" FontWeight="Bold" Margin="0,0,0,4" />
-                <DataGrid ItemsSource="{Binding MyStaff}" SelectedItem="{Binding SelectedStaff}"
-                          IsReadOnly="True" AutoGenerateColumns="False" HeadersVisibility="Column" MaxHeight="140" Margin="0,0,0,6">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="120" />
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-                        <DataGridTextColumn Header="Quality" Binding="{Binding Quality}" Width="70" />
-                        <DataGridTextColumn Header="Salary/mo" Binding="{Binding Salary}" SortMemberPath="SalarySort" Width="110" />
-                        <DataGridTextColumn Header="Background" Binding="{Binding Background}" Width="2*" />
-                    </DataGrid.Columns>
-                </DataGrid>
-                <Button Content="Release selected staff" Command="{Binding FireCommand}" HorizontalAlignment="Left" Margin="0,0,0,12" />
+                <TextBlock Text="Your staff" FontWeight="Bold" Margin="0,0,0,6" />
+                <ListBox Style="{StaticResource CardList}" ItemsSource="{Binding MyStaff}" SelectedItem="{Binding SelectedStaff}"
+                         ItemTemplate="{StaticResource StaffCardTemplate}" ScrollViewer.VerticalScrollBarVisibility="Disabled" Margin="0,0,0,4" />
+                <TextBlock Text="Nobody on the back-office payroll yet. Hire from the people below." Style="{StaticResource Text.Caption}" Margin="0,0,0,6"
+                           Visibility="{Binding NoStaff, Converter={StaticResource BoolToVis}}" />
+                <Button Content="Release selected staff" Command="{Binding FireCommand}" HorizontalAlignment="Left" Margin="0,0,0,14"
+                        Visibility="{Binding NoStaff, Converter={StaticResource InverseBoolToVis}}" />
 
-                <TextBlock Text="Owner objectives" FontWeight="Bold" Margin="0,0,0,4" />
-                <DataGrid ItemsSource="{Binding Objectives}" IsReadOnly="True" AutoGenerateColumns="False" HeadersVisibility="Column" Margin="0,0,0,12">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Objective" Binding="{Binding Description}" Width="*" />
-                        <DataGridTextColumn Header="By" Binding="{Binding Deadline}" Width="110" />
-                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80" />
-                    </DataGrid.Columns>
-                </DataGrid>
-
-                <TextBlock Text="Available staff" FontWeight="Bold" Margin="0,0,0,4" />
-                <DataGrid ItemsSource="{Binding Market}" SelectedItem="{Binding SelectedMarket}" IsReadOnly="True"
-                          AutoGenerateColumns="False" HeadersVisibility="Column" MaxHeight="240">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="130" />
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-                        <DataGridTextColumn Header="Quality" Binding="{Binding Quality}" Width="70" />
-                        <DataGridTextColumn Header="Salary/mo" Binding="{Binding Salary}" SortMemberPath="SalarySort" Width="120" />
-                        <DataGridTextColumn Header="Background" Binding="{Binding Background}" Width="2*" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                <TextBlock Text="Available staff" FontWeight="Bold" Margin="0,0,0,6" />
+                <ListBox Style="{StaticResource CardList}" ItemsSource="{Binding Market}" SelectedItem="{Binding SelectedMarket}"
+                         ItemTemplate="{StaticResource StaffCardTemplate}" MaxHeight="420" ScrollViewer.VerticalScrollBarVisibility="Auto" />
                 <DockPanel Margin="0,6,0,0">
                     <Button DockPanel.Dock="Left" Content="Hire selected" Command="{Binding HireCommand}" Padding="14,3" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding Status}" Foreground="{StaticResource Positive}" VerticalAlignment="Center" Margin="14,0,0,0" />

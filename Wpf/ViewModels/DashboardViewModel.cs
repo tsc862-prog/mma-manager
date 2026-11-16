@@ -132,6 +132,9 @@ public sealed class DashboardViewModel : ObservableObject
     public string GreetingFrom { get => _greetingFrom; private set => Set(ref _greetingFrom, value); }
     private string _ownerNote = "";
     public string OwnerNote { get => _ownerNote; private set => Set(ref _ownerNote, value); }
+    /// <summary>The owner who signs the greeting ("" on a founded promotion: the accountant speaks, no face).</summary>
+    public string OwnerName { get; private set; } = "";
+    public bool HasOwnerFace => OwnerName.Length > 0;
 
     // --- The climb -------------------------------------------------------------
     public ObservableCollection<JourneyStop> TierStops { get; } = new();
@@ -267,6 +270,9 @@ public sealed class DashboardViewModel : ObservableObject
         // as a role (no invented name).
         GreetingFrom = founder ? "your accountant" : $"{owner}, owner";
         OwnerNote = player.OwnerNote ?? "";
+        OwnerName = founder ? "" : owner;
+        OnPropertyChanged(nameof(OwnerName));
+        OnPropertyChanged(nameof(HasOwnerFace));
         int deskCalls = world.Decisions.Count(d => d.State == DecisionState.Pending);
         Greeting = GreetingFor(world, player, roster.Count, next, fightNight, deskCalls, everShowed, hq);
 
