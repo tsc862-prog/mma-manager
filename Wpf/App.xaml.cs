@@ -317,6 +317,48 @@ public partial class App : Application
             return;
         }
 
+        // Origins pioneers through the name binding: `MmaManager.Wpf --renderpioneers <path>`. Each pioneer's face + body from
+        // PaintedLibrary (bare base, then the tops-on pair where there is one), plus a namesake-less control that must fall through.
+        if (e.Args.Contains("--renderpioneers"))
+        {
+            try
+            {
+                string[] names = { "Walt Corbin", "Lemalu Tofaeono", "Lyle Brannock", "Aurelio Neves", "Tetsuya Hagiwara", "Kiyoshi Aizawa",
+                                   "Jurandir Salles", "Pongsak Thanasarn", "Dermot Quirke", "Ademir Bastos", "Nobody Atall" };
+                var fighters = names.Select((n, i) => new MmaManager.Core.Model.Fighter
+                {
+                    Id = new MmaManager.Core.Model.FighterId(9000 + i),
+                    FirstName = n.Split(' ')[0], LastName = n.Split(' ')[1], BirthDate = new DateOnly(1960, 1, 1),
+                }).ToList();
+                const int cell = 150, bodyH = 300, pad = 8;
+                int width = (names.Length + 2) * (cell + pad) + pad, height = cell + bodyH * 2 + pad * 4;
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen())
+                {
+                    dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x2A, 0x2D, 0x34)), null, new Rect(0, 0, width, height));
+                    for (int i = 0; i < fighters.Count; i++)
+                    {
+                        var f = fighters[i];
+                        double x = pad + i * (cell + pad);
+                        Console.WriteLine($"{names[i]}: pioneer={Art.PaintedLibrary.IsPioneer(f)} tops={Art.PaintedLibrary.HasPioneerTops(f)}");
+                        if (Art.PaintedLibrary.PioneerFace(f) is { } face) dc.DrawImage(face, new Rect(x, pad, cell, cell));
+                        if (Art.PaintedLibrary.PioneerBody(f) is { } body) dc.DrawImage(body, new Rect(x, cell + pad * 2, cell * 0.38, bodyH));
+                        if (Art.PaintedLibrary.PioneerBody(f, tops: true) is { } tb && Art.PaintedLibrary.HasPioneerTops(f))
+                            dc.DrawImage(tb, new Rect(x, cell + bodyH + pad * 3, cell * 0.38, bodyH));
+                    }
+                }
+                var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(dv);
+                var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                string p = e.Args.Length > 1 ? e.Args[^1] : "pioneers.png";
+                using (var fs = File.Create(p)) enc.Save(fs);
+                Console.WriteLine("RENDERPIONEERS OK -> " + Path.GetFullPath(p));
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERPIONEERS FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
         // Contact sheet of auto-generated fight posters: `MmaManager.Wpf --renderposter <path>`.
         // Eighteen assorted variants off the designed world — every template, many
         // org palettes — written as a grid sheet plus full-size singles ("-1.png"...).

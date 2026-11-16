@@ -3297,7 +3297,17 @@
       "tags": [],
       "cultures": [
         "chinese"
-      ]
+      ],
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_4008": {
       "sex": "f",
@@ -3398,7 +3408,17 @@
       "cultures": [
         "vietnamese"
       ],
-      "look": "Vietnamese features, light golden-tan skin"
+      "look": "Vietnamese features, light golden-tan skin",
+      "expression": "stoic",
+      "variety": {
+        "expression": "stoic",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_504": {
       "sex": "f",
@@ -3498,7 +3518,8 @@
       "cultures": [
         "vietnamese"
       ],
-      "look": "Vietnamese features, light golden-tan skin"
+      "look": "Vietnamese features, light golden-tan skin",
+      "expression_edit": "a clear smirk with one corner of the mouth raised high"
     },
     "f_asian_509": {
       "sex": "f",
@@ -4133,7 +4154,17 @@
       "cultures": [
         "indian"
       ],
-      "look": "Indian South Asian features, deep warm sienna-brown skin"
+      "look": "Indian South Asian features, deep warm sienna-brown skin",
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_539": {
       "sex": "f",
@@ -4431,7 +4462,17 @@
       "tags": [],
       "cultures": [
         "indian"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_553": {
       "sex": "f",
@@ -4759,7 +4800,17 @@
       "tags": [],
       "cultures": [
         "thai"
-      ]
+      ],
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_569": {
       "sex": "f",
@@ -5093,7 +5144,17 @@
       ],
       "cultures": [
         "centralasian"
-      ]
+      ],
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_585": {
       "sex": "f",
@@ -5503,7 +5564,17 @@
       "cultures": [
         "mongolian",
         "centralasian"
-      ]
+      ],
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_604": {
       "sex": "f",
@@ -5819,7 +5890,17 @@
       "tags": [],
       "cultures": [
         "indonesian"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "short",
+        "color_cat": "dyed",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_623": {
       "sex": "f",
@@ -5864,7 +5945,17 @@
       "cultures": [
         "mongolian",
         "centralasian"
-      ]
+      ],
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_asian_626": {
       "sex": "f",
@@ -6018,7 +6109,8 @@
       ],
       "cultures": [
         "vietnamese"
-      ]
+      ],
+      "expression_edit": "a clear smirk with one corner of the mouth raised high"
     },
     "f_asian_635": {
       "sex": "f",
@@ -6835,7 +6927,17 @@
         "anglo",
         "latino"
       ],
-      "look": "Caribbean features, rich mahogany brown skin"
+      "look": "Caribbean features, rich mahogany brown skin",
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_534": {
       "sex": "f",
@@ -6896,7 +6998,17 @@
       "cultures": [
         "eastafrican"
       ],
-      "look": "East African features, dark espresso brown skin"
+      "look": "East African features, dark espresso brown skin",
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "tied",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_537": {
       "sex": "f",
@@ -7042,7 +7154,17 @@
       "cultures": [
         "eastafrican"
       ],
-      "look": "East African features, dark espresso brown skin"
+      "look": "East African features, dark espresso brown skin",
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "matching",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_544": {
       "sex": "f",
@@ -7144,7 +7266,17 @@
       "cultures": [
         "eastafrican"
       ],
-      "look": "East African features, dark espresso brown skin"
+      "look": "East African features, dark espresso brown skin",
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_549": {
       "sex": "f",
@@ -7226,7 +7358,17 @@
         "anglo",
         "latino"
       ],
-      "look": "Caribbean features, rich mahogany brown skin"
+      "look": "Caribbean features, rich mahogany brown skin",
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_553": {
       "sex": "f",
@@ -7268,7 +7410,17 @@
       "cultures": [
         "centralafrican"
       ],
-      "look": "Congolese features, very dark cool ebony skin"
+      "look": "Congolese features, very dark cool ebony skin",
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "loose",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_555": {
       "sex": "f",
@@ -7394,7 +7546,17 @@
       ],
       "cultures": [
         "centralafrican"
-      ]
+      ],
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "tied",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_561": {
       "sex": "f",
@@ -7416,7 +7578,17 @@
       ],
       "cultures": [
         "anglo"
-      ]
+      ],
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_562": {
       "sex": "f",
@@ -7520,7 +7692,17 @@
       ],
       "cultures": [
         "eastafrican"
-      ]
+      ],
+      "expression": "stoic",
+      "variety": {
+        "expression": "stoic",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_567": {
       "sex": "f",
@@ -7644,7 +7826,17 @@
       "tags": [],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "amused",
+      "variety": {
+        "expression": "amused",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_573": {
       "sex": "f",
@@ -7686,7 +7878,17 @@
       "tags": [],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_575": {
       "sex": "f",
@@ -7729,7 +7931,17 @@
       "tags": [],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "tied",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_577": {
       "sex": "f",
@@ -8003,7 +8215,17 @@
       "tags": [],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "stoic",
+      "variety": {
+        "expression": "stoic",
+        "hair_cat": "tied",
+        "color_cat": "dyed",
+        "facial_cat": null,
+        "top": "matching",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_590": {
       "sex": "f",
@@ -8053,7 +8275,17 @@
       "tags": [],
       "cultures": [
         "eastafrican"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "tied",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_592": {
       "sex": "f",
@@ -8161,7 +8393,17 @@
       "tags": [],
       "cultures": [
         "eastafrican"
-      ]
+      ],
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_597": {
       "sex": "f",
@@ -8917,7 +9159,17 @@
       "tags": [],
       "cultures": [
         "eastafrican"
-      ]
+      ],
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "loose",
+        "color_cat": "dyed",
+        "facial_cat": null,
+        "top": "matching",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_633": {
       "sex": "f",
@@ -9007,7 +9259,17 @@
       "tags": [],
       "cultures": [
         "centralafrican"
-      ]
+      ],
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "tied",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "matching",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_637": {
       "sex": "f",
@@ -9070,7 +9332,8 @@
       "cultures": [
         "anglo",
         "latino"
-      ]
+      ],
+      "expression_edit": "a broad open confident grin showing the teeth"
     },
     "f_black_640": {
       "sex": "f",
@@ -9200,7 +9463,17 @@
       ],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_black_901": {
       "sex": "f",
@@ -9536,7 +9809,17 @@
       "cultures": [
         "latino"
       ],
-      "look": "Argentinian features, lightly tanned warm-fair skin"
+      "look": "Argentinian features, lightly tanned warm-fair skin",
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "tied",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_512": {
       "sex": "f",
@@ -10126,7 +10409,17 @@
       "cultures": [
         "latino"
       ],
-      "look": "Peruvian Andean features, earthy terracotta-brown skin"
+      "look": "Peruvian Andean features, earthy terracotta-brown skin",
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "loose",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_540": {
       "sex": "f",
@@ -10272,7 +10565,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_547": {
       "sex": "f",
@@ -10416,7 +10719,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_554": {
       "sex": "f",
@@ -10458,7 +10771,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "tied",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "matching",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_556": {
       "sex": "f",
@@ -10500,7 +10823,17 @@
       ],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "amused",
+      "variety": {
+        "expression": "amused",
+        "hair_cat": "loose",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_558": {
       "sex": "f",
@@ -10562,7 +10895,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_561": {
       "sex": "f",
@@ -10876,7 +11219,17 @@
       "tags": [],
       "cultures": [
         "brazilian"
-      ]
+      ],
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_576": {
       "sex": "f",
@@ -11000,7 +11353,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "matching",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_583": {
       "sex": "f",
@@ -11072,7 +11435,8 @@
       ],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression_edit": "a broad open confident grin showing the teeth"
     },
     "f_latin_587": {
       "sex": "f",
@@ -11166,7 +11530,17 @@
       ],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_593": {
       "sex": "f",
@@ -11228,7 +11602,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_latin_597": {
       "sex": "f",
@@ -11514,7 +11898,17 @@
       "cultures": [
         "arabic",
         "israeli"
-      ]
+      ],
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "tied",
+        "color_cat": "grey",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_mena_4010": {
       "sex": "f",
@@ -11684,7 +12078,17 @@
       "tags": [],
       "cultures": [
         "turkic"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "tied",
+        "color_cat": "grey",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_mena_4021": {
       "sex": "f",
@@ -11724,7 +12128,8 @@
       "tags": [],
       "cultures": [
         "arabic"
-      ]
+      ],
+      "expression_edit": "a clear scowl with the brows pulled low and the lips pressed tight"
     },
     "f_mena_4023": {
       "sex": "f",
@@ -11744,7 +12149,17 @@
       "tags": [],
       "cultures": [
         "arabic"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_mena_4024": {
       "sex": "f",
@@ -11871,7 +12286,8 @@
       "cultures": [
         "arabic",
         "israeli"
-      ]
+      ],
+      "expression_edit": "a broad open confident grin showing the teeth"
     },
     "f_mena_505": {
       "sex": "f",
@@ -11911,7 +12327,17 @@
       "tags": [],
       "cultures": [
         "arabic"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "loose",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_mena_507": {
       "sex": "f",
@@ -12662,7 +13088,8 @@
       ],
       "cultures": [
         "polynesian"
-      ]
+      ],
+      "expression_edit": "a clear smirk with one corner of the mouth raised high"
     },
     "f_poly_507": {
       "sex": "f",
@@ -12732,7 +13159,17 @@
       "tags": [],
       "cultures": [
         "polynesian"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_poly_510": {
       "sex": "f",
@@ -12774,7 +13211,17 @@
       "tags": [],
       "cultures": [
         "polynesian"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "loose",
+        "color_cat": "dyed",
+        "facial_cat": null,
+        "top": "matching",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_poly_514": {
       "sex": "f",
@@ -14004,7 +14451,17 @@
         "celtic",
         "anglo"
       ],
-      "look": "Irish features, milky fair skin dense with freckles"
+      "look": "Irish features, milky fair skin dense with freckles",
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "tied",
+        "color_cat": "dyed",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_white_539": {
       "sex": "f",
@@ -14798,7 +15255,17 @@
       ],
       "cultures": [
         "baltic"
-      ]
+      ],
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "cornrow",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_white_575": {
       "sex": "f",
@@ -14946,7 +15413,17 @@
       ],
       "cultures": [
         "italian"
-      ]
+      ],
+      "expression": "amused",
+      "variety": {
+        "expression": "amused",
+        "hair_cat": "short",
+        "color_cat": "dyed",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_white_582": {
       "sex": "f",
@@ -15204,7 +15681,17 @@
       "tags": [],
       "cultures": [
         "french"
-      ]
+      ],
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "tied",
+        "color_cat": "blond",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_white_594": {
       "sex": "f",
@@ -15356,7 +15843,17 @@
       "tags": [],
       "cultures": [
         "french"
-      ]
+      ],
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "short",
+        "color_cat": "blond",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_white_601": {
       "sex": "f",
@@ -15486,7 +15983,8 @@
       ],
       "cultures": [
         "romanian"
-      ]
+      ],
+      "expression_edit": "a clear scowl with the brows pulled low and the lips pressed tight"
     },
     "f_white_607": {
       "sex": "f",
@@ -15990,7 +16488,17 @@
         "czech",
         "russian",
         "balkan"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_white_629": {
       "sex": "f",
@@ -16480,7 +16988,17 @@
       "tags": [],
       "cultures": [
         "balkan"
-      ]
+      ],
+      "expression": "stoic",
+      "variety": {
+        "expression": "stoic",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": null,
+        "top": "contrast",
+        "cluster": "women"
+      },
+      "regenerated": "20261116"
     },
     "f_white_653": {
       "sex": "f",
@@ -17841,7 +18359,17 @@
       "cultures": [
         "japanese"
       ],
-      "look": "Japanese features, cool light ivory skin"
+      "look": "Japanese features, cool light ivory skin",
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "mohawk",
+        "color_cat": "dyed",
+        "facial_cat": "beard",
+        "top": "matching-n/a",
+        "cluster": "super"
+      },
+      "regenerated": "20261116"
     },
     "m_asian_529": {
       "sex": "m",
@@ -19427,7 +19955,17 @@
         "mongolian",
         "centralasian"
       ],
-      "look": "Mongolian features, broad face, weathered ochre-tan skin"
+      "look": "Mongolian features, broad face, weathered ochre-tan skin",
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "bald",
+        "color_cat": "black",
+        "facial_cat": "beard",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_asian_605": {
       "sex": "m",
@@ -20096,7 +20634,8 @@
       "cultures": [
         "korean"
       ],
-      "look": "Korean features, pale porcelain skin with neutral undertones"
+      "look": "Korean features, pale porcelain skin with neutral undertones",
+      "expression_edit": "a clear smirk with one corner of the mouth raised high"
     },
     "m_asian_637": {
       "sex": "m",
@@ -20803,7 +21342,17 @@
       "cultures": [
         "japanese"
       ],
-      "look": "Japanese features, cool light ivory skin"
+      "look": "Japanese features, cool light ivory skin",
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "long",
+        "color_cat": "black",
+        "facial_cat": "moustache",
+        "top": "matching-n/a",
+        "cluster": "wiry"
+      },
+      "regenerated": "20261116"
     },
     "m_asian_671": {
       "sex": "m",
@@ -20967,7 +21516,17 @@
         "mongolian",
         "centralasian"
       ],
-      "look": "Mongolian features, broad face, weathered ochre-tan skin"
+      "look": "Mongolian features, broad face, weathered ochre-tan skin",
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": "stubble",
+        "top": "matching-n/a",
+        "cluster": "wiry"
+      },
+      "regenerated": "20261116"
     },
     "m_asian_679": {
       "sex": "m",
@@ -23436,7 +23995,17 @@
       ],
       "cultures": [
         "filipino"
-      ]
+      ],
+      "expression": "stoic",
+      "variety": {
+        "expression": "stoic",
+        "hair_cat": "medium",
+        "color_cat": "black",
+        "facial_cat": "beard",
+        "top": "matching-n/a",
+        "cluster": "wiry"
+      },
+      "regenerated": "20261116"
     },
     "m_asian_797": {
       "sex": "m",
@@ -27193,7 +27762,17 @@
       ],
       "cultures": [
         "centralafrican"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "medium",
+        "color_cat": "brown",
+        "facial_cat": "moustache",
+        "top": "matching-n/a",
+        "cluster": "wiry"
+      },
+      "regenerated": "20261116"
     },
     "m_black_1013": {
       "sex": "m",
@@ -29767,7 +30346,17 @@
         "anglo",
         "latino"
       ],
-      "look": "Caribbean features, rich mahogany brown skin"
+      "look": "Caribbean features, rich mahogany brown skin",
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "bald",
+        "color_cat": "black",
+        "facial_cat": "moustache",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_552": {
       "sex": "m",
@@ -29917,7 +30506,17 @@
       "cultures": [
         "westafrican"
       ],
-      "look": "Nigerian features, blue-black darkest ebony skin"
+      "look": "Nigerian features, blue-black darkest ebony skin",
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "short",
+        "color_cat": "brown",
+        "facial_cat": "clean",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_559": {
       "sex": "m",
@@ -30604,7 +31203,17 @@
       "cultures": [
         "westafrican"
       ],
-      "look": "Nigerian features, blue-black darkest ebony skin"
+      "look": "Nigerian features, blue-black darkest ebony skin",
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": "beard",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_592": {
       "sex": "m",
@@ -31000,7 +31609,17 @@
       "cultures": [
         "westafrican"
       ],
-      "look": "Senegalese features, deep matte onyx skin"
+      "look": "Senegalese features, deep matte onyx skin",
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "loc",
+        "color_cat": "black",
+        "facial_cat": "stubble",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_611": {
       "sex": "m",
@@ -32092,7 +32711,17 @@
       "cultures": [
         "westafrican"
       ],
-      "look": "West African features, very deep ebony skin with cool undertones"
+      "look": "West African features, very deep ebony skin with cool undertones",
+      "expression": "stoic",
+      "variety": {
+        "expression": "stoic",
+        "hair_cat": "medium",
+        "color_cat": "black",
+        "facial_cat": "other",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_664": {
       "sex": "m",
@@ -33066,7 +33695,17 @@
       "cultures": [
         "westafrican"
       ],
-      "look": "Nigerian features, blue-black darkest ebony skin"
+      "look": "Nigerian features, blue-black darkest ebony skin",
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "medium",
+        "color_cat": "black",
+        "facial_cat": "clean",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_711": {
       "sex": "m",
@@ -35005,7 +35644,17 @@
       "cultures": [
         "anglo",
         "latino"
-      ]
+      ],
+      "expression": "neutral",
+      "variety": {
+        "expression": "neutral",
+        "hair_cat": "medium",
+        "color_cat": "brown",
+        "facial_cat": "goatee",
+        "top": "matching-n/a",
+        "cluster": "wiry"
+      },
+      "regenerated": "20261116"
     },
     "m_black_803": {
       "sex": "m",
@@ -35504,7 +36153,17 @@
       "tags": [],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "short",
+        "color_cat": "black",
+        "facial_cat": "goatee",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_827": {
       "sex": "m",
@@ -37198,7 +37857,17 @@
       "tags": [],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "bald",
+        "color_cat": "black",
+        "facial_cat": "stubble",
+        "top": "matching-n/a",
+        "cluster": "heavy"
+      },
+      "regenerated": "20261116"
     },
     "m_black_907": {
       "sex": "m",
@@ -37953,7 +38622,8 @@
       "cultures": [
         "anglo",
         "latino"
-      ]
+      ],
+      "expression_edit": "a clear smirk with one corner of the mouth raised high"
     },
     "m_black_941": {
       "sex": "m",
@@ -38832,7 +39502,17 @@
       ],
       "cultures": [
         "westafrican"
-      ]
+      ],
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "medium",
+        "color_cat": "brown",
+        "facial_cat": "clean",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_black_989": {
       "sex": "m",
@@ -39833,7 +40513,17 @@
       "cultures": [
         "latino"
       ],
-      "look": "Argentinian features, lightly tanned warm-fair skin"
+      "look": "Argentinian features, lightly tanned warm-fair skin",
+      "expression": "scowl",
+      "variety": {
+        "expression": "scowl",
+        "hair_cat": "medium",
+        "color_cat": "black",
+        "facial_cat": "clean",
+        "top": "matching-n/a",
+        "cluster": "wiry"
+      },
+      "regenerated": "20261116"
     },
     "m_latin_527": {
       "sex": "m",
@@ -39893,7 +40583,8 @@
       "cultures": [
         "brazilian"
       ],
-      "look": "Afro-Brazilian features, deep bronze-brown skin"
+      "look": "Afro-Brazilian features, deep bronze-brown skin",
+      "expression_edit": "a clear scowl with the brows pulled low and the lips pressed tight"
     },
     "m_latin_530": {
       "sex": "m",
@@ -43141,7 +43832,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "calm",
+      "variety": {
+        "expression": "calm",
+        "hair_cat": "short",
+        "color_cat": "dyed",
+        "facial_cat": "stubble",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_latin_687": {
       "sex": "m",
@@ -43491,7 +44192,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "amused",
+      "variety": {
+        "expression": "amused",
+        "hair_cat": "short",
+        "color_cat": "dyed",
+        "facial_cat": "clean",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_latin_704": {
       "sex": "m",
@@ -47332,7 +48043,17 @@
       "tags": [],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression": "smirk",
+      "variety": {
+        "expression": "smirk",
+        "hair_cat": "long",
+        "color_cat": "black",
+        "facial_cat": "beard",
+        "top": "matching-n/a",
+        "cluster": "heavy"
+      },
+      "regenerated": "20261116"
     },
     "m_latin_897": {
       "sex": "m",
@@ -47752,7 +48473,8 @@
       ],
       "cultures": [
         "latino"
-      ]
+      ],
+      "expression_edit": "a clear smirk with one corner of the mouth raised high"
     },
     "m_latin_923": {
       "sex": "m",
@@ -50332,7 +51054,8 @@
       ],
       "cultures": [
         "israeli"
-      ]
+      ],
+      "expression_edit": "a clear smirk with one corner of the mouth raised high"
     },
     "m_mena_4113": {
       "sex": "m",
@@ -57335,7 +58058,17 @@
       "tags": [],
       "cultures": [
         "iberian"
-      ]
+      ],
+      "expression": "frown",
+      "variety": {
+        "expression": "frown",
+        "hair_cat": "medium",
+        "color_cat": "brown",
+        "facial_cat": "beard",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_white_1166": {
       "sex": "m",
@@ -62102,7 +62835,17 @@
       "cultures": [
         "scandinavian"
       ],
-      "look": "Scandinavian features, very fair porcelain skin"
+      "look": "Scandinavian features, very fair porcelain skin",
+      "expression": "grin",
+      "variety": {
+        "expression": "grin",
+        "hair_cat": "loc",
+        "color_cat": "red",
+        "facial_cat": "goatee",
+        "top": "matching-n/a",
+        "cluster": "mid"
+      },
+      "regenerated": "20261116"
     },
     "m_white_637": {
       "sex": "m",

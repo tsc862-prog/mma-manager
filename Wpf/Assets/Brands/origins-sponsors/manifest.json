@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "brands": {
+    "Peak Protein Mail-Order": {
+      "file": "peak-protein-mail-order.png",
+      "category": "supplement",
+      "tag": "Get big. Get it posted.",
+      "era": 1,
+      "country": "USA"
+    },
+    "Dojo Digest": {
+      "file": "dojo-digest.png",
+      "category": "local business",
+      "tag": "The monthly magazine of the martial arts.",
+      "era": 1,
+      "country": "USA"
+    },
+    "Cafe Tucano": {
+      "file": "cafe-tucano.png",
+      "category": "local business",
+      "tag": "O cafe de Tijuca.",
+      "era": 1,
+      "country": "BRA"
+    },
+    "Kumano Instant Noodles": {
+      "file": "kumano-instant-noodles.png",
+      "category": "local business",
+      "tag": "Ready in three minutes, like a good fight.",
+      "era": 1,
+      "country": "JPN"
+    },
+    "Ironhide Gear": {
+      "file": "ironhide-gear.png",
+      "category": "equipment",
+      "tag": "Built to be hit.",
+      "era": 3,
+      "country": "USA"
+    },
+    "Longneck Lager": {
+      "file": "longneck-lager.png",
+      "category": "brewery",
+      "tag": "The beer for fight night.",
+      "era": 4,
+      "country": "USA"
+    },
+    "Thunderhead Energy": {
+      "file": "thunderhead-energy.png",
+      "category": "energy drink",
+      "tag": "Hit the ceiling.",
+      "era": 4,
+      "country": "USA"
+    },
+    "Prairie Life Insurance": {
+      "file": "prairie-life-insurance.png",
+      "category": "national brand",
+      "tag": "Because you never know.",
+      "era": 4,
+      "country": "USA"
+    },
+    "Beacon Mobile": {
+      "file": "beacon-mobile.png",
+      "category": "national brand",
+      "tag": "Always in range.",
+      "era": 5,
+      "country": "USA"
+    },
+    "Hearthstone Trucks": {
+      "file": "hearthstone-trucks.png",
+      "category": "national brand",
+      "tag": "Work hard. Haul harder.",
+      "era": 5,
+      "country": "USA"
+    },
+    "Aurora Athletics": {
+      "file": "aurora-athletics.png",
+      "category": "global brand",
+      "tag": "Wear the arena.",
+      "era": 5,
+      "country": "GBR"
+    },
+    "Solstice Air": {
+      "file": "solstice-air.png",
+      "category": "global brand",
+      "tag": "The world, closer.",
+      "era": 6,
+      "country": "UAE"
+    },
+    "Quill Technologies": {
+      "file": "quill-technologies.png",
+      "category": "global brand",
+      "tag": "Everything, connected.",
+      "era": 6,
+      "country": "KOR"
+    }
+  }
+}
