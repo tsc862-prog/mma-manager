@@ -72,7 +72,7 @@ public sealed class Negotiator
         decimal factor = (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                        * LeashFactor(offer)
                        * TableDiscount(world, f, offer.Promotion);
-        decimal asked = AskMoney(exp) * factor;
+        decimal asked = AskMoney(world, offer.Promotion, exp) * factor;
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
 
         double appeal = Appeal(world, f, offer, exp);
@@ -141,7 +141,7 @@ public sealed class Negotiator
         // The rival stretches toward the loyalty-inflated ask (discounted if it's
         // only buying a non-exclusive slice of them), but never past its cap.
         decimal purse = RoundTo(Math.Min(exp.AskingPurse.Amount * (decimal)leavePrice * askFactor, cap), 500m);
-        decimal winBonus = RoundTo(Math.Min(exp.AskingWinBonus.Amount, purse * 0.75m), 500m);
+        decimal winBonus = WinBonusAt(world, suitor.Id, new Money(RoundTo(Math.Min(exp.AskingWinBonus.Amount, purse * 0.75m), 500m))).Amount;
         decimal signing = exp.WantsSigningBonus && suitor.Balance.Amount > 250_000m
             ? RoundTo(purse * 0.5m, 500m) : 0m;
         var offer = new ContractOffer
@@ -152,7 +152,7 @@ public sealed class Negotiator
             Exclusive = exclusive, Round = 0,
         };
 
-        decimal asked = AskMoney(exp) * (decimal)leavePrice * askFactor;
+        decimal asked = AskMoney(world, suitor.Id, exp) * (decimal)leavePrice * askFactor;
         double ratio = asked <= 0 ? 2.0 : (double)(MoneyValue(world, offer) / asked);
         double bar = 0.70 - Appeal(world, f, offer, exp) * 0.15;   // the bigger stage tempts
         return ratio >= bar ? offer : null;
@@ -197,7 +197,7 @@ public sealed class Negotiator
         decimal purseAmount = ask > cap ? Math.Floor(cap / 500m) * 500m
             : Math.Ceiling(ask / 500m) * 500m is var up && up <= cap ? up : ask;
         var purse = new Money(purseAmount);
-        var winBonus = new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, 500m)));
+        var winBonus = WinBonusAt(world, promo.Id, new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, 500m))));
 
         var signing = exp.WantsSigningBonus && promo.Balance.Amount > 250_000m
             ? new Money(RoundTo(purse.Amount * 0.5m, 500m))
@@ -294,7 +294,7 @@ public sealed class Negotiator
             var room = Living.OriginsShows.HomeVenue(world, promo);
             decimal seats = Math.Min(attendance * (decimal)Booking.Financials.OriginsCrowdFactor, room?.Capacity ?? attendance);
             decimal take = seats * Booking.Financials.TicketPrice(world, prestige)
-                         - Booking.Financials.OriginsProduction(seats) - (room?.Rent.Amount ?? 0m);
+                         - Booking.Financials.OriginsProduction(seats) - SeatsRent(world, room, seats);
             return Math.Max(OriginsPurseFloor, Math.Round(take * 0.9m / 14m / 250m) * 250m);
         }
         var venue = Geography.WorldMap.PickVenue(world, promo);
@@ -305,6 +305,15 @@ public sealed class Negotiator
         // A full card is ~16 purses + 8 win bonuses at 0.75 → ~22 purse-units.
         return Math.Max(2_000m, Math.Round((gate - production) * 0.9m / 22m / 500m) * 500m);
     }
+
+    /// <summary>
+    /// The rent an Origins house budgets its purses against: its room's 1993 rent for the seats it expects to
+    /// sell (a house whose room is bigger than its budgeted crowd prices its men off the crowd, not the
+    /// empty rows; RoomIn picks the room for the crowd it has actually seen).
+    /// </summary>
+    private static decimal SeatsRent(World world, Venue? room, decimal seats) =>
+        room is null || room.Capacity <= 0 ? 0m
+        : Booking.Financials.RentOf(world, room).Amount * Math.Min(1m, seats / room.Capacity);
 
     /// <summary>The headliner draw a brand-new promotion can expect: a known local name, not a star.</summary>
     public const int FoundingHeadlinerDraw = 40;
@@ -349,8 +358,22 @@ public sealed class Negotiator
     public static decimal MoneyValue(World world, ContractOffer o)
     {
         decimal signingPerFight = o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount;
-        return o.PursePerFight.Amount + 0.5m * o.WinBonus.Amount + signingPerFight + UpsideValue(world, o);
+        return o.PursePerFight.Amount + WinBonusWeight(world, o.Promotion) * o.WinBonus.Amount + signingPerFight + UpsideValue(world, o);
     }
+
+    /// <summary>
+    /// Does this house pay win bonuses? Not a one-night bracket house (Origins): a bracket pays each man his
+    /// purse once for the night and the winner's cheque is the bonus, so a win bonus on its paper is worth
+    /// nothing and is never written in. Every house in today's mode pays them.
+    /// </summary>
+    public static bool PaysWinBonus(World world, PromotionId promo) =>
+        !(world.Mode == WorldMode.Origins && world.Get(promo)?.Rules.ShowFormat == ShowFormat.OneNightTournament);
+
+    /// <summary>What a dollar of win bonus is worth per fight at this house: half (he wins about half), nothing at a bracket house.</summary>
+    public static decimal WinBonusWeight(World world, PromotionId promo) => PaysWinBonus(world, promo) ? 0.5m : 0m;
+
+    /// <summary>The win bonus this house writes into a deal: the figure, or nothing at a bracket house.</summary>
+    public static Money WinBonusAt(World world, PromotionId promo, Money bonus) => PaysWinBonus(world, promo) ? bonus : Money.Zero;
 
     /// <summary>
     /// What the contingent levers are worth per fight, at what they really pay.
@@ -400,6 +423,10 @@ public sealed class Negotiator
     public static decimal AskMoney(ContractExpectations e) =>
         e.AskingPurse.Amount + 0.5m * e.AskingWinBonus.Amount;
 
+    /// <summary>The ask at this house: at a bracket house (no win bonuses) he prices his purse alone.</summary>
+    public static decimal AskMoney(World world, PromotionId promo, ContractExpectations e) =>
+        e.AskingPurse.Amount + WinBonusWeight(world, promo) * e.AskingWinBonus.Amount;
+
     /// <summary>
     /// How much the fighter likes this org regardless of money (title path, loyalty, home,
     /// bonds), 0..1 — plus what any promises on the slip are worth to him
@@ -447,15 +474,15 @@ public sealed class Negotiator
     private ContractOffer BuildCounter(World world, ContractOffer offer, ContractExpectations exp, double threshold)
     {
         int fights = exp.DesiredFights;
-        decimal winBonus = exp.AskingWinBonus.Amount;
+        decimal winBonus = WinBonusAt(world, offer.Promotion, exp.AskingWinBonus).Amount;
         decimal signing = exp.WantsSigningBonus
             ? Math.Max(offer.SigningBonus.Amount, RoundTo(exp.AskingPurse.Amount * 0.5m, 500m))
             : offer.SigningBonus.Amount;
 
-        decimal targetMoney = (decimal)threshold * AskMoney(exp) * (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
+        decimal targetMoney = (decimal)threshold * AskMoney(world, offer.Promotion, exp) * (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                             * LeashFactor(offer);
         decimal signingPerFight = fights > 0 ? signing / fights : signing;
-        decimal purse = targetMoney - 0.5m * winBonus - signingPerFight - UpsideValue(world, offer);
+        decimal purse = targetMoney - WinBonusWeight(world, offer.Promotion) * winBonus - signingPerFight - UpsideValue(world, offer);
         purse = Math.Max(exp.AskingPurse.Amount * 0.6m, RoundTo(purse, 500m));
 
         return new ContractOffer

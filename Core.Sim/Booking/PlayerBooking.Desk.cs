@@ -370,7 +370,7 @@ public sealed partial class PlayerBooking
             var at = InRoom(world, ev, v);
             if (demand < 0) demand = Financials.Demand(world, at);
             var fin = Financials.Compute(world, at);
-            list.Add(new VenueOption(v.Id, v.Name, v.City, v.Capacity, v.Rent,
+            list.Add(new VenueOption(v.Id, v.Name, v.City, v.Capacity, Financials.RentOf(world, v),
                 fin.Attendance, demand, fin.GateRevenue, fin.PayPerViewRevenue, fin.ProductionCost,
                 fin.GateRevenue + fin.PayPerViewRevenue - fin.ProductionCost,
                 v.Id == simPick, ev.VenueId == v.Id));
@@ -463,7 +463,7 @@ public sealed partial class PlayerBooking
                 if (world.Get(id)?.Contract is { PpvPoints: > 0 } c && c.Promotion == ev.Promotion)
                     points += Contracts.Negotiator.PpvCut(c, fin.PayPerViewRevenue);
 
-        var rent = venue?.Rent ?? Money.Zero;
+        var rent = Financials.RentOf(world, venue);   // (an Origins room: its 1993 rent, as the box office charges it)
         var partners = promo is null ? new List<PartnerProjection>()
             : Partners(world, promo, ev, fin.Attendance, padding, mainCard);
         var media = partners.Where(p => p.IsMedia).Aggregate(Money.Zero, (s, p) => s + p.ExpectedFee);
@@ -769,7 +769,7 @@ public sealed partial class PlayerBooking
                     $"{venue.Name} holds {venue.Capacity:N0}; about {demand - venue.Capacity:N0} more want in. A bigger room would sell them."));
             else if (attendance < venue.Capacity / 2)
                 risks.Add(new(BookingRiskKind.RoomTooBig,
-                    $"{venue.Name} will be about {100 - attendance * 100 / Math.Max(1, venue.Capacity)}% empty ({attendance:N0} of {venue.Capacity:N0}); the rent is {venue.Rent} either way."));
+                    $"{venue.Name} will be about {100 - attendance * 100 / Math.Max(1, venue.Capacity)}% empty ({attendance:N0} of {venue.Capacity:N0}); the rent is {Financials.RentOf(world, venue)} either way."));
         }
 
         if (padding.WouldPad)

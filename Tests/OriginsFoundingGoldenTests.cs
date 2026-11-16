@@ -11,7 +11,10 @@ namespace MmaManager.Tests;
 /// forced open on fixed dates (day one; after the sport's rules and first weight lines; three years in) and the
 /// whole world after three years with founding active. The constants were captured from the code as it was before
 /// the player-founding refactor (main at 654adbc, its OriginsFounding/OriginsTimeline checked out into a scratch
-/// build; recaptured from 29e733a after Origins phase 3, which changed only the three-year cases), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
+/// build; recaptured from 29e733a after Origins phase 3, which changed only the three-year cases; recaptured again
+/// for the Origins money tuning, PR #64: the newcomer bank's base fell 150k -> 50k, which changes every house's
+/// balance and nothing else on the fixed-date cases (with a 150k base they reproduce the old values exactly), and
+/// the young sport's money changes the three-year worlds), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
 /// prestige, rules, roster), recapture: set FOUNDING_GOLDEN_OUT to a file path and run this class; it writes the
 /// new values instead of asserting.
 /// </summary>
@@ -19,19 +22,19 @@ public class OriginsFoundingGoldenTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["s1-day1"] = "2BD93F9B310891D5F64E",
-        ["s1-years3-world"] = "31E7D4C581B7F25D65B3",
-        ["s1-years3-house"] = "CE75E9DAD272678E4763",
-        ["s2-day1"] = "476CA951BB60EA22993E",
-        ["s2-years3-world"] = "046851F746B786EB7DBC",
-        ["s2-years3-house"] = "BD1671698340A0FF504F",
-        ["s3-day1"] = "97764D76DA032EF0D813",
-        ["s3-years3-world"] = "F623ACF38A79EB6210E9",
-        ["s3-years3-house"] = "F0A746BD3CC4A8CD54A2",
-        ["s4-split"] = "8FB70477327FDD45C4E4",
-        ["s5-split"] = "9EAA4A00161FB78D8BCE",
-        ["s6-tryouts"] = "01B70CF1CA83175302CE",
-        ["s7-tryouts"] = "289EBD790E3A2CF5881C",
+        ["s1-day1"] = "C0A6A81BAA1B8B9F71D2",
+        ["s1-years3-world"] = "2456B9D128E73C1F115F",
+        ["s1-years3-house"] = "B34A2C7E0293DBFB353D",
+        ["s2-day1"] = "49A25EE03EE55D5C44EA",
+        ["s2-years3-world"] = "7EB6D4D634D46C15F19A",
+        ["s2-years3-house"] = "E1813B7C0C53A54D5126",
+        ["s3-day1"] = "8B18A7BC8DF1DC87464D",
+        ["s3-years3-world"] = "51632CD7DEE6976C34AF",
+        ["s3-years3-house"] = "384C5B782886E4541B20",
+        ["s4-split"] = "C7036D9F547460489E28",
+        ["s5-split"] = "F5E3833ECBD87E286F81",
+        ["s6-tryouts"] = "9AB7EF497F834D5F857C",
+        ["s7-tryouts"] = "04C06E974B508EC04CD2",
     };
 
     [Fact]

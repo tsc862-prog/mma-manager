@@ -362,8 +362,9 @@ public sealed class NegotiationSession
     /// <summary>His win bonus on the terms of this slip (see <see cref="DemandPurse(ContractOffer)"/>).</summary>
     public Money DemandWinBonus(ContractOffer terms) => DemandWinBonus(Slip.Of(terms));
 
-    private Money DemandWinBonus(Slip s) =>
-        new(UpTo500(_exp.AskingWinBonus.Amount * Factor(s) * (decimal)_demandFrac));
+    // (Nothing at a bracket house: it pays no win bonuses, Negotiator.PaysWinBonus.)
+    private Money DemandWinBonus(Slip s) => Negotiator.WinBonusAt(_world, _promo.Id,
+        new(UpTo500(_exp.AskingWinBonus.Amount * Factor(s) * (decimal)_demandFrac)));
 
     public Money DemandSigning(bool exclusive, bool clause) => DemandSigning(new Slip(exclusive, clause));
 
@@ -423,7 +424,7 @@ public sealed class NegotiationSession
         // MoneyValue, so meeting their terms exactly is worth exactly 1.0.
         var slip = Slip.Of(offer);
         decimal needed = DemandPurse(slip).Amount
-                       + 0.5m * DemandWinBonus(slip).Amount
+                       + Negotiator.WinBonusWeight(_world, _promo.Id) * DemandWinBonus(slip).Amount
                        + DemandSigning(slip).Amount / Math.Max(1, _exp.DesiredFights);
         decimal offered = Negotiator.MoneyValue(_world, offer);
         double ratio = needed <= 0 ? 2.0 : (double)(offered / needed);
