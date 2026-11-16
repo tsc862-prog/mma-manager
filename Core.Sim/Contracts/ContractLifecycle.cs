@@ -159,6 +159,8 @@ public static class ContractLifecycle
         {
             var reign = title.Lineage.LastOrDefault(r => r.LostOn is null);
             if (reign is not null) reign.LostOn = date;
+            // (An open-division belt - Origins only - records that the reign ended without a defeat.)
+            if (reign is not null && promo.Divisions.Any(d => d.Open && d.Title == title.Id)) reign.Vacated = true;
             title.CurrentChampion = null;
             Living.News.Post(world, date, NewsCategory.TitleChange,
                 $"{f.FullName} vacates the {title.Name}",

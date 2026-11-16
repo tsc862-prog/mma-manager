@@ -36,6 +36,52 @@ public static class Era
     public static bool AllowsScene(World world, string countryCode) =>
         world.Mode == WorldMode.Modern || world.Era.IsUnlocked(Capability.Scene(countryCode));
 
+    /// <summary>
+    /// Read one of the chapter table's unlock strings (<c>Generation.Origins.OriginsChapters</c>:
+    /// "Media:PpvCarrier", "Sponsor:EnergyDrink", "WeightClass:Lightweight", "CountryScene:BRA",
+    /// "Rounds") as the <see cref="Capability"/> the gates read. The table's vocabulary prefixes the
+    /// media and sponsor families ("Media:", "Sponsor:") where the enum spells each one out
+    /// (<see cref="CapabilityKind.PpvCarrier"/>, <see cref="CapabilityKind.SponsorEnergyDrink"/>); the
+    /// keyed kinds and the plain kinds read as they are. False for anything else.
+    /// </summary>
+    public static bool TryFromChapterUnlock(string unlock, out Capability capability)
+    {
+        capability = default;
+        int colon = unlock.IndexOf(':');
+        if (colon > 0)
+        {
+            string family = unlock[..colon], key = unlock[(colon + 1)..];
+            if (key.Length == 0) return false;
+            switch (family)
+            {
+                case "Media":
+                    if (!Enum.TryParse<MediaKind>(key, ignoreCase: false, out var media) || !Enum.IsDefined(media)
+                        || media.ToString() != key) return false;
+                    capability = Capability.Media(media);
+                    return true;
+                case "Sponsor":
+                    return Capability.TryParse("Sponsor" + key, out capability);
+                case "CountryScene":
+                    if (Geography.WorldAtlas.ByCode(key.ToUpperInvariant()) is null) return false;
+                    return Capability.TryParse(unlock, out capability);
+            }
+        }
+        return Capability.TryParse(unlock, out capability);
+    }
+
+    /// <summary>The country codes with a live scene in this world, in id order (every atlas country in today's mode).</summary>
+    public static IEnumerable<string> Scenes(World world) =>
+        world.Mode == WorldMode.Modern
+            ? world.Countries.Values.Select(c => c.Code)
+            : world.Era.Unlocked
+                .Where(id => id.StartsWith(nameof(CapabilityKind.CountryScene) + ":", StringComparison.Ordinal))
+                .Select(id => id[(nameof(CapabilityKind.CountryScene).Length + 1)..]);
+
+    /// <summary>Does this city's country have a live scene (always, in today's mode)?</summary>
+    public static bool AllowsSceneIn(World world, CityId city) =>
+        world.Mode == WorldMode.Modern
+        || (world.Get(city) is { } c && world.Get(c.Country) is { } country && world.Era.IsUnlocked(Capability.Scene(country.Code)));
+
     /// <summary>Unlock a capability; false when it already was.</summary>
     public static bool Unlock(World world, Capability capability) => world.Era.Unlocked.Add(capability.Id);
 

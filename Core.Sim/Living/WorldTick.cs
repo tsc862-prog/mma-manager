@@ -63,11 +63,13 @@ public sealed class WorldTick
 
     private readonly Matchmaker _matchmaker;
     private readonly EventService _events;
+    private readonly FightEngine _engine;
 
     public WorldTick(FightEngine? engine = null)
     {
         _matchmaker = new Matchmaker();
-        _events = new EventService(engine);
+        _engine = engine ?? new FightEngine();
+        _events = new EventService(_engine);
     }
 
     public WorldTickReport AdvanceWeeks(World world, int weeks)
@@ -187,7 +189,11 @@ public sealed class WorldTick
             }
             int baseline = unsigned > actives / 4 ? 1 : NewgenBaseline;
             int intake = report.Retired + report.Washouts + baseline;
-            report.Newgens = NewgenService.ForWorld(world).GenerateIntake(world, intake, rng).Count;
+            // The birth of the sport grows its own (Origins: specialists from the countries with a scene,
+            // on the month's own stream, at a young sport's pace - it takes the shared stream nothing).
+            report.Newgens = world.Mode == WorldMode.Origins
+                ? OriginsTalent.Intake(world, OriginsTalent.MonthlyIntake(report.Retired + report.Washouts, actives), after).Count
+                : NewgenService.ForWorld(world).GenerateIntake(world, intake, rng).Count;
 
             // Expiring deals renew / get poached / hit the market (the player's own
             // are courted weekly by OfferMarket instead), orgs trim the fighters
@@ -377,6 +383,13 @@ public sealed class WorldTick
     /// </summary>
     private void RunEventCore(World world, Event ev, SimRandom rng, bool playByPlay, WorldTickReport? report)
     {
+        // A one-night bracket (Origins) is drawn and fought on the night: no pullouts or weigh-ins to run
+        // first (its card is empty until the bracket fills it), then the same aftermath as any card.
+        if (ev.Format == EventFormat.Tournament)
+        {
+            if (OriginsShows.RunTournament(world, ev, _engine)) AfterCard(world, ev, rng, report);
+            return;
+        }
         bool aiCard = ev.Promotion != world.PlayerPromotion && world.Get(ev.Promotion) is not null;
         if (ev.Card.Count == 0)
         {
@@ -406,6 +419,12 @@ public sealed class WorldTick
         }
 
         _events.RunEvent(world, ev, playByPlay);
+        AfterCard(world, ev, rng, report);
+    }
+
+    /// <summary>A card's aftermath: injuries, storylines, bonds and camps, the player's other cards, the tally.</summary>
+    private static void AfterCard(World world, Event ev, SimRandom rng, WorldTickReport? report)
+    {
         int injuries = InjuryModel.RollForEvent(world, ev, ev.Date, rng);
         Storylines.AfterEvent(world, ev, ev.Date, rng);
         Bonds.AfterEvent(world, ev, ev.Date);   // a bout between friends/family leaves a mark

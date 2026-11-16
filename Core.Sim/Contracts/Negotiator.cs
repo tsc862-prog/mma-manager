@@ -277,6 +277,9 @@ public sealed class Negotiator
     /// less production, spread across a full card's purses. A small-hall org
     /// pays small-hall money; a fighter who outgrows the budget must move up.
     /// </summary>
+    /// <summary>The least an Origins house budgets for one purse (today's floor is 2,000).</summary>
+    public const decimal OriginsPurseFloor = 500m;
+
     public static decimal PurseCap(World world, Promotion promo)
     {
         int prestige = promo.Prestige.Value;
@@ -284,10 +287,20 @@ public sealed class Negotiator
             ? Geography.Reputation.OrgInCity(promo, hq)
             : Geography.Reputation.OrgInRegion(world, promo, promo.BaseRegion);
         decimal attendance = 2_500m + prestige * 110m + 35m * 35m + homePop * 40m;
+        // An Origins house (one room, a short card of ~5 bouts = ~14 purse units, 1993 prices) budgets off
+        // its own night. Today's mode never takes this branch.
+        if (world.Mode == WorldMode.Origins)
+        {
+            var room = Living.OriginsShows.HomeVenue(world, promo);
+            decimal seats = Math.Min(attendance * (decimal)Booking.Financials.OriginsCrowdFactor, room?.Capacity ?? attendance);
+            decimal take = seats * Booking.Financials.TicketPrice(world, prestige)
+                         - Booking.Financials.OriginsProduction(seats) - (room?.Rent.Amount ?? 0m);
+            return Math.Max(OriginsPurseFloor, Math.Round(take * 0.9m / 14m / 250m) * 250m);
+        }
         var venue = Geography.WorldMap.PickVenue(world, promo);
         if (venue is not null) attendance = Math.Min(attendance, venue.Capacity);
 
-        decimal gate = attendance * (55m + prestige * 1.4m);
+        decimal gate = attendance * (Booking.Financials.TicketBaseOf(world) + prestige * 1.4m);
         decimal production = 10_000m + attendance * 12m + (venue?.Rent.Amount ?? 0m);
         // A full card is ~16 purses + 8 win bonuses at 0.75 → ~22 purse-units.
         return Math.Max(2_000m, Math.Round((gate - production) * 0.9m / 22m / 500m) * 500m);

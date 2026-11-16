@@ -85,6 +85,9 @@ public static class Sponsorships
     /// <summary>Each archetype's era capability, in table order (the tests hold every archetype to its own Sponsor* kind).</summary>
     internal static IReadOnlyList<Capability> ArchetypeEras => Archetypes.Select(a => a.Era).ToList();
 
+    /// <summary>What an Origins sponsor pays per event, as a share of today's fee.</summary>
+    public const decimal OriginsFeeScale = 0.2m;
+
     private static Money FeeFor(Archetype a, Promotion p) =>
         new(a.BaseFee + p.Prestige.Value * a.PerPrestige);
 
@@ -228,6 +231,8 @@ public static class Sponsorships
     {
         decimal tierMult = ev.Tier switch { EventTier.Ppv => 1.5m, EventTier.SuperCard => 2.0m, _ => 1.0m };
         decimal premium = Org.OrgPerks.PartnerPremium(promo) * Org.Franchise.PartnerFactor(world, promo);
+        // 1993 (Origins): a sponsor is a magazine ad and a banner on the ropes, at a fraction of today's fee.
+        if (world.Mode == WorldMode.Origins) premium *= OriginsFeeScale;
 
         foreach (var deal in promo.SponsorDeals.ToList())
         {

@@ -211,6 +211,16 @@ public static class WorldEvents
         {
             double keen = Math.Max(1, Geography.MmaInterest.InRegion(world, regions[i]) - 25);
             weights[i] = keen * keen;
+            // A startup lives in its region's fight capital: no scene there, no startup (Origins; never in today's mode).
+            if (world.Mode == WorldMode.Origins
+                && (Geography.WorldMap.AnchorCity(world, regions[i]) is not { } capital || !Era.AllowsSceneIn(world, capital.Id)))
+                weights[i] = 0;
+        }
+        if (world.Mode == WorldMode.Origins)
+        {
+            bool anywhere = false;
+            foreach (var w in weights) anywhere |= w > 0;
+            if (!anywhere) return;   // no scene can host a startup yet (nothing drawn)
         }
         var spec = GenerateStartup(world, regions[rng.WeightedIndex(weights)], rng);
 

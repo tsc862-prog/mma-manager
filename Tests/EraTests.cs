@@ -18,6 +18,8 @@ public class EraTests
         new WorldBuilder().Build(new WorldBuilder.Options
         {
             Seed = seed, Mode = mode, StartDate = start ?? new WorldBuilder.Options().StartDate,
+            // These are tests of the gates on today's world shape; the real 1993 world is OriginsWorldTests'.
+            GatedModernShape = mode == WorldMode.Origins,
         });
 
     /// <summary>Every capability the enum can express, keyed kinds with a sample key.</summary>
@@ -197,8 +199,10 @@ public class EraTests
         // The build itself opened no division the sport hasn't got (none are unlocked).
         Assert.All(world.Promotions.Values, p => Assert.Empty(p.Divisions));
 
-        // Startups allowed, every men's class but lightweight split out.
+        // Startups allowed (and every scene awake: a startup needs a scene to live in), every men's class
+        // but lightweight split out.
         Era.Unlock(world, Capability.NewPromotions);
+        foreach (var country in world.Countries.Values) Era.Unlock(world, Capability.Scene(country.Code));
         foreach (var wc in Enum.GetValues<WeightClass>().Where(c => c != WeightClass.Lightweight))
             Era.Unlock(world, Capability.Class(wc));
 

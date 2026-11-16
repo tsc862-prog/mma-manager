@@ -42,6 +42,8 @@ public static class CardFiller
     public static void PadToMinimum(World world, Event ev)
     {
         if (ev.Card.Count == 0 || world.Get(ev.Promotion) is not { } promo) return;
+        // The first promotions' nights are as long as the house makes them: no local filler in 1993.
+        if (world.Mode == WorldMode.Origins) return;
 
         var booked = Unavailable(world, ev);
         bool small = OrgSizing.SizeOf(promo) <= OrgSize.Regional;
@@ -86,7 +88,7 @@ public static class CardFiller
     internal static FillerPreview Preview(World world, Event ev)
     {
         var bouts = new List<FillerBout>();
-        if (ev.Card.Count == 0 || world.Get(ev.Promotion) is not { } promo)
+        if (ev.Card.Count == 0 || world.Get(ev.Promotion) is not { } promo || world.Mode == WorldMode.Origins)
             return FillerPreview.None(ev.Card.Count);
 
         var booked = Unavailable(world, ev);

@@ -8,6 +8,7 @@ using MmaManager.Core.Sim.Org;
 // Modes:
 //   (default)            single 30-year sim with yearly breakdowns (seed 2026)
 //   compare <n> <years>  n seeds (1..n) x years, run in parallel, comparison report
+//   origins <n> <years>  the 1993 world (Origins mode): n seeds, AI-run + scripted player, health line
 // Checking modes (simulation QA) live in Check/: invariants, scripted player, save/reload soak, determinism.
 if (args.Length > 0 && (args[0] == "check" || args[0] == "playcheck"))
 { Environment.ExitCode = LongSim.Check.CheckModes.Run(args[0], args); return; }
@@ -16,6 +17,7 @@ if (args.Length > 0 && args[0] == "determinism")
 if (args.Length > 0 && args[0] == "digest")
 { Environment.ExitCode = LongSim.Check.CheckModes.Digest(args); return; }
 
+if (args.Length > 0 && args[0] == "origins") { Environment.ExitCode = LongSim.OriginsMode.Run(args); return; }   // the 1993 world: Origins.cs
 if (args.Length > 0 && args[0] == "fightlab") { FightLabMode.Run(args); return; }   // engine benchmark: FightLabMode.cs
 if (args.Length > 0 && args[0] == "asks") { LongSim.Asks.Run(args); return; }       // price levels by stage/ability: Asks.cs
 if (args.Length > 0 && args[0] == "ladders") { LongSim.Ladders.Run(args); return; }      // contender ladders of one world: Ladders.cs

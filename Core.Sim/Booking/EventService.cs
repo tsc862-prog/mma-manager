@@ -55,6 +55,7 @@ public sealed class EventService
                 ScheduledRounds = m.Rounds,
                 IsTitleFight = m.IsTitle,
                 Title = m.Title,
+                OpenWeight = promo?.Rules.Fight?.OpenWeight == true,   // Origins house rules; never in today's mode
             });
         }
         Living.LocalCircuit.YieldTo(world, ev.Card);   // a promotion's booking beats a staged club card
@@ -90,6 +91,7 @@ public sealed class EventService
             // A rule set that fixes the rounds (one long round) is what the bout is fought over, so the
             // saved fight says so too. Round length has no field on Fight: it is the rules' (else the house's) minutes.
             if (houseRules?.Rounds is int fixedRounds) fight.ScheduledRounds = fixedRounds;
+            if (houseRules?.OpenWeight == true) fight.OpenWeight = true;
             var opts = new FightParams
             {
                 ScheduledRounds = fight.ScheduledRounds,

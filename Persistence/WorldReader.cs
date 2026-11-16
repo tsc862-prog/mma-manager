@@ -267,6 +267,7 @@ internal sealed class WorldReader
                     WonOn = r.Date("won_on"),
                     LostOn = r.DateN("lost_on"),
                     Defenses = r.Int("defenses"),
+                    Vacated = r.Bool("vacated"),
                 });
             }
         }
@@ -324,6 +325,9 @@ internal sealed class WorldReader
                         OpenWeight = r.Bool("fr_open_weight"),
                         Enclosure = r.Enum<Enclosure>("fr_enclosure"),
                     };
+                promo.Rules.ShowFormat = r.Enum<ShowFormat>("show_format");
+                promo.Rules.TournamentSize = r.Int("tournament_size");
+                promo.Rules.TournamentPrize = r.Cash("tournament_prize");
                 foreach (var partner in r.Str("courted_by").Split('|', StringSplitOptions.RemoveEmptyEntries))
                     promo.CourtedBy.Add(partner);
                 if (r.StrN("stream_name") is { } streamName)
@@ -366,6 +370,7 @@ internal sealed class WorldReader
                     WeightClass = r.Enum<WeightClass>("weight_class"),
                     Sex = r.Enum<Sex>("sex"),
                     Title = title is null ? null : new TitleId(title.Value),
+                    Open = r.Bool("open"),
                 });
             }
         }
@@ -378,7 +383,8 @@ internal sealed class WorldReader
                 if (world.Get(new PromotionId(r.Int("promotion_id"))) is not { } promo) continue;
                 var wc = r.Enum<WeightClass>("weight_class");
                 var sex = r.Enum<Sex>("sex");
-                var div = promo.Divisions.FirstOrDefault(d => d.WeightClass == wc && d.Sex == sex);
+                bool open = r.Bool("open");
+                var div = promo.Divisions.FirstOrDefault(d => d.WeightClass == wc && d.Sex == sex && d.Open == open);
                 div?.Rankings.Add(new FighterId(r.Int("fighter_id")));
             }
         }
@@ -814,6 +820,7 @@ internal sealed class WorldReader
                     Status = r.Enum<EventStatus>("status"),
                     MainCardFights = r.Int("main_card"),
                     HypeBonus = r.Dbl("hype_bonus"),
+                    Format = r.Enum<EventFormat>("format"),
                 };
                 if (r.Bool("fin_present"))
                 {
@@ -851,6 +858,7 @@ internal sealed class WorldReader
                     CatchweightLbs = catchweight,
                     WeightMissBy = r.IntN("weight_miss") is { } wm ? new FighterId(wm) : null,
                     OverturnedNc = r.Bool("overturned"),
+                    OpenWeight = r.Bool("open_weight"),
                 };
                 if (r.Bool("out_present"))
                 {
