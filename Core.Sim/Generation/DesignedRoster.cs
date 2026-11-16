@@ -42,33 +42,33 @@ public static class DesignedRoster
     {
         // ============ AFC — the summit (champions) ============
         new("Diego", "Fuentes", "Relámpago", Region.SouthAmerica, WeightClass.Strawweight, PrimaryStyle.BrazilianJiuJitsu, 29, 86, 17, 2, "AFC", Champion: true, Popularity: 62, Country: "ARG",
-            Bio: "The son of a Buenos Aires academy owner who paid the bills teaching schoolkids, Fuentes was rolling before he could read and treats the back-take like a birthright. He arrived at the AFC an unheralded import and blitzed the strawweight division inside two years."),
+            Bio: "The son of a Buenos Aires academy owner who paid the bills teaching schoolkids, Fuentes was rolling before he could read and treats the back-take like a birthright. He arrived at the AFC an unheralded import and blitzed the strawweight division inside two years. At Monte Andino he shares Hugo Sosa's mats with Mateo Quiroga, the Cage Kings strawweight champion he once taught to take a back, and he is careful not to be seen recruiting."),
         new("Kenji", "Morita", "Silent Storm", Region.Asia, WeightClass.Flyweight, PrimaryStyle.WellRounded, 27, 87, 15, 1, "AFC", Champion: true, Popularity: 68, Country: "JPN",
             Bio: "Morita barely speaks at press conferences and has never needed to — a Shooto prodigy out of Yokohama who was beating grown men at seventeen. The quietest man in the sport, and at flyweight, the most complete."),
         new("Tyrell", "Boone", "Showtime", Region.NorthAmerica, WeightClass.Bantamweight, PrimaryStyle.Striker, 28, 88, 16, 2, "AFC", Champion: true, Popularity: 74, Country: "USA",
-            Bio: "A former high-school point guard from Atlanta who found the boxing gym after a knee injury ended the hoop dreams. Boone fights the way the nickname demands — hands low, chin high, crowd on its feet."),
+            Bio: "A former high-school point guard from Atlanta who found the boxing gym after a knee injury ended the hoop dreams. Boone fights the way the nickname demands — hands low, chin high, crowd on its feet. Emiliano Vasquez, who runs Sunset Striking Lab, has told him that hands that low would have cost him a belt in the old days; Boone's reply is that nobody was watching that closely then."),
         new("Cian", "O'Rourke", "The Hound", Region.Europe, WeightClass.Featherweight, PrimaryStyle.Kickboxer, 26, 88, 14, 0, "AFC", Champion: true, Popularity: 79, Country: "IRL",
-            Bio: "Dublin-born and pub-famous by twenty, O'Rourke turned a national kickboxing title into the loudest arrival featherweight has ever seen. He predicts rounds, calls shots, and so far the fights keep agreeing with him."),
+            Bio: "Dublin-born and pub-famous by twenty, O'Rourke turned a national kickboxing title into the loudest arrival featherweight has ever seen. He predicts rounds, calls shots, and so far the fights keep agreeing with him. He trains at Ironside under Alfie Rooke, who gave him the one piece of advice he has kept, which is to stop predicting the round and win it, and the one man he has quit predicting about is Tendai Moyo, the quiet featherweight contender waiting on him."),
         new("Dane", "Mercer", "Ice Water", Region.NorthAmerica, WeightClass.Lightweight, PrimaryStyle.WellRounded, 30, 90, 21, 3, "AFC", Champion: true, Popularity: 85, Country: "USA",
             Bio: "The face of the sport: a small-town Ohio kid who worked night shifts at a meatpacking plant between his first pro fights. Nothing rattles him — hostile crowds, bad rounds, championship pressure — hence the name."),
         new("Sefu", "Okonjo", "The Lion", Region.Africa, WeightClass.Welterweight, PrimaryStyle.Wrestler, 29, 89, 18, 1, "AFC", Champion: true, Popularity: 77, Country: "NGA",
-            Bio: "Okonjo wrestled barefoot on packed dirt in Kano before a university scholarship added technique to the strength. He sends half of every purse home and insists the belt lives in Nigeria even when he defends it on the far side of the world. He calls Chidi Okafor the better fighter and the worse businessman, usually in the same sentence."),
+            Bio: "Okonjo wrestled barefoot on packed dirt in Kano before a university scholarship added technique to the strength. He sends half of every purse home and insists the belt lives in Nigeria even when he defends it on the far side of the world. He calls Chidi Okafor the better fighter and the worse businessman, usually in the same sentence. The ugliness he can summon on purpose he learned in Nathan Kroll's Iron Range room, and he has never decided whether to thank him."),
         new("Viktor", "Roth", "The Surgeon", Region.Europe, WeightClass.Middleweight, PrimaryStyle.Striker, 31, 89, 19, 4, "AFC", Champion: true, Popularity: 72, Country: "GER",
-            Bio: "A former engineering student from Stuttgart who deconstructs opponents the way he once stripped engines — methodically, joint by joint. Roth doesn't produce highlight reels; he produces autopsies."),
+            Bio: "A former engineering student from Stuttgart who deconstructs opponents the way he once stripped engines — methodically, joint by joint. Roth doesn't produce highlight reels; he produces autopsies. Before he ever set foot in Low Country Kickboxing he mailed Hendrik Vos a letter with diagrams; Vos kept it and answered on a single page."),
         new("Marcus", "Hale", "Warpath", Region.NorthAmerica, WeightClass.LightHeavyweight, PrimaryStyle.Wrestler, 32, 87, 17, 5, "AFC", Champion: true, Popularity: 66, Country: "USA",
-            Bio: "A two-time NCAA All-American who spent four years grinding the regional circuit because promoters called his style unwatchable. Hale kept winning until the style became the blueprint and the blueprint became a belt."),
+            Bio: "A two-time NCAA All-American who spent four years grinding the regional circuit because promoters called his style unwatchable. Hale kept winning until the style became the blueprint and the blueprint became a belt. He trains at Iron Range Wrestling under Nathan Kroll, whose ugly title run he studied on tape as a teenager, and the two still argue over whether the style was ever unwatchable or only unfinished."),
         new("Maximo", "Duarte", "The Monolith", Region.SouthAmerica, WeightClass.Heavyweight, PrimaryStyle.Grappler, 33, 88, 18, 2, "AFC", Champion: true, Popularity: 81, Country: "BRA",
-            Bio: "Duarte dug foundations on São Paulo building sites while collecting grappling world titles nobody paid him for. The sport's scariest clinch, wrapped around the sport's gentlest man."),
+            Bio: "Duarte dug foundations on São Paulo building sites while collecting grappling world titles nobody paid him for. The sport's scariest clinch, wrapped around the sport's gentlest man. He trains at Aço Paulista under Waldemar Pires, the last champion of the dust, who says the grappling is too polite for the room that built it."),
 
         // ============ AFC — the men chasing them (#1 contenders) ============
         new("Rizal", "Putra", "The Mongoose", Region.Asia, WeightClass.Strawweight, PrimaryStyle.Grappler, 25, 82, 12, 1, "AFC", Popularity: 41, Country: "INA",
-            Bio: "Discovered at a pencak silat exhibition in Jakarta, Putra scrambles exactly like the animal on his fight shorts. He is the first Indonesian to crack an AFC title picture, and the whole archipelago has noticed."),
+            Bio: "Discovered at a pencak silat exhibition in Jakarta, Putra scrambles exactly like the animal on his fight shorts. He is the first Indonesian to crack an AFC title picture, and the whole archipelago has noticed. Diego Fuentes, the strawweight champion, admits that Putra is the one challenger whose film he has watched twice."),
         new("Joaquin", "Vela", "Loco", Region.SouthAmerica, WeightClass.Flyweight, PrimaryStyle.Brawler, 26, 82, 13, 3, "AFC", Popularity: 48, Country: "CHI",
-            Bio: "Vela fights exactly as advertised: a Santiago street kid who treats every round like an insult that needs answering. Coaches keep trying to add defense; crowds keep paying them not to."),
+            Bio: "Vela fights exactly as advertised: a Santiago street kid who treats every round like an insult that needs answering. Coaches keep trying to add defense; crowds keep paying them not to. He has challenged Kenji Morita in public until the champion's silence became its own story, and Vela has decided the silence is the loudest insult yet."),
         new("Emil", "Vestergaard", "The Metronome", Region.Europe, WeightClass.Bantamweight, PrimaryStyle.Kickboxer, 27, 84, 14, 2, "AFC", Popularity: 45, Country: "DEN",
-            Bio: "A Copenhagen jazz drummer's son who counts rhythm the way other fighters count reach. Vestergaard's output never spikes and never dips — it just keeps landing until the other man stops."),
+            Bio: "A Copenhagen jazz drummer's son who counts rhythm the way other fighters count reach. Vestergaard's output never spikes and never dips — it just keeps landing until the other man stops. Tyrell Boone, the bantamweight champion, says the Dane is the one contender who refuses to be rushed into a show."),
         new("Tendai", "Moyo", "Nightfall", Region.Africa, WeightClass.Featherweight, PrimaryStyle.Striker, 24, 83, 11, 0, "AFC", Popularity: 52, Country: "ZIM",
-            Bio: "Moyo came out of Harare's amateur boxing program with the fastest hands the scouts had ever timed and a switch-hitting style nobody remembers teaching him. Eleven fights, none lost, and the scouts have stopped timing the rounds."),
+            Bio: "Moyo came out of Harare's amateur boxing program with the fastest hands the scouts had ever timed and a switch-hitting style nobody remembers teaching him. Eleven fights, none lost, and the scouts have stopped timing the rounds. Cian O'Rourke has already named a round for him; Moyo has answered by saying nothing, in a way the champion finds harder to bear than an insult."),
         // #1 contender with real history with the champ — the lightweight title
         // picture opens as a GRUDGE (Mercer took a razor-thin decision off him).
         new("Jae-won", "Seo", "Steel", Region.Asia, WeightClass.Lightweight, PrimaryStyle.Wrestler, 28, 85, 16, 2, "AFC", Popularity: 55, Country: "KOR", RivalOf: "Mercer",
@@ -76,25 +76,25 @@ public static class DesignedRoster
         new("Cole", "Vandermeer", "Bad News", Region.NorthAmerica, WeightClass.Welterweight, PrimaryStyle.Kickboxer, 27, 84, 13, 1, "AFC", Popularity: 58, Country: "CAN",
             Bio: "A Winnipeg hockey enforcer who discovered he liked the fights more than the ice time. Vandermeer's left high kick has its own highlight package, and his press conferences need a censor."),
         new("Kane", "Te Ariki", "Riptide", Region.Oceania, WeightClass.Middleweight, PrimaryStyle.ClinchFighter, 29, 84, 15, 3, "AFC", Popularity: 49, Country: "NZL",
-            Bio: "Raised in a Māori wrestling family in Rotorua, Te Ariki drags fights into the clinch and drowns people there. The haka his whānau leads before title fights has become appointment viewing."),
+            Bio: "Raised in a Māori wrestling family in Rotorua, Te Ariki drags fights into the clinch and drowns people there. The haka his whānau leads before title fights has become appointment viewing. Tama Solomona, who runs the Harbour City room where Te Ariki trains, calls him 'the boy' like all the others; the haka runs long, and it is Solomona's only complaint."),
         new("Samir", "Al-Rashid", "The Falcon", Region.MiddleEast, WeightClass.LightHeavyweight, PrimaryStyle.WellRounded, 28, 83, 12, 2, "AFC", Popularity: 46, Country: "JOR",
-            Bio: "A Jordanian army officer's son who trained across three continents before settling into a style with no holes. Amman shuts down when he fights."),
+            Bio: "A Jordanian army officer's son who trained across three continents before settling into a style with no holes. Amman shuts down when he fights. He has turned down Gulf money before, and the sheikh's people describe the refusals as a matter of timing."),
         new("Bram", "Kowalczyk", "The Bulldozer", Region.Europe, WeightClass.Heavyweight, PrimaryStyle.Brawler, 30, 83, 14, 4, "AFC", Popularity: 57, Country: "POL",
-            Bio: "A former strongman competitor from Gdańsk who found out heavyweights fall over easier than atlas stones. Subtlety is not the product."),
+            Bio: "A former strongman competitor from Gdańsk who found out heavyweights fall over easier than atlas stones. Subtlety is not the product. He left Poland for the AFC without a word to Marek Baran, the old Ironhold champion who watched him come up in the Polish halls, and Baran has been polite about it in a way that stings."),
 
         // ============ VMMA — Europe's stage (champions) ============
         new("Luka", "Petrovic", "The Spider", Region.Europe, WeightClass.Strawweight, PrimaryStyle.BrazilianJiuJitsu, 27, 77, 13, 2, "VMMA", Champion: true, Popularity: 51, Country: "SRB",
-            Bio: "Long-limbed and endlessly patient, Petrovic learned his grappling in a Belgrade basement club with one mat and no heating. Opponents describe fighting him as being slowly webbed."),
+            Bio: "Long-limbed and endlessly patient, Petrovic learned his grappling in a Belgrade basement club with one mat and no heating. Opponents describe fighting him as being slowly webbed. The Belgrade basement club that raised him is the same one where Miron Kovac slept on the mats, and the Ironhold champion has not forgiven the Vanguard contract."),
         new("Mateus", "Farias", "Ginga", Region.SouthAmerica, WeightClass.Flyweight, PrimaryStyle.Striker, 26, 78, 12, 3, "VMMA", Champion: true, Popularity: 47, Country: "BRA",
             Bio: "A capoeira kid from Salvador whose rhythm never left him — Farias fights to music only he can hear. Europe adopted him the first time he wheel-kicked someone on a European card."),
         new("Callum", "Brody", "The Ghost", Region.Europe, WeightClass.Bantamweight, PrimaryStyle.WellRounded, 28, 79, 14, 2, "VMMA", Champion: true, Popularity: 55, Country: "GBR",
-            Bio: "A Manchester council-estate kid who has been slipping punches since age six. Brody wins rounds opponents can't remember landing anything in."),
+            Bio: "A Manchester council-estate kid who has been slipping punches since age six. Brody wins rounds opponents can't remember landing anything in. He trains at Ironside, the room above the old boxing gym that Alfie Rooke bought with his last purses, and wears the bantamweight belt Rooke once held; neither man has been heard to mention the coincidence."),
         new("Ilya", "Orlov", "Sledge", Region.Europe, WeightClass.Featherweight, PrimaryStyle.Brawler, 29, 78, 15, 4, "VMMA", Champion: true, Popularity: 58, Country: "RUS",
             Bio: "Orlov fought bare-knuckle in St Petersburg car parks before the sport gave him rules to almost follow. Featherweight power that makes light heavyweights flinch."),
         new("Noah", "Weiss", "Clockwork", Region.Europe, WeightClass.Lightweight, PrimaryStyle.Kickboxer, 27, 80, 13, 1, "VMMA", Champion: true, Popularity: 54, Country: "SUI",
             Bio: "A watchmaker's apprentice from Geneva — genuinely — who treats distance and timing as precision instruments. Weiss has lost once in fourteen fights; the defense is Swiss-engineered."),
         new("Andrei", "Codrea", "The Wolf", Region.Europe, WeightClass.Welterweight, PrimaryStyle.Wrestler, 30, 80, 17, 5, "VMMA", Champion: true, Popularity: 60, Country: "ROU",
-            Bio: "A shepherd's son from the Carpathians who came up through Romania's junior wrestling system on black bread and stubbornness. Codrea hunts takedowns in packs and finishes what he catches."),
+            Bio: "A shepherd's son from the Carpathians who came up through Romania's junior wrestling system on black bread and stubbornness. Codrea hunts takedowns in packs and finishes what he catches. Emil Toma of Ironhold is the other Romanian at the top of the sport, and the federation's dinners have been awkward since the war began."),
         new("Yusuf", "Demir", "Anatolia", Region.MiddleEast, WeightClass.Middleweight, PrimaryStyle.ClinchFighter, 29, 79, 14, 3, "VMMA", Champion: true, Popularity: 50, Country: "TUR",
             Bio: "An oil-wrestling champion from Edirne carrying six centuries of grip fighting into the cage. Once Demir's hands lock, the fight happens where he says it happens."),
         new("Henrik", "Dahl", "North Star", Region.Europe, WeightClass.LightHeavyweight, PrimaryStyle.Striker, 31, 78, 15, 6, "VMMA", Champion: true, Popularity: 52, Country: "NOR",
@@ -118,9 +118,9 @@ public static class DesignedRoster
         new("Haruto", "Kubo", "Zero", Region.Asia, WeightClass.Flyweight, PrimaryStyle.BrazilianJiuJitsu, 25, 76, 12, 1, "ICF", Champion: true, Popularity: 53, Country: "JPN",
             Bio: "A former competitive gamer who took up jiu-jitsu to fix his posture and broke the Japanese grappling circuit instead. Kubo hunts submissions like frame-perfect inputs."),
         new("Arman", "Batyr", "Berkut", Region.Asia, WeightClass.Bantamweight, PrimaryStyle.Wrestler, 27, 77, 15, 2, "ICF", Champion: true, Popularity: 55, Country: "KAZ",
-            Bio: "Raised in a wrestling dynasty on the Kazakh steppe — grandfather, father, three uncles, all champions. Batyr's takedowns are a family heirloom."),
+            Bio: "Raised in a wrestling dynasty on the Kazakh steppe — grandfather, father, three uncles, all champions. Batyr's takedowns are a family heirloom. Yerlan Amanov, who held the ICF welterweight belt in his father's day, drove him to his first national final and still insists the boy over-rotates."),
         new("Minh", "Nguyen", "The Mantis", Region.Asia, WeightClass.Featherweight, PrimaryStyle.Striker, 26, 76, 14, 3, "ICF", Champion: true, Popularity: 49, Country: "VIE",
-            Bio: "Ho Chi Minh City's first MMA export, built on traditional võ thuật and a jab like a bicycle spoke. He fights in front of a wall of Vietnamese flags wherever ICF books him."),
+            Bio: "Ho Chi Minh City's first MMA export, built on traditional võ thuật and a jab like a bicycle spoke. He fights in front of a wall of Vietnamese flags wherever ICF books him. The offer for Arthit Saengkham is, among other things, a message to the featherweight champion about who is waiting, and Nguyen has told reporters he reads it as flattery."),
         // Japan's beloved son and ICF's franchise: a genuine draw the AFC has circled
         // for years, but he's a lifer — it would cost the earth to pry him from Tokyo.
         new("Daichi", "Sato", "Typhoon", Region.Asia, WeightClass.Lightweight, PrimaryStyle.WellRounded, 29, 80, 18, 3, "ICF", Champion: true, Popularity: 79, Country: "JPN", Loyalty: 88,
@@ -130,9 +130,9 @@ public static class DesignedRoster
         new("Rohan", "Malhotra", "The Tiger", Region.Asia, WeightClass.Middleweight, PrimaryStyle.Kickboxer, 28, 76, 14, 4, "ICF", Champion: true, Popularity: 48, Country: "IND",
             Bio: "Mumbai's first true MMA star, who quit a call-center job for a fight camp against his family's wishes. A hundred million Indians now watch him justify the decision."),
         new("Timur", "Zhaksylyk", "The Anvil", Region.Asia, WeightClass.LightHeavyweight, PrimaryStyle.Grappler, 30, 75, 15, 5, "ICF", Champion: true, Popularity: 47, Country: "KAZ",
-            Bio: "A judo Olympian from Almaty who found the cage after federation politics found him. Zhaksylyk's top pressure has made hard men wave to referees."),
+            Bio: "A judo Olympian from Almaty who found the cage after federation politics found him. Zhaksylyk's top pressure has made hard men wave to referees. He left judo years before Aslan Batyrov left wrestling, for the same federation's reasons, and the federation has not decided which loss to be more embarrassed about."),
         new("Tavita", "Fetu", "Tsunami", Region.Oceania, WeightClass.Heavyweight, PrimaryStyle.Brawler, 31, 76, 14, 5, "ICF", Champion: true, Popularity: 52, Country: "SAM",
-            Bio: "One of eleven siblings from a village outside Apia, Fetu hits like the weather system he's named for. The islands stop working when he fights."),
+            Bio: "One of eleven siblings from a village outside Apia, Fetu hits like the weather system he's named for. The islands stop working when he fights. He calls the Rahiri and Tuilagi argument a family dispute he has not been invited to settle, and says so loudly enough to be invited."),
 
         // ============ ICF — the border grudge ============
         // Korea's counterpoint to Japan's beloved son: a title picture that sells
@@ -142,7 +142,7 @@ public static class DesignedRoster
 
         // ============ Cage Kings — the frontier (champions) ============
         new("Mateo", "Quiroga", "Aguja", Region.SouthAmerica, WeightClass.Strawweight, PrimaryStyle.BrazilianJiuJitsu, 25, 62, 9, 2, "CK", Champion: true, Popularity: 28, Country: "ARG",
-            Bio: "The needle: a Buenos Aires prodigy who threads chokes through gaps other grapplers can't see. He still teaches the kids' class at his neighborhood academy between title defenses."),
+            Bio: "The needle: a Buenos Aires prodigy who threads chokes through gaps other grapplers can't see. He still teaches the kids' class at his neighborhood academy between title defenses. He and Diego Fuentes, the AFC strawweight champion from the same Buenos Aires circuit, share Hugo Sosa's mats at Monte Andino; Fuentes taught him his first back-take and is the name every interviewer asks him about."),
         new("Santiago", "Ibarra", "El Rayo", Region.SouthAmerica, WeightClass.Flyweight, PrimaryStyle.Striker, 24, 63, 8, 1, "CK", Champion: true, Popularity: 31, Country: "ECU",
             Bio: "Quito lightning — Ibarra's straight right arrives at altitude speed. The face of Ecuadorian fighting on every card he headlines."),
         new("Pedro", "Sales", "Rocket", Region.SouthAmerica, WeightClass.Bantamweight, PrimaryStyle.Kickboxer, 26, 64, 10, 3, "CK", Champion: true, Popularity: 30, Country: "BRA",
@@ -150,11 +150,11 @@ public static class DesignedRoster
         new("Facundo", "Barrios", "The Fox", Region.SouthAmerica, WeightClass.Featherweight, PrimaryStyle.WellRounded, 27, 63, 11, 4, "CK", Champion: true, Popularity: 27, Country: "URU",
             Bio: "Montevideo's cleverest fighter: Barrios wins with feints, angles and an infuriating smile. Uruguay's small scene made him crafty; the belt made him insufferable about it."),
         new("Thiago", "Prado", "Granite", Region.SouthAmerica, WeightClass.Lightweight, PrimaryStyle.Brawler, 28, 65, 12, 5, "CK", Champion: true, Popularity: 33, Country: "BRA",
-            Bio: "Quarried out of Minas Gerais, Prado has eaten flush shots from two divisions of punchers without blinking. His chin has its own fan club."),
+            Bio: "Quarried out of Minas Gerais, Prado has eaten flush shots from two divisions of punchers without blinking. His chin has its own fan club. Ronaldo Vieira's Curitiba room, where he shares the mats with the AFC's Amanda Silva, supplied the fan club's founding member."),
         new("Nicolas", "Paredes", "La Sombra", Region.SouthAmerica, WeightClass.Welterweight, PrimaryStyle.Striker, 27, 64, 10, 2, "CK", Champion: true, Popularity: 29, Country: "COL",
             Bio: "A Medellín southpaw who slips punches like gossip — always half a step gone. The shadow only turns solid to counter."),
         new("Gustavo", "Leal", "The Huntsman", Region.SouthAmerica, WeightClass.Middleweight, PrimaryStyle.Grappler, 29, 63, 11, 6, "CK", Champion: true, Popularity: 26, Country: "BRA",
-            Bio: "A quiet Paraná farm kid who stalks takedowns for fifteen patient minutes at a time. Nobody escapes the ground with him twice."),
+            Bio: "A quiet Paraná farm kid who stalks takedowns for fifteen patient minutes at a time. Nobody escapes the ground with him twice. He grew up a short drive from Curitiba, where Ronaldo Vieira's room is notorious enough that Leal walked in once, survived a Tuesday, and did not go back."),
         new("Ramiro", "Salazar", "El Toro", Region.SouthAmerica, WeightClass.LightHeavyweight, PrimaryStyle.Wrestler, 30, 62, 12, 7, "CK", Champion: true, Popularity: 28, Country: "VEN",
             Bio: "Salazar wrestled for Venezuela through the lean years, training on donated mats. Every belt he wins goes home to Caracas for the gym wall."),
         new("Wallace", "Bandeira", "The Wall", Region.SouthAmerica, WeightClass.Heavyweight, PrimaryStyle.ClinchFighter, 31, 63, 10, 4, "CK", Champion: true, Popularity: 34, Country: "BRA",
@@ -168,23 +168,23 @@ public static class DesignedRoster
         new("Tariq", "Nasser", "Desert Hawk", Region.MiddleEast, WeightClass.Welterweight, PrimaryStyle.Kickboxer, 27, 77, 15, 2, "GFC", Champion: true, Popularity: 58, Country: "KSA", Loyalty: 24,
             Bio: "A graduate of Riyadh's national combat-sports project with sniper timing and the richest purse-per-fight deal in the division. Loyalty was not part of the negotiation."),
         new("Yusuf", "Haddad", "The Cedar", Region.MiddleEast, WeightClass.Heavyweight, PrimaryStyle.Brawler, 31, 76, 14, 3, "GFC", Champion: true, Popularity: 62, Country: "LIB", Loyalty: 30,
-            Bio: "A Beirut dockworker who punched his way onto Gulf television, Haddad falls like his namesake — rarely, and all at once. He follows the money and doesn't apologize for it."),
+            Bio: "A Beirut dockworker who punched his way onto Gulf television, Haddad falls like his namesake — rarely, and all at once. He follows the money and doesn't apologize for it. He still phones his uncle Fadi before he signs anything and, so far, has taken the advice."),
         new("Movsar", "Dudaev", "The Collector", Region.Europe, WeightClass.Middleweight, PrimaryStyle.Wrestler, 29, 77, 15, 2, "GFC", Champion: true, Popularity: 50, Country: "RUS", Loyalty: 26,
             Bio: "A Caucasus wrestling machine collecting the Gulf's money with professional detachment — he has changed banners before and mourned none of them. The GFC is a chapter, not a home."),
         // The exception in a house of hired guns: the one local kid who fights for
         // the badge — the homegrown star the Gulf project was supposed to produce.
         new("Khalid", "Al-Suwaidi", "The Falcon of Dubai", Region.MiddleEast, WeightClass.Middleweight, PrimaryStyle.Wrestler, 22, 64, 8, 0, "GFC", Popularity: 38, Country: "UAE", Loyalty: 78, Streak: 8,
-            Bio: "The exception in a house of mercenaries: a Dubai kid who grew up cageside at GFC shows and fights for the badge, not the bonus. Eight straight wins and the Gulf finally has a homegrown star to build on."),
+            Bio: "The exception in a house of mercenaries: a Dubai kid who grew up cageside at GFC shows and fights for the badge, not the bonus. Eight straight wins and the Gulf finally has a homegrown star to build on. Yusuf Haddad, the house's Beirut heavyweight, tells him the badge is the part that does not pay; Al-Suwaidi has started writing the advice down."),
 
         // ============ IFA — Europe's hard-nosed challenger, at war with VMMA (champions) ============
         // A whole roster of grinders who'd never defect to the establishment across
         // town — loyal to the hard school even as the turf war squeezes the books.
         new("Miron", "Kovac", "Cold Iron", Region.Europe, WeightClass.Lightweight, PrimaryStyle.Wrestler, 28, 78, 17, 3, "IFA", Champion: true, Popularity: 60, Country: "SRB", Loyalty: 72,
-            Bio: "A product of Belgrade's hard school who slept on the gym mats he now headlines above. Kovac bleeds Ironhold black and calls VMMA 'the theatre in London'."),
+            Bio: "A product of Belgrade's hard school who slept on the gym mats he now headlines above. Kovac bleeds Ironhold black and calls VMMA 'the theatre in London'. Luka Petrovic, who learned his trade in the same Belgrade basement and signed with Vanguard, is the one former teammate Kovac refuses to name."),
         new("Emil", "Toma", "The Scythe", Region.Europe, WeightClass.Featherweight, PrimaryStyle.Kickboxer, 27, 76, 15, 2, "IFA", Champion: true, Popularity: 49, Country: "ROU", Loyalty: 66,
-            Bio: "A Bucharest butcher's son whose body kicks fold people at the waist. Toma answered VMMA's last contract overture with a one-word press release."),
+            Bio: "A Bucharest butcher's son whose body kicks fold people at the waist. Toma answered VMMA's last contract overture with a one-word press release. Andrei Codrea of Vanguard is the other Romanian at the top of the sport, and the two of them have been seated at opposite ends of the federation's dinners since the war began."),
         new("Bohdan", "Marchenko", "Anvil", Region.Europe, WeightClass.Welterweight, PrimaryStyle.ClinchFighter, 29, 77, 16, 4, "IFA", Champion: true, Popularity: 47, Country: "GEO", Loyalty: 64,
-            Bio: "Marchenko came up through Georgian chidaoba wrestling and an amateur career fought in unheated halls. What he grips, wilts."),
+            Bio: "Marchenko came up through Georgian chidaoba wrestling and an amateur career fought in unheated halls. What he grips, wilts. Zurab Kipiani of the Gulf and Giorgi Tsereteli on the open market are the other Georgians he drinks with, and the toasts are where the three of them argue about whose career is best."),
         new("Dmitri", "Volkov", "The Hammer", Region.Europe, WeightClass.Middleweight, PrimaryStyle.Wrestler, 31, 78, 21, 3, "IFA", Champion: true, Popularity: 62, Country: "RUS", Loyalty: 80,   // the IFA franchise
             Bio: "The face of the hard school: Volkov came up in IFA's parking-lot years and keeps a locker there with his name welded on. Twenty-one wins, no entrance music, no interest in leaving. His younger sister is Katya Volkova, the most famous woman in the sport, and he answers questions about her with the same four words: 'Ask her, not me.'"),
         new("Andrzej", "Nowak", "Ironjaw", Region.Europe, WeightClass.LightHeavyweight, PrimaryStyle.Grappler, 30, 76, 18, 4, "IFA", Champion: true, Popularity: 50, Country: "POL", Loyalty: 70,
@@ -196,7 +196,7 @@ public static class DesignedRoster
         // Young, proud, and hungry — Rio's answer to Cage Kings. A Brazilian turf war
         // in a fight-mad market that (just) has the fans for two.
         new("Rafael", "Souza", "Furacao", Region.SouthAmerica, WeightClass.Lightweight, PrimaryStyle.BrazilianJiuJitsu, 26, 67, 12, 2, "RCS", Champion: true, Popularity: 54, Country: "BRA", Loyalty: 58, Streak: 6,
-            Bio: "The hurricane of Rocinha: Souza learned jiu-jitsu at a favela social project and now funds three of them. Rio's proof that RCS can grow its own stars instead of renting São Paulo's."),
+            Bio: "The hurricane of Rocinha: Souza learned jiu-jitsu at a favela social project and now funds three of them. Rio's proof that RCS can grow its own stars instead of renting São Paulo's. He says the back choke he finishes with was Osvaldo Ferraz's first, and the old Cage Kings champion has not asked for it back."),
         new("Bruno", "Carvalho", "Tubarao", Region.SouthAmerica, WeightClass.Welterweight, PrimaryStyle.Striker, 27, 66, 13, 3, "RCS", Champion: true, Popularity: 45, Country: "BRA", Loyalty: 52,
             Bio: "An Ipanema beach-boxing showman with a shark's instinct for a hurt opponent. Carvalho headlined RCS's first sold-out card and will not let anyone forget it."),
         new("Vinicius", "Rocha", "Pedra", Region.SouthAmerica, WeightClass.Middleweight, PrimaryStyle.Grappler, 28, 65, 11, 4, "RCS", Champion: true, Popularity: 40, Country: "BRA", Loyalty: 50,
@@ -210,7 +210,7 @@ public static class DesignedRoster
         // The rung between the regionals and the summit: solid American pros, some
         // eyeing the AFC's money, some content to headline at home.
         new("Jaylen", "Brooks", "Blue Chip", Region.NorthAmerica, WeightClass.Lightweight, PrimaryStyle.WellRounded, 26, 68, 13, 2, "UFL", Champion: true, Popularity: 52, Country: "USA", Loyalty: 34,
-            Bio: "A four-sport athlete from Houston who picked cage fighting because it was the hardest option on the table. Brooks calls the UFL belt a stepping stone, out loud, at his own title celebrations."),
+            Bio: "A four-sport athlete from Houston who picked cage fighting because it was the hardest option on the table. Brooks calls the UFL belt a stepping stone, out loud, at his own title celebrations. Bobby Deene, who tells every new signing his story, is on record saying Brooks listened carefully and decided he would not be the sequel."),
         new("Cole", "Jackson", "Hollywood", Region.NorthAmerica, WeightClass.Welterweight, PrimaryStyle.Kickboxer, 28, 67, 14, 3, "UFL", Champion: true, Popularity: 49, Country: "USA", Loyalty: 30,
             Bio: "An LA stuntman with a face the camera loves and a check hook casting directors don't. Jackson's agent takes more meetings than his coach."),
         new("Marcus", "Webb", "The Mechanic", Region.NorthAmerica, WeightClass.Middleweight, PrimaryStyle.Wrestler, 29, 68, 15, 4, "UFL", Champion: true, Popularity: 44, Country: "USA", Loyalty: 40,
@@ -224,9 +224,9 @@ public static class DesignedRoster
         new("Kai", "Marsh", "Thunder", Region.Oceania, WeightClass.Welterweight, PrimaryStyle.Brawler, 26, 71, 13, 2, "SCM", Champion: true, Popularity: 57, Country: "AUS",
             Bio: "A Gold Coast lifeguard who fights like the rips he pulls tourists out of — sudden, loud, and indifferent to your plans. Australia's favourite walk-off knockout artist."),
         new("Jack", "Rennie", "Roughneck", Region.Oceania, WeightClass.Middleweight, PrimaryStyle.Brawler, 28, 69, 14, 4, "SCM", Champion: true, Popularity: 48, Country: "AUS",
-            Bio: "A Perth mining-site brawler who served his apprenticeship in outback tent fights. Rennie's chin is regional folklore and his after-parties are regional policy problems."),
+            Bio: "A Perth mining-site brawler who served his apprenticeship in outback tent fights. Rennie's chin is regional folklore and his after-parties are regional policy problems. Tama Solomona's remedy at Harbour City is to hold pads until Rennie is too tired to find the party."),
         new("Manaia", "Rahiri", "The Tide", Region.Oceania, WeightClass.Heavyweight, PrimaryStyle.ClinchFighter, 30, 70, 12, 3, "SCM", Champion: true, Popularity: 51, Country: "NZL",
-            Bio: "An Auckland scaffolder from a long line of Māori boxers, Rahiri rolls in slow and leaves nothing standing. The mana in his corner is generational."),
+            Bio: "An Auckland scaffolder from a long line of Māori boxers, Rahiri rolls in slow and leaves nothing standing. The mana in his corner is generational. Tama Solomona holds his pads at Harbour City and refuses to say whose side he would take in the Tuilagi argument."),
         // Tonga's heavyweight hope — the trans-Tasman island rivalry writes itself.
         new("Sione", "Tuilagi", "The Reef", Region.Oceania, WeightClass.Heavyweight, PrimaryStyle.Brawler, 28, 68, 11, 2, "SCM", Popularity: 44, Country: "TGA", RivalOf: "Rahiri",
             Bio: "Tonga's heavyweight hope, who says Rahiri's belt is 'on loan to Auckland'. When the islands' two big men share a card, the whole Pacific picks sides."),
@@ -275,7 +275,7 @@ public static class DesignedRoster
             Bio: "A Khayelitsha giant discovered lifting engine blocks at a scrapyard, Ndlovu throws heavyweights around like laundry. Cape Town's cards sell out on his shoulders."),
         // PMP (Pampas, Argentina City): a swaggering gaucho who fights to a crowd.
         new("Lucas", "Ferreyra", "El Sombrero", Region.SouthAmerica, WeightClass.Welterweight, PrimaryStyle.Brawler, 27, 48, 14, 8, "PMP", Champion: true, Popularity: 40, Country: "ARG",
-            Bio: "A gaucho's son from the pampas who fights to the crowd like it's a rodeo — hat on the cage post, chin in the air. Buenos Aires sings his name; his defense remains a rumor."),
+            Bio: "A gaucho's son from the pampas who fights to the crowd like it's a rodeo — hat on the cage post, chin in the air. Buenos Aires sings his name; his defense remains a rumor. Hector Ravelo's plan to bring Diego Rivas home would put the hat and the ghost on one poster, and Ferreyra says the cage has room for the hat and nobody else's grudge."),
 
         // ============ The women's scene — designed headliners ============
         // (Women's divisions at build run Strawweight/Flyweight/Bantamweight; only
@@ -287,23 +287,23 @@ public static class DesignedRoster
         new("Sarah", "Donovan", "Wildcard", Region.NorthAmerica, WeightClass.Bantamweight, PrimaryStyle.Brawler, 27, 81, 13, 3, "AFC", Popularity: 69, Country: "USA", Sex: Sex.Female, RivalOf: "Volkova",
             Bio: "A Boston bartender who brawled her way up the regional circuit on spite and overhand rights. She has called Volkova a porcelain princess in four languages — the feud sells itself. Danielle Cross, who argued the women's division into existence, works her corner and has opinions about whose belt it should be."),
         new("Amanda", "Silva", "The Panther", Region.SouthAmerica, WeightClass.Flyweight, PrimaryStyle.BrazilianJiuJitsu, 26, 83, 14, 1, "AFC", Champion: true, Popularity: 71, Country: "BRA", Sex: Sex.Female,
-            Bio: "Curitiba royalty — her mother ran one of Brazil's first women's jiu-jitsu programs, and Amanda was drilling armbars at five. Smooth, patient, inevitable."),
+            Bio: "Curitiba royalty — her mother ran one of Brazil's first women's jiu-jitsu programs, and Amanda was drilling armbars at five. Smooth, patient, inevitable. Her mother's program taught her the jiu-jitsu; Ronaldo Vieira's notorious room in Curitiba taught her the part nobody had mentioned, which is how to be hit."),
         new("Mei-Lin", "Zhang", "The Needle", Region.Asia, WeightClass.Strawweight, PrimaryStyle.Striker, 25, 82, 12, 1, "AFC", Champion: true, Popularity: 64, Country: "CHN", Sex: Sex.Female,
             Bio: "A sanda champion from Chengdu whose straight punches thread the tightest guards in the sport. She brought China its first AFC belt, and a hundred gyms opened the year she won it."),
         // The Guadalajara counter-puncher already crashing the champion's interviews.
         new("Valentina", "Reyes", "La Pantera", Region.NorthAmerica, WeightClass.Strawweight, PrimaryStyle.Striker, 25, 79, 11, 2, "AFC", Popularity: 52, Country: "MEX", Sex: Sex.Female, RivalOf: "Zhang",
-            Bio: "The first daughter of a Guadalajara boxing family, with the fastest counter left in the women's game. She has crashed two of Zhang's interviews already; the champion has stopped smiling about it."),
+            Bio: "The first daughter of a Guadalajara boxing family, with the fastest counter left in the women's game. She has crashed two of Zhang's interviews already; the champion has stopped smiling about it. She shares the pad rounds at Sunset Striking Lab with Tyrell Boone, who says she is the only person in the building who talks faster than he does."),
         // The other women-running orgs each open with a face of their own.
         new("Ingrid", "Bergström", "Valkyrie", Region.Europe, WeightClass.Flyweight, PrimaryStyle.Kickboxer, 27, 74, 12, 2, "VMMA", Champion: true, Popularity: 56, Country: "SWE", Sex: Sex.Female,
             Bio: "A Stockholm firefighter's daughter with textbook Swedish kickboxing and zero wasted motion. VMMA sells its women's division on her shoulders."),
         new("Petra", "Novakova", "The Baton", Region.Europe, WeightClass.Bantamweight, PrimaryStyle.Kickboxer, 27, 72, 11, 2, "VMMA", Champion: true, Popularity: 45, Country: "CZE", Sex: Sex.Female,
-            Bio: "A Prague policewoman who kept winning European kickboxing titles on her rest days until the day job became optional. VMMA's women's bantamweight belt has barely left her wrist since she took it."),
+            Bio: "A Prague policewoman who kept winning European kickboxing titles on her rest days until the day job became optional. VMMA's women's bantamweight belt has barely left her wrist since she took it. Danielle Cross's complaint about Volkova was read in Prague as an invitation, and Novakova has said she will answer the question whenever someone asks it."),
         new("Yuna", "Park", "Silk", Region.Asia, WeightClass.Strawweight, PrimaryStyle.BrazilianJiuJitsu, 25, 73, 11, 1, "ICF", Champion: true, Popularity: 54, Country: "KOR", Sex: Sex.Female,
-            Bio: "A Seoul judo prodigy who switched to jiu-jitsu after the national team passed her over — their loss, as her opponents can medically confirm. The nickname describes her transitions, not her grip."),
+            Bio: "A Seoul judo prodigy who switched to jiu-jitsu after the national team passed her over — their loss, as her opponents can medically confirm. The nickname describes her transitions, not her grip. A youth judo final against Sakura Fujimoto of Kyoto is the match she still replays; Seoul and Kyoto score it differently."),
         new("Sakura", "Fujimoto", "First Frost", Region.Asia, WeightClass.Flyweight, PrimaryStyle.Grappler, 24, 71, 10, 1, "ICF", Champion: true, Popularity: 48, Country: "JPN", Sex: Sex.Female,
-            Bio: "A third-generation judoka from Kyoto who treats the ICF women's flyweight belt as a family duty. Her groundwork is a masterclass her opponents pay full price to attend."),
+            Bio: "A third-generation judoka from Kyoto who treats the ICF women's flyweight belt as a family duty. Her groundwork is a masterclass her opponents pay full price to attend. The youth final against Yuna Park of Seoul is the one match she does not discuss, and the one her family discusses at length."),
         new("Beatriz", "Lima", "Borboleta", Region.SouthAmerica, WeightClass.Flyweight, PrimaryStyle.BrazilianJiuJitsu, 24, 60, 9, 2, "CK", Champion: true, Popularity: 33, Country: "BRA", Sex: Sex.Female,
-            Bio: "A butterfly out of Fortaleza's beach academies with the prettiest guard passing in the women's game. Cage Kings is bringing her along carefully; the sharks upstream already circle."),
+            Bio: "A butterfly out of Fortaleza's beach academies with the prettiest guard passing in the women's game. Cage Kings is bringing her along carefully; the sharks upstream already circle. Amanda Silva, the AFC flyweight champion from the same Brazilian circuit, is the name every reporter puts beside hers."),
         new("Larissa", "Mendes", "A Cirurgiã", Region.SouthAmerica, WeightClass.Bantamweight, PrimaryStyle.Grappler, 25, 61, 10, 2, "CK", Champion: true, Popularity: 31, Country: "BRA", Sex: Sex.Female,
             Bio: "A São Paulo physiotherapy student who pays her tuition with title defenses. Mendes's mat control is clinical — she can tell you exactly which ligament she's isolating."),
         new("Jordan", "Hayes", "All Gas", Region.NorthAmerica, WeightClass.Bantamweight, PrimaryStyle.Kickboxer, 26, 65, 11, 2, "UFL", Champion: true, Popularity: 46, Country: "USA", Loyalty: 28, Sex: Sex.Female,
@@ -339,7 +339,7 @@ public static class DesignedRoster
             Bio: "The hummingbird of El Alto: a twenty-year-old altitude prodigy whose hands blur where other men wheeze. CDC can't pay him what's coming, and everyone — including CDC — knows it. He rides the gym bus beside Mateo Quispe, the champion he is expected to replace, and neither pretends otherwise."),
         // MFC: the golden boy of the Mekong — undefeated, beautiful to watch.
         new("Arthit", "Saengkham", "Golden Boy", Region.Asia, WeightClass.Featherweight, PrimaryStyle.Kickboxer, 21, 50, 9, 0, "MFC", Popularity: 33, Country: "THA", Streak: 9,
-            Bio: "The golden boy of the Mekong, undefeated and beautiful to watch — a temple-fair prodigy whose teeps land the way poetry scans. Bangkok's big money is already whispering."),
+            Bio: "The golden boy of the Mekong, undefeated and beautiful to watch — a temple-fair prodigy whose teeps land the way poetry scans. Bangkok's big money is already whispering. He trains at Emerald Tiger under the Old Temple, who has said only that the boy should finish his lunch before anyone discusses Tokyo."),
         // CPF: the township rival — Cape Town isn't big enough for two giants.
         new("Thabo", "Mokoena", "The Rhino", Region.Africa, WeightClass.Heavyweight, PrimaryStyle.Wrestler, 30, 45, 11, 6, "CPF", Popularity: 30, Country: "RSA", RivalOf: "Ndlovu",
             Bio: "A Gugulethu security guard who charges low and hits like his namesake. Cape Town isn't big enough for him and Ndlovu, and neither man is leaving."),
@@ -348,7 +348,7 @@ public static class DesignedRoster
             Bio: "A Tbilisi judoka collecting the Gulf's money with grim professionalism — no entrance theatrics, no interviews, no wasted minutes. His agent keeps three offer sheets warm at all times."),
         // IFA: the hard school's heir apparent — young, loyal, learning at Volkov's feet.
         new("Kirill", "Baranov", "The Hatchet", Region.Europe, WeightClass.Middleweight, PrimaryStyle.Wrestler, 23, 68, 9, 1, "IFA", Popularity: 34, Country: "RUS", Loyalty: 55,
-            Bio: "The hard school's heir apparent: Volkov found him in a Perm youth club and has drilled him personally for three years. Baranov splits guards the way his mentor splits paychecks — without ceremony."),
+            Bio: "The hard school's heir apparent: Volkov found him in a Perm youth club and has drilled him personally for three years. Baranov splits guards the way his mentor splits paychecks — without ceremony. Grigori Antonov, who built the club's reputation and coaches there still, watches the Vanguard rumours with the face of a man deciding which locker to clear out."),
 
         // ============ Free agents — story hooks on the open market ============
         // The 21-year-old blue-chipper every scout is whispering about.
@@ -356,22 +356,22 @@ public static class DesignedRoster
             Bio: "The scouts' favorite whisper: a homeschooled Kansas kid raised on film study and farm work by an obsessive ex-fighter father. Four fights in, the tape already looks unfair."),
         // The dethroned AFC king on the wrong side of 35, chasing one more run.
         new("Brock", "Tanner", "The Reckoning", Region.NorthAmerica, WeightClass.LightHeavyweight, PrimaryStyle.Wrestler, 36, 74, 22, 9, Popularity: 61, Country: "USA",
-            Bio: "The dethroned AFC king, two surgeries past the reign, still certain the story has one more chapter. Every org in the sport has weighed the name against the mileage. He says this is the last year, and his surgeon agrees."),
+            Bio: "The dethroned AFC king, two surgeries past the reign, still certain the story has one more chapter. Every org in the sport has weighed the name against the mileage. He says this is the last year, and his surgeon agrees. He has told anyone who asks that the style he was mocked for is the one every contender now copies, and that Marcus Hale owes him a thank-you in writing."),
         // The gatekeeper: beat him and you're somebody.
         new("Oskar", "Lindqvist", "The Test", Region.Europe, WeightClass.Welterweight, PrimaryStyle.Kickboxer, 33, 60, 14, 11, Popularity: 22, Country: "SWE",
             Bio: "The sport's honest yardstick: twenty-five fights and a simple deal — beat Lindqvist and you're somebody; lose and you aren't. He has made more careers than most promoters. He says this is his last year, and the exam has a closing date."),
         // Unbeaten and avoided — nobody wants to grapple him.
         new("Giorgi", "Tsereteli", "The Cliff", Region.Europe, WeightClass.Middleweight, PrimaryStyle.Grappler, 24, 66, 7, 0, Popularity: 26, Country: "GEO",
-            Bio: "An unbeaten Georgian grappler managers cross the street to avoid — seven fights, no losses, and a growing list of men who regret the ground. Fluent in three languages; has declined to trash talk in any of them."),
+            Bio: "An unbeaten Georgian grappler managers cross the street to avoid — seven fights, no losses, and a growing list of men who regret the ground. Fluent in three languages; has declined to trash talk in any of them. He still sits at the same supra table as Bohdan Marchenko and Zurab Kipiani when their schedules allow, three Georgians on three different banners, and the toasts are the only place anyone hears him talk."),
         // Never wins boring: a small-hall promoter's dream.
         new("Sonny", "Delgado", "Fireworks", Region.NorthAmerica, WeightClass.Featherweight, PrimaryStyle.Brawler, 27, 55, 9, 6, Popularity: 38, Country: "PUR",
             Bio: "San Juan's guarantee: Delgado has never been in a boring fight and has the medical bills to prove it. Promoters love him; cutmen charge him double."),
         // The aging blade — past his prime, still dangerous, big name locally.
         new("Kazuki", "Hattori", "The Blade", Region.Asia, WeightClass.Bantamweight, PrimaryStyle.Striker, 34, 63, 18, 8, Popularity: 41, Country: "JPN",
-            Bio: "A former ICF title challenger from Nagoya on the far side of his prime, still carrying the counter right hand that made him famous. Japanese crowds buy tickets for the name; opponents still respect the blade. He has said, publicly, that this is his last year and that he would like it to end in Tokyo."),
+            Bio: "A former ICF title challenger from Nagoya on the far side of his prime, still carrying the counter right hand that made him famous. Japanese crowds buy tickets for the name; opponents still respect the blade. He has said, publicly, that this is his last year and that he would like it to end in Tokyo. He has also rung Ayumi Sekine at Kansai Cage, whose Tokyo basement is the only room small enough for the goodbye he has in mind."),
         // The Olympic wrestling medalist gone pro — undefeated and studiously avoided.
         new("Aslan", "Batyrov", "Gold", Region.Asia, WeightClass.Welterweight, PrimaryStyle.Wrestler, 24, 70, 6, 0, Popularity: 52, Country: "KAZ",
-            Bio: "An Olympic wrestling gold medallist gone pro — the purest pedigree on the open market, studiously avoided by every ranked welterweight with a memory. The bidding war is a matter of time."),
+            Bio: "An Olympic wrestling gold medallist gone pro — the purest pedigree on the open market, studiously avoided by every ranked welterweight with a memory. The bidding war is a matter of time. The federation he walked out of is the same one that lost Timur Zhaksylyk to the cage, and Yerlan Amanov has been telling both of them for years that it would."),
         // A former CK champ shopping his name around the mid-tier orgs.
         new("Diego", "Rivas", "El Fantasma", Region.SouthAmerica, WeightClass.Bantamweight, PrimaryStyle.BrazilianJiuJitsu, 29, 68, 15, 3, Popularity: 40, Country: "ARG", RivalOf: "Sales",
             Bio: "A former Cage Kings champion who walked out over a purse dispute and has haunted the mid-tier orgs since. The name still draws in Buenos Aires; the chip on his shoulder draws everywhere. The belt he left behind is Pedro Sales's now, and Rivas does not consider the arrangement permanent."),
@@ -380,7 +380,7 @@ public static class DesignedRoster
             Bio: "Cairo's biggest fight export, cut loose by the GFC after a single night under its lights — a loss. Farouk's leg kicks still make Gulf highlight reels, and he wants the rematch money owes him."),
         // The whisper out of the Caucasus — the generational prospect nobody has signed.
         new("Shamil", "Gadzhiev", null, Region.Europe, WeightClass.Lightweight, PrimaryStyle.Wrestler, 19, 55, 3, 0, Popularity: 24, Country: "RUS",
-            Bio: "The whisper out of the Caucasus: a nineteen-year-old who handled two seasoned pros like sparring partners, then vanished back into the mountains to train. Every org has a file on him; nobody has a signature."),
+            Bio: "The whisper out of the Caucasus: a nineteen-year-old who handled two seasoned pros like sparring partners, then vanished back into the mountains to train. Every org has a file on him; nobody has a signature. Movsar Dudaev, who comes from the next valley and wrestles for the Gulf's money, says the kid is the real thing and that it would be a shame to see him bought."),
         // The comeback: a former AFC title challenger who left for the right reasons.
         new("Nate", "Corrigan", "Second Bell", Region.NorthAmerica, WeightClass.Welterweight, PrimaryStyle.WellRounded, 33, 64, 16, 6, Popularity: 44, Country: "USA",
             Bio: "A former AFC title challenger who walked away mid-contract when his daughter got sick, and stepped back to be a full-time dad. She's better now; he's back; the comeback story writes itself."),
@@ -621,6 +621,11 @@ public static class DesignedRoster
             ["Mokoena|Ndlovu"] = "One township each, one belt between them, and a coach in Ndlovu's corner whom Mokoena says picked a side.",
             ["Cole|Pryor"] = "Two young lightweights from two feeder houses, and two owners who each insist their kid is the real one.",
             ["Rahiri|Tuilagi"] = "Tuilagi says the belt is on loan to Auckland. Rahiri, who is from Auckland, says the loan has no end date.",
+            // The narratives pass: the four day-one feuds that had no reason written down.
+            ["Marchand|Weiss"] = "Marchand says the champion's belt tells the wrong time; Weiss, who is a watchmaker's apprentice, says he fixes what is brought to him in working order.",
+            ["Reyes|Zhang"] = "Reyes keeps arriving at Zhang's interviews uninvited, and Zhang has started answering the questions Reyes did not ask.",
+            ["Ozols|Urbonas"] = "One war each is a tie on paper, and each man keeps a different paper.",
+            ["Barone|Weeks"] = "Weeks says the belt lives on the wrong side of Woodward; Barone says Weeks has not worked a shift on the assembly line he keeps talking about.",
         };
 
     /// <summary>The authored reason for a feud between these two last names, either order; null if none is written.</summary>
