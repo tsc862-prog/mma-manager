@@ -235,7 +235,11 @@ public static class Biographer
         }
 
         int roster = world.RosterOf(promo.Id).Count(f => f.Status != FighterStatus.Retired);
-        sb.Append($"it fields {roster} fighters across {promo.Divisions.Count} weight classes. ");
+        int classes = promo.Divisions.Count(d => !d.Open);
+        string spread = promo.Divisions.Count > 0 && classes == 0 ? "at open weight"   // Origins: any man may face any man
+            : classes == 1 ? "in 1 weight class"
+            : $"across {classes} weight classes";
+        sb.Append($"it fields {roster} fighters {spread}. ");
 
         // Whose house it actually is. A promotion with nobody's name on it is a
         // logo; the owner is who the player is really working for.
