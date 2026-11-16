@@ -172,7 +172,7 @@ public sealed class FighterRow
     public static int Scouted(World w, Fighter f) =>
         w.Get(w.PlayerPromotion) is { } mine
             ? MmaManager.Core.Sim.Scouting.ScoutingService.PerceivedAbility(w, mine, f)
-            : FighterAbility.CurrentAbility(f);
+            : MmaManager.Core.Sim.Scouting.ScoutingService.PublicRead(w, f);   // an observer: the outsider's read, never the truth
 
     /// <summary>The fighter's portrait (see <see cref="Portraits"/> for the style choice).</summary>
     public ImageSource Portrait => Portraits.For(_f, _w);

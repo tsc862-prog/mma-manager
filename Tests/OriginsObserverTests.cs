@@ -171,7 +171,7 @@ public class OriginsObserverTests
         Assert.Null(OriginsShows.ScheduleTournament(w, w.PlayerPromotion, date, out why));   // what the screen calls
         Assert.Equal(PlayerBooking.NoHouseText, why);
         var card = OriginsShows.SuggestCard(w, sfa.Id, date);
-        Assert.Null(OriginsShows.ScheduleCard(w, w.PlayerPromotion, date, card));
+        Assert.Null(OriginsShows.ScheduleCard(w, w.PlayerPromotion, date, card));   // (no house resolves under the empty id)
         Assert.Equal(events, w.Events.Count);
         Assert.DoesNotContain(w.Events.Values, e => e.Promotion == default);
 
@@ -243,6 +243,28 @@ public class OriginsObserverTests
         var house = w.Promotions.Values.OrderBy(p => p.Id.Value).First();
         free.Contract = new Contract { Promotion = house.Id, SignedOn = w.CurrentDate, FightsRemaining = 3, PursePerFight = new Money(500), WinBonus = new Money(250) };
         Assert.Equal(was, ScoutingService.PublicRead(w, free));
+    }
+
+    [Fact]
+    public void ScoutedRead_ForAnObserver_IsThePublicRead_NeverTheTruthAsSuch()
+    {
+        var w = Observer(12);
+        var men = w.Fighters.Values.OrderBy(f => f.Id.Value).ToList();
+        int differs = 0;
+        foreach (var f in men)
+        {
+            int read = MatchmakingAdvisor.ScoutedRead(w, f);
+            Assert.Equal(ScoutingService.PublicRead(w, f), read);
+            if (read != FighterAbility.CurrentAbility(f)) differs++;
+        }
+        // Day one is a world of 0-0 men: the old fallback (the true rating) would have matched every one.
+        Assert.True(differs > men.Count / 2, $"only {differs} of {men.Count} reads differ from the truth");
+
+        // With a house of his own, the desk reads through his scouts as before.
+        var p = new WorldBuilder().Build(WorldBuilder.Options.Origins(12));
+        var mine = p.Get(p.PlayerPromotion)!;
+        foreach (var f in p.Fighters.Values.OrderBy(f => f.Id.Value))
+            Assert.Equal(ScoutingService.PerceivedAbility(p, mine, f), MatchmakingAdvisor.ScoutedRead(p, f));
     }
 
     // ---- save and load ------------------------------------------------------------------

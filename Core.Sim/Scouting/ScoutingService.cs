@@ -217,7 +217,9 @@ public static class ScoutingService
     /// least informed evaluator there is - familiarity from the record (and a famous camp's exposure) only,
     /// no own-roster floor, zero competence. An observer (no promotion of his own, <see cref="World.HasPlayer"/>
     /// false) reads the world through this. A pure hash of the fighter's id: no RNG stream, stable across
-    /// save and load, never the true ability except where the record has made him fully known.
+    /// save and load. It always goes through the same error model as a house's read with the least knowledge,
+    /// so it is exact for a fully known record and otherwise only by chance, when the rounded error comes out
+    /// at zero (about one unseen 0-0 man in twenty).
     /// </summary>
     public static int PublicRead(World world, Fighter f)
     {

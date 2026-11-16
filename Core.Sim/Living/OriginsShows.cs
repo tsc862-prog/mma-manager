@@ -509,7 +509,6 @@ public static class OriginsShows
     public static Event? ScheduleCard(World world, PromotionId promoId, DateOnly date, IReadOnlyList<Matchup> card, string? name = null,
         CityId? city = null)
     {
-        if (promoId == world.PlayerPromotion && !world.HasPlayer) return null;   // an observer has no house to book for
         if (world.Get(promoId) is not { Defunct: false } promo || card.Count == 0 || date <= world.CurrentDate) return null;
         // His own room, a city he names (one with a scene, awake or up for grabs), or exile when a ban closed his room.
         if (PlayerVenue(world, promo, date, city) is not { } room) return null;
