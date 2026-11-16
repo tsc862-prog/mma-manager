@@ -432,11 +432,34 @@ public sealed class ContractsViewModel : ObservableObject
         bool renew = _targetIsOwn;
         ContractLifecycle.Sign(_world, f, offer, _world.CurrentDate);
         var name = f.FullName;
+        string promised = PromisedAtSigning(_world, f, offer);
         ClearTarget();
         RefreshLists();
         ResponseTone = "Good";
-        Response = renew ? $"Renewed {name}." : $"Signed {name}!";
+        Response = (renew ? $"Renewed {name}." : $"Signed {name}!") + promised;
         OnChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// What the deal just signed promised him, and by when, read off the promises the sim
+    /// wrote down at signing (" You promised him a title shot by 14 November 2027." — "" when none),
+    /// plus the matching right when the deal carries one.
+    /// </summary>
+    internal static string PromisedAtSigning(World w, Fighter f, ContractOffer offer)
+    {
+        var made = w.Promises.Where(p => p.Fighter == f.Id && p.Promotion == offer.Promotion && p.Live && p.Made == w.CurrentDate)
+            .OrderBy(p => p.Id).ToList();
+        var parts = made.Select(p => Promises.What(w, p)).ToList();
+        string line = parts.Count switch
+        {
+            0 => "",
+            1 => parts[0],
+            _ => string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1],
+        };
+        string text = line.Length == 0 ? "" : $" You promised him {line}, by {made[0].Deadline:d MMMM yyyy}.";
+        if (f.Contract is { MatchingRight: true } c && c.Promotion == offer.Promotion)
+            text += " The deal carries a matching right.";
+        return Lifers.Gendered(f, text);
     }
 
     // The scout picks the smartest next signing (thin divisions, affordability,

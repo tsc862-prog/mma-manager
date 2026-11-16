@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "people": {
+    "Leonard Pastor": {
+      "file": "leonard-pastor.png",
+      "kind": "founder",
+      "role": "owner",
+      "org": "CRU",
+      "sex": "m",
+      "age": 46,
+      "country": "USA"
+    },
+    "Kosaku Hiyama": {
+      "file": "kosaku-hiyama.png",
+      "kind": "founder",
+      "role": "owner",
+      "org": "SFA",
+      "sex": "m",
+      "age": 54,
+      "country": "JPN"
+    },
+    "Anibal Sampaio": {
+      "file": "anibal-sampaio.png",
+      "kind": "founder",
+      "role": "owner",
+      "org": "DLB",
+      "sex": "m",
+      "age": 58,
+      "country": "BRA"
+    },
+    "Katherine Ross": {
+      "file": "katherine-ross.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "AFC",
+      "sex": "f",
+      "age": 52,
+      "country": "USA"
+    },
+    "Baron Aleksander Reuss": {
+      "file": "baron-aleksander-reuss.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "VMMA",
+      "sex": "m",
+      "age": 66,
+      "country": "AUT"
+    },
+    "Sheikh Faisal bin Rashid": {
+      "file": "sheikh-faisal-bin-rashid.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "GFC",
+      "sex": "m",
+      "age": 45,
+      "country": "UAE"
+    },
+    "Amara Nwosu": {
+      "file": "amara-nwosu.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "SCL",
+      "sex": "f",
+      "age": 38,
+      "country": "NGA"
+    },
+    "Ayumi Sekine": {
+      "file": "ayumi-sekine.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "KAC",
+      "sex": "f",
+      "age": 47,
+      "country": "JPN"
+    },
+    "Nok Wattana": {
+      "file": "nok-wattana.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "MFC",
+      "sex": "f",
+      "age": 44,
+      "country": "THA"
+    },
+    "Dr. Ruth Nakashima": {
+      "file": "dr-ruth-nakashima.png",
+      "kind": "staff",
+      "role": "medical",
+      "org": "AFC",
+      "sex": "f",
+      "age": 58,
+      "country": "USA"
+    },
+    "Bernard Adjei": {
+      "file": "bernard-adjei.png",
+      "kind": "staff",
+      "role": "coach",
+      "org": "VMMA",
+      "sex": "m",
+      "age": 61,
+      "country": "GHA"
+    },
+    "Dr. Femi Balogun": {
+      "file": "dr-femi-balogun.png",
+      "kind": "staff",
+      "role": "medical",
+      "org": "SCL",
+      "sex": "m",
+      "age": 50,
+      "country": "NGA"
+    },
+    "Priya Ramanathan": {
+      "file": "priya-ramanathan.png",
+      "kind": "staff",
+      "role": "scouting",
+      "org": null,
+      "sex": "f",
+      "age": 37,
+      "country": "IND"
+    },
+    "Sabine Kroeger": {
+      "file": "sabine-kroeger.png",
+      "kind": "staff",
+      "role": "marketing",
+      "org": "VMMA",
+      "sex": "f",
+      "age": 53,
+      "country": "GER"
+    },
+    "Hideo Kanemura": {
+      "file": "hideo-kanemura.png",
+      "kind": "owner",
+      "role": "owner",
+      "org": "ICF",
+      "sex": "m",
+      "age": 69,
+      "country": "JPN"
+    }
+  }
+}

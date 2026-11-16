@@ -1079,6 +1079,8 @@ public sealed partial class BookingViewModel
     {
         if (ev.Card.Any(x => x.RedCorner == f.Id || x.BlueCorner == f.Id)) return "Already on this card";
         if (BookedElsewhereName(f, ev) is { } other) return $"Booked on {other}";
+        if (!f.LocalTalent && (f.Contract is { FightsRemaining: <= 0 } || (_world is not null && DealWindow.InWindow(_world, f))))
+            return Lifers.Gendered(f, "His deal is fought out: re-sign him to book him");
         if (f.CurrentInjury is { } inj) return $"Injured ({inj.Description}), back {inj.ExpectedReturn:d MMM}";
         if (f.Status == FighterStatus.Suspended) return f.SuspendedUntil is { } s ? $"Suspended until {s:d MMM}" : "Suspended";
         if (f.ReadyToFightOn is { } r && r > ev.Date) return $"Recovering until {r:d MMM}";

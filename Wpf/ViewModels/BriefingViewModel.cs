@@ -51,6 +51,8 @@ public enum BriefingKind
     LastWeek,
     /// <summary>A rival promotion has made one of your fighters an offer (match, the table, or let him go).</summary>
     RivalOffer,
+    /// <summary>A promise you made at the table is due soon and nothing is booked to keep it.</summary>
+    PromiseAtRisk,
     /// <summary>A sponsor or media offer waiting for an answer.</summary>
     Offer,
     /// <summary>Eligible to step up a tier.</summary>
@@ -353,7 +355,8 @@ public sealed class BriefingViewModel : ObservableObject
     // =================================================================================
     // Needs: the standing calls on the desk, most pressing first.
     // =================================================================================
-    private sealed record Need(BriefingKind Kind, string Key, int Rank, int Id = 0, DealOffer? Offer = null, DateOnly? Due = null, bool Single = true);
+    private sealed record Need(BriefingKind Kind, string Key, int Rank, int Id = 0, DealOffer? Offer = null, DateOnly? Due = null, bool Single = true,
+        int Extra = 0);   // a promise's id (PromiseAtRisk; Id is the fighter)
 
     /// <summary>
     /// A fighter whose deal is worth a headline of its own: a champion, the face of the
@@ -421,6 +424,11 @@ public sealed class BriefingViewModel : ObservableObject
                      .OrderByDescending(f => FighterRow.Scouted(w, f)).ThenBy(f => f.Id.Value))
             // Keyed to this deal (its signing date): a re-signed fighter reaching his last fight again is news again.
             list.Add(new Need(BriefingKind.ExpiringDeal, $"deal:{f.Id.Value}:{f.Contract!.SignedOn.DayNumber}", 300, f.Id.Value));
+
+        // Promises at risk: due inside the warning window with nothing booked to keep them.
+        // Keyed to the promise and its deadline (an injury moves the deadline: news again).
+        foreach (var (pf, ps) in DeskCalls.AtRisk(w))
+            list.Add(new Need(BriefingKind.PromiseAtRisk, $"promise:{ps.Id}:{ps.Deadline.DayNumber}", 92, pf.Id.Value, Due: ps.Deadline, Extra: ps.Id));
 
         foreach (var o in player.Offers.Where(o => o.ExpiresOn >= today).OrderBy(o => o.ExpiresOn))
             list.Add(new Need(BriefingKind.Offer, $"offer:{o.Partner}:{o.ExpiresOn.DayNumber}", 400, Offer: o, Due: o.ExpiresOn));
@@ -838,6 +846,32 @@ public sealed class BriefingViewModel : ObservableObject
                 return;
             }
 
+            case BriefingKind.PromiseAtRisk
+                when w.Get(new FighterId(need.Id)) is { } f
+                     && DeskCalls.AtRisk(w).FirstOrDefault(x => x.Status.Id == need.Extra) is { Status: { } s }:
+            {
+                int days = s.DaysLeft ?? 0;
+                bool overdue = DeskCalls.Overdue(w, s);
+                Icon = "Pen"; Tone = days <= 21 || overdue ? CardTone.Bad : CardTone.Warn;
+                Kicker = (overdue ? $"{kicker}  ·  A PROMISE TO KEEP  ·  OVERDUE SINCE {s.Deadline:d MMM}"
+                                  : $"{kicker}  ·  A PROMISE TO KEEP  ·  DUE {s.Deadline:d MMM}  ·  {DaysLeftText(days)}").ToUpperInvariant();
+                Headline = $"{DeskCalls.PromiseTitle(w, f, s)}. Nothing is booked to keep it.";
+                Lede = DeskCalls.PromiseFix(w, f, s)
+                     + Lifers.Gendered(f, " Break it and he takes it hard: his loyalty drops, the news has it, and every fighter at your table asks more for a year.");
+                Art = Portraits.Body(f, w);
+                People.Add(Person(w, f, s.Progress.Length > 0 ? $"{s.Progress}  ·  {DeskCalls.PromiseLeft(w, s)}" : DeskCalls.PromiseLeft(w, s)));
+                if (!DeskCalls.FoughtOut(w, f))
+                    Actions.Add(new BriefingAction(DeskCalls.BookText(f), Then(AppCommands.BookFighter, f.Id.Value), IsPrimary: true,
+                        Hint: Lifers.Gendered(f, "Opens the card desk on your next card he can make, with him in the first corner.")));
+                else if (NegotiateCommand is not null)
+                    // Fought out: he can't be booked until he re-signs (the lede says so).
+                    Actions.Add(new BriefingAction(DeskCalls.TalkTermsText, Then(NegotiateCommand, f.Id.Value), IsPrimary: true,
+                        Hint: Lifers.Gendered(f, "Opens contract talks with him: re-sign him, then book him.")));
+                Actions.Add(new BriefingAction("Profile", Do(() => OpenFighter?.Invoke(f.Id.Value))));
+                Actions.Add(new BriefingAction("Later", CarryOnCommand));
+                return;
+            }
+
             case BriefingKind.Offer when need.Offer is { } o:
             {
                 bool media = o.Media is not null;
@@ -925,6 +959,14 @@ public sealed class BriefingViewModel : ObservableObject
                         _ => $"{w.Get(last.From)?.Abbreviation ?? "The rival"}'s offer for {f.FirstName} {f.LastName} is off.",
                     }
                     : "The offer is settled.",
+            BriefingKind.PromiseAtRisk when w.Get(new FighterId(stop.EventId)) is { } f =>
+                PromiseOf(w, stop.Key)?.State switch
+                {
+                    PromiseState.Kept => $"You kept your promise to {f.FirstName} {f.LastName}.",
+                    PromiseState.Broken => $"Your promise to {f.FirstName} {f.LastName} is broken.",
+                    PromiseState.Void => $"Your promise to {f.FirstName} {f.LastName} fell away.",
+                    _ => $"{f.FirstName} {f.LastName} is booked to keep your promise.",
+                },
             BriefingKind.Offer => "The offer is answered.",
             BriefingKind.StepUp => "The step up is settled.",
             BriefingKind.EmptyCard => "The card has fights on it now.",
@@ -933,7 +975,13 @@ public sealed class BriefingViewModel : ObservableObject
         };
         Lede = "Nothing else on this needs you. The rest of the desk is below.";
         Resolve("Done");
-        if (stop.Kind is BriefingKind.ExpiringDeal or BriefingKind.DealUp or BriefingKind.LastWeek or BriefingKind.RivalOffer && w.Get(new FighterId(stop.EventId)) is { } who)
+        if (stop.Kind == BriefingKind.PromiseAtRisk && w.Get(new FighterId(stop.EventId)) is { } kept)
+        {
+            Art = Portraits.Body(kept, w);
+            People.Add(Person(w, kept, FighterRow.DivisionLabel(kept.WeightClass, kept.Sex)));
+            if (PromiseOf(w, stop.Key) is { State: PromiseState.Broken }) { IsResolved = false; ResolvedText = ""; Tone = CardTone.Bad; Icon = "Warning"; }
+        }
+        else if (stop.Kind is BriefingKind.ExpiringDeal or BriefingKind.DealUp or BriefingKind.LastWeek or BriefingKind.RivalOffer && w.Get(new FighterId(stop.EventId)) is { } who)
         {
             Art = Portraits.Body(who, w);
             People.Add(Person(w, who, who.Contract?.Promotion == w.PlayerPromotion ? $"{Plural(who.Contract.FightsRemaining, "fight")} on the deal"
@@ -1112,6 +1160,19 @@ public sealed class BriefingViewModel : ObservableObject
                         ActionText = "Talk terms ▸", Command = NegotiateCommand is null ? null : Then(NegotiateCommand, f.Id.Value),
                     });
                     break;
+                case BriefingKind.PromiseAtRisk
+                    when w.Get(new FighterId(n.Id)) is { } pf && DeskCalls.AtRisk(w).FirstOrDefault(x => x.Status.Id == n.Extra) is { Status: { } ps }:
+                    Waiting.Add(new BriefingItem
+                    {
+                        Icon = "Pen", Picture = Portraits.Thumb(pf, w),
+                        Text = $"{DeskCalls.PromiseTitle(w, pf, ps)}: nothing booked",
+                        Detail = DeskCalls.FoughtOut(w, pf) ? $"{DeskCalls.PromiseDue(w, ps)}  ·  deal fought out: re-sign first" : DeskCalls.PromiseDue(w, ps),
+                        Tone = (ps.DaysLeft ?? 0) <= 21 ? CardTone.Bad : CardTone.Warn,
+                        ActionText = DeskCalls.FoughtOut(w, pf) ? DeskCalls.TalkTermsText : DeskCalls.BookText(pf),
+                        Command = !DeskCalls.FoughtOut(w, pf) ? Then(AppCommands.BookFighter, pf.Id.Value)
+                            : NegotiateCommand is null ? Do(() => OpenFighter?.Invoke(pf.Id.Value)) : Then(NegotiateCommand, pf.Id.Value),
+                    });
+                    break;
                 case BriefingKind.Offer when n.Offer is { } o:
                 {
                     bool media = o.Media is not null;
@@ -1212,6 +1273,8 @@ public sealed class BriefingViewModel : ObservableObject
         var deadlines = new List<(DateOnly When, string What)>();
         foreach (var d in w.Decisions.Where(d => d.State == DecisionState.Pending))
             deadlines.Add((d.Deadline, "an answer on the desk"));
+        foreach (var (pf, ps) in DeskCalls.OpenPromises(w).Where(x => x.Status.Deadline >= today))
+            deadlines.Add((ps.Deadline, $"your promise to {pf.LastName}"));
         if (player is not null)
             foreach (var o in player.Offers.Where(o => o.ExpiresOn >= today))
                 deadlines.Add((o.ExpiresOn, $"{o.Partner}'s offer lapses"));
@@ -1276,6 +1339,10 @@ public sealed class BriefingViewModel : ObservableObject
     }
 
     private static string His(string his) => char.ToUpperInvariant(his[0]) + his[1..];
+
+    // The promise a "promise:{id}:{deadline}" key is about (null once dropped from the books).
+    private static Promise? PromiseOf(World w, string key) =>
+        key.Split(':') is { Length: >= 2 } parts && int.TryParse(parts[1], out int id) ? w.Promises.FirstOrDefault(p => p.Id == id) : null;
 
     private List<BriefingItem> Digest(World w, BriefingBaseline before, List<Hole> holes, (int Event, int Out)? skipHole)
     {
@@ -1371,6 +1438,45 @@ public sealed class BriefingViewModel : ObservableObject
             });
         }
 
+        // Promises settled since the last stop (the sim tests them monthly): a break is bad news
+        // and public; a kept one comes with his thanks, in his words (from his letter).
+        var brokeNow = new HashSet<int>();
+        var keptNow = new HashSet<int>();
+        foreach (var p in w.Promises.Where(p => p.Promotion == player.Id && p.Resolved is { } r && r > before.Date
+                                                && p.State is PromiseState.Broken or PromiseState.Kept).OrderBy(p => p.Id))
+        {
+            if (w.Get(p.Fighter) is not { } f) continue;
+            int id = f.Id.Value;
+            string what = Promises.What(w, p);
+            if (p.State == PromiseState.Broken)
+            {
+                brokeNow.Add(id);
+                items.Add(new BriefingItem
+                {
+                    Icon = "Warning", Picture = Portraits.Thumb(f, w), Weight = 92, Kicker = "A PROMISE BROKEN",
+                    Text = $"{f.FirstName} {f.LastName} says {player.Abbreviation} broke its word",
+                    // His words (the sim's BrokenLine, the same line his letter and the news carry), then the cost.
+                    Detail = (Promises.BrokenLine(w, p) is { Length: > 0 } said ? $"“{said}” " : Lifers.Gendered(f, $"You promised him {what} by {p.Deadline:d MMM}. "))
+                        + "It's in the news, and for a year every fighter at your table asks a little more.",
+                    Tone = CardTone.Bad,
+                    ActionText = "Profile ▸", Command = Do(() => OpenFighter?.Invoke(id)),
+                });
+            }
+            else
+            {
+                keptNow.Add(id);
+                var letter = newMail.LastOrDefault(m => m.AboutFighter == f.Id && m.Subject == $"{f.FullName}: you kept your word");
+                items.Add(new BriefingItem
+                {
+                    Icon = "Check", Picture = Portraits.Thumb(f, w), Weight = 65, Kicker = "A PROMISE KEPT",
+                    Text = $"You kept your word to {f.FirstName} {f.LastName}: {what}",
+                    Detail = letter is null ? "" : QuoteIn(letter.Body),
+                    Tone = CardTone.Good,
+                    ActionText = "Profile ▸", Command = Do(() => OpenFighter?.Invoke(id)),
+                });
+            }
+        }
+
         // The news that touches you: your promotion, your people (now or before), your shortlist.
         var touches = new HashSet<int>(before.Roster);
         touches.UnionWith(nowIds);
@@ -1382,6 +1488,8 @@ public sealed class BriefingViewModel : ObservableObject
             if (!ours && !aboutUs) continue;
             // Signings and departures are already in the digest from the books.
             if (n.Category is NewsCategory.Signing or NewsCategory.Retirement && aboutUs) continue;
+            // So is a broken promise (its own line above).
+            if (n.AboutFighter is { } bf && brokeNow.Contains(bf.Value) && n.Headline.EndsWith(" broke its word", StringComparison.Ordinal)) continue;
             var who = n.AboutFighter is { } fid ? w.Get(fid) : null;
             int weight = n.Category switch
             {
@@ -1401,7 +1509,9 @@ public sealed class BriefingViewModel : ObservableObject
         }
 
         // Letters from your own fighters (callouts, asks) — the rest is in the inbox count.
-        foreach (var m in before.NewMail(w).Where(m => m.Category == MailCategory.FighterRequest).Reverse().Take(3))
+        foreach (var m in before.NewMail(w).Where(m => m.Category == MailCategory.FighterRequest
+                                                       && !(m.AboutFighter is { } kf && keptNow.Contains(kf.Value) && m.Subject.EndsWith(": you kept your word", StringComparison.Ordinal)))
+                     .Reverse().Take(3))
         {
             var who = m.AboutFighter is { } fid ? w.Get(fid) : null;
             items.Add(new BriefingItem

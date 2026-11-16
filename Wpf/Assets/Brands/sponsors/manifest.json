@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "brands": {
+    "Main Street Motors": {
+      "file": "main-street-motors.png",
+      "category": "local business",
+      "tag": null
+    },
+    "Cornerstone Hardware": {
+      "file": "cornerstone-hardware.png",
+      "category": "local business",
+      "tag": null
+    },
+    "Falcon Lager": {
+      "file": "falcon-lager.png",
+      "category": "beer",
+      "tag": null
+    },
+    "Golden Gate Pawn": {
+      "file": "golden-gate-pawn.png",
+      "category": "local business",
+      "tag": null
+    },
+    "Riverside Tire & Auto": {
+      "file": "riverside-tire-and-auto.png",
+      "category": "local business",
+      "tag": null
+    },
+    "Grit Supplements": {
+      "file": "grit-supplements.png",
+      "category": "supplement",
+      "tag": null
+    },
+    "Ironclad Nutrition": {
+      "file": "ironclad-nutrition.png",
+      "category": "supplement",
+      "tag": null
+    },
+    "Apex Fuel": {
+      "file": "apex-fuel.png",
+      "category": "supplement",
+      "tag": null
+    },
+    "Warpath Whey": {
+      "file": "warpath-whey.png",
+      "category": "supplement",
+      "tag": null
+    },
+    "Titan Gloves": {
+      "file": "titan-gloves.png",
+      "category": "equipment",
+      "tag": null
+    },
+    "Kensei Fightwear": {
+      "file": "kensei-fightwear.png",
+      "category": "equipment",
+      "tag": null
+    },
+    "Vale Tudo Supply Co.": {
+      "file": "vale-tudo-supply-co.png",
+      "category": "equipment",
+      "tag": null
+    },
+    "Voltage Energy": {
+      "file": "voltage-energy.png",
+      "category": "energy drink",
+      "tag": null
+    },
+    "Overdrive": {
+      "file": "overdrive.png",
+      "category": "energy drink",
+      "tag": null
+    },
+    "Static Surge": {
+      "file": "static-surge.png",
+      "category": "energy drink",
+      "tag": null
+    },
+    "Redline Brewing Co.": {
+      "file": "redline-brewing-co.png",
+      "category": "brewery",
+      "tag": null
+    },
+    "Iron City Ales": {
+      "file": "iron-city-ales.png",
+      "category": "brewery",
+      "tag": null
+    },
+    "Halftime Lager": {
+      "file": "halftime-lager.png",
+      "category": "brewery",
+      "tag": null
+    },
+    "Summit Bank": {
+      "file": "summit-bank.png",
+      "category": "bank",
+      "tag": null
+    },
+    "Nova Telecom": {
+      "file": "nova-telecom.png",
+      "category": "telecom",
+      "tag": null
+    },
+    "Redline Autos": {
+      "file": "redline-autos.png",
+      "category": "automotive",
+      "tag": null
+    },
+    "Frontier Insurance": {
+      "file": "frontier-insurance.png",
+      "category": "insurance",
+      "tag": null
+    },
+    "Meridian Airlines": {
+      "file": "meridian-airlines.png",
+      "category": "airline",
+      "tag": null
+    },
+    "Vanta Sportswear": {
+      "file": "vanta-sportswear.png",
+      "category": "sportswear",
+      "tag": null
+    },
+    "Atlas Watches": {
+      "file": "atlas-watches.png",
+      "category": "watches",
+      "tag": null
+    },
+    "Polar Cola": {
+      "file": "polar-cola.png",
+      "category": "soft drink",
+      "tag": null
+    }
+  }
+}
