@@ -162,4 +162,35 @@ public static class OriginsStory
         ["global-pyramid-forms"] = "The ladder of promotions as today's mode runs it (phase 6).",
         ["the-sport-you-built"] = "The closing retrospective and convergence on today's mode (phase 6).",
     };
+
+    /// <summary>
+    /// What a chapter in <see cref="Gaps"/> doesn't do yet, in the player's words for the Story screen (null
+    /// for a chapter that does everything its story says). Honest about what is missing, silent about why.
+    /// </summary>
+    public static string? PlayerNote(string chapterKey) => PlayerNotes.GetValueOrDefault(chapterKey);
+
+    /// <summary>The player-facing wording of every gap (same keys as <see cref="Gaps"/>).</summary>
+    public static IReadOnlyDictionary<string, string> PlayerNotes { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["crucible-first-night"] = "The tapes of the night sell as merchandise, but no house can sell a night on pay-per-view yet.",
+        ["carriers-drop"] = "The carriers going dark is on the record, but no house holds a pay-per-view deal yet, so nobody loses one.",
+        ["style-upset"] = "The upset happens, but fans don't yet pay more for a fighter who knows a second art.",
+        ["second-centre-arenas"] = "The dome promotion arrives and runs its arena nights; the bigger gates and the new centre's own house rules don't follow yet.",
+        ["first-cross-training-camp"] = "The famous camp and its first fighter arrive; camps don't teach across disciplines yet.",
+        ["specialists-fall"] = "The young all-rounders this chapter describes don't arrive yet. It happens when its window closes, whatever the houses do.",
+        ["japan-network-weekly"] = "No house can sign a foreign network deal yet. It happens when its window closes, whatever the houses do.",
+        ["first-supercard"] = "No two houses can co-promote a card yet. It happens when its window closes, whatever the houses do.",
+        ["champion-vs-champion"] = "No house can make a superfight against another promotion's champion yet. It happens when its window closes, and from then on superfights between promotions' champions can happen.",
+        ["unified-rules"] = "Commissions don't yet hold every sanctioned house to one set of rules, and rankings aren't yet recognised across promotions.",
+        ["womens-first-bout"] = "Women's MMA is told in the story but not yet played: there are no women to sign. It happens when its window closes.",
+        ["womens-resistance"] = "Women's MMA is told in the story but not yet played: there are no women to sign. It happens when its window closes.",
+        ["breakout-tv-moment"] = "The flood of new fans and media money it describes doesn't follow yet. It happens when two famous fighters meet, or when its window closes.",
+        ["first-acquisition"] = "One house can't buy another yet. It happens when its window closes, and from then on promotions can be bought and sold.",
+        ["womens-first-division"] = "Women's MMA is told in the story but not yet played: there are no women to sign. It happens when its window closes.",
+        ["womens-first-star"] = "Women's MMA is told in the story but not yet played: there are no women to sign. It happens when its window closes.",
+        ["consolidation-wave"] = "The wave of takeovers it describes doesn't happen yet. It happens when its window closes, whatever the houses do.",
+        ["womens-headline-card"] = "Women's MMA is told in the story but not yet played: there are no women to sign. It happens when its window closes.",
+        ["global-pyramid-forms"] = "The ladder of promotions, from club shows to the global stage, doesn't take shape yet.",
+        ["the-sport-you-built"] = "The look back over the whole story, and the world settling into today's sport, don't follow yet.",
+    };
 }

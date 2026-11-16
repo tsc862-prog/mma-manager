@@ -37,6 +37,17 @@ public static class Era
         || (world.Era.IsUnlocked(Capability.Class(wc))
             && (sex == Sex.Male || world.Era.IsUnlocked(Capability.WomensDivisions)));
 
+    /// <summary>
+    /// Does any house fight at this class: the sport has the division (<see cref="AllowsDivision"/>), or a
+    /// live (not defunct) promotion runs a division filed under it, a drawn line counting before the first
+    /// champion in that class unlocks it for the sport. A band filed under its top class counts for that
+    /// class only; an open division counts for none. Always true in today's mode. Read-only, draw-free.
+    /// </summary>
+    public static bool ClassFought(World world, WeightClass wc, Sex sex) =>
+        AllowsDivision(world, wc, sex)
+        || world.Promotions.Values.Any(p => !p.Defunct
+            && p.Divisions.Any(d => !d.Open && d.Sex == sex && d.WeightClass == wc));
+
     /// <summary>Does this country have a live MMA scene (keyed by atlas code)?</summary>
     public static bool AllowsScene(World world, string countryCode) =>
         world.Mode == WorldMode.Modern || world.Era.IsUnlocked(Capability.Scene(countryCode));
