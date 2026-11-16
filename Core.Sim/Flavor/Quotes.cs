@@ -60,6 +60,38 @@ public static class Quotes
         return $"“{line}”";
     }
 
+    /// <summary>
+    /// The same moment, but spoken by somebody who knows the world: when the speaker and
+    /// <paramref name="other"/> are tied (family, a mentor and his student, rivals, a rematch,
+    /// friends, a gym, a country: <see cref="Ties"/>), a share of calls picks a line that says so,
+    /// in the speaker's own register. The roll is its own hash off the speaker, moment and date
+    /// (a new salt), never the sim's streams; with no tie, or on the other side of the share,
+    /// this is exactly <see cref="Say(Fighter, Moment, DateOnly, Fighter?)"/>.
+    /// </summary>
+    public static string Say(World world, Fighter f, Moment moment, DateOnly on, Fighter? other)
+    {
+        if (other is not null && TieLine(world, f, moment, on, other) is { } line)
+            return $"“{(other.Sex == Sex.Female ? ForWoman(line) : line)}”";
+        return Say(f, moment, on, other);
+    }
+
+    /// <summary>The tie-aware line with the speaker attributed.</summary>
+    public static string Attributed(World world, Fighter f, Moment moment, DateOnly on, Fighter? other) =>
+        $"{Say(world, f, moment, on, other)} — {f.FullName}";
+
+    /// <summary>The relationship line for this call, or null (no tie, not a result, or the roll said no).</summary>
+    public static string? TieLine(World world, Fighter f, Moment moment, DateOnly on, Fighter other)
+    {
+        if (TieLines.WonOf(moment) is not { } won) return null;
+        if (Ties.Strongest(world, f, other, on) is not { } tie) return null;
+        uint h = Hash(f.Id.Value, ((uint)moment * 31u + (uint)on.DayNumber) ^ TieSalt);
+        if (h % 100u >= (uint)TieLines.ShareOf(tie.Kind)) return null;
+        var pool = TieLines.Pool(tie, TieLines.IsHot(f.Disposition), won);
+        return pool.Count == 0 ? null : pool[(int)((h / 100u) % (uint)pool.Count)];
+    }
+
+    private const uint TieSalt = 0xB0D5A11u;
+
     /// <summary>The same line with the speaker attributed — for a news body.</summary>
     public static string Attributed(Fighter f, Moment moment, DateOnly on, Fighter? other = null) =>
         $"{Say(f, moment, on, other)} — {f.FullName}";
