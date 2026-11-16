@@ -44,7 +44,41 @@ public static class OriginsTalent
         ["UKR"] = new[] { OriginsDiscipline.Sambo, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Boxing },
         ["IRI"] = new[] { OriginsDiscipline.FreestyleWrestling },
         ["SAM"] = new[] { OriginsDiscipline.Sumo, OriginsDiscipline.Brawler },
+        // The scenes that wake later (the chapters' own words: Sweden's wrestlers and kickboxers, Poland's
+        // strikers and grapplers, rugby men with wrestlers' hands, the Philippines' boxers, the Andes' gyms).
+        ["SWE"] = new[] { OriginsDiscipline.GrecoRomanWrestling, OriginsDiscipline.GrecoRomanWrestling, OriginsDiscipline.Kickboxing, OriginsDiscipline.Boxing },
+        ["POL"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Kickboxing, OriginsDiscipline.Judo, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.GrecoRomanWrestling },
+        ["AUS"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Brawler, OriginsDiscipline.Kickboxing, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.JiuJitsu },
+        ["NZL"] = new[] { OriginsDiscipline.Brawler, OriginsDiscipline.Kickboxing, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Boxing },
+        ["ARG"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Boxing, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.JiuJitsu, OriginsDiscipline.Judo },
+        ["CHN"] = new[] { OriginsDiscipline.Kickboxing, OriginsDiscipline.Kickboxing, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Judo },
+        ["PHI"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Boxing, OriginsDiscipline.Kickboxing, OriginsDiscipline.Brawler },
+        ["SGP"] = new[] { OriginsDiscipline.MuayThai, OriginsDiscipline.Kickboxing, OriginsDiscipline.JiuJitsu, OriginsDiscipline.Boxing },
+        ["TUR"] = new[] { OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Kickboxing, OriginsDiscipline.Boxing },
+        ["RSA"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Kickboxing, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Brawler },
+        ["COL"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Boxing, OriginsDiscipline.Kickboxing, OriginsDiscipline.FreestyleWrestling },
+        ["UAE"] = new[] { OriginsDiscipline.JiuJitsu, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Boxing },
+        ["NGA"] = new[] { OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Boxing, OriginsDiscipline.Brawler },
+        ["IND"] = new[] { OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Boxing, OriginsDiscipline.Kickboxing },
+        ["CHI"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Kickboxing },
+        ["KSA"] = new[] { OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Boxing, OriginsDiscipline.JiuJitsu },
+        ["QAT"] = new[] { OriginsDiscipline.JiuJitsu, OriginsDiscipline.Boxing, OriginsDiscipline.Kickboxing },
+        ["KEN"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Boxing, OriginsDiscipline.FreestyleWrestling },
+        ["GHA"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Boxing, OriginsDiscipline.FreestyleWrestling },
+        ["MAR"] = new[] { OriginsDiscipline.Kickboxing, OriginsDiscipline.Boxing, OriginsDiscipline.FreestyleWrestling },
+        ["SEN"] = new[] { OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.Boxing },
+        ["PER"] = new[] { OriginsDiscipline.Boxing, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.JiuJitsu },
     };
+
+    /// <summary>
+    /// A country's n-th art, cycling through its distinct arts in order of how common they are (its first is
+    /// the art most of its men come from): the n-th gym a scene opens teaches this.
+    /// </summary>
+    public static OriginsDiscipline ArtOf(string? countryCode, int n)
+    {
+        var arts = (countryCode is not null && ArtsByCountry.TryGetValue(countryCode, out var a) ? a : DefaultArts).Distinct().ToArray();
+        return arts[Math.Abs(n) % arts.Length];
+    }
 
     private static readonly OriginsDiscipline[] DefaultArts =
     {
@@ -79,8 +113,39 @@ public static class OriginsTalent
         WeightClass.Heavyweight, WeightClass.Heavyweight, WeightClass.Heavyweight, WeightClass.Heavyweight,
     };
 
-    public static WeightClass NaturalClass(World world, FighterId id) =>
-        Sizes[(int)(SimRandom.Mix(world.RngSeed, (ulong)id.Value ^ 0x5_12E_1993UL) % (ulong)Sizes.Length)];
+    /// <summary>
+    /// The small men the sport draws once it has weight classes for them: when a lower line's chapter is open
+    /// (live or fired), men of that size who used to stay in boxing and judo start turning professional
+    /// (repeats weight the pick, added to <see cref="Sizes"/>). Day one has none of these open.
+    /// </summary>
+    private static readonly (string Chapter, WeightClass[] Adds)[] SmallerMen =
+    {
+        ("weight-ladder-lower", new[] { WeightClass.Lightweight, WeightClass.Lightweight, WeightClass.Featherweight, WeightClass.Featherweight, WeightClass.Featherweight }),
+        ("weight-ladder-bantam", new[] { WeightClass.Bantamweight, WeightClass.Bantamweight, WeightClass.Bantamweight, WeightClass.Bantamweight }),
+        ("weight-ladder-flyweight", new[] { WeightClass.Flyweight, WeightClass.Flyweight, WeightClass.Flyweight, WeightClass.Flyweight }),
+    };
+
+    /// <summary>
+    /// A new man's natural class: a hash of his id over the sizes the sport draws today (<see cref="Sizes"/>,
+    /// plus <see cref="SmallerMen"/> for every lower weight line whose chapter is open). On day one, and until
+    /// the lightweight chapter opens, exactly the 1993 table.
+    /// </summary>
+    public static WeightClass NaturalClass(World world, FighterId id)
+    {
+        var sizes = SizesNow(world);
+        return sizes[(int)(SimRandom.Mix(world.RngSeed, (ulong)id.Value ^ 0x5_12E_1993UL) % (ulong)sizes.Count)];
+    }
+
+    /// <summary>The sizes the sport draws its new men from today (read-only; the 1993 table until a lower line opens).</summary>
+    public static IReadOnlyList<WeightClass> SizesNow(World world)
+    {
+        if (world.Mode != WorldMode.Origins) return Sizes;
+        List<WeightClass>? sizes = null;
+        foreach (var (chapter, adds) in SmallerMen)
+            if (OriginsTimeline.IsOpen(world, chapter, world.CurrentDate))
+                (sizes ??= new List<WeightClass>(Sizes)).AddRange(adds);
+        return sizes is null ? Sizes : sizes;
+    }
 
     /// <summary>
     /// A generated man finds a room: about half train in one of the existing gyms of their own country
@@ -92,8 +157,9 @@ public static class OriginsTalent
     {
         if (f.Camp is not null || f.Designed) return;
         if (SimRandom.Mix(world.RngSeed, (ulong)f.Id.Value ^ 0x6_1A_1993UL) % 2 == 0) return;
+        // (Once rooms cross-train, a room that teaches everything takes a man of any art.)
         f.Camp = world.Camps.Values
-            .Where(c => c.Specialty == f.PrimaryStyle && world.Get(c.City)?.Country == f.Country)
+            .Where(c => (c.Specialty == f.PrimaryStyle || OriginsCamps.CrossTrains(world, c)) && world.Get(c.City)?.Country == f.Country)
             .OrderByDescending(c => c.Reputation).ThenBy(c => c.Id.Value)
             .Select(c => (CampId?)c.Id).FirstOrDefault();
     }
@@ -114,12 +180,16 @@ public static class OriginsTalent
     {
         var id = world.NewFighterId();
         var discipline = DisciplineFor(world, id, countryCode);
+        // Once the sport has cross-training rooms, a share of the new men arrive knowing a second art (a hash of the id).
+        OriginsDiscipline? second = CrossTrainedRoll(world, id, on) ? SecondArtFor(world, id, discipline) : null;
+        // (A man who trained in two rooms is not a street brawler any more: his hands were taught in a boxing gym.)
+        if (second is not null && discipline == OriginsDiscipline.Brawler) discipline = OriginsDiscipline.Boxing;
         var region = Geography.WorldAtlas.ByCode(countryCode)?.Continent ?? Region.NorthAmerica;
         var f = gen.Generate(id, on, new GenOptions
         {
-            // The big-man arts are big men; everyone else is the size of a 1993 fighting man (a hash of his id).
+            // The big-man arts are big men; everyone else is the size of a fighting man of his day (a hash of his id).
             WeightClass = discipline is OriginsDiscipline.Sumo or OriginsDiscipline.Ssireum ? WeightClass.Heavyweight : NaturalClass(world, id),
-            Style = OriginsPioneers.StyleOf(discipline),
+            Style = second is null ? OriginsPioneers.StyleOf(discipline) : PrimaryStyle.WellRounded,
             Nationality = region,
             CountryCode = countryCode,
             Sex = Sex.Male,
@@ -127,7 +197,7 @@ public static class OriginsTalent
             Overall = overall,
             WithRecord = false,
         });
-        Specialise(world, f, discipline, overall);
+        Specialise(world, f, discipline, overall, second);
         gen.AssignHometown(world, f, countryCode);
         gen.EnsureUniqueName(world, f);
         world.Fighters[id] = f;
@@ -139,18 +209,117 @@ public static class OriginsTalent
     /// little personal variation (a hash of his id per skill, ±4) so two judoka of one level are not twins.
     /// Sumo men carry their bulk (natural weight of a sumo wrestler).
     /// </summary>
-    public static void Specialise(World world, Fighter f, OriginsDiscipline discipline, int overall)
+    public static void Specialise(World world, Fighter f, OriginsDiscipline discipline, int overall, OriginsDiscipline? second = null)
     {
         var row = new DesignedFighter(f.FirstName, f.LastName, f.Nickname, f.Nationality, f.WeightClass,
             OriginsPioneers.StyleOf(discipline), f.AgeOn(world.CurrentDate), overall, 0, 0);
         var skills = OriginsPioneers.SkillsOf(new OriginsPioneer(row, discipline, f.HeightCm, (int)(f.NaturalWeightLbs / 2.20462), ""));
+        // A cross-trained man knows his second art nearly as well as a man who only did that, and his first a
+        // little less than a man who only did his (the hours went somewhere): each skill is the better of the
+        // two arts' profiles, the second a few points down, then the whole spread pulled down to keep the level.
+        IReadOnlyDictionary<SkillId, int>? other = second is { } s2
+            ? OriginsPioneers.SkillsOf(new OriginsPioneer(row with { Style = OriginsPioneers.StyleOf(s2) }, s2, f.HeightCm, (int)(f.NaturalWeightLbs / 2.20462), ""))
+            : null;
         foreach (var (skill, value) in skills)
         {
+            int v = value;
+            if (other is not null && Technical.Contains(skill))
+                v = Math.Max(value, other[skill] - SecondArtGap) - CrossTrainedLevelCost;
             int jitter = (int)(SimRandom.Mix(world.RngSeed, (ulong)f.Id.Value * 31UL + (ulong)skill) % 9) - 4;
-            SetSkill(f, skill, Math.Clamp(value + jitter, 1, 95));
+            SetSkill(f, skill, Math.Clamp(v + jitter, 1, 95));
         }
         if (discipline is OriginsDiscipline.Sumo && f.NaturalWeightLbs < 300)
             f.NaturalWeightLbs = 300 + (int)(SimRandom.Mix(world.RngSeed, (ulong)f.Id.Value ^ 0x5_0B0UL) % 60);
+    }
+
+    // ------------------------------------------------------------------ specialists and all-rounders
+
+    /// <summary>The striking half of the game (the seven stand-up skills).</summary>
+    public static readonly SkillId[] StrikingSkills =
+    {
+        SkillId.PunchPower, SkillId.PunchTechnique, SkillId.KickPower, SkillId.KickTechnique, SkillId.ClinchStriking,
+        SkillId.StrikingDefense, SkillId.Footwork,
+    };
+
+    /// <summary>The grappling half of the game (wrestling and the ground: eight skills).</summary>
+    public static readonly SkillId[] GrapplingSkills =
+    {
+        SkillId.TakedownOffense, SkillId.TakedownDefense, SkillId.TopControl, SkillId.BottomGame,
+        SkillId.SubmissionOffense, SkillId.SubmissionDefense, SkillId.Scrambling, SkillId.ClinchControl,
+    };
+
+    private static readonly SkillId[] Technical = StrikingSkills.Concat(GrapplingSkills).ToArray();
+
+    /// <summary>How far below its own profile a cross-trained man knows his second art.</summary>
+    public const int SecondArtGap = 6;
+
+    /// <summary>What knowing two arts costs a man in each one (the same hours, split): every technical skill this many points down.</summary>
+    public const int CrossTrainedLevelCost = 3;
+
+    /// <summary>A half of the game is TAUGHT when its mean sits no more than this far below the man's own level (body and head).</summary>
+    public const int TaughtMargin = 16;
+
+    public static double StrikingMean(Fighter f) =>
+        (f.Striking.PunchPower + f.Striking.PunchTechnique + f.Striking.KickPower + f.Striking.KickTechnique
+         + f.Striking.ClinchStriking + f.Striking.StrikingDefense + f.Striking.Footwork) / 7.0;
+
+    public static double GrapplingMean(Fighter f) =>
+        (f.Grappling.TakedownOffense + f.Grappling.TakedownDefense + f.Grappling.TopControl + f.Grappling.BottomGame
+         + f.Grappling.SubmissionOffense + f.Grappling.SubmissionDefense + f.Grappling.Scrambling + f.Grappling.ClinchControl) / 8.0;
+
+    /// <summary>The man's own level, apart from his craft: the mean of his body (six) and his head (four).</summary>
+    public static double BaseLevel(Fighter f) =>
+        (f.Physical.Strength + f.Physical.Cardio + f.Physical.Speed + f.Physical.Chin + f.Physical.Recovery + f.Physical.Flexibility
+         + f.Mental.FightIQ + f.Mental.Composure + f.Mental.Heart + f.Mental.Discipline) / 10.0;
+
+    /// <summary>
+    /// Does this man know more than one art: is each half of the game (striking, grappling) taught, its mean no
+    /// more than <see cref="TaughtMargin"/> below his own level (<see cref="BaseLevel"/>)? A specialist is lost in
+    /// one half (every 1993 pioneer is one; a brawler is lost in both). Read off his skills today, so a
+    /// specialist who learns the other half becomes an all-rounder.
+    /// </summary>
+    public static bool IsAllRounder(Fighter f)
+    {
+        double floor = BaseLevel(f) - TaughtMargin;
+        return StrikingMean(f) >= floor && GrapplingMean(f) >= floor;
+    }
+
+    private const ulong CrossSalt = 0x0219_C405_5000UL, SecondArtSalt = 0x0219_5EC0_0D00UL;
+
+    /// <summary>
+    /// The share of new men who arrive knowing a second art, on a date: none before the first famous
+    /// cross-training camp; then 10% rising 7 points a year to 45%; once the specialists have fallen,
+    /// half rising 7 points a year to 85%. Zero in today's mode (never asked there).
+    /// </summary>
+    public static double CrossTrainedShare(World world, DateOnly on)
+    {
+        if (world.Mode != WorldMode.Origins || world.Era.Chapter(OriginsCamps.FirstCampChapter) is not { } camp || camp.FiredOn > on) return 0;
+        if (world.Era.Chapter(OriginsCamps.SpecialistsFallChapter) is { } fall && fall.FiredOn <= on)
+            return Math.Min(0.85, 0.50 + 0.07 * YearsBetween(fall.FiredOn, on));
+        return Math.Min(0.45, 0.10 + 0.07 * YearsBetween(camp.FiredOn, on));
+    }
+
+    private static double YearsBetween(DateOnly from, DateOnly to) => Math.Max(0, to.DayNumber - from.DayNumber) / 365.25;
+
+    /// <summary>Does this new man arrive cross-trained? A hash of his id against the day's share.</summary>
+    private static bool CrossTrainedRoll(World world, FighterId id, DateOnly on)
+    {
+        double share = CrossTrainedShare(world, on);
+        if (share <= 0) return false;
+        ulong h = SimRandom.Mix(world.RngSeed, (ulong)id.Value ^ CrossSalt);
+        return (h >> 11) * (1.0 / (1UL << 53)) < share;
+    }
+
+    /// <summary>The second art a cross-trained man took up: from the other half of the game than his first (a hash of his id).</summary>
+    private static OriginsDiscipline SecondArtFor(World world, FighterId id, OriginsDiscipline first)
+    {
+        OriginsDiscipline[] options = OriginsPioneers.StyleOf(first) switch
+        {
+            PrimaryStyle.Striker or PrimaryStyle.Kickboxer or PrimaryStyle.Brawler =>
+                new[] { OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.FreestyleWrestling, OriginsDiscipline.JiuJitsu, OriginsDiscipline.Judo, OriginsDiscipline.Sambo },
+            _ => new[] { OriginsDiscipline.Boxing, OriginsDiscipline.Boxing, OriginsDiscipline.Kickboxing, OriginsDiscipline.MuayThai },
+        };
+        return options[(int)(SimRandom.Mix(world.RngSeed, (ulong)id.Value ^ SecondArtSalt) % (ulong)options.Length)];
     }
 
     /// <summary>Set one skill by id (the lab's accessor table, so the two never disagree on a name).</summary>
@@ -217,12 +386,14 @@ public static class OriginsTalent
             .Where(code => Geography.WorldMap.CountryByCode(world, code) is not null)
             .ToList();   // SortedSet order: deterministic
         if (scenes.Count == 0) return made;
+        // A scene's share of the new men: the depth of its fight culture, ramping up over its first years.
+        var weights = scenes.Select(code => OriginsScenes.TalentWeight(world, code, date)).ToArray();
 
         var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ 0x0219_17A6_E000UL));
         var gen = FighterGenerator.ForWorld(world);
         for (int i = 0; i < count; i++)
         {
-            string country = scenes[rng.Next(0, scenes.Count)];
+            string country = scenes[rng.WeightedIndex(weights)];
             var f = Create(world, gen, date, country, rng.Range(19, 26), rng.GaussianInt(42, 8, 26, 64));
             FindGym(world, f);
             made.Add(f);

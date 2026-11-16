@@ -426,6 +426,8 @@ public static class OriginsShows
         var perceived = pool.ToDictionary(f => f.Id, f => ScoutingService.PerceivedAbility(world, promo, f));
         var ordered = pool.OrderByDescending(f => perceived[f.Id]).ThenBy(f => f.Id.Value).ToList();
         int rounds = promo.Rules.Fight?.Rounds ?? promo.Rules.StandardRounds;
+        // (House rules that fix the rounds fix them for every bout; the unified code leaves them to the booking: five for a title.)
+        int titleRounds = promo.Rules.Fight?.Rounds ?? promo.Rules.TitleRounds;
         bool challenge = promo.Rules.ShowFormat == ShowFormat.GymChallenge;
         var used = new HashSet<FighterId>();
         // Each man's division: the house's one open division, or (once it has split by weight) the band his
@@ -452,10 +454,10 @@ public static class OriginsShows
                 var eligible = ranked.Select(world.Get).OfType<Fighter>()
                     .Where(c => c.Id != champ.Id && Matchmaker.Worthy(c) && !Bonds.WontFight(world, champ.Id, c.Id)).ToList();
                 var challenger = eligible.FirstOrDefault(c => Fresh(champ, c)) ?? eligible.FirstOrDefault();
-                if (challenger is not null) titleBout = new Matchup(champ.Id, challenger.Id, division.WeightClass, rounds, true, tid);
+                if (challenger is not null) titleBout = new Matchup(champ.Id, challenger.Id, division.WeightClass, titleRounds, true, tid);
             }
             else if (title.CurrentChampion is null && ranked.Count >= 2 && !Bonds.WontFight(world, ranked[0], ranked[1]))
-                titleBout = new Matchup(ranked[0], ranked[1], division.WeightClass, rounds, true, tid);
+                titleBout = new Matchup(ranked[0], ranked[1], division.WeightClass, titleRounds, true, tid);
             if (titleBout is { } tb) { used.Add(tb.Red); used.Add(tb.Blue); titleBouts.Add(tb); }
         }
 

@@ -165,6 +165,8 @@ public static class OriginsTimeline
             OriginsReforms.RunMonthly(world, date);
             OriginsFounding.RunMonthly(world, date);
             OriginsFounding.RunArrivals(world, date);
+            OriginsScenes.RunMonthly(world, date);   // gyms open in the scenes that have woken
+            OriginsCamps.RunMonthly(world, date);    // rooms earn names and learn the whole game
         }
 
         int month = Month(world, date);
@@ -270,8 +272,11 @@ public static class OriginsTimeline
             }
             case "HoldEventAbove":
             {
-                // A night that FILLS a room that size: the crowd, not the building.
-                var ev = CompletedSince(world, since).FirstOrDefault(e => e.Financials is { } fin && fin.Attendance >= value);
+                // A night that FILLS a room that size: the crowd, not the building. (The arena chapter is the second
+                // centre's: its words say outside North America, and that is where the second centre is.)
+                var ev = CompletedSince(world, since).FirstOrDefault(e => e.Financials is { } fin && fin.Attendance >= value
+                    && (c.Key != OriginsScenes.SecondCentreChapter
+                        || (CityOf(world, e) is { } at && world.Get(at) is { } city && city.Region != Region.NorthAmerica)));
                 return ev is null ? null : new ChapterDoer(ev.Promotion, City: CityOf(world, ev));
             }
             case "PromotionsAtLeast":
@@ -320,10 +325,11 @@ public static class OriginsTimeline
                 return null;
             }
             case "CampReputationAtLeast":
-            {
-                var camp = world.Camps.Values.Where(k => k.Reputation >= value).OrderByDescending(k => k.Reputation).ThenBy(k => k.Id.Value).FirstOrDefault();
-                return camp is null ? null : new ChapterDoer(City: camp.City, Note: camp.Name);
-            }
+                // A famous room that teaches the whole game (a one-art room's fame is not this chapter), credited to
+                // the house with the most of its men.
+                return OriginsCamps.FamousRoom(world, value);
+            case "AllRoundersBeatSpecialists":
+                return AllRoundersWin(world, since, date, value) ? ChapterDoer.Nobody : null;
             case "SanctionedRegionsAtLeast":
                 return world.Era.Sanctions.Count >= value ? ChapterDoer.Nobody : null;
             case "ContinentsWithPromotionsAtLeast":
@@ -430,7 +436,49 @@ public static class OriginsTimeline
             case "lean-years":
                 OriginsBacklash.LeanYearsBegin(world, date);
                 break;
+            case OriginsScenes.SecondCentreChapter:
+                OriginsScenes.SecondCentreBegins(world, date);
+                break;
+            case OriginsReforms.Unified:
+                OriginsReforms.UnifiedRulesBegin(world, date);
+                break;
         }
+    }
+
+    /// <summary>The fewest bouts between a specialist and an all-rounder that settle the argument.</summary>
+    public const int SpecialistBoutsNeeded = 30;
+
+    /// <summary>The look-back for the specialists' fall: the last two years of bouts (and none before its window opened).</summary>
+    public const int SpecialistLookbackMonths = 24;
+
+    /// <summary>
+    /// Have the all-rounders beaten the specialists: over the bouts since the window opened (the last two years
+    /// at most) between a man who knows more than one art and a man who knows one (<see cref="OriginsTalent.IsAllRounder"/>,
+    /// read off their skills today), with a winner, at least <see cref="SpecialistBoutsNeeded"/> of them and the
+    /// all-rounder winning at least <paramref name="percent"/>%?
+    /// </summary>
+    internal static bool AllRoundersWin(World world, DateOnly since, DateOnly date, int percent) =>
+        AllRounderRecord(world, since > date.AddMonths(-SpecialistLookbackMonths) ? since : date.AddMonths(-SpecialistLookbackMonths)) is var (won, bouts)
+        && bouts >= SpecialistBoutsNeeded && won * 100 >= percent * bouts;
+
+    /// <summary>
+    /// All-rounders against specialists since a date: the all-rounders' wins and the bouts with a winner. Read-only
+    /// (the story screen's "the old guard against the new" line can show it).
+    /// </summary>
+    public static (int AllRounderWins, int Bouts) AllRounderRecord(World world, DateOnly since)
+    {
+        int won = 0, bouts = 0;
+        foreach (var ev in CompletedSince(world, since))
+            foreach (var fight in ev.Card)
+            {
+                if (fight.Outcome?.Winner is not { } w) continue;
+                if (world.Get(fight.RedCorner) is not { } a || world.Get(fight.BlueCorner) is not { } b) continue;
+                bool ra = OriginsTalent.IsAllRounder(a), rb = OriginsTalent.IsAllRounder(b);
+                if (ra == rb) continue;
+                bouts++;
+                if ((ra && w == a.Id) || (rb && w == b.Id)) won++;
+            }
+        return (won, bouts);
     }
 
     /// <summary>The best-known man of the house the chapter is about (or of the sport), when its words name one.</summary>
