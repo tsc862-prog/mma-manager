@@ -118,7 +118,7 @@ public sealed class MainViewModel : ObservableObject
             Booking.Confirm = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep the event");
         if (!HeadlessAutoBoot)
-            Org.Confirm = (heading, body, detail, confirm) =>
+            Org.ConfirmReform = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
         Dashboard.Navigate = NavigateTo;                  // home-page shortcuts jump to their screen
         Dashboard.GetWorld = () => _world;                // the desk acts on the live world

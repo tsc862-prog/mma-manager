@@ -28,7 +28,7 @@ public sealed class ReformCard
 public sealed partial class OrgViewModel
 {
     /// <summary>Asks before something that can't be undone (heading, body, detail, confirm text); null = go ahead (harness).</summary>
-    public Func<string, string, string?, string, bool>? Confirm { get; set; }
+    public Func<string, string, string?, string, bool>? ConfirmReform { get; set; }
 
     /// <summary>The house's reforms, open ones first (an Origins house; empty today).</summary>
     public ObservableCollection<ReformCard> Reforms { get; } = new();
@@ -135,7 +135,7 @@ public sealed partial class OrgViewModel
         if (_world is null || Promo is not { } promo || chapter is null) return;
         var card = Reforms.FirstOrDefault(r => r.Chapter == chapter);
         if (card is not { CanAdopt: true }) { Status = card?.Refusal ?? "That reform isn't open to you."; return; }
-        if (Confirm is { } ask && !ask($"{card.Title}?",
+        if (ConfirmReform is { } ask && !ask($"{card.Title}?",
                 $"{card.Detail} It costs no money, but it can't be undone: every card you book from now on is fought this way.",
                 string.Join("\n", card.Buys), "Adopt it"))
         {
