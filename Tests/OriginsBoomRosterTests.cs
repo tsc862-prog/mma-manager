@@ -204,6 +204,21 @@ public class OriginsBoomRosterTests
     }
 
     [Fact]
+    public void TryoutMen_AreLastMonthsNewMen_SoTheGymsSendThatManyFewer()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
+        var day = w.CurrentDate;
+        Assert.Equal(0, OriginsTalent.TryoutMenSince(w, day.AddMonths(-1), day));
+        OriginsFounding.RunTryouts(w, day);
+        int signed = w.RosterOf(sfa.Id).Count() - 3;
+        Assert.True(signed > 0);
+        Assert.Equal(signed, OriginsTalent.TryoutMenSince(w, day.AddDays(-1), day.AddMonths(1)));
+        Assert.Equal(0, OriginsTalent.TryoutMenSince(w, day, day.AddMonths(1)));   // (from, to]: the day itself is out
+    }
+
+    [Fact]
     public void ANamedMan_StillAsksHisShareOfTheBestPurse()
     {
         var w = OriginsWorldTests.AiWorld(11);

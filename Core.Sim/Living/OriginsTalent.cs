@@ -378,6 +378,21 @@ public static class OriginsTalent
     public static int MonthlyIntake(int leavers, int actives, int target) =>
         leavers + Math.Clamp((target - actives) / 6, 0, 4);
 
+    /// <summary>
+    /// The men an open tryout signed in (<paramref name="from"/>, <paramref name="to"/>] (read off their accolade, the
+    /// durable record): new men the sport made last month, so the month's intake from the gyms is that many fewer.
+    /// (Without it the small houses' tryouts of the Boom swelled the sport past its actives band: longsim origins 40 20.)
+    /// </summary>
+    public static int TryoutMenSince(World world, DateOnly from, DateOnly to)
+    {
+        int n = 0;
+        foreach (var f in world.Fighters.Values)
+            foreach (var a in f.Accolades)
+                if (a.Date > from && a.Date <= to && a.Title.EndsWith("open tryout", StringComparison.Ordinal) && a.Title.StartsWith("Signed at ", StringComparison.Ordinal))
+                { n++; break; }
+        return n;
+    }
+
     /// <summary>The houses' total demand for men on day one (three houses of a dozen), which <see cref="TargetActives"/> was tuned to.</summary>
     public const int DayOneDemand = 36;
 
