@@ -352,7 +352,7 @@ public static class ArcsModern
                 body: "Defence after defence, and the quiet man from Manchester has become the most reliable champion in his weight. Ossie Blackwood, whose old gym sits beneath Rooke's room, has sent up the rent notice again."),
             B(3, Cond.TitleLost, "the belt moves on",
                 "Brody loses the {Belt}",
-                "The Ghost's reign has ended, and Alfie Rooke, asked, said a belt is only ever on loan from the sport. The mats are open at six.")),
+                "The Ghost's reign has ended, and Alfie Rooke, asked, said a belt is on loan from the sport. The mats are open at six.")),
 
         // ---- the Monolith and the last champion of the dust ----
         A("duarte-pires", "Too Polite for the Room", "Maximo Duarte", "Maximo Duarte",
