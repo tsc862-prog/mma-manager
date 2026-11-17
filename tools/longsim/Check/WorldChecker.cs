@@ -305,7 +305,17 @@ public sealed class WorldChecker
                     V("BOOK-DOUBLE-DATE", $"self:{ev.Id.Value}:{fight.Id.Value}", $"{F(world, fight.RedCorner)} fights himself on {E(world, ev.Id)}");
                 foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
                     if (!onCard.Add(id) && fight.RedCorner != fight.BlueCorner)
+                    {
+                        // A one-night bracket (Origins) carries a man once per round he reaches: three rounds at most (an eight-man bracket).
+                        if (ev.Format == EventFormat.Tournament)
+                        {
+                            int appearances = ev.Card.Count(x => x.RedCorner == id || x.BlueCorner == id);
+                            if (appearances <= 3) continue;
+                            V("BOOK-DOUBLE-DATE", $"bracket:{ev.Id.Value}:{id.Value}", $"{F(world, id)} is in {appearances} bouts of the bracket {E(world, ev.Id)} (three rounds at most)");
+                            continue;
+                        }
                         V("BOOK-DOUBLE-DATE", $"twice:{ev.Id.Value}:{id.Value}", $"{F(world, id)} is on {E(world, ev.Id)} twice");
+                    }
             }
             // (judged when the card is fresh: a stripped champion's suspension ends and he is Active again months later, so a
             // world loaded long after the night — the soak's twin — cannot tell the hand-down from a bug any more)
@@ -533,14 +543,19 @@ public sealed class WorldChecker
 
             // streak from the bout sequence (BoutHistory order) — the tail of a padded record is still the real tail
             int streak = 0;
+            bool broke = false;   // the sequence reset the run (loss, draw, NC): then the streak is wholly its own
             foreach (var fid in f.BoutHistory)
             {
                 if (!index.TryGetValue(fid, out var x) || x.Fight.Outcome is not { } o) continue;
-                if (o.Winner is null || x.Fight.OverturnedNc) streak = 0;
+                if (o.Winner is null || x.Fight.OverturnedNc) { streak = 0; broke = true; }
                 else if (o.Winner == f.Id) streak = streak >= 0 ? streak + 1 : 1;
                 else streak = streak <= 0 ? streak - 1 : -1;
             }
-            if (f.BoutHistory.Count > 0 && streak != r.CurrentStreak)
+            // A day-one record that was written, not fought (an Origins pioneer's 5-1) carries a run the history never saw: while
+            // the history's run is unbroken and the record has more bouts than the history, the record's run may be longer, same sign.
+            bool paddedTail = !broke && streak != 0 && r.Wins + r.Losses + r.Draws + r.NoContests > f.BoutHistory.Count
+                              && Math.Sign(r.CurrentStreak) == Math.Sign(streak) && Math.Abs(r.CurrentStreak) >= Math.Abs(streak);
+            if (f.BoutHistory.Count > 0 && streak != r.CurrentStreak && !paddedTail)
                 V("RECORD-SHAPE", $"{f.Id.Value}:streak", $"{who} streak {r.CurrentStreak} but his last {f.BoutHistory.Count} bouts say {streak}");
 
             // chronology: BoutHistory is appended as results land, so it must be date-ordered

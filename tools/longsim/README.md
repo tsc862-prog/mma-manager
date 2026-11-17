@@ -38,6 +38,19 @@ dotnet run --no-build -c Release -- digest 3 3              # end-state digests 
 #    deal not run out; fit-today is a note); banks end within 0.4x-2.5x
 #    of the opening balance. Exit code 1 if any run is unhealthy. Seconds per seed: ~110 men.
 dotnet run --no-build -c Release -- origins 5 5
+
+# 7) Origins OBSERVER arm (watch, then found): a separate command so `origins N Y` stays comparable.
+#    One world per seed (run twice for determinism). The player starts with no house, watches for a seed-hashed
+#    stretch (early / mid / late era, a day inside it), then founds a house through PlayerFounding with a valid
+#    choice, holds the free tryout (2-3 weeks later at most), and the existing Origins script runs the house to the
+#    end. Checks: while observing, no mail / desk decision / rival offer / talks / shortlist and nothing owned by the
+#    default PromotionId; refusal probes on the founding day (counted by reason, each must carry a reason and leave
+#    the world untouched); Found succeeds on a city Choices called open; bank == PlayerFounding.Bank; roster empty
+#    until the tryout; tryout once only, <= 6 men, free; the accountant's letter opens the inbox; the monthly
+#    WorldChecker invariants (Check/WorldChecker.cs) hold all run; the Origins health line; digest twice.
+#    Prints a per-seed summary and an ORIGINS OBSERVER block (founded count and dates, refusals by reason, tryout
+#    sizes, survival and end bank by era). Exit code 1 if any seed fails.
+dotnet run --no-build -c Release -- origins-observer 40 12
 ```
 
 Long runs: pipe to a log (`> sim.log 2>&1`) — a 30-year world takes ~5–6 min,
