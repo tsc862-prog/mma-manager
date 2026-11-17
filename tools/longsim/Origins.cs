@@ -80,6 +80,8 @@ public static partial class OriginsMode
         foreach (var t in totals) Console.WriteLine(t);
         MoneyReport(aiRuns, scriptedRuns, years);
         LadderReport(aiRuns, scriptedRuns);
+        TitleShotReport(aiRuns);
+        SpreadReport(aiRuns);
         Console.WriteLine(failures == 0 ? "ORIGINS HEALTH: OK" : $"ORIGINS HEALTH: {failures} seed(s) failed");
         return failures == 0 ? 0 : 1;
     }
@@ -100,6 +102,7 @@ public static partial class OriginsMode
         public Dictionary<string, HashSet<FighterId>> LastRoster = new();
         public List<House> Houses = new();
         public List<(string Key, DateOnly On, string Who)> Ladder = new();   // the weight-ladder chapters: when, and who (or the time limit)
+        public List<(int Year, TitleShots.Shot Shot)> Shots = new();         // title shots at a reigning champion (AI runs), by year fought
         public int Years;
         public ObserverPlan? Observer;
 
@@ -126,6 +129,8 @@ public static partial class OriginsMode
     {
         public string Abbr = "";
         public string Kind = "";            // founder, authored (a scripted arrival), founded (a generic new house)
+        public string Country = "";         // its home city's country code
+        public int FoundedYear;
         public bool Player;
         public double FoundedAt;            // years into the run
         public double? FoldedAt;            // years into the run (null: alive at the end)
@@ -173,6 +178,7 @@ public static partial class OriginsMode
         var bankAtFounding = world.Promotions.Values.ToDictionary(p => p.Id, p => p.Balance.Amount);
         var foldedOn = new Dictionary<PromotionId, DateOnly>();
         var demand = new Dictionary<PromotionId, long>();   // what each night would have drawn with no walls (read the week it ran)
+        var shots = player is null ? new TitleShots() : null;   // the challenger's rank at booking (AI runs; read-only)
         try
         {
             for (int y = 0; y < years; y++)
@@ -185,8 +191,15 @@ public static partial class OriginsMode
                 {
                     plan?.Before(world, o.Problems);
                     if (plan is null || plan.ScriptOn) script?.Week(world);
+                    shots?.BeforeWeek(world);
+                    int shotsBefore = shots?.Shots.Count ?? 0;
                     var r = tick.AdvanceWeek(world);
                     plan?.After(world, o.Problems);
+                    if (shots is not null)
+                    {
+                        shots.AfterWeek(world, monthBoundary: false);
+                        for (int k = shotsBefore; k < shots.Shots.Count; k++) o.Shots.Add((world.CurrentDate.Year, shots.Shots[k]));
+                    }
                     newgens += r.Newgens; retired += r.Retired; washouts += r.Washouts;
                     if (y >= years - 2) RosterTrace(world, o);
                     var weekAgo = world.CurrentDate.AddDays(-7);
@@ -328,6 +341,8 @@ public static partial class OriginsMode
                 Player = p.Id == world.PlayerPromotion,
                 FoundedAt = YearsIn(firstSeen.GetValueOrDefault(p.Id, world.StartDate)),
                 FoldedAt = foldedOn.TryGetValue(p.Id, out var fo) ? YearsIn(fo) : null,
+                Country = p.HomeCity is { } hcy && world.Get(hcy) is { } hcc ? world.Get(hcc.Country)?.Code ?? "?" : "?",
+                FoundedYear = firstSeen.GetValueOrDefault(p.Id, world.StartDate).Year,
                 StartBank = bankAtFounding.GetValueOrDefault(p.Id),
                 EndBank = p.Balance.Amount,
                 Demand = demand.GetValueOrDefault(p.Id),
@@ -504,6 +519,47 @@ public static partial class OriginsMode
                                   $"time limit {fired.Count(l => l.Who == "time limit")}, founder {fired.Count(l => l.Who.Contains("founder"))}, " +
                                   $"authored {fired.Count(l => l.Who.Contains("authored"))}, founded {fired.Count(l => l.Who.Contains("(founded"))}, player {fired.Count(l => l.Who.Contains("player"))}");
             }
+    }
+
+    /// <summary>
+    /// ORIGINS TITLE SHOTS: every title fight at a reigning champion the AI houses fought (snapshotted the week before,
+    /// <see cref="TitleShots"/>), by the challenger's rank in the house's division going in: top 3, top 5, unranked.
+    /// By era (the bracket and card years before the unified code, then after). Card-night title fights only: a bracket
+    /// night's card is empty until it runs, so its title fights are never snapshotted. Read-only reporting.
+    /// </summary>
+    private static void TitleShotReport(List<Outcome> ai)
+    {
+        Console.WriteLine($"===== ORIGINS TITLE SHOTS ({ai.Count} seeds, AI runs; challenger's rank at booking; card-night title fights only, bracket finals are not counted) =====");
+        foreach (var (label, lo, hi) in new[] { ("all years", 0, 9999), ("1993-2005", 0, 2005), ("2006-2009", 2006, 2009), ("2010+", 2010, 9999) })
+        {
+            var s = ai.SelectMany(o => o.Shots).Where(x => x.Year >= lo && x.Year <= hi).Select(x => x.Shot).ToList();
+            if (s.Count == 0) { Console.WriteLine($"{label}: none"); continue; }
+            double P(Func<TitleShots.Shot, bool> f) => 100.0 * s.Count(f) / s.Count;
+            var ranked = s.Where(x => x.Rank > 0).ToList();
+            Console.WriteLine($"{label}: {s.Count} title shots ({s.Count / (double)ai.Count:0.0}/world); #1 {P(x => x.Rank == 1):0.0}%, top-3 {P(x => x.Rank is >= 1 and <= 3):0.0}%, " +
+                              $"top-5 {P(x => x.Rank is >= 1 and <= 5):0.0}%, ranked 6+ {P(x => x.Rank > 5):0.0}%, unranked {P(x => x.Rank == 0):0.0}%; " +
+                              $"mean rank (ranked) {(ranked.Count == 0 ? 0 : ranked.Average(x => x.Rank)):0.0}; challenger on a loss {P(x => x.Streak < 0):0.0}%");
+        }
+    }
+
+    /// <summary>
+    /// ORIGINS SPREAD: where the AI's new houses (founded and authored arrivals) open, by era of their founding, as
+    /// country codes, and the share outside the USA, Japan and Brazil. Read-only reporting.
+    /// </summary>
+    private static void SpreadReport(List<Outcome> ai)
+    {
+        Console.WriteLine($"===== ORIGINS SPREAD ({ai.Count} seeds, AI runs; new houses by country and era of founding) =====");
+        var core = new HashSet<string>(StringComparer.Ordinal) { "USA", "JPN", "BRA" };
+        foreach (var (label, lo, hi) in new[] { ("1993-1999", 0, 1999), ("2000-2005", 2000, 2005), ("2006-2009", 2006, 2009), ("2010+", 2010, 9999), ("all", 0, 9999) })
+        {
+            var hs = ai.SelectMany(o => o.Houses).Where(h => h.Kind != "founder" && h.FoundedYear >= lo && h.FoundedYear <= hi).ToList();
+            if (hs.Count == 0) { Console.WriteLine($"{label}: none"); continue; }
+            var by = hs.GroupBy(h => h.Country).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal)
+                .Select(g => $"{g.Key}:{g.Count()}");
+            int outside = hs.Count(h => !core.Contains(h.Country));
+            Console.WriteLine($"{label}: {hs.Count} houses ({hs.Count / (double)ai.Count:0.0}/world), outside USA/JPN/BRA {outside} ({100.0 * outside / hs.Count:0}%), " +
+                              $"{hs.Select(h => h.Country).Distinct().Count()} countries; folded {hs.Count(h => h.FoldedAt is not null)} [{string.Join(" ", by)}]");
+        }
     }
 
     private static DateOnly? LastNight(World world, Promotion p) =>
