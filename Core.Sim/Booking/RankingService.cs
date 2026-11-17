@@ -21,22 +21,32 @@ public static class RankingService
         promo.Divisions.FirstOrDefault(d => d.Matches(f));
 
     /// <summary>Rebuild every division's contender ranking for a promotion from résumé scores.</summary>
-    public static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth = 15) =>
-        RecomputePromotion(world, promo, asOf, depth, Context.Build(world, asOf));
+    public static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth = 15)
+    {
+        // One promotion's ranking reads the results of its own roster (the résumés) and of the men they met (the
+        // opponents' levels), nobody else's: gather only those, not every fighter in the sport.
+        var roster = world.RosterOf(promo.Id).ToList();   // (one walk of the world's fighters, not one per division)
+        Context ctx;
+        using (Living.TickProbe.Phase("rank/context")) ctx = Context.Build(world, asOf, roster);
+        using (Living.TickProbe.Phase("rank/divisions")) RecomputePromotion(world, promo, asOf, depth, ctx, roster);
+    }
 
     // A division's contenders are scored on EVERY result in the form window,
     // wherever it happened (the opponent's level carries the stage it was on):
     // a new signing or a returning star ranks on what he did elsewhere, not on
     // a bare career tally.
-    private static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth, Context ctx)
+    private static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth, Context ctx,
+        List<Fighter>? roster = null)
     {
         var (champions, elite) = EliteSnapshot(world, promo);
+        // Nothing below signs or releases anyone: the roster, in world order, is the same for every division.
+        roster ??= world.RosterOf(promo.Id).ToList();
 
         foreach (var div in promo.Divisions)
         {
             FighterId? champ = div.Title is { } tid ? world.Get(tid)?.CurrentChampion : null;
 
-            var ranked = world.RosterOf(promo.Id)
+            var ranked = roster
                 .Where(f => div.Matches(f) && f.Status != FighterStatus.Retired && f.Id != champ)
                 .Select(f => (id: f.Id, score: ResumeScore(world, f, ctx, champions, elite, asOf)))
                 .OrderByDescending(x => x.score).ThenBy(x => x.id.Value)
@@ -158,10 +168,17 @@ public static class RankingService
         public required Dictionary<FighterId, List<Result>> Results { get; init; }
         public required Dictionary<FighterId, List<(DateOnly Won, DateOnly? Lost)>> Reigns { get; init; }
 
-        public static Context Build(World world, DateOnly asOf)
+        /// <param name="only">
+        /// When given, the results of these fighters and of everyone they met inside the window, and nobody
+        /// else's. Each list it holds is the same list, in the same order, as the whole-world build's (same
+        /// event walk, every one of that fighter's results), so it sorts the same and every score read from it
+        /// is the same; a ranking of these fighters reads no other list.
+        /// </param>
+        public static Context Build(World world, DateOnly asOf, IEnumerable<Fighter>? only = null)
         {
-            var results = GatherAllResults(world, asOf);
-            foreach (var list in results.Values) list.Sort((a, b) => a.Date.CompareTo(b.Date));
+            Dictionary<FighterId, List<Result>> results;
+            using (Living.TickProbe.Phase("ctx/gather")) results = only is null ? GatherAllResults(world, asOf) : GatherResultsOf(world, asOf, only);
+            using (Living.TickProbe.Phase("ctx/sort")) foreach (var list in results.Values) list.Sort((a, b) => a.Date.CompareTo(b.Date));
             var reigns = new Dictionary<FighterId, List<(DateOnly Won, DateOnly? Lost)>>();
             foreach (var t in world.Titles.Values)
                 foreach (var r in t.Lineage)
@@ -239,6 +256,49 @@ public static class RankingService
             }
         }
         return map;
+
+        static void Add(Dictionary<FighterId, List<Result>> m, FighterId id, Result r)
+        {
+            if (!m.TryGetValue(id, out var list)) m[id] = list = new List<Result>();
+            list.Add(r);
+        }
+    }
+
+    // GatherAllResults restricted to a set of fighters and everyone they met inside the window: one walk of the
+    // events for the set's own results (noting every decisive bout of the window as it goes, in walk order), a
+    // second over those notes for their opponents'. Each fighter's list gets all of his results in the same walk
+    // order as GatherAllResults gives it.
+    private static Dictionary<FighterId, List<Result>> GatherResultsOf(World world, DateOnly asOf, IEnumerable<Fighter> only)
+    {
+        var since = asOf.AddYears(-4);
+        var mine = new HashSet<FighterId>();
+        foreach (var f in only) mine.Add(f.Id);
+        var map = new Dictionary<FighterId, List<Result>>();
+        var window = new List<(FighterId Winner, FighterId Loser, bool Finish, DateOnly Date, int Stage)>();
+        foreach (var ev in world.Events.Values)
+        {
+            if (ev.Date < since) continue;
+            foreach (var fight in ev.Card)
+            {
+                if (fight.Outcome is not { Winner: { } winner, Loser: { } loser } o) continue;
+                var bout = (winner, loser, IsFinish(o.Method), ev.Date, world.Get(ev.Promotion)?.Prestige.Value ?? 0);
+                window.Add(bout);
+                Note(mine, bout);
+            }
+        }
+        var met = new HashSet<FighterId>();
+        foreach (var list in map.Values)
+            foreach (var r in list)
+                if (!mine.Contains(r.Opponent)) met.Add(r.Opponent);
+        if (met.Count > 0)
+            foreach (var bout in window) Note(met, bout);
+        return map;
+
+        void Note(HashSet<FighterId> who, (FighterId Winner, FighterId Loser, bool Finish, DateOnly Date, int Stage) b)
+        {
+            if (who.Contains(b.Winner)) Add(map, b.Winner, new Result(b.Loser, true, b.Finish, b.Date, b.Stage));
+            if (who.Contains(b.Loser)) Add(map, b.Loser, new Result(b.Winner, false, b.Finish, b.Date, b.Stage));
+        }
 
         static void Add(Dictionary<FighterId, List<Result>> m, FighterId id, Result r)
         {

@@ -62,6 +62,11 @@ public static class FreeAgencyService
     public static int RunMonthly(World world, DateOnly date)
     {
         int signings = 0;
+        // The free agents as the pass opens, in world order. The pass only ever SHRINKS that set (a signing gives a
+        // man a contract; a staged club card a signing cancels retires an unfought local, never one of these): nobody
+        // enters it mid-pass, so filtering this list with today's test again is the world's FreeAgents() at that
+        // moment, without walking every fighter (retired ones included) for every division of every promotion.
+        var market = world.FreeAgents().ToList();
         foreach (var promo in world.Promotions.Values
                      .Where(p => p.Id != world.PlayerPromotion && p.Id != HarnessHandsOff && !p.Defunct)
                      .OrderByDescending(p => p.Prestige.Value)
@@ -89,7 +94,10 @@ public static class FreeAgencyService
                 // (A free agent this org has lodged an offer for — one the player is
                 // courting, OfferMarket — holds his seat until the offer resolves. Only a
                 // player-rules world ever has one: the all-AI count is untouched.)
-                int Have() => world.RosterOf(promo.Id)
+                // (Counted once and again only after this pass signs or lodges: nothing else in the loop moves a
+                // contract or an offer, and the count scans every fighter in the world.)
+                int have = -1;
+                int Have() => have >= 0 ? have : have = world.RosterOf(promo.Id)
                     .Count(f => div.Matches(f) && f.Status != FighterStatus.Retired)
                     + OfferMarket.SeatsHeld(world, promo.Id, div);
                 if (Have() >= target) continue;
@@ -98,11 +106,14 @@ public static class FreeAgencyService
                 // draw is worth pursuing over a slightly better but anonymous pro.
                 // The prestigious orgs bid first (outer loop), so the names tier up.
                 // A distressed org ranks the same pool by BARGAIN value instead.
-                var pool = world.FreeAgents()
+                var poolPhase = Living.TickProbe.Phase("fa/pool");
+                var pool = market
+                    .Where(f => f.Contract is null && f.Status != FighterStatus.Retired && !f.LocalTalent)   // (World.FreeAgents' test, today)
                     .Where(f => div.Matches(f) && f.Status == FighterStatus.Active)
                     .OrderByDescending(f => distress > 0 ? BargainAppeal(world, promo, f) : SigningAppeal(world, promo, f))
                     .ThenBy(f => f.Id.Value)
                     .ToList();
+                poolPhase.Dispose();
 
                 foreach (var fa in pool)
                 {
@@ -119,6 +130,8 @@ public static class FreeAgencyService
                     // otherwise (the rare elite/famous prospect still gets
                     // signed through Wants). Keeps the pipeline honest: debut at
                     // the bottom, climb on results.
+                    Living.TickProbe.Count("fa/candidate");
+                    using var wantsPhase = Living.TickProbe.Phase("fa/gates");
                     if (fa.Record.TotalBouts < 4
                         && Org.OrgSizing.SizeOf(promo) >= OrgSize.National
                         && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
@@ -126,19 +139,25 @@ public static class FreeAgencyService
                     // so thin it needs bodies just to put on a card.
                     if (Have() >= minBodies && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
 
+                    var evalPhase = Living.TickProbe.Phase("fa/evaluate");
                     var exp = Valuation.Evaluate(world, fa);
+                    evalPhase.Dispose();
                     if (exp.AskingPurse.Amount > purseCeiling) continue;   // out of a distressed budget
 
+                    var negPhase = Living.TickProbe.Phase("fa/negotiate");
                     var offer = Negotiator.AiOpeningOffer(world, promo, fa, exp);
-                    if (Negotiator.Evaluate(world, fa, offer, exp).Verdict != NegotiationVerdict.Accept) continue;
+                    var verdict = Negotiator.Evaluate(world, fa, offer, exp).Verdict;
+                    negPhase.Dispose();
+                    if (verdict != NegotiationVerdict.Accept) continue;
 
                     // A free agent the player is courting (open talks): the org puts
                     // this same deal in front of him with a deadline instead of signing
                     // him on the spot — the player gets his chance to beat it. Nobody
                     // else's free agents are touched (no talks, no offer: today's signing).
-                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) continue;
+                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) { have = -1; continue; }
 
                     ContractLifecycle.Sign(world, fa, offer, date);
+                    have = -1;
                     signings++;
                 }
             }

@@ -232,7 +232,9 @@ public static class ContractLifecycle
             // AI-to-AI treadmill: a promotion on a bigger stage skims the best
             // expiring talent off a smaller one before it can re-sign — even a
             // champion, who vacates the belt as they move up.
-            if (PoachingService.TryPoach(world, f, date)) { resolved++; continue; }
+            bool poached;
+            using (Living.TickProbe.Phase("expiries/poach")) poached = PoachingService.TryPoach(world, f, date);
+            if (poached) { resolved++; continue; }
 
             bool champion = world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
 

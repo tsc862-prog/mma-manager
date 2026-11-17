@@ -184,6 +184,7 @@ public sealed class Matchmaker
         World world, Promotion promo, DateOnly fightDate, IReadOnlySet<FighterId>? exclude,
         Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
     {
+        using var _ = Living.TickProbe.Phase("mm/title-bouts");
         bool Free(Fighter f) => f.IsMatchReady(fightDate) && (exclude is null || !exclude.Contains(f.Id));
         // Booking around the calendar (an exclusion set given): a belt already
         // on the line on an announced card isn't put up twice.
@@ -192,6 +193,7 @@ public sealed class Matchmaker
             .SelectMany(e => e.Card).Where(f => f.IsTitleFight && f.Title is not null)
             .Select(f => f.Title!.Value).ToHashSet();
         var titleBouts = new List<(Title Title, WeightClass Wc, Fighter Red, Fighter Blue, long Priority)>();
+        Dictionary<(int, int), Rivalry>? feuds = null;   // by pair, built for the first champion with contenders (nothing here adds a rivalry)
         foreach (var division in promo.Divisions.Where(d => d.Title is not null))
         {
             var title = world.Get(division.Title!.Value);
@@ -208,7 +210,7 @@ public sealed class Matchmaker
             var champ = title.CurrentChampion is { } cid ? world.Get(cid) : null;
             if (champ is not null && Free(champ))
             {
-                if (PickChallenger(world, champ, contenders, recent) is { } challenger)
+                if (PickChallenger(world, champ, contenders, recent, contenders.Count == 0 ? null : feuds ??= Living.Storylines.RivalriesByPair(world)) is { } challenger)
                     titleBouts.Add((title, division.WeightClass, champ, challenger, DaysIdle(world, recent, champ.Id)));
             }
             else if (champ is null && contenders.Count >= 2)
@@ -230,6 +232,7 @@ public sealed class Matchmaker
     private static List<Candidate> Candidates(World world, Promotion promo, DateOnly fightDate,
         IReadOnlySet<FighterId>? exclude, Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
     {
+        using var _ = Living.TickProbe.Phase("mm/candidates");
         // Champions only fight for the belt — keep them out of the undercard pool.
         var champions = new HashSet<FighterId>();
         foreach (var d in promo.Divisions)
@@ -246,6 +249,11 @@ public sealed class Matchmaker
             .ToList();
         var seen = free.ToDictionary(f => f.Id, f => Seen(world, promo, f));
         free = free.OrderByDescending(f => seen[f.Id]).ThenBy(f => f.Id.Value).ToList();
+
+        // Every pair below asks after a bond and a feud: look them up by pair, not by walking both lists for each
+        // (they grow with the world). Nothing here adds or removes either.
+        var bonds = Living.Bonds.ByPair(world);
+        var feuds = Living.Storylines.RivalriesByPair(world);
 
         var candidates = new List<Candidate>();
         foreach (var division in promo.Divisions)
@@ -272,8 +280,9 @@ public sealed class Matchmaker
                     // purse — training partners hardest of all. Only a belt puts
                     // them in the same cage (and the friendship pays).
                     if (a.Camp is { } room && a.Camp == b.Camp) continue;
-                    if (Living.Bonds.WontFight(world, a.Id, b.Id)) continue;
-                    bool feud = Living.Storylines.RivalryBetween(world, a.Id, b.Id) is { Intensity: >= 40 };
+                    var pair = Living.Bonds.PairKey(a.Id, b.Id);
+                    if (Living.Bonds.WontFight(bonds.GetValueOrDefault(pair))) continue;
+                    bool feud = feuds.GetValueOrDefault(pair) is { Intensity: >= 40 };
                     int tier = feud ? 2 : Contender(a.Id) && Contender(b.Id) ? 1 : 0;
                     double idle = DaysIdle(world, recent, a.Id) + DaysIdle(world, recent, b.Id);
                     double ability = seen[a.Id] + seen[b.Id];
@@ -292,15 +301,16 @@ public sealed class Matchmaker
     /// contender rather than freeze the belt when nobody else is available.
     /// </summary>
     private static Fighter? PickChallenger(World world, Fighter champ, List<Fighter> contenders,
-        IReadOnlyDictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
+        IReadOnlyDictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent,
+        Dictionary<(int, int), Rivalry>? feuds)
     {
-        if (contenders.Count == 0) return null;
+        if (contenders.Count == 0 || feuds is null) return null;
 
         // Whoever the champ most recently beat isn't owed an instant rematch.
         FighterId? staleRematch =
             recent.TryGetValue(champ.Id, out var r) && r.Won ? r.Opponent : null;
 
-        int HeatWith(Fighter c) => Living.Storylines.RivalryBetween(world, champ.Id, c.Id)?.Intensity ?? 0;
+        int HeatWith(Fighter c) => feuds.GetValueOrDefault(Living.Bonds.PairKey(champ.Id, c.Id))?.Intensity ?? 0;
         var grudge = contenders.Where(c => Worthy(c) && HeatWith(c) >= 40)
             .OrderByDescending(HeatWith).FirstOrDefault();
         if (grudge is not null && (grudge.Id != staleRematch || HeatWith(grudge) >= 70))
@@ -332,7 +342,7 @@ public sealed class Matchmaker
         foreach (var e in world.Events.Values) if (e.Status == EventStatus.Completed) completed++;
         var key = (world, world.CurrentDate, completed);
         if (_recent is not null && ReferenceEquals(_recentKey.World, world) && _recentKey == key) return _recent;
-        _recent = ComputeRecentBouts(world);
+        using (Living.TickProbe.Phase("mm/recent-bouts")) _recent = ComputeRecentBouts(world);
         _recentKey = key;
         return _recent;
     }

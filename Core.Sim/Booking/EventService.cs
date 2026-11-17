@@ -73,7 +73,7 @@ public sealed class EventService
     {
         // Every card runs at a realistic length — flesh out the undercard from the
         // roster, or (for a small org) with local-vs-local filler.
-        CardFiller.PadToMinimum(world, ev);
+        using (Living.TickProbe.Phase("run/pad")) CardFiller.PadToMinimum(world, ev);
 
         // A card booked without an explicit main-card split fits itself to the
         // broadcast window the org's media deals demand (the whole card, if nobody's airing it).
@@ -89,9 +89,7 @@ public sealed class EventService
         var house = world.Get(ev.Promotion);
         foreach (var fight in ev.Card)
         {
-            // A bout inside a banded division (Origins weight split) keeps the size term; never in today's mode.
-            bool banded = world.Mode == WorldMode.Origins && !fight.OpenWeight && house is not null
-                && house.Divisions.Any(d => d.Lightest is not null && d.WeightClass == fight.WeightClass);
+            bool banded = SizeTermFor(world, house, fight);
             // A rule set that fixes the rounds (one long round) is what the bout is fought over, so the
             // saved fight says so too. Round length has no field on Fight: it is the rules' (else the house's) minutes.
             if (houseRules?.Rounds is int fixedRounds) fight.ScheduledRounds = fixedRounds;
@@ -104,12 +102,28 @@ public sealed class EventService
                 Rules = houseRules,
                 BandedSizeTerm = banded,
             };
-            _engine.Simulate(fight, world, opts);
-            ResultsProcessor.Apply(world, ev, fight);
+            using (Living.TickProbe.Phase("run/engine")) _engine.Simulate(fight, world, opts);
+            using (Living.TickProbe.Phase("run/results")) ResultsProcessor.Apply(world, ev, fight);
         }
 
-        Settle(world, ev);
+        using (Living.TickProbe.Phase("run/settle")) Settle(world, ev);
     }
+
+    /// <summary>
+    /// The size term this bout asks the engine for (FightParams.BandedSizeTerm; Origins only, never in today's mode): a
+    /// bout inside a banded division (a weight split) keeps it, and so does an open-weight bout booked before the house
+    /// drew its lines (fought as booked: OriginsReforms.DrawLines). The engine applies it only on its custom-rules path
+    /// (Bout: size = custom && (rules.OpenWeight || BandedSizeTerm)). A house whose rules are today's in every field is
+    /// not on that path, and that can happen with a kept open-weight bout still on its card: a CAGE house that took the
+    /// commissions' code while still at open weight (the code's chapter does not wait for the first split) and then
+    /// splits. Its rules become today's (open weight off, cage), so a kept heavy-vs-light bout is fought with no size
+    /// term, the bigger man getting no edge from his size; so is every banded bout at such a house (as before this
+    /// change). A ring house, or any house not under the code, stays custom. Rare (a split-day card, at most a lead
+    /// window of nights) and left as it is: the engine is not changed here.
+    /// </summary>
+    internal static bool SizeTermFor(World world, Promotion? house, Fight fight) =>
+        world.Mode == WorldMode.Origins && house is not null
+        && (fight.OpenWeight || house.Divisions.Any(d => d.Lightest is not null && d.WeightClass == fight.WeightClass));
 
     /// <summary>
     /// Close out a card whose bouts are already simulated: settle the box office
@@ -119,7 +133,7 @@ public sealed class EventService
     /// </summary>
     public void Settle(World world, Event ev)
     {
-        ev.Financials = Financials.Compute(world, ev);
+        using (Living.TickProbe.Phase("settle/financials")) ev.Financials = Financials.Compute(world, ev);
         if (world.Get(ev.Promotion) is { } promo)
         {
             // Settle the box office as categorised ledger entries (netting to NetProfit).
@@ -133,7 +147,7 @@ public sealed class EventService
 
             // Fight night is when the commercial side gets paid: sponsor checks,
             // media rights fees, the merch table, the streaming platform's bump.
-            Finance.RevenueService.SettleEvent(world, promo, ev);
+            using (Living.TickProbe.Phase("settle/revenue")) Finance.RevenueService.SettleEvent(world, promo, ev);
 
             // Promises come due too: an accepted sponsor showcase is judged
             // against the card the player actually put on.
@@ -157,11 +171,10 @@ public sealed class EventService
                     && Geography.MmaInterest.InCity(world, host) < WarmMarketThreshold)
                     Geography.MmaInterest.BumpCity(world, host, reach - (int)OrgSize.National + 2);
             }
-            Org.Standing.AfterEvent(world, promo, ev);
-            Org.Milestones.CheckAfterEvent(world, promo, ev);
+            using (Living.TickProbe.Phase("settle/standing")) { Org.Standing.AfterEvent(world, promo, ev); Org.Milestones.CheckAfterEvent(world, promo, ev); }
 
             // Refresh contender rankings from the updated body of work.
-            RankingService.RecomputePromotion(world, promo, ev.Date);
+            using (Living.TickProbe.Phase("settle/rankings")) RankingService.RecomputePromotion(world, promo, ev.Date);
         }
 
         ev.Status = EventStatus.Completed;
