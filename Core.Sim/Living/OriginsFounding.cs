@@ -149,7 +149,7 @@ public static class OriginsFounding
 
         // Known at home, a little around its country; the lines the sport has drawn, or one open division.
         SeedPopularity(world, promo, city, prestige);
-        OpenDivisions(world, promo, prestige, date);
+        OpenDivisions(world, promo, prestige, date, sizedToHouse: true);
 
         // --- its men ---------------------------------------------------------------------
         int signed = SignFoundingRoster(world, promo, country.Code, date, rng);
@@ -237,10 +237,17 @@ public static class OriginsFounding
         Enum.GetValues<WeightClass>()
             .Where(wc => wc != WeightClass.Strawweight && world.Era.IsUnlocked(Capability.Class(wc))).ToList();
 
-    /// <summary>A new house's divisions: the lines the sport has drawn, each with a vacant belt, else one open division with a vacant belt.</summary>
-    internal static void OpenDivisions(World world, Promotion promo, int prestige, DateOnly date)
+    /// <summary>
+    /// A new house's divisions: the lines the sport has drawn, each with a vacant belt, else one open division with a
+    /// vacant belt. <paramref name="sizedToHouse"/> (an AI house): only as many of the lines as its purse can staff
+    /// (<see cref="OriginsReforms.DivisionsItCanStaff"/>), whole ladder chapters in the order the sport drew them
+    /// (heavy and light first); the rest it draws later, when its gate grows (<see cref="OriginsReforms.RunMonthly"/>).
+    /// The player's house is offered every line the sport has drawn: his to run as he likes.
+    /// </summary>
+    internal static void OpenDivisions(World world, Promotion promo, int prestige, DateOnly date, bool sizedToHouse = false)
     {
         var lines = DrawnLines(world);
+        if (sizedToHouse && lines.Count > 0) lines = OriginsReforms.LinesItCanStaff(world, promo, lines);
         if (lines.Count > 0) OriginsReforms.DrawLines(world, promo, lines, date, announce: false);
         else
         {
@@ -304,10 +311,12 @@ public static class OriginsFounding
 
     /// <summary>
     /// One man from an open tryout of local men, green and glad of the chance, the house his discoverer: signed on
-    /// the tryout terms (the Origins purse floor, three fights, exclusive) when the house has a division for him,
-    /// else null (he walks back out a free agent). Two draws on <paramref name="rng"/>: his age, then his level.
+    /// the tryout terms (the Origins purse floor, three fights; exclusive unless <paramref name="exclusive"/> says
+    /// otherwise) when the house has a division for him, else null (he walks back out a free agent). Two draws on
+    /// <paramref name="rng"/>: his age, then his level.
     /// </summary>
-    internal static Fighter? TryoutMan(World world, FighterGenerator gen, Promotion promo, string countryCode, DateOnly date, SimRandom rng)
+    internal static Fighter? TryoutMan(World world, FighterGenerator gen, Promotion promo, string countryCode, DateOnly date, SimRandom rng,
+        bool exclusive = true)
     {
         var f = OriginsTalent.Create(world, gen, date, countryCode, rng.Range(20, 27), rng.GaussianInt(42, 6, 30, 56));
         OriginsTalent.FindGym(world, f);
@@ -317,10 +326,91 @@ public static class OriginsFounding
         {
             Fighter = f.Id, Promotion = promo.Id,
             PursePerFight = new Money(Negotiator.OriginsPurseFloor), WinBonus = new Money(Negotiator.OriginsPurseFloor / 2),
-            Fights = 3, Exclusive = true,
+            Fights = 3, Exclusive = exclusive,
         }, date);
         return f;
     }
+
+    // ------------------------------------------------------------------ a small house's open tryout
+
+    private const ulong TryoutSalt = 0x0219_7A10_0007UL;
+
+    /// <summary>An AI house holds an open tryout at most this often (days).</summary>
+    public const int TryoutEveryDays = 182;   // (once a year left 6 of 40 seeds with a house at 7-9 men between tryouts: longsim origins 40 20)
+
+    /// <summary>The ledger line that marks an AI house's open tryout (the durable record of when it last held one).</summary>
+    public const string TryoutLedgerLine = "Open tryout";
+
+    /// <summary>
+    /// The month's open tryouts (Origins, AI houses; after the month's free-agent pass): a house with fewer men who
+    /// could fight its next night than that night needs (<see cref="OriginsShows.MinRoster"/>; counted by
+    /// <see cref="NightReady"/>: men the house could book a lead window from now, so the hurt and the suspended do not
+    /// count) and fewer than its founding roster on the books (<see cref="OnTheBooks"/>) after the market has had its
+    /// turn calls in local men, as it did the month it opened, and signs them on the tryout terms (<see cref="TryoutMan"/>)
+    /// until its solvent signing target (<see cref="OriginsShows.RosterDemand"/>, also for a house in the red) is on the
+    /// books, at most twice a year. This is how a small hall
+    /// whose purse no free agent will take (the Boom's 500-a-purse houses, while every man left on the market asks 750 or
+    /// more) keeps putting on its nights. A house in the red holds one too: a tryout costs nothing up front, and a
+    /// distressed house's offers (a fraction of its purse cap) reach nobody on the market, so without it a house in debt
+    /// could never stage the nights that would pay it back. The men sign on the house's own terms of exclusivity
+    /// (<see cref="Negotiator.WantsExclusivity"/>: a small hall deals non-exclusive, no monthly retainer), not the
+    /// founding tryout's. Its own keyed stream (seed, day, house).
+    /// The player's house is never touched: he has the market and his own tryout (<see cref="PlayerFounding.HoldTryout"/>).
+    /// </summary>
+    public static void RunTryouts(World world, DateOnly date)
+    {
+        FighterGenerator? gen = null;
+        foreach (var promo in world.Promotions.Values
+                     .Where(p => !p.Defunct && p.Id != world.PlayerPromotion)
+                     .OrderBy(p => p.Id.Value).ToList())
+        {
+            // Short when too few men could fight its next night AND it holds less than its founding roster: a full
+            // roster with men hurt waits for them to heal (a tryout then only swelled the sport: 39 of 40 seeds over
+            // the actives band at 12 years). It signs up to its solvent signing target (OriginsShows.RosterDemand;
+            // filling only to the founding roster left houses at 8-9 men before the half-year was up). A house in the
+            // red fills to that solvent target too, not the smaller distressed one the free-agent pass aims for: the
+            // tryout men cost nothing up front and sign on the floor purse, and the rule as written measured healthy
+            // (longsim origins 40 12 and 40 20, all seeds).
+            int onBooks = OnTheBooks(world, promo);
+            if (NightReady(world, promo, date) >= OriginsShows.MinRoster(promo) || onBooks >= OriginsShows.MinRoster(promo) + 2) continue;
+            int target = Math.Max(OriginsShows.MinRoster(promo) + 2, OriginsShows.RosterDemand(promo));
+            if (promo.Ledger.Any(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine
+                                      && date.DayNumber - e.Date.DayNumber < TryoutEveryDays)) continue;
+            var home = promo.HomeCity is { } hc ? world.Get(hc) : null;
+            if (home is null || world.Get(home.Country) is not { } country) continue;
+
+            var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ TryoutSalt ^ ((ulong)promo.Id.Value << 32)));
+            gen ??= FighterGenerator.ForWorld(world);
+            int signed = 0;
+            for (int guard = 0; onBooks + signed < target && guard < target * 2; guard++)
+                if (TryoutMan(world, gen, promo, country.Code, date, rng, Negotiator.WantsExclusivity(promo)) is { } man)
+                {
+                    man.Accolades.Add(new Accolade(date, $"Signed at {promo.Name}'s open tryout"));
+                    signed++;
+                }
+            Finance.Ledger.Record(promo, date, FinanceCategory.Other, new Money(0m), TryoutLedgerLine);
+            if (signed == 0) continue;
+            RankingService.RecomputePromotion(world, promo, date);
+            News.Post(world, date, NewsCategory.General, $"{promo.Name} holds an open tryout",
+                $"Short of men and with no purse the market will take, {promo.Abbreviation} called in the local hopefuls: {signed} signed on the tryout terms.",
+                promo.Id);
+        }
+    }
+
+    /// <summary>
+    /// The house's men who could fight the next night it can put on the books (<see cref="OriginsShows.LeadWeeks"/>
+    /// from <paramref name="date"/>): the one bookability rule its nights use (<see cref="OriginsShows.CanBook"/>:
+    /// active, fit by then, a fight left on his deal, deal not run out).
+    /// </summary>
+    internal static int NightReady(World world, Promotion promo, DateOnly date)
+    {
+        var night = date.AddDays(7 * OriginsShows.LeadWeeks);
+        return world.RosterOf(promo.Id).Count(f => OriginsShows.CanBook(world, promo, f, night));
+    }
+
+    /// <summary>The house's men on the books: not retired, deal not run out (hurt or not).</summary>
+    internal static int OnTheBooks(World world, Promotion promo) =>
+        world.RosterOf(promo.Id).Count(f => f.Status != FighterStatus.Retired && !DealWindow.OutOfDeal(world, f));
 
     // ------------------------------------------------------------------ scheduled arrivals
 

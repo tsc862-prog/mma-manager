@@ -79,6 +79,7 @@ public static class OriginsMode
         Console.WriteLine("===== origins: all seeds =====");
         foreach (var t in totals) Console.WriteLine(t);
         MoneyReport(aiRuns, scriptedRuns, years);
+        LadderReport(aiRuns, scriptedRuns);
         Console.WriteLine(failures == 0 ? "ORIGINS HEALTH: OK" : $"ORIGINS HEALTH: {failures} seed(s) failed");
         return failures == 0 ? 0 : 1;
     }
@@ -98,6 +99,7 @@ public static class OriginsMode
         public Dictionary<string, List<string>> Trace = new();
         public Dictionary<string, HashSet<FighterId>> LastRoster = new();
         public List<House> Houses = new();
+        public List<(string Key, DateOnly On, string Who)> Ladder = new();   // the weight-ladder chapters: when, and who (or the time limit)
         public int Years;
 
         public bool Healthy(bool deterministic) =>
@@ -343,6 +345,13 @@ public static class OriginsMode
         }
 
         o.Chapters = world.Era.Chapters.Count;
+        foreach (var r in world.Era.Chapters.Where(r => OriginsReforms.Ladder.Contains(r.Key)).OrderBy(r => r.FiredOn))
+        {
+            var by = r.Promotion is { } lp ? world.Get(lp) : null;
+            string who = by is null ? "time limit"
+                : $"{by.Abbreviation} ({(founderAbbrs.Contains(by.Abbreviation) ? "founder" : arrivalNames.Contains(by.Name) ? "authored" : "founded")}{(by.Id == world.PlayerPromotion ? ", player" : "")})";
+            o.Ladder.Add((r.Key, r.FiredOn, who));
+        }
         if (world.Fighters.Count <= fightersAtStart) o.Problems.Add("no new men turned pro");
         o.Banks = string.Join(", ", banks);
         o.Summary = sb.ToString();
@@ -470,6 +479,28 @@ public static class OriginsMode
             Console.WriteLine($"   (founded houses in the scripted worlds: {shFounded.Count} opened, alive at the end {shFounded.Count(h => h.FoldedAt is null)})");
     }
 
+    /// <summary>
+    /// ORIGINS LADDER: when each weight-ladder chapter fired in every seed and who drew it (a house crowning the first
+    /// champion of the new class, or the chapter's time limit), then per chapter across the seeds: how often it fired,
+    /// the median and range of its date, and how often it fell to the time limit. Read-only reporting.
+    /// </summary>
+    private static void LadderReport(List<Outcome> ai, List<Outcome> scripted)
+    {
+        Console.WriteLine($"===== ORIGINS LADDER ({ai.Count} seeds) =====");
+        for (int i = 0; i < ai.Count; i++)
+            Console.WriteLine($"seed {i + 1} AI: " + string.Join("; ", ai[i].Ladder.Select(l => $"{l.Key} {l.On:yyyy-MM} {l.Who}")));
+        foreach (var (label, runs) in new[] { ("AI", ai), ("scripted", scripted) })
+            foreach (var key in OriginsReforms.Ladder)
+            {
+                var fired = runs.SelectMany(o => o.Ladder.Where(l => l.Key == key)).ToList();
+                if (fired.Count == 0) { Console.WriteLine($"{label} {key}: fired 0/{runs.Count}"); continue; }
+                var days = fired.Select(l => l.On).OrderBy(d => d).ToList();
+                Console.WriteLine($"{label} {key}: fired {fired.Count}/{runs.Count}, median {days[days.Count / 2]:yyyy-MM}, earliest {days[0]:yyyy-MM}, latest {days[^1]:yyyy-MM}; " +
+                                  $"time limit {fired.Count(l => l.Who == "time limit")}, founder {fired.Count(l => l.Who.Contains("founder"))}, " +
+                                  $"authored {fired.Count(l => l.Who.Contains("authored"))}, founded {fired.Count(l => l.Who.Contains("(founded"))}, player {fired.Count(l => l.Who.Contains("player"))}");
+            }
+    }
+
     private static DateOnly? LastNight(World world, Promotion p) =>
         world.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Completed)
             .Select(e => (DateOnly?)e.Date).DefaultIfEmpty(null).Max();
@@ -512,7 +543,41 @@ public static class OriginsMode
                 .GroupBy(l => l.Category).Select(g => (Cat: g.Key, Sum: g.Sum(l => l.Amount.Amount)))
                 .Where(x => x.Sum != 0).OrderByDescending(x => Math.Abs(x.Sum)).ThenBy(x => x.Cat);
             sb.AppendLine("       money: " + string.Join(", ", money.Select(x => $"{x.Cat} {x.Sum / 1000m:+#,0;-#,0}k")));
+            if (!p.Defunct) sb.AppendLine("       " + RosterLine(world, p));
         }
+    }
+
+    /// <summary>
+    /// A house's year-end roster against what it wants, and its purse cap against what the free men in its
+    /// divisions ask (and how many would take its opening offer): read-only, the signing pass's own numbers.
+    /// </summary>
+    private static string RosterLine(World world, Promotion p)
+    {
+        bool distressed = MmaManager.Core.Sim.Org.Solvency.Distress(p, world) > 0;
+        var divs = p.Divisions.Where(d => d.Sex == Sex.Male).ToList();
+        int per = OriginsShows.DivisionRosterTarget(p, distressed);
+        var men = world.RosterOf(p.Id).Where(f => f.Status != FighterStatus.Retired).ToList();
+        int bookable = men.Count(f => OriginsShows.CanBook(world, p, f, world.CurrentDate.AddDays(28)));
+        decimal cap = Negotiator.PurseCap(world, p);
+        var negotiator = new Negotiator();
+        var valuation = new FighterValuation();
+        var pool = world.FreeAgents().Where(f => f.Status == FighterStatus.Active && divs.Any(d => d.Matches(f))).OrderBy(f => f.Id.Value).ToList();
+        int yes = 0;
+        var mine = new List<decimal>();
+        foreach (var fa in pool)
+        {
+            var exp = valuation.Evaluate(world, fa);
+            mine.Add(exp.AskingPurse.Amount);
+            var offer = negotiator.AiOpeningOffer(world, p, fa, exp);
+            if (negotiator.Evaluate(world, fa, offer, exp).Verdict == NegotiationVerdict.Accept) yes++;
+        }
+        mine.Sort();
+        string short_ = string.Join(" ", divs.Where(d => men.Count(f => d.Matches(f)) < per)
+            .Select(d => $"{(d.Open ? "Open" : d.WeightClass.ToString())}:{men.Count(f => d.Matches(f))}"));
+        return $"roster: {divs.Count} div x {per} = {per * Math.Max(1, divs.Count)} wanted, {men.Count} held ({bookable} bookable in 4w); " +
+               $"fmt {p.Rules.ShowFormat} cadence {OriginsShows.CadenceWeeks(p)}w; cap {cap:N0} (ceiling {FighterValuation.OriginsMarketCeiling(world):N0}); " +
+               $"free men in its divisions {pool.Count}, asks min {(mine.Count > 0 ? mine[0] : 0):N0} median {(mine.Count > 0 ? mine[mine.Count / 2] : 0):N0}, would accept {yes}" +
+               (distressed ? " DISTRESSED" : "") + (short_.Length > 0 ? $"; short: {short_}" : "");
     }
 
     /// <summary>

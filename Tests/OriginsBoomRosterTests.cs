@@ -1,0 +1,326 @@
+using MmaManager.Core.Model;
+using MmaManager.Core.Sim.Booking;
+using MmaManager.Core.Sim.Contracts;
+using MmaManager.Core.Sim.Living;
+
+namespace MmaManager.Tests;
+
+/// <summary>
+/// The Boom's small houses can still sign men (Origins): an unknown's ask bottoms out at the sport's floor
+/// purse, the purse the smallest house can always budget, however rich the biggest house has grown. (Asks
+/// used to bottom out at 15% of the richest house's purse cap; once that passed ~4,200 every unknown asked
+/// 750 against a small hall's 500, and the small houses of 2009-12 signed nobody and missed their nights.)
+/// </summary>
+public class OriginsBoomRosterTests
+{
+    private static Promotion House(World w, string abbr) => w.Promotions.Values.Single(p => p.Abbreviation == abbr);
+
+    [Fact]
+    public void AnUnknown_AsksTheFloorPurse_WhenTheRichestHouseHasOutgrownTheSmallOnes()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        // A giant: a famous house in a stadium (the Boom's richest purse) ...
+        var giant = House(w, "SFA");
+        giant.Prestige = 60;
+        OriginsShows.HomeVenue(w, giant)!.Capacity = 20_000;
+        // ... and a small hall at the floor purse.
+        var small = House(w, "DLB");
+        small.Prestige = 1;
+        OriginsShows.HomeVenue(w, small)!.Capacity = 150;
+        Assert.Equal(Negotiator.OriginsPurseFloor, Negotiator.PurseCap(w, small));
+        decimal ceiling = FighterValuation.OriginsMarketCeiling(w);
+        // (The old bottom of the scale, 15% of the ceiling, is over the floor here: the case that starved the small houses.)
+        Assert.True(Math.Round(ceiling * 0.15m / 250m) * 250m > Negotiator.OriginsPurseFloor, $"ceiling {ceiling}");
+
+        var valuation = new FighterValuation();
+        var negotiator = new Negotiator();
+        var unknowns = w.FreeAgents()
+            .Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male && f.Record.TotalBouts == 0 && small.Divisions.Any(d => d.Matches(f)))
+            .OrderBy(f => f.Id.Value).ToList();
+        Assert.NotEmpty(unknowns);
+        int signable = 0;
+        foreach (var f in unknowns)
+        {
+            var exp = valuation.Evaluate(w, f);
+            Assert.True(exp.AskingPurse.Amount >= Negotiator.OriginsPurseFloor);
+            if (exp.AskingPurse.Amount > Negotiator.OriginsPurseFloor) continue;
+            var offer = negotiator.AiOpeningOffer(w, small, f, exp);
+            Assert.True(offer.PursePerFight.Amount <= Negotiator.OriginsPurseFloor);
+            if (negotiator.Evaluate(w, f, offer, exp).Verdict == NegotiationVerdict.Accept) signable++;
+        }
+        Assert.True(signable > 0, $"none of {unknowns.Count} unknown free agents would sign at the small house's floor purse");
+    }
+
+    [Fact]
+    public void AnAiHouse_FoundedAfterTheWholeLadder_OpensOnlyTheLinesItsPurseCanStaff()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.OriginsObserver(4));
+        Era.Unlock(w, Capability.Rounds);
+        Era.Unlock(w, Capability.Gloves);
+        foreach (var chapter in OriginsReforms.Ladder)
+            foreach (var wc in OriginsReforms.LinesOf(chapter)) Era.Unlock(w, Capability.Class(wc));
+        Assert.Equal(8, OriginsFounding.DrawnLines(w).Count);
+
+        var house = OriginsFounding.Found(w, w.CurrentDate, null)!;
+        var lines = house.Divisions.Where(d => d.Sex == Sex.Male).ToList();
+        int staff = OriginsReforms.DivisionsItCanStaff(w, house);
+        Assert.True(Negotiator.PurseCap(w, house) < 2_000m, $"a new house's purse {Negotiator.PurseCap(w, house)}");
+        Assert.InRange(lines.Count, 2, staff);
+        Assert.True(lines.Count < 8);
+        Assert.DoesNotContain(lines, d => d.Open);
+        // Whole chapters, heavy and light first: the heaviest line is there, so every man has a division.
+        foreach (var wc in OriginsReforms.LinesOf(OriginsReforms.Ladder[0])) Assert.Contains(lines, d => d.WeightClass == wc);
+        Assert.All(w.Fighters.Values.Where(f => f.Sex == Sex.Male), f => Assert.Contains(lines, d => d.Matches(f)));
+        // Its signing target follows: a few wide divisions, not eight thin ones.
+        Assert.True(OriginsShows.RosterDemand(house) <= 24, $"wants {OriginsShows.RosterDemand(house)} men");
+    }
+
+    [Fact]
+    public void WhatAHouseCanStaff_RisesWithItsPurse_FromTheFirstSplitToTheWholeLadder()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var small = House(w, "DLB");
+        small.Prestige = 1;
+        OriginsShows.HomeVenue(w, small)!.Capacity = 150;
+        Assert.Equal(2, OriginsReforms.DivisionsItCanStaff(w, small));
+        var giant = House(w, "SFA");
+        giant.Prestige = 60;
+        OriginsShows.HomeVenue(w, giant)!.Capacity = 20_000;
+        Assert.Equal(8, OriginsReforms.DivisionsItCanStaff(w, giant));
+    }
+
+    [Fact]
+    public void ASmallHouseShortOfMen_HoldsAnOpenTryout_TwiceAYearAtMost_AndNeverForThePlayer()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
+        Assert.Equal(3, w.RosterOf(sfa.Id).Count());
+        sfa.Balance = new Money(-40_000m);   // a house in the red holds one too: it costs nothing up front
+        int before = w.Fighters.Count;
+
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        var men = w.RosterOf(sfa.Id).ToList();
+        Assert.Equal(Math.Max(OriginsShows.MinRoster(sfa) + 2, OriginsShows.RosterDemand(sfa)), men.Count);
+        Assert.All(men.Where(f => f.Id.Value > before), f =>
+        {
+            Assert.Equal(sfa.Id, f.DiscoveredBy);
+            Assert.Equal(Negotiator.OriginsPurseFloor, f.Contract!.PursePerFight.Amount);
+            Assert.Equal(Negotiator.WantsExclusivity(sfa), f.Contract.IsExclusive);   // the house's own terms, not the founding tryout's
+        });
+        Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+
+        // Short again inside the half-year: no second tryout.
+        foreach (var f in men.Skip(3).ToList()) f.Contract = null;
+        OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(100));
+        Assert.Equal(3, w.RosterOf(sfa.Id).Count());
+        OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(OriginsFounding.TryoutEveryDays));
+        Assert.Equal(Math.Max(OriginsShows.MinRoster(sfa) + 2, OriginsShows.RosterDemand(sfa)), w.RosterOf(sfa.Id).Count());
+
+        // The player's house is his own: nobody holds a tryout for him.
+        var pw = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, 1));
+        var mine = pw.Get(pw.PlayerPromotion)!;
+        foreach (var f in pw.RosterOf(mine.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
+        OriginsFounding.RunTryouts(pw, pw.CurrentDate);
+        Assert.Equal(3, pw.RosterOf(mine.Id).Count());
+    }
+
+    [Fact]
+    public void WhatAHouseCanStaff_InTheMiddle_IsOneDivisionPer250OfItsPurse()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var house = House(w, "DLB");
+        house.Prestige = 30;
+        var room = OriginsShows.HomeVenue(w, house)!;
+        var seen = new Dictionary<decimal, int>();
+        for (int seats = 150; seats <= 6_000; seats += 25)
+        {
+            room.Capacity = seats;
+            seen.TryAdd(Negotiator.PurseCap(w, house), OriginsReforms.DivisionsItCanStaff(w, house));
+        }
+        // A 1,000 purse staffs four divisions, 1,250 five, 1,500 six (between the floor's two and the ladder's eight).
+        Assert.Equal(4, seen[1_000m]);
+        Assert.Equal(5, seen[1_250m]);
+        Assert.Equal(6, seen[1_500m]);
+        Assert.Equal(3, seen[750m]);
+    }
+
+    [Fact]
+    public void AnAiHouse_WaitsForTheNextWeightLine_UntilItsPurseCanStaffIt()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var on = new DateOnly(2001, 6, 1);
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0], OriginsReforms.Ladder[1] })
+        {
+            Era.Fire(w, key, on);
+            foreach (var u in Core.Sim.Generation.Origins.OriginsChapters.ByKey(key).Unlocks)
+                if (Era.TryFromChapterUnlock(u, out var cap)) Era.Unlock(w, cap);
+        }
+        var sfa = House(w, "SFA");
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0] })
+            if (OriginsReforms.Options(w, sfa, on).Any(o => o.Chapter == key)) Assert.True(OriginsReforms.Adopt(w, sfa, key, on), key);
+        int Lines() => sfa.Divisions.Count(d => !d.Open && d.Sex == Sex.Male);
+        Assert.Equal(2, Lines());
+        Assert.Contains(OriginsReforms.Options(w, sfa, on), o => o.Chapter == OriginsReforms.Ladder[1]);
+
+        // At the floor purse: ten years of monthly chances (6% a month) and the middle of the ladder never comes.
+        sfa.Prestige = 1;
+        OriginsShows.HomeVenue(w, sfa)!.Capacity = 150;
+        Assert.Equal(2, OriginsReforms.DivisionsItCanStaff(w, sfa));
+        for (int m = 1; m <= 120; m++) OriginsReforms.RunMonthly(w, on.AddMonths(m));
+        Assert.Equal(2, Lines());
+
+        // A purse that staffs the ladder: it draws the next lines inside the same ten years.
+        sfa.Prestige = 60;
+        OriginsShows.HomeVenue(w, sfa)!.Capacity = 20_000;
+        for (int m = 121; m <= 240 && Lines() == 2; m++) OriginsReforms.RunMonthly(w, on.AddMonths(m));
+        Assert.True(Lines() >= 4, $"{Lines()} lines");
+    }
+
+    [Fact]
+    public void AHouseWhoseMenAreHurt_CountsOnlyTheMenWhoCouldFightItsNextNight()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        int full = OriginsShows.MinRoster(sfa) + 2;
+        foreach (var fa in w.FreeAgents().Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male).OrderBy(f => f.Id.Value)
+                     .Take(Math.Max(0, full + 2 - w.RosterOf(sfa.Id).Count())).ToList())
+            ContractLifecycle.Sign(w, fa, new ContractOffer { Fighter = fa.Id, Promotion = sfa.Id, PursePerFight = new Money(500m), Fights = 3 }, w.CurrentDate);
+        var men = w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).ToList();
+        Assert.True(men.Count >= full, $"{men.Count} men");
+        // A full roster with men hurt waits for them to heal: no tryout.
+        foreach (var f in men.Skip(3)) { f.Status = FighterStatus.Injured; f.ReadyToFightOn = w.CurrentDate.AddDays(120); }
+        Assert.Equal(3, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.DoesNotContain(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        // Nine men on the books, six of them hurt: it can't run a night, so it holds one, up to its signing target.
+        foreach (var f in men.Skip(9)) f.Contract = null;
+        Assert.Equal(9, OriginsFounding.OnTheBooks(w, sfa));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        int fill = Math.Max(full, OriginsShows.RosterDemand(sfa));
+        Assert.Equal(fill, OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(3 + (fill - 9), OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+    }
+
+    [Fact]
+    public void TryoutMen_EachComeOffTheGymsIntake_ExactlyOnce()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
+        var day = w.CurrentDate;
+        OriginsFounding.RunTryouts(w, day);
+        int signed = w.RosterOf(sfa.Id).Count() - 3;
+        Assert.True(signed > 0);
+        // Each comes off the gyms' intake exactly once, in one month of the year after.
+        int off = 0;
+        for (var d = day.AddDays(7); d <= day.AddDays(7 * 70); d = d.AddDays(7))
+            if (d.AddDays(-7).Month != d.Month) off += OriginsTalent.TryoutDeduction(w, d);   // the month's first weekly tick
+        Assert.Equal(signed, off);
+    }
+
+    [Fact]
+    public void TheTick_SendsFewerNewMen_TheMonthATryoutManFallsDue()
+    {
+        // A scout world finds the first month whose intake is at least three new men.
+        const int K = 3;
+        var scout = OriginsWorldTests.AiWorld(11);
+        var tick = new WorldTick();
+        int weeks = -1;
+        for (int k = 0; k < 52 * 3; k++)
+        {
+            var r = tick.AdvanceWeek(scout);
+            if (scout.CurrentDate.AddDays(-7).Month != scout.CurrentDate.Month && r.Newgens >= K) { weeks = k; break; }
+        }
+        Assert.True(weeks >= 0, "no month with an intake of three in three years");
+
+        // Two copies of the world up to the week before that month's tick; in one, three men carry a tryout
+        // accolade that falls due on it.
+        var plain = OriginsWorldTests.AiWorld(11);
+        var tried = OriginsWorldTests.AiWorld(11);
+        new WorldTick().AdvanceWeeks(plain, weeks);
+        new WorldTick().AdvanceWeeks(tried, weeks);
+        var monthTick = tried.CurrentDate.AddDays(7);
+        foreach (var f in tried.Fighters.Values.Where(f => f.Status == FighterStatus.Active).OrderBy(f => f.Id.Value).Take(K))
+            f.Accolades.Add(new Accolade(monthTick.AddMonths(-(1 + (int)((uint)f.Id.Value % 12))), "Signed at Test Promotion's open tryout"));
+        Assert.Equal(K, OriginsTalent.TryoutDeduction(tried, monthTick));
+
+        var a = new WorldTick().AdvanceWeek(plain);
+        var b = new WorldTick().AdvanceWeek(tried);
+        Assert.True(a.Newgens >= K, $"intake {a.Newgens}");
+        Assert.Equal(a.Newgens - K, b.Newgens);
+    }
+
+    [Fact]
+    public void TheTryoutTrigger_IsTheNextNight_ButOnlyBelowTheFoundingRoster()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        int min = OriginsShows.MinRoster(sfa);
+        // Eleven men on the books (one under the founding roster), every one fit for the next night: no tryout.
+        SetRoster(w, sfa, min + 1);
+        Assert.Equal(min + 1, OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(min + 1, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.DoesNotContain(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        Assert.Equal(min + 1, OriginsFounding.OnTheBooks(w, sfa));
+
+        // The same eleven, two of them hurt for months: nine could fight the next night, under what it needs. A tryout.
+        foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Take(2)) { f.Status = FighterStatus.Injured; f.ReadyToFightOn = w.CurrentDate.AddDays(120); }
+        Assert.Equal(min + 1, OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(min - 1, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        Assert.True(OriginsFounding.OnTheBooks(w, sfa) > min + 1);
+    }
+
+    [Fact]
+    public void ATryout_FillsToTheSigningTarget_NotJustTheFoundingRoster()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var on = new DateOnly(2001, 6, 1);
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0] })
+        {
+            Era.Fire(w, key, on);
+            foreach (var u in Core.Sim.Generation.Origins.OriginsChapters.ByKey(key).Unlocks)
+                if (Era.TryFromChapterUnlock(u, out var cap)) Era.Unlock(w, cap);
+        }
+        var sfa = House(w, "SFA");
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0] })
+            if (OriginsReforms.Options(w, sfa, on).Any(o => o.Chapter == key)) Assert.True(OriginsReforms.Adopt(w, sfa, key, on), key);
+        Assert.Equal(2, sfa.Divisions.Count(d => !d.Open && d.Sex == Sex.Male));
+        int min = OriginsShows.MinRoster(sfa), demand = OriginsShows.RosterDemand(sfa);
+        Assert.True(demand > min + 2, $"signing target {demand}, founding roster {min + 2}");   // (split: eight a division)
+
+        SetRoster(w, sfa, 3);
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.Equal(demand, OriginsFounding.OnTheBooks(w, sfa));
+    }
+
+    /// <summary>Exactly <paramref name="n"/> fit men on the house's books (free agents signed on, or the rest let go), in id order.</summary>
+    private static void SetRoster(World w, Promotion p, int n)
+    {
+        foreach (var fa in w.FreeAgents().Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male && p.Divisions.Any(d => d.Matches(f)))
+                     .OrderBy(f => f.Id.Value).Take(Math.Max(0, n - w.RosterOf(p.Id).Count())).ToList())
+            ContractLifecycle.Sign(w, fa, new ContractOffer { Fighter = fa.Id, Promotion = p.Id, PursePerFight = new Money(500m), Fights = 3 }, w.CurrentDate);
+        foreach (var f in w.RosterOf(p.Id).OrderBy(f => f.Id.Value).Skip(n).ToList()) f.Contract = null;
+        foreach (var f in w.RosterOf(p.Id)) { f.Status = FighterStatus.Active; f.ReadyToFightOn = null; f.CurrentInjury = null; }
+    }
+
+    [Fact]
+    public void ANamedMan_StillAsksHisShareOfTheBestPurse()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var giant = House(w, "SFA");
+        giant.Prestige = 60;
+        OriginsShows.HomeVenue(w, giant)!.Capacity = 20_000;
+        decimal ceiling = FighterValuation.OriginsMarketCeiling(w);
+        var valuation = new FighterValuation();
+        // Asks still run up to the ceiling: the best-known man in the world asks well over the floor, and no man over it.
+        var asks = w.Fighters.Values.Where(f => f.Status == FighterStatus.Active)
+            .Select(f => valuation.Evaluate(w, f).AskingPurse.Amount).ToList();
+        Assert.True(asks.Max() > Negotiator.OriginsPurseFloor * 2, $"top ask {asks.Max()}");
+        Assert.All(asks, a => Assert.True(a <= Math.Max(Negotiator.OriginsPurseFloor, Math.Round(ceiling / 250m) * 250m), $"{a} over the ceiling {ceiling}"));
+    }
+}

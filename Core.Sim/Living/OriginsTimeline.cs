@@ -168,6 +168,7 @@ public static class OriginsTimeline
             OriginsReforms.RunMonthly(world, date);
             OriginsFounding.RunMonthly(world, date);
             OriginsFounding.RunArrivals(world, date);
+            OriginsFounding.RunTryouts(world, date);   // a small house the market won't sign for finds local men
             OriginsScenes.RunMonthly(world, date);   // gyms open in the scenes that have woken
             OriginsCamps.RunMonthly(world, date);    // rooms earn names and learn the whole game
         }
