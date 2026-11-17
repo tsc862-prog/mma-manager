@@ -656,7 +656,7 @@ public sealed class BriefingViewModel : ObservableObject
                     Art = Portraits.Body(winner, w);
                     People.Add(Person(w, winner, "Won the main event"));
                     People.Add(Person(w, loser, "Lost"));
-                    Quote = MmaManager.Core.Sim.Flavor.Quotes.Say(winner,
+                    Quote = MmaManager.Core.Sim.Flavor.Quotes.Say(w, winner,
                         IsDecision(o!.Method) ? MmaManager.Core.Sim.Flavor.Moment.WinDecision : MmaManager.Core.Sim.Flavor.Moment.WinFinish, ev.Date, loser);
                     QuoteBy = $"{winner.LastName}, after the main event";
                 }

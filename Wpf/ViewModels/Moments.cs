@@ -194,7 +194,7 @@ public sealed class TitleMoment : MomentViewModel
         MomentVoice? answer = null;
         if (how == Variant.Dethroned && loser is not null)
             answer = new MomentVoice(loser.Id.Value,
-                Voice.Quotes.Say(loser, Voice.Moment.TitleLoss, ev.Date, winner),
+                Voice.Quotes.Say(world, loser, Voice.Moment.TitleLoss, ev.Date, winner),
                 $"{loser.FirstName} {loser.LastName}, after the bout", Portraits.Thumb(loser, world));
 
         return new TitleMoment
@@ -215,7 +215,7 @@ public sealed class TitleMoment : MomentViewModel
             Org = promo?.Name ?? "",
             OrgLogo = promo is null ? null : LogoFactory.ForPromotion(promo),
             Art = Portraits.Body(winner, world),
-            Quote = Voice.Quotes.Say(winner, Voice.Moment.TitleWin, ev.Date, loser),
+            Quote = Voice.Quotes.Say(world, winner, Voice.Moment.TitleWin, ev.Date, loser),
             QuoteBy = $"{winner.LastName}, in the cage",
             StripLabel = stripLabel.ToUpperInvariant(),
             Strip = strip.Count >= 2 ? strip : Array.Empty<MomentStripItem>(),   // a lineage of one is the headline

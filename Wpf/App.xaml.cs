@@ -999,7 +999,13 @@ public partial class App : Application
                             if (div.Title is not { } tid || w.Get(tid)?.CurrentChampion is not { } cid || w.Get(cid) is not { } champ || !Free(champ)) continue;
                             var challenger = div.Rankings.Select(id => w.Get(id)).FirstOrDefault(c => c is not null && c.Id != cid && Free(c) && div.Matches(c));
                             if (challenger is not null)
+                            {
                                 booking.AddBout(w, ev, champ.Id, challenger.Id, 5, true, out _);
+                                // --tie: harness only, plant bad blood between the two so the quotes can say so
+                                // (Quotes.Say with the world picks a tie line on about 70% of calls for rivals).
+                                if (e.Args.Contains("--tie") && !w.Rivalries.Any(r => r.Involves(champ.Id) && r.Involves(challenger.Id)))
+                                    w.Rivalries.Add(new MmaManager.Core.Model.Rivalry { A = champ.Id, B = challenger.Id, Intensity = 85, Since = date.AddMonths(-8) });
+                            }
                         }
                     }
                     if (ev.Card.Count == 0) { booking.CancelEvent(w, ev); continue; }
@@ -1021,6 +1027,15 @@ public partial class App : Application
                 }
                 Console.WriteLine($"RENDERMOMENT after {nights} night(s): {m.GetType().Name} - {m.Headline} {m.Name}, {m.Subline} | {m.Kicker}");
                 Console.WriteLine($"RENDERMOMENT quote: {m.Quote} | answer: {m.Answer?.Text} (face {m.Answer?.HasPicture}) | {m.AlsoLine}");
+                if (m.SubjectId is int sid && vm.LiveWorld!.Get(new MmaManager.Core.Model.FighterId(sid)) is { } champNow)
+                {
+                    var mw = vm.LiveWorld!;
+                    var lastTitle = mw.Events.Values.Where(x => x.Promotion == mw.PlayerPromotion && x.Status == MmaManager.Core.Model.EventStatus.Completed)
+                        .OrderBy(x => x.Date).SelectMany(x => x.Card.Select(b => (x, b))).LastOrDefault(t => t.b.IsTitleFight && t.b.Outcome?.Winner == champNow.Id);
+                    if (lastTitle.b?.Outcome?.Loser is { } lid && mw.Get(lid) is { } beaten)
+                        Console.WriteLine($"RENDERMOMENT tie: {MmaManager.Core.Sim.Flavor.Ties.Strongest(mw, champNow, beaten, lastTitle.x.Date)?.Kind.ToString() ?? "none"}; "
+                            + $"world-less line would be {MmaManager.Core.Sim.Flavor.Quotes.Say(champNow, MmaManager.Core.Sim.Flavor.Moment.TitleWin, lastTitle.x.Date, beaten)}");
+                }
                 foreach (var f in m.Facts) Console.WriteLine($"RENDERMOMENT fact: {f.Label}: {f.Value} - {f.Detail}");
 
                 var root = (FrameworkElement)win.Content;
@@ -1783,6 +1798,20 @@ public partial class App : Application
                         vm.SelectedOrg = vm.Organizations.FirstOrDefault(p => p.Abbreviation == abbr) ?? vm.SelectedOrg;
                         Console.WriteLine($"ORIGINS rankings of {vm.SelectedOrg?.Abbreviation}: picks [{string.Join(" | ", vm.RankingDivisions.Select(p => p.Label))}]; divisions [{string.Join(" | ", vm.SelectedOrg?.Divisions.Select(FighterRow.DivisionLabel) ?? Array.Empty<string>())}]");
                     }
+                    if (e.Args.Contains("--plantcode"))
+                    {
+                        // Harness only: the commissions' one code arrives early. Your home region is licensed and the
+                        // chapter is recorded; then a week of play lets the sim's own weekly pass bind your house to it.
+                        var w = vm.LiveWorld!;
+                        if (w.Get(w.PlayerPromotion) is { HomeCity: { } hc } && w.Get(hc) is { } city && w.Get(city.Country) is { } country
+                            && !w.Era.Sanctions.Any(s => s.Country == country.Code && (s.Area is null || s.Area == city.Area)))
+                            w.Era.Sanctions.Add(new MmaManager.Core.Model.Sanction { Country = country.Code, Area = city.Area, On = w.CurrentDate });
+                        MmaManager.Core.Sim.Living.Era.Fire(w, MmaManager.Core.Sim.Living.OriginsReforms.Unified, w.CurrentDate);
+                        vm.AdvanceWeekCommand.Execute(null);
+                        var mine = w.Get(w.PlayerPromotion)!;
+                        Console.WriteLine($"ORIGINS code planted: bound {MmaManager.Core.Sim.Living.OriginsReforms.BoundByCode(w, mine)}, under it {MmaManager.Core.Sim.Living.OriginsReforms.HasUnified(mine)}, "
+                            + $"rounds {mine.Rules.StandardRounds}/{mine.Rules.TitleRounds} x {mine.Rules.RoundMinutes} min, rankings recognised {MmaManager.Core.Sim.Living.OriginsReforms.RankingsRecognised(w)}");
+                    }
                     if (e.Args.Contains("--nochapters"))
                     {
                         // The Story's empty-era state (harness only: the world is the harness's own).
@@ -2019,6 +2048,20 @@ public partial class App : Application
                     vm.Mail.Selected = letter;
                     Console.WriteLine($"RENDERAPP letter: '{letter?.Subject}' from {letter?.Sender} — actions: {string.Join(" | ", letter?.Actions.Select(a => a.Text) ?? Array.Empty<string>())}");
                     Layout();
+                }
+                // --profile <people|plain>: open the Fighter Profile on a fighter with a people passage (mentor, family,
+                // feud, camp; the richest one first) or one with none, to see the bio area both ways.
+                if (e.Args.Contains("--profile"))
+                {
+                    var w = vm.LiveWorld!;
+                    bool people = e.Args[Array.IndexOf(e.Args, "--profile") + 1] != "plain";
+                    var pick = w.Fighters.Values.Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && !f.LocalTalent)
+                        .Select(f => (f, n: MmaManager.Core.Sim.Flavor.Biographer.People(w, f).Count))
+                        .Where(t => people ? t.n > 0 : t.n == 0)
+                        .OrderByDescending(t => people ? Math.Min(t.n, 3) : 0).ThenBy(t => t.f.Id.Value).Select(t => t.f).FirstOrDefault();
+                    if (pick is not null) vm.OpenFighter(pick.Id.Value);
+                    Layout();
+                    Console.WriteLine($"RENDERAPP profile ({(people ? "people" : "plain")}): {pick?.FullName ?? "nobody"} - {(pick is null ? "" : MmaManager.Core.Sim.Flavor.Biographer.PeopleText(w, pick))}");
                 }
                 // --talks <fa|lifer|unhappy>: put someone across the Contracts table (or on the
                 // Fighter Profile, when that's the app): the top free agent, or one of our own
