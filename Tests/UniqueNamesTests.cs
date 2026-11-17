@@ -33,6 +33,16 @@ public class UniqueNamesTests
             .Select(f => $"{f.Id.Value} {Full(f)}");
     }
 
+    /// <summary>Every named person of any kind: fighters (club filler excepted), owners and staff (house and market).</summary>
+    private static IEnumerable<string> EveryName(World w) =>
+        w.Fighters.Values.Where(f => !f.LocalTalent).Select(Full)
+            .Concat(w.Promotions.Values.Where(p => !string.IsNullOrWhiteSpace(p.OwnerName)).Select(p => p.OwnerName!))
+            .Concat(w.Promotions.Values.SelectMany(p => p.Staff).Select(s => s.Name))
+            .Concat(w.StaffMarket.Select(s => s.Name));
+
+    private static IEnumerable<string> SharedAnywhere(World w) =>
+        EveryName(w).GroupBy(n => n, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key);
+
     private static World Modern(ulong seed) => new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
 
     [Theory]
@@ -43,9 +53,13 @@ public class UniqueNamesTests
         var w = Modern(seed);
         Assert.Empty(Duplicates(w));
         Assert.Empty(Fallbacks(w));              // day one: the reserve settles everyone, no hyphens or numbers
+        Assert.Empty(SharedAnywhere(w));         // fighters, owners, staff and the market: no two share a full name
+        Assert.DoesNotContain(w.Fighters.Values, f => !f.Designed && RealNames.All.Contains(Full(f)));
         new WorldTick().AdvanceWeeks(w, 156);   // three years of newgens, tryouts, discoveries
         Assert.Empty(Duplicates(w));
         Assert.Empty(Fallbacks(w));              // and after three years ("Team {LastName}" camps stay clean)
+        Assert.Empty(SharedAnywhere(w));
+        Assert.DoesNotContain(w.Fighters.Values, f => !f.Designed && RealNames.All.Contains(Full(f)));
         Assert.True(w.Fighters.Count > 7000);   // (the intake really ran)
 
         // And nobody shares a name with an AUTHORED staff member or owner.
@@ -61,8 +75,10 @@ public class UniqueNamesTests
     {
         var w = OriginsWorldTests.AiWorld(seed);
         Assert.Empty(Duplicates(w));
+        Assert.Empty(SharedAnywhere(w));
         new WorldTick().AdvanceWeeks(w, 156);
         Assert.Empty(Duplicates(w));
+        Assert.Empty(SharedAnywhere(w));
 
         // The pioneers keep their names: nobody generated shares one (the pioneer portrait binding is by exact name).
         foreach (var p in OriginsPioneers.All)
@@ -315,4 +331,135 @@ public class UniqueNamesTests
         gen.EnsureUniqueName(w, g);
         Assert.NotEqual($"{pioneer.First} {pioneer.Last}", Full(g));
     }
+
+    // ---- real people, staff, streams ---------------------------------------------------
+
+    [Fact]
+    public void NoRealNotablePerson_CanBeGenerated_InAnyMode()
+    {
+        foreach (var w in new[] { Modern(1), OriginsWorldTests.AiWorld(11) })
+        {
+            var gen = FighterGenerator.ForWorld(w);
+            var registry = NameRegistry.Build(w);
+            foreach (var real in RealNames.All)
+            {
+                var parts = real.Split(' ', 2);
+                Assert.True(registry.Taken(parts[0], parts[1]), real);
+                var f = gen.Generate(w.NewFighterId(), w.CurrentDate, new GenOptions());
+                f.FirstName = parts[0]; f.LastName = parts[1];
+                gen.EnsureUniqueName(w, f);
+                Assert.NotEqual(real, Full(f));
+            }
+        }
+        // The examples the review named are in it.
+        foreach (var n in new[] { "Pablo Escobar", "Adrian Yanez", "Alp Arslan", "Deepak Chopra", "Konrad Lorenz", "Moussa Traore", "Satoshi Ishii", "Ricardo Almeida" })
+            Assert.Contains(n, RealNames.All);
+    }
+
+    [Fact]
+    public void TheStaffReserve_IsCleanToo()
+    {
+        Assert.Equal(StaffNaming.ReserveFirst.Length, StaffNaming.ReserveFirst.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(StaffNaming.ReserveLast.Length, StaffNaming.ReserveLast.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Empty(StaffNaming.ReserveFirst.Intersect(StaffService.FirstNames, StringComparer.OrdinalIgnoreCase));
+        Assert.Empty(StaffNaming.ReserveLast.Intersect(StaffService.LastNames, StringComparer.OrdinalIgnoreCase));
+        var authoredSurnames = DesignedStaff.Staff.Select(s => s.Name.Split(' ')[^1])
+            .Concat(DesignedStaff.Owners.Select(o => o.Name.Split(' ')[^1]))
+            .Concat(DesignedRoster.All.Select(d => d.Last)).Concat(DesignedLegends.All.Select(d => d.Last))
+            .Concat(OriginsPioneers.All.Select(p => p.Fighter.Last));
+        var clash = StaffNaming.ReserveLast.Intersect(authoredSurnames, StringComparer.OrdinalIgnoreCase).ToList();
+        Assert.True(clash.Count == 0, string.Join(", ", clash));
+    }
+
+    [Fact]
+    public void AGeneratedStaffer_YieldsToAFighter_AndAnAuthoredNameStays()
+    {
+        var w = Modern(1);
+        // Put a fighter on a generated staffer's name and rerun the pass: the staffer is renamed, the fighter is not.
+        var generated = w.StaffMarket.First(m => !DesignedStaff.Staff.Any(d => d.Name == m.Name));
+        var parts = generated.Name.Split(' ', 2);
+        var f = FighterGenerator.ForWorld(w).Generate(w.NewFighterId(), w.CurrentDate, new GenOptions());
+        f.FirstName = parts[0]; f.LastName = parts[1];
+        w.Fighters[f.Id] = f;
+        List<string> Authored() => w.Promotions.Values.SelectMany(p => p.Staff).Select(s => s.Name)
+            .Where(n => DesignedStaff.Staff.Any(d => d.Name == n)).ToList();
+        var authoredBefore = Authored();
+        StaffNaming.Resolve(w);
+        Assert.DoesNotContain(w.StaffMarket, m => m.Name == generated.Name);
+        Assert.Equal(generated.Name, Full(f));
+        Assert.Equal(authoredBefore, Authored());
+        Assert.Empty(SharedAnywhere(w));
+    }
+
+    [Fact]
+    public void AJuniorsSurnameIsNeverCut_EvenByTheLastResort()
+    {
+        var w = Modern(1);
+        var gen = FighterGenerator.ForWorld(w);
+        // Every first name there is already carries "dos Santos": only the numeral step is left.
+        foreach (var fn in NameData.AllFirstNames(Sex.Male).Concat(NameData.AllFirstNames(Sex.Female)).Concat(NameReserve.For("brazilian").First).Distinct())
+        {
+            var filler = gen.Generate(w.NewFighterId(), w.CurrentDate, new GenOptions { Nationality = Region.SouthAmerica, CountryCode = "BRA" });
+            filler.FirstName = fn; filler.LastName = "dos Santos";
+            w.Fighters[filler.Id] = filler;
+        }
+        var junior = gen.Generate(w.NewFighterId(), w.CurrentDate, new GenOptions { Nationality = Region.SouthAmerica, CountryCode = "BRA" });
+        junior.FirstName = "Rafael"; junior.LastName = "dos Santos";
+        gen.EnsureUniqueName(w, junior, keepSurname: true);
+        Assert.Matches(@"^dos Santos (II|III|IV|V|VI|VII|VIII|IX|X|\d+)$", junior.LastName);
+    }
+
+    [Fact]
+    public void TheNicknameRollSeesTheSameStreamAfterADeepResolve()
+    {
+        // The deep step draws from its own keyed stream, so the fight-name re-roll that follows reads the
+        // main ladder stream exactly as it did before: compare against a copy of the old path.
+        var w = Modern(1);
+        var gen = FighterGenerator.ForWorld(w);
+        Fighter Mint() => gen.Generate(w.NewFighterId(), w.CurrentDate, new GenOptions { Nationality = Region.NorthAmerica, CountryCode = "USA", Sex = Sex.Male });
+        var (bf, bl) = NameData.Pool("anglo", Region.NorthAmerica, Sex.Male);
+        Fighter? holder = null;
+        foreach (var fn in bf) foreach (var ln in bl) { var m = Mint(); m.FirstName = fn; m.LastName = ln; m.Nickname = null; w.Fighters[m.Id] = m; holder = m; }
+        holder!.Nickname = "The Probe";
+        var culture = MmaManager.Core.Sim.Geography.WorldAtlas.ByCode("USA")?.Culture;
+        Assert.Equal("anglo", culture);
+        for (int i = 0; i < 25; i++)
+        {
+            var f = Mint();
+            f.FirstName = bf[i % bf.Count]; f.LastName = bl[(i * 5) % bl.Count]; f.Nickname = "The Probe";
+            // The old path: a ladder that collides every time in a full pool, then the nickname loop, all one stream.
+            var rng = new SimRandom(SimRandom.Mix(w.RngSeed, (ulong)f.Id.Value ^ 0x4E11_D3D0UL));
+            var (firsts, lasts) = NameData.Pool(culture!, f.Nationality, f.Sex);
+            for (int attempt = 0; attempt < 16; attempt++) { rng.Pick(lasts); if (attempt >= 8) rng.Pick(firsts); }
+            string? expected = f.Nickname;
+            var taken = new HashSet<string>(w.Fighters.Values.Select(o => o.Nickname).Where(n => n is not null).Select(n => n!), StringComparer.OrdinalIgnoreCase);
+            for (int attempt = 0; expected is not null && taken.Contains(expected) && attempt < 16; attempt++)
+                expected = NameData.RollNickname(rng, culture, f.Nationality, f.Sex, attempt);
+
+            gen.EnsureUniqueName(w, f);
+            Assert.Equal(expected, f.Nickname);
+            Assert.False(bf.Contains(f.FirstName) && bl.Contains(f.LastName));   // the pair really did go deep
+            w.Fighters[f.Id] = f;
+        }
+    }
+
+    [Fact]
+    public void AnIntakesCallerStream_AndEverythingItRolls_IsUnchangedByTheUniquenessCall()
+    {
+        // Pinned from a run with the uniqueness call taken out of GenerateIntake: ages, sexes, classes, camps,
+        // homes, family ties and the caller stream's next draw. Naming must not move any of it.
+        var w = Modern(11);
+        var rng = new SimRandom(3);
+        var intake = NewgenService.ForWorld(w).GenerateIntake(w, 120, rng);
+        var sb = new System.Text.StringBuilder();
+        foreach (var f in intake)
+            sb.Append($"{f.Id.Value}|{f.BirthDate:yyyyMMdd}|{f.Sex}|{f.WeightClass}|{f.Camp?.Value}|{f.HomeCity?.Value}|{f.Nationality}|{f.Intangibles.Popularity.Value};");
+        foreach (var r in w.Relationships.Where(r => r.Kind == RelationshipKind.Family)) sb.Append($"{r.A.Value}>{r.B.Value};");
+        sb.Append(rng.NextULong());
+        ulong h = 1469598103934665603UL;
+        foreach (var c in sb.ToString()) { h ^= c; h *= 1099511628211UL; }
+        Assert.Equal(PinnedIntakeDigest, h);
+    }
+
+    private const ulong PinnedIntakeDigest = 1657296809180077220UL;
 }

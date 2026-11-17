@@ -45,6 +45,7 @@ public static class FoundingClass
         var gen = FighterGenerator.ForWorld(world);
         var anchor = Geography.WorldMap.AnchorCity(world, home);
         var made = new List<Fighter>();
+        var names = Generation.NameRegistry.Build(world);   // one set for the class
 
         foreach (var wc in classes)
         {
@@ -94,7 +95,7 @@ public static class FoundingClass
                 f.DiscoveredBy = promo.Id;
                 f.Accolades.Add(new Accolade(date, $"Founding class — tried out for {promo.Name}"));
                 world.Fighters[f.Id] = f;
-                gen.EnsureUniqueName(world, f);
+                gen.EnsureUniqueName(world, f, names);
                 Camps.JoinLocalCamp(world, f, rng);
                 made.Add(f);
             }

@@ -176,7 +176,11 @@ public static class OriginsTalent
     /// One specialist, added to the world as a free agent (0-0: his sport starts today). Country, age and
     /// level are the caller's (rolled on an Origins-only stream); the art and the size are hashes of the id.
     /// </summary>
-    public static Fighter Create(World world, FighterGenerator gen, DateOnly on, string countryCode, int age, int overall)
+    public static Fighter Create(World world, FighterGenerator gen, DateOnly on, string countryCode, int age, int overall) =>
+        Create(world, gen, on, countryCode, age, overall, null);
+
+    /// <summary>The same, naming him against a registry the caller keeps across a batch (see <see cref="Intake"/>).</summary>
+    internal static Fighter Create(World world, FighterGenerator gen, DateOnly on, string countryCode, int age, int overall, Generation.NameRegistry? names)
     {
         var id = world.NewFighterId();
         var discipline = DisciplineFor(world, id, countryCode);
@@ -199,7 +203,7 @@ public static class OriginsTalent
         });
         Specialise(world, f, discipline, overall, second);
         gen.AssignHometown(world, f, countryCode);
-        gen.EnsureUniqueName(world, f);
+        if (names is null) gen.EnsureUniqueName(world, f); else gen.EnsureUniqueName(world, f, names);
         world.Fighters[id] = f;
         return f;
     }
@@ -406,10 +410,11 @@ public static class OriginsTalent
 
         var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ 0x0219_17A6_E000UL));
         var gen = FighterGenerator.ForWorld(world);
+        var names = Generation.NameRegistry.Build(world);   // one set for the month's batch
         for (int i = 0; i < count; i++)
         {
             string country = scenes[rng.WeightedIndex(weights)];
-            var f = Create(world, gen, date, country, rng.Range(19, 26), rng.GaussianInt(42, 8, 26, 64));
+            var f = Create(world, gen, date, country, rng.Range(19, 26), rng.GaussianInt(42, 8, 26, 64), names);
             FindGym(world, f);
             made.Add(f);
         }

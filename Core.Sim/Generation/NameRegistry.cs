@@ -31,21 +31,31 @@ internal sealed class NameRegistry
         if (f.Nickname is { } n) _nicknames.Add(n);
     }
 
-    /// <summary>Everyone currently in <paramref name="world"/> (except <paramref name="except"/>), plus the reserved authored names.</summary>
-    public static NameRegistry Build(World world, FighterId? except = null)
+    /// <summary>
+    /// Everyone currently in <paramref name="world"/> (except <paramref name="except"/>), plus the reserved
+    /// authored names and the real notable people nobody here may share a name with.
+    /// <paramref name="withStaff"/> false leaves the live staff out (the staff rename pass adds them one by one).
+    /// </summary>
+    public static NameRegistry Build(World world, FighterId? except = null, bool withStaff = true)
     {
         var r = new NameRegistry();
         foreach (var o in world.Fighters.Values)
             if (except is null || o.Id != except.Value) r.Add(o);
-        foreach (var p in world.Promotions.Values)
+        if (withStaff)
         {
-            if (!string.IsNullOrWhiteSpace(p.OwnerName)) r._names.Add(p.OwnerName!);
-            foreach (var s in p.Staff) r._names.Add(s.Name);
+            foreach (var p in world.Promotions.Values)
+            {
+                if (!string.IsNullOrWhiteSpace(p.OwnerName)) r._names.Add(p.OwnerName!);
+                foreach (var s in p.Staff) r._names.Add(s.Name);
+            }
+            foreach (var s in world.StaffMarket) r._names.Add(s.Name);
         }
-        foreach (var s in world.StaffMarket) r._names.Add(s.Name);
         foreach (var n in Reserved(world.Mode)) r._names.Add(n);
+        foreach (var n in RealNames.All) r._names.Add(n);
         return r;
     }
+
+    public void AddName(string full) => _names.Add(full);
 
     private static readonly IReadOnlyList<string> ModernReserved = BuildModern();
     private static readonly IReadOnlyList<string> OriginsReserved = BuildOrigins();

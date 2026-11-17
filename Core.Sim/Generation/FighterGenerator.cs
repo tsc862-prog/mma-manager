@@ -680,7 +680,7 @@ public sealed class FighterGenerator
         }
         if (!names.Taken(f.FirstName, f.LastName)) return;
 
-        string stem = f.LastName.Split(' ')[0];
+        string stem = f.LastName;   // the whole surname ("dos Santos II", never "dos II"; a junior's surname is never cut)
         string[] numerals = { "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X" };
         for (int n = 0; names.Taken(f.FirstName, f.LastName); n++)
             f.LastName = n < numerals.Length ? $"{stem} {numerals[n]}" : $"{stem} {n + 2}";

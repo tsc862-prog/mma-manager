@@ -33,13 +33,13 @@ internal static class NameReserve
                 W("Garrity Wyman Brannigan Hollis Winslow Shepard Calloway Bishop Garner Lockhart Thornton Ellison Hargrove Blevins Pickett Sutter Merritt Dawson Rayburn Carver Lowell Prescott Ackerman Burnett Crowley Dalton Easley Fenton Gentry Hatcher Ingram Jarrett Kirby Lambert Marlow Odell Quillen Rutledge Spooner Tolliver Underhill Vickers Wexler Wardell Zimmer Abbott Barlow Coburn Denton Emory Fairchild Gilmore Haskell Irvin Locke Mattox Nolte Rawlings Sheridan Tennant")),
             ["arabic"] = (
                 W("Idris Walid Majid Samir Faisal Imad Hatem Ghassan Marwan Nizar Rashid Salim Tamer Wael Zaki Anwar Basil Elias Fadi Hadi Ibrahim Louay Mazen Nadim Qasim Raed Sharif Taha Yazan Zaid Amir Dawud"),
-                W("Habib Jaber Kassab Maalouf Najjar Shami Rizk Saad Tawil Yassin Zahra Abboud Bishara Daher Essa Fakhoury Ghanem Hamad Jarrah Karam Lahham Masri Nakhle Obeid Rahal Sabbagh Touma Wehbe Younes Zeidan Atallah Barakat")),
+                W("Habib Jaber Kassab Maalouf Najjar Shami Rizk Saad Tawil Yassin Hijazi Abboud Bishara Daher Essa Fakhoury Ghanem Hamad Jarrah Karam Lahham Masri Nakhle Obeid Rahal Sabbagh Touma Wehbe Younes Zeidan Atallah Barakat")),
             ["balkan"] = (
                 W("Goran Darko Aleksa Nemanja Dragan Mladen Vuk Ognjen"),
                 W("Stankovic Markovic Nikolic Djordjevic Pavlovic Todorovic Radovic Lazic Simic Matic")),
             ["brazilian"] = (
                 W("Joao Pedro Gabriel Matheus Leonardo Fabricio Murilo Otavio Henrique Igor Jonas Kleber Luciano Marcio Nelson Paulo Ricardo Sandro Vitor Wesley Yuri Alex Breno Claudio Davi Edson Fernando Geraldo Hugo Iuri Jefferson Lincoln Marlon Nilton Osvaldo Reginaldo Samuel Tulio Ulisses"),
-                W("Bezerra Santos Ribeiro Cordeiro Gomes Martins Araujo Melo Teixeira Moura Campos Dias Freitas Lopes Medeiros Nogueira Pinto Ramos Louzada Tavares Vasconcelos Xavier Azevedo Batista Cavalcanti Drummond Fagundes Guimaraes Lacerda Macedo Brandao Peixoto Queiroz Rezende Salgado Toledo Viana Zanetti Albuquerque Borges Coelho Esteves Furtado")),
+                W("Bezerra Santos Pimentel Cordeiro Gomes Martins Araujo Melo Teixeira Moura Campos Dias Freitas Lopes Medeiros Nogueira Pinto Valadares Louzada Tavares Vasconcelos Xavier Azevedo Batista Cavalcanti Drummond Fagundes Guimaraes Lacerda Macedo Brandao Peixoto Queiroz Rezende Salgado Toledo Viana Zanetti Albuquerque Borges Coelho Esteves Furtado")),
             ["celtic"] = (
                 W("Brendan Colm Tadhg Kieran Eamon"),
                 W("Callaghan Fitzgerald Sheehan Lenihan Gilroy Kavanagh Tierney Cassidy Mulvaney")),
@@ -57,7 +57,7 @@ internal static class NameReserve
                 W("Hoekstra Vandenberg Dijkstra Bos Kramer Prins Meijer DeGroot")),
             ["eastafrican"] = (
                 W("Wekesa Mugisha Okello Tadesse Biruk Abdi Daudi Faraji"),
-                W("Cheruiyot Kipkemboi Akello Tumwine Wafula Opiyo Kyalo Gebre Tesfaye")),
+                W("Cheruiyot Kipkemboi Kimani Tumwine Wafula Opiyo Kyalo Gebre Tesfaye")),
             ["filipino"] = (
                 W("Aldrin"),
                 W("Dizon Lacson Manalo Soriano")),
@@ -69,12 +69,12 @@ internal static class NameReserve
                 W("Mgaloblishvili Chkheidze Dolidze Gvaramia Jincharadze Tavadze Bakradze Chikovani Kobakhidze")),
             ["german"] = (
                 W("Jan Philipp Sebastian Moritz Leon Niklas Jannik Hendrik Gerrit Ulf Konrad"),
-                W("Schneider Wagner Becker Hoffmann Bauer Richter Koch Neumann Schwarz Zimmermann Braun Hahn Lorenz")),
+                W("Schneider Wagner Becker Hoffmann Bauer Richter Koch Neumann Schwarz Zimmermann Braun Hahn Winkler")),
             ["iberian"] = (
                 W("Jordi Oriol Aitor Hugo Ruben"),
                 W("Aguado Beltran Cortes Domingo Esteban Gimeno Lacalle Sanchis Moya Bermudez")),
             ["indian"] = (
-                W("Anil Deepak Gaurav Harsh Kunal Manish Naveen Pranav Rajesh Tarun Yash Dev"),
+                W("Anil Girish Gaurav Harsh Kunal Manish Naveen Pranav Rajesh Tarun Lalit Hemant"),
                 W("Iyer Joshi Menon Pillai Banerjee Desai Bhatt Chaudhary Das Ghosh Naidu Trivedi")),
             ["indonesian"] = (
                 W("Bayu Gilang Ilham Teguh"),
@@ -84,13 +84,13 @@ internal static class NameReserve
                 W("Levi Katz Amar Biton Cohen Avraham")),
             ["japanese"] = (
                 W("Ren Haruto Yamato Sora Riku Taiga Kosei Makoto Naoki Satoshi Tomoya Yusei Akira Goro Isamu Jun Koji Masato"),
-                W("Mizuno Inoue Shimizu Saito Hayashi Ishikawa Maeda Fujita Ogawa Goto Hasegawa Murata Ishii Sakamoto Endo Fukuda Nomura Sugiyama Yamaguchi Kobayashi")),
+                W("Mizuno Hirano Shimizu Saito Hayashi Ishikawa Maeda Fujita Ogawa Goto Hasegawa Murata Yokoyama Sakamoto Endo Fukuda Nomura Sugiyama Yamaguchi Kobayashi")),
             ["korean"] = (
                 W("Seungho Dongwook Jinwoo Hyunjun Woojin Taehyun Sanghoon Youngho Junseo"),
                 W("Jeon Hwang Song Gwak Moon Noh Bae Hong Yang")),
             ["latino"] = (
                 W("Sebastian Matias Leandro Gonzalo Ramiro Tomas Esteban Fernando Gabriel Julian Maximiliano Bautista Lautaro Federico Ezequiel Agustin Enrique Nicolas Pablo Ricardo Armando Hector Gustavo Eduardo Mauricio Cesar Ernesto Ulises Orlando Rolando Wilmer Jorge Luis Manuel Oscar Pedro Raul Samuel Victor Adrian Andres Camilo Dario Felipe Guillermo Humberto Jairo Leonel Marcelo"),
-                W("Aguirre Bustos Cabrera Davila Escobar Figueroa Galindo Guzman Juarez Lozano Maldonado Navas Palacios Barrientos Villalobos Soto Tapia Urrutia Valdez Zamora Acosta Benitez Castillo Espinoza Franco Gallegos Huerta Jimenez Lara Mejia Naranjo Olivares Pacheco Quesada Robles Sandoval Trujillo Uribe Velasco Yanez Arce Bravo Contreras Duran Estrada Gamboa Hidalgo Ledesma")),
+                W("Aguirre Bustos Cabrera Davila Elizondo Figueroa Galindo Guzman Juarez Lozano Maldonado Navas Palacios Barrientos Villalobos Orozco Tapia Urrutia Valdez Zamora Acosta Benitez Castillo Espinoza Franco Gallegos Huerta Jimenez Lara Mejia Naranjo Olivares Pacheco Quesada Robles Sandoval Trujillo Uribe Velasco Pineda Arce Bravo Contreras Duran Estrada Gamboa Hidalgo Ledesma")),
             ["mongolian"] = (
                 W("Ariunbold Tsogt"),
                 W("Lkhagva Davaa")),
@@ -102,27 +102,27 @@ internal static class NameReserve
                 W("Wojcik Kaminski Dabrowski Kozlowski Jankowski Wojciechowski Kwiatkowski Kubiak Michalski")),
             ["polynesian"] = (
                 W("Tama Wiremu Hone Rawiri Mika Kahu Tiaki Eruera Siaosi Viliami Tevita Ilaisa Isaia Taini Kauri Atonio Fonoti Malo Pita Rua Whetu Maka Kimo Lomano Nuku"),
-                W("Matagi Latu Tupou Vaea Aumua Leota Tago Siale Ioane Pouono Wihongi Parata Rewi Tawhiri Kereama Pomare Hapi Talia Vea Tongia Heke Taiaroa Tamihana Moala Lolohea")),
+                W("Matagi Latu Tupou Vaea Aumua Leota Tago Siale Ioane Pouono Wihongi Parata Whaanga Tawhiri Kereama Pomare Paewai Maiava Vea Tongia Heke Taiaroa Tamihana Moala Lolohea")),
             ["romanian"] = (
                 W("Sorin"),
                 W("Tudor Constantin Munteanu Georgescu")),
             ["russian"] = (
                 W("Boris Gleb Denis Yuri Oleg Pavel Roman Stanislav Valery Viktor Yaroslav Kirill Leonid Grigory Mikhail Konstantin Andrei Igor Arkady Zakhar Eduard Rustam Said Abdul"),
-                W("Smirnov Popov Lebedev Kozlov Novikov Pavlov Semenov Golubev Vinogradov Belov Komarov Zaitsev Frolov Gusev Kiselev Mikhailov Nikitin Titov Chernov Sorokin Yakovlev Rodionov Borisov Dementiev Ermakov Filatov Grishin Isaev Larin Maslov Zubov")),
+                W("Smirnov Popov Zotov Kozlov Novikov Davydov Semenov Golubev Vinogradov Belov Komarov Zaitsev Frolov Gusev Kiselev Mikhailov Nikitin Titov Chernov Sorokin Yakovlev Rodionov Borisov Dementiev Ermakov Filatov Grishin Isaev Larin Maslov Zubov")),
             ["scandinavian"] = (
                 W("Leif Gustav Torsten Mikael Rasmus Soren Ulrik Kristian Mattias"),
                 W("Johansson Larsen Haugen Pedersen Engberg Strand Aaltonen Koskinen Hedlund Ostergaard Berglund")),
             ["southernafrican"] = (
-                W("Lungile Siyabonga Tshepo Vusi Xolani Andile Blessing Farai Tafara Tinashe Nhlanhla Mpho Dumisani Jabu Lindani Njabulo Oupa Pieter Riaan Wian Johan"),
+                W("Lungile Siyabonga Tshepo Vusi Xolani Andile Blessing Farai Tafara Tinashe Nhlanhla Mpho Dumisani Jabu Lindani Njabulo Oupa Hennie Riaan Wian Johan"),
                 W("Mthembu Cele Radebe Shabalala Zwane Mahlangu Ngcobo Masuku Tshabalala Molefe Ncube Sibanda Chikwanha Mutasa Venter Joubert Coetzee DuPlessis Naidoo Nel Breytenbach Oosthuizen")),
             ["thai"] = (
                 W("Apinan Chatchai Ekkachai Jakkrit Kanchit Manit Nattapong Pichit Rungroj Surachai Tawan Weerachai Yodsak"),
-                W("Siripong Wongsakul Jaidee Suksawat Charoen Prakob Tanakorn Intarat Maneewong Pongsiri Saetang Thammasat Udomsuk Vichai Yongyuth")),
+                W("Siripong Wongsakul Jaidee Suksawat Wattanasin Prakob Phanichkul Intarat Maneewong Pongsiri Saetang Limsakul Udomsuk Chantarasri Suwannarat")),
             ["turkic"] = (
                 W("Berk Tolga Alp Baris Eren Furkan Hakan Mert Orhan Samet Ismail"),
-                W("Arslan Polat Korkmaz Ozkan Tekin Unal Yildiz Cetin Kurt Aksoy Gunes Bulut")),
+                W("Kilic Polat Tuncer Ozkan Tekin Unal Yildiz Cetin Kurt Aksoy Gunes Bulut")),
             ["westafrican"] = (
                 W("Kelechi Emeka Ikenna Babatunde Segun Kayode Yinka Seun Tobi Dayo Ibrahima Ousmane Cheikh Moussa Abdoulaye Kojo Kwesi Nana Ebo Kwabena Chukwudi Nnamdi Uche Ayodele Gbenga"),
-                W("Eze Nnadi Fashola Adeleke Boateng Appiah Danso Traore Keita Camara Sow Cisse Coulibaly Sylla Fofana Bangura Kamara Ogunleye Olawale Abiodun Nwachukwu Ezeh Obasi Quansah Agyeman Yeboah Gyasi")),
+                W("Eze Nnadi Adewale Adeleke Boateng Antwi Danso Sanogo Keita Camara Bah Cisse Coulibaly Sylla Fofana Bangura Kamara Ogunleye Olawale Abiodun Nwachukwu Ezeh Obasi Quansah Agyeman Yeboah Gyasi")),
         };
 }
