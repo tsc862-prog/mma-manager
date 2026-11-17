@@ -1,5 +1,4 @@
 ﻿using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Contracts;
 using MmaManager.Core.Sim.Rng;
 
@@ -278,11 +277,13 @@ public static class Storylines
         // never writes.)
         bool Affordable((Fighter C, bool Market) x) => !x.Market || !ai || valuation.Evaluate(world, x.C).AskingPurse.Amount * 1.25m <= cap;
         var pool = roster.Select(c => (C: c, Market: false)).Concat(market.Select(c => (C: c, Market: true)));
-        // (Today's mode keeps its order - true ability, a known fog leak left alone because changing it moves
-        // every tuned seed. An Origins world orders by what the house's scouts think.)
+        // Both modes order by what the house's scouts think, id as the last word (the fog). The read is a pure hash,
+        // computed once per man by the sort. Today's mode keeps the lazy pricing (sort, then filter); with id as the
+        // last word the order is total, so that is the same sequence as Origins' filter-then-sort.
         return world.Mode == WorldMode.Origins
             ? pool.Where(Affordable).Select(x => x.C).OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value)
-            : pool.OrderByDescending(x => Ability.FighterAbility.CurrentAbility(x.C)).Where(Affordable).Select(x => x.C);
+            : pool.OrderByDescending(x => Scouting.ScoutingService.PerceivedAbility(world, promo, x.C)).ThenBy(x => x.C.Id.Value)
+                .Where(Affordable).Select(x => x.C);
     }
 
     // --- Before the card: fight-week withdrawals ----------------------------
@@ -981,7 +982,8 @@ public static class Storylines
             .Where(f => f.Status != FighterStatus.Retired && f.AgeOn(date) <= 24 && f.BoutHistory.Count > 0)
             .Where(f => eventDateByFight.TryGetValue(f.BoutHistory[0], out var d0) && d0.Year == year)
             .OrderByDescending(f => f.BoutHistory.Count(b => eventDateByFight.TryGetValue(b, out var d) && d.Year == year))
-            .ThenByDescending(FighterAbility.CurrentAbility).ThenBy(f => f.Id.Value)
+            // Ties go on the public record (wins, then fewer losses), never on hidden ability.
+            .ThenByDescending(f => f.Record.Wins).ThenBy(f => f.Record.Losses).ThenBy(f => f.Id.Value)
             .FirstOrDefault();
         if (rookie is not null)
         {

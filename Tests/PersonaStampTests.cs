@@ -16,8 +16,11 @@ public class PersonaStampTests
     // (Re-pinned when the story arcs and owner voices began posting news. News.Count is the LAST thing the digest mixes. Measured at
     // week 12 with the two hooks on and off: Modern news 942 vs 851 (+91), Origins 30 vs 25 (+5); events (3936, 5) and the card totals
     // (26127, 26) are identical. The old pins plus those deltas are the new pins: ...D3FD + 91 = ...D458, ...66A5 + 5 = ...66AA.)
-    private const string ModernNoCatalog12Weeks = "A265634054CDD458";
-    private const string OriginsNoCatalog12Weeks = "30D0D2E6C36F66AA";
+    // (Re-pinned again when houses began deciding on their scouted read instead of true ability (world/matchmaker-fog): today's
+    // world books, pads and signs differently from week one, so the Modern pin moves whole. The Origins world is identical but for
+    // News.Count, the last thing mixed: +4 signings/retirements the press now reads as names (...66AA + 4 = ...66AE).)
+    private const string ModernNoCatalog12Weeks = "690D3858A1FBC78A";
+    private const string OriginsNoCatalog12Weeks = "30D0D2E6C36F66AE";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.
     private static string Digest(World w)

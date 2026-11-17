@@ -1,5 +1,4 @@
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Living;
 using MmaManager.Core.Sim.Org;
 
@@ -165,13 +164,11 @@ public static class CardFiller
                      .Where(f => f.IsMatchReady(date) && !booked.Contains(f.Id))
                      .GroupBy(f => (f.WeightClass, f.Sex)))
         {
-            // The player's own card is padded by the player's scouts' read (id as
-            // the last word), so neither the preview nor the night picks from the
-            // truth. AI cards keep the order they always had.
-            var pool = promo.Id == world.PlayerPromotion
-                ? group.OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
-                       .ThenBy(f => f.Id.Value).ToList()
-                : group.OrderByDescending(FighterAbility.CurrentAbility).ToList();
+            // A card is padded by the house's own scouts' read (id as the last word),
+            // the player's and an AI house's alike, so neither the preview nor the
+            // night picks from the truth.
+            var pool = group.OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f))
+                .ThenBy(f => f.Id.Value).ToList();
             if (pool.Count < 2) continue;
             return (pool[0], pool[1], group.Key.WeightClass);
         }

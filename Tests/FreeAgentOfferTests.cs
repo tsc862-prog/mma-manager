@@ -218,7 +218,8 @@ public class FreeAgentOfferTests
         var (world, o, f) = OneOffer(48);
         var rival = world.Get(o.From)!;
         rival.Balance = new Money(Math.Max(rival.Balance.Amount, 2_000_000m));
-        foreach (var a in Raise(f)) a(72);   // a name the press covers (signings under that go unreported)
+        foreach (var a in Raise(f)) a(90);   // a name the press covers (signings under that go unreported)
+        Assert.True(News.Newsworthy(world, f), "precondition: the press reads him as a name");
         int bonusLines = rival.Ledger.Count(l => l.Category == FinanceCategory.SigningBonus && l.Description.Contains(f.FullName));
         int news = world.News.Count(n => n.Category == NewsCategory.Signing && n.Headline.Contains(f.FullName));
         int playerLines = world.Get(world.PlayerPromotion)!.Ledger.Count;
