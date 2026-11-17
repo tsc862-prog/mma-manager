@@ -667,10 +667,13 @@ public class ArcsAndAgendasTests
         TellEarlierSlots(seo, arc, 4, d.AddDays(-100));
 
         var title = w.Titles.Values.Single(t => t.CurrentChampion == mercer.Id);
-        // Mercer retires: the real lifecycle hands the belt down (a new reign, no fight).
+        // Seo is first in line, so the real lifecycle hands HIM the belt when Mercer retires (a new reign, no fight).
+        var division = w.Get(title.Promotion)!.Divisions.First(dv => dv.Title == title.Id);
+        division.Rankings.Remove(seo.Id); division.Rankings.Insert(0, seo.Id);
+        seo.Status = FighterStatus.Active;
         typeof(Lifecycle).GetMethod("VacateBelt", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
             .Invoke(null, new object[] { w, title, d.AddDays(-1) });
-        Assert.NotEqual(mercer.Id, title.CurrentChampion);
+        Assert.Equal(seo.Id, title.CurrentChampion);   // he holds the belt without having beaten anybody for it
         Assert.Contains(title.Lineage, r => r.WonOn == d.AddDays(-1));   // the heir's reign exists
 
         Assert.DoesNotContain(Arcs.RunWeekly(w, d), t => t.Arc == arc);   // before the fix: "Seo takes the belt from Mercer"
