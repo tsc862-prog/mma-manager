@@ -26,8 +26,12 @@ public static class PromotionSetup
         World world, Promotion promo, IReadOnlyCollection<Fighter> roster,
         IEnumerable<WeightClass> classes, DateOnly on, int rankingsDepth,
         IReadOnlyDictionary<WeightClass, FighterId>? designedChampions = null, Sex sex = Sex.Male,
-        bool dayOneBuild = false)
+        bool dayOneBuild = false, Func<Fighter, double>? seed = null)
     {
+        // The day-one world (and LeagueBuilder) seeds on the truth: that is the world's history, laid down before
+        // anyone is deciding anything. A house founded mid-game seeds its first rankings and crowns its first
+        // champion on what IT can see (the fog): it passes SeedScoreAsSeenBy.
+        seed ??= SeedScore;
         foreach (var wc in classes)
         {
             // A class the sport hasn't split out yet gets no division (never skips in today's mode; no draws here).
@@ -37,7 +41,7 @@ public static class PromotionSetup
 
             var byMerit = roster
                 .Where(f => f.WeightClass == wc && f.Sex == sex)
-                .OrderByDescending(SeedScore)
+                .OrderByDescending(seed)   // stable: ties keep the roster's order, as they always have
                 .ToList();
             if (byMerit.Count == 0) continue;
 
@@ -157,9 +161,13 @@ public static class PromotionSetup
     /// money with one fight left. Now a slice of the world is already at the
     /// table — which is where a contracts screen gets interesting.
     /// </summary>
-    public static Contract SignContract(World world, Promotion promo, DateOnly on, Fighter f, SimRandom rng)
+    /// <param name="seenAbility">The ability the deal is priced on. Omitted, the truth: the day-one world's
+    /// contracts are its history. A house signing someone once the world is running passes its own scouted read
+    /// (<see cref="Scouting.ScoutingService.PerceivedAbility(World?, Promotion, Fighter)"/>), the fog.</param>
+    public static Contract SignContract(World world, Promotion promo, DateOnly on, Fighter f, SimRandom rng,
+        int? seenAbility = null)
     {
-        int ability = FighterAbility.CurrentAbility(f);
+        int ability = seenAbility ?? FighterAbility.CurrentAbility(f);
         // Small halls sign non-exclusive (a cheaper slice of the fighter); the
         // bigger stages tie fighters down and pay the full price for it.
         bool exclusive = Contracts.Negotiator.WantsExclusivity(promo);
@@ -224,8 +232,18 @@ public static class PromotionSetup
     /// nudges fighters up or down so an unbeaten prospect with no fights doesn't
     /// outrank established contenders on day one.
     /// </summary>
-    public static double SeedScore(Fighter f) =>
-        FighterAbility.CurrentAbility(f) + Math.Min(f.Record.Wins, 15) * 0.5 - f.Record.Losses * 0.25;
+    public static double SeedScore(Fighter f) => Seed(FighterAbility.CurrentAbility(f), f);
+
+    /// <summary>
+    /// <see cref="SeedScore"/> as <paramref name="promo"/>'s scouts would rank: its scouted read
+    /// (<see cref="Scouting.ScoutingService.PerceivedAbility(World?, Promotion, Fighter)"/>, a pure hash, no draw)
+    /// in place of the truth. For anything a house decides once the world is running.
+    /// </summary>
+    public static Func<Fighter, double> SeedScoreAsSeenBy(World world, Promotion promo) =>
+        f => Seed(Scouting.ScoutingService.PerceivedAbility(world, promo, f), f);
+
+    private static double Seed(int ability, Fighter f) =>
+        ability + Math.Min(f.Record.Wins, 15) * 0.5 - f.Record.Losses * 0.25;
 
     private static Title CreateTitle(World world, Promotion promo, WeightClass wc, Sex sex, Fighter champion, DateOnly on)
     {
