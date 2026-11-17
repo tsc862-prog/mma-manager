@@ -68,6 +68,26 @@
             </Style.Triggers>
         </Style>
 
+        <!-- The people in a fighter's life as a short passage (Biographer.PeopleText): a gold rule down
+             the left, readable body text, no table. Leads the profile's bio area. -->
+        <Style x:Key="PeoplePassage" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+            <Setter Property="CornerRadius" Value="0,6,6,0" />
+            <Setter Property="Padding" Value="12,8,12,9" />
+            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="MaxWidth" Value="680" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style x:Key="PeoplePassage.Text" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="LineHeight" Value="20" />
+            <Setter Property="Foreground" Value="#E2E6EA" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+
         <!-- A content card: the standard panel chrome for screen sections. -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />

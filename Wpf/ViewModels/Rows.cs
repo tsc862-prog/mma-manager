@@ -288,6 +288,24 @@ public sealed class FighterRow
 
     /// <summary>A generated scouting-report paragraph.</summary>
     public string Story => Biographer.Fighter(_w, _f);
+
+    private string? _people;
+    /// <summary>The people in their life as a passage (<see cref="Biographer.PeopleText"/>): mentor, family, friends, feuds, camp.</summary>
+    public string PeopleText => _people ??= Biographer.PeopleText(_w, _f);
+    public bool HasPeople => PeopleText.Length > 0;
+    /// <summary>"HIS PEOPLE" / "HER PEOPLE": the passage's kicker.</summary>
+    public string PeopleKicker => _f.Sex == Sex.Female ? "HER PEOPLE" : "HIS PEOPLE";
+    /// <summary>The bio under the people passage: <see cref="Story"/> without the passage it ends with (said once, above).</summary>
+    public string StoryBelowPeople
+    {
+        get
+        {
+            var s = Story;
+            return HasPeople && s.EndsWith(PeopleText, StringComparison.Ordinal) ? s[..^PeopleText.Length].TrimEnd() : s;
+        }
+    }
+    /// <summary>The bond list shows only when there is no people passage (the passage says the same, in prose).</summary>
+    public bool ShowBondsList => HasBonds && !HasPeople;
     public string Physicals => $"Age {Age}    ·    {_f.HeightCm} cm    ·    {_f.ReachCm} cm reach";
     public int Morale => _f.Morale.Value;
     public string Finishes => $"{_f.Record.WinsByKo} KO   ·   {_f.Record.WinsBySubmission} SUB   ·   {_f.Record.WinsByDecision} DEC";
