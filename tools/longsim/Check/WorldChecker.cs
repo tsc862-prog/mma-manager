@@ -18,6 +18,7 @@ public sealed class WorldChecker
         ("RANK-SHAPE",         "no fighter ranked twice in a division, none in a division he does not fit, none ranked while champion"),
         ("CHAMP-CONTRACT",     "every champion exists, is contracted to the belt's promotion and is not retired"),
         ("TITLE-LINK",         "titles, promotion title lists and division belts agree; no belt on a missing promotion"),
+        ("TITLE-ORPHAN",       "a vacant belt left in Promotion.Titles after its house drew weight lines and dropped the open division (OriginsReforms.DrawLines): counted, gated only by origins-observer --strict"),
         ("LINEAGE",            "reigns do not overlap, at most one is open, the open reign is the current champion"),
         ("BOOK-DOUBLE-DATE",   "no fighter on two cards on one date, none twice on one card, none against himself"),
         ("EVENT-NAME",         "a promotion's events have distinct names (the local circuit, which belongs to nobody, repeats its names by design)"),
@@ -219,7 +220,15 @@ public sealed class WorldChecker
             else
             {
                 if (!promo.Titles.Contains(t.Id)) V("TITLE-LINK", $"t{t.Id.Value}:list", $"{T(world, t.Id)} is not in {P(world, promo.Id)}.Titles");
-                if (!promo.Divisions.Any(d => d.Title == t.Id)) V("TITLE-LINK", $"t{t.Id.Value}:div", $"{T(world, t.Id)} is held by no division of {P(world, promo.Id)}");
+                if (!promo.Divisions.Any(d => d.Title == t.Id))
+                {
+                    // An Origins house that draws weight lines retires its open-weight belt (OriginsReforms.DrawLines removes the division and
+                    // vacates the reign) but leaves the Title in world.Titles and Promotion.Titles: reported on its own, so it can be counted
+                    // (and gated with --strict) without hiding a belt that is really lost.
+                    bool retiredOpenBelt = t.CurrentChampion is null && promo.Divisions.Any(d => !d.Open)
+                                           && (t.Lineage.Count == 0 || t.Lineage[^1].LostOn is not null);
+                    V(retiredOpenBelt ? "TITLE-ORPHAN" : "TITLE-LINK", $"t{t.Id.Value}:div", $"{T(world, t.Id)} is held by no division of {P(world, promo.Id)}");
+                }
             }
 
             _log.Checked("CHAMP-CONTRACT", 1);
@@ -305,7 +314,17 @@ public sealed class WorldChecker
                     V("BOOK-DOUBLE-DATE", $"self:{ev.Id.Value}:{fight.Id.Value}", $"{F(world, fight.RedCorner)} fights himself on {E(world, ev.Id)}");
                 foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
                     if (!onCard.Add(id) && fight.RedCorner != fight.BlueCorner)
+                    {
+                        // A one-night bracket (Origins) carries a man once per round he reaches: three rounds at most (an eight-man bracket).
+                        if (ev.Format == EventFormat.Tournament)
+                        {
+                            int appearances = ev.Card.Count(x => x.RedCorner == id || x.BlueCorner == id);
+                            if (appearances <= 3) continue;
+                            V("BOOK-DOUBLE-DATE", $"bracket:{ev.Id.Value}:{id.Value}", $"{F(world, id)} is in {appearances} bouts of the bracket {E(world, ev.Id)} (three rounds at most)");
+                            continue;
+                        }
                         V("BOOK-DOUBLE-DATE", $"twice:{ev.Id.Value}:{id.Value}", $"{F(world, id)} is on {E(world, ev.Id)} twice");
+                    }
             }
             // (judged when the card is fresh: a stripped champion's suspension ends and he is Active again months later, so a
             // world loaded long after the night — the soak's twin — cannot tell the hand-down from a bug any more)
@@ -533,14 +552,19 @@ public sealed class WorldChecker
 
             // streak from the bout sequence (BoutHistory order) — the tail of a padded record is still the real tail
             int streak = 0;
+            bool broke = false;   // the sequence reset the run (loss, draw, NC): then the streak is wholly its own
             foreach (var fid in f.BoutHistory)
             {
                 if (!index.TryGetValue(fid, out var x) || x.Fight.Outcome is not { } o) continue;
-                if (o.Winner is null || x.Fight.OverturnedNc) streak = 0;
+                if (o.Winner is null || x.Fight.OverturnedNc) { streak = 0; broke = true; }
                 else if (o.Winner == f.Id) streak = streak >= 0 ? streak + 1 : 1;
                 else streak = streak <= 0 ? streak - 1 : -1;
             }
-            if (f.BoutHistory.Count > 0 && streak != r.CurrentStreak)
+            // A day-one record that was written, not fought (an Origins pioneer's 5-1) carries a run the history never saw: while
+            // the history's run is unbroken and the record has more bouts than the history, the record's run may be longer, same sign.
+            bool paddedTail = !broke && streak != 0 && r.Wins + r.Losses + r.Draws + r.NoContests > f.BoutHistory.Count
+                              && Math.Sign(r.CurrentStreak) == Math.Sign(streak) && Math.Abs(r.CurrentStreak) >= Math.Abs(streak);
+            if (f.BoutHistory.Count > 0 && streak != r.CurrentStreak && !paddedTail)
                 V("RECORD-SHAPE", $"{f.Id.Value}:streak", $"{who} streak {r.CurrentStreak} but his last {f.BoutHistory.Count} bouts say {streak}");
 
             // chronology: BoutHistory is appended as results land, so it must be date-ordered

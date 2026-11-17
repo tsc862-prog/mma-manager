@@ -18,6 +18,7 @@ if (args.Length > 0 && args[0] == "digest")
 { Environment.ExitCode = LongSim.Check.CheckModes.Digest(args); return; }
 
 if (args.Length > 0 && args[0] == "origins") { Environment.ExitCode = LongSim.OriginsMode.Run(args); return; }   // the 1993 world: Origins.cs
+if (args.Length > 0 && args[0] == "origins-observer") { Environment.ExitCode = LongSim.OriginsMode.RunObserver(args); return; }   // observer arm: Observer.cs
 if (args.Length > 0 && args[0] == "fightlab") { FightLabMode.Run(args); return; }   // engine benchmark: FightLabMode.cs
 if (args.Length > 0 && args[0] == "asks") { LongSim.Asks.Run(args); return; }       // price levels by stage/ability: Asks.cs
 if (args.Length > 0 && args[0] == "ladders") { LongSim.Ladders.Run(args); return; }      // contender ladders of one world: Ladders.cs
