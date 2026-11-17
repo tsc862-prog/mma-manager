@@ -25,24 +25,28 @@ public static class RankingService
     {
         // One promotion's ranking reads the results of its own roster (the résumés) and of the men they met (the
         // opponents' levels), nobody else's: gather only those, not every fighter in the sport.
+        var roster = world.RosterOf(promo.Id).ToList();   // (one walk of the world's fighters, not one per division)
         Context ctx;
-        using (Living.TickProbe.Phase("rank/context")) ctx = Context.Build(world, asOf, world.RosterOf(promo.Id));
-        using (Living.TickProbe.Phase("rank/divisions")) RecomputePromotion(world, promo, asOf, depth, ctx);
+        using (Living.TickProbe.Phase("rank/context")) ctx = Context.Build(world, asOf, roster);
+        using (Living.TickProbe.Phase("rank/divisions")) RecomputePromotion(world, promo, asOf, depth, ctx, roster);
     }
 
     // A division's contenders are scored on EVERY result in the form window,
     // wherever it happened (the opponent's level carries the stage it was on):
     // a new signing or a returning star ranks on what he did elsewhere, not on
     // a bare career tally.
-    private static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth, Context ctx)
+    private static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth, Context ctx,
+        List<Fighter>? roster = null)
     {
         var (champions, elite) = EliteSnapshot(world, promo);
+        // Nothing below signs or releases anyone: the roster, in world order, is the same for every division.
+        roster ??= world.RosterOf(promo.Id).ToList();
 
         foreach (var div in promo.Divisions)
         {
             FighterId? champ = div.Title is { } tid ? world.Get(tid)?.CurrentChampion : null;
 
-            var ranked = world.RosterOf(promo.Id)
+            var ranked = roster
                 .Where(f => div.Matches(f) && f.Status != FighterStatus.Retired && f.Id != champ)
                 .Select(f => (id: f.Id, score: ResumeScore(world, f, ctx, champions, elite, asOf)))
                 .OrderByDescending(x => x.score).ThenBy(x => x.id.Value)
