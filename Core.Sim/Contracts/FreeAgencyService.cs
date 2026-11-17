@@ -89,7 +89,10 @@ public static class FreeAgencyService
                 // (A free agent this org has lodged an offer for — one the player is
                 // courting, OfferMarket — holds his seat until the offer resolves. Only a
                 // player-rules world ever has one: the all-AI count is untouched.)
-                int Have() => world.RosterOf(promo.Id)
+                // (Counted once and again only after this pass signs or lodges: nothing else in the loop moves a
+                // contract or an offer, and the count scans every fighter in the world.)
+                int have = -1;
+                int Have() => have >= 0 ? have : have = world.RosterOf(promo.Id)
                     .Count(f => div.Matches(f) && f.Status != FighterStatus.Retired)
                     + OfferMarket.SeatsHeld(world, promo.Id, div);
                 if (Have() >= target) continue;
@@ -136,9 +139,10 @@ public static class FreeAgencyService
                     // this same deal in front of him with a deadline instead of signing
                     // him on the spot — the player gets his chance to beat it. Nobody
                     // else's free agents are touched (no talks, no offer: today's signing).
-                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) continue;
+                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) { have = -1; continue; }
 
                     ContractLifecycle.Sign(world, fa, offer, date);
+                    have = -1;
                     signings++;
                 }
             }
