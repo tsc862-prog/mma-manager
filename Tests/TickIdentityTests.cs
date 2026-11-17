@@ -16,17 +16,22 @@ namespace MmaManager.Tests;
 /// performance change keeps every one of them; a change that moves a draw, a tie-break or an iteration order that
 /// feeds a roll turns this red. When the sim changes ON PURPOSE (anything that moves outcomes), recapture: set
 /// TICK_IDENTITY_OUT to a file path and run this class; it writes the new values instead of asserting.
+/// Recaptured on world/matchmaker-fog (PR #81: houses decide on their scouted read, not true ability). The two modern
+/// pins move with the fog fix. Of the Origins pins, the two player worlds move ONLY through the news gate (with the
+/// old true-ability gate they match the earlier pins exactly); observer-5-y10 moves only through Rookie of the Year's
+/// tie-break (now the public record), and observer-6-y20 through both. (Measured by putting each back in turn: the
+/// pioneer-arrival price and the matchmaker's read move none of the four.)
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "223615FA4C881CD37696",   // 2027-12-30, 4633 events, 7466 fighters
-        ["modern-player-4-y2"] = "9A2E193816E4EB50E233",   // 2027-12-30, 4569 events, 7640 fighters
-        ["origins-player-3-y4"] = "C062AC7C8F8F935C5C3F",   // 1996-12-27, 68 events, 174 fighters
-        ["origins-player-8-y10"] = "826AB4C5EEC7CFCD9DA2",   // 2002-12-20, 193 events, 316 fighters
-        ["origins-observer-5-y10"] = "6DF3B350926295502B50",   // 2002-12-20, 306 events, 432 fighters
-        ["origins-observer-6-y20"] = "D32CCB40D1CED3529B09",   // 2012-12-07, 855 events, 1081 fighters
+        ["modern-ai-11-y2"] = "8A93F7EB82393D131178",   // 2027-12-30, 4635 events, 7552 fighters
+        ["modern-player-4-y2"] = "488B7079B07FBFEEEEAF",   // 2027-12-30, 4583 events, 7554 fighters
+        ["origins-player-3-y4"] = "DD053702786FDAA157BE",   // 1996-12-27, 68 events, 174 fighters
+        ["origins-player-8-y10"] = "40A3DF3D684C222C947A",   // 2002-12-20, 193 events, 316 fighters
+        ["origins-observer-5-y10"] = "495D373A7013769D8021",   // 2002-12-20, 306 events, 432 fighters
+        ["origins-observer-6-y20"] = "DE190BBC92F1AB9DB1BF",   // 2012-12-07, 855 events, 1081 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });

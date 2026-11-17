@@ -513,7 +513,8 @@ public static class OriginsFounding
                 if (house is not null)
                 {
                     var rng = new SimRandom(SimRandom.Mix(world.RngSeed, OriginsTimeline.KeyHash(a.Key) ^ ArrivalSalt));
-                    f.Contract = PromotionSetup.SignContract(world, house, date, f, rng);
+                    f.Contract = PromotionSetup.SignContract(world, house, date, f, rng,
+                        ScoutingService.PerceivedAbility(world, house, f));   // priced on the house's read (no draw)
                     if (f.Contract.PursePerFight.Amount < Negotiator.OriginsPurseFloor)
                     {
                         f.Contract.PursePerFight = new Money(Negotiator.OriginsPurseFloor);

@@ -1,5 +1,4 @@
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 
 namespace MmaManager.Core.Sim.Living;
 
@@ -37,8 +36,9 @@ public static class News
 
     public static void Signed(World world, Promotion promo, Fighter f, Money purse, DateOnly date, bool renewal)
     {
-        // Only surface signings worth talking about (or anything the player does).
-        if (promo.Id != world.PlayerPromotion && FighterAbility.CurrentAbility(f) < 68) return;
+        // Only surface signings worth talking about (or anything the player does). "Worth talking about" is
+        // the press's read, never the truth: what gets posted must not tell the player who is secretly good.
+        if (promo.Id != world.PlayerPromotion && !Newsworthy(world, f)) return;
         string verb = renewal ? "re-signs with" : "signs with";
         Post(world, date, NewsCategory.Signing,
             $"{f.FullName} {verb} {promo.Abbreviation}",
@@ -47,10 +47,22 @@ public static class News
 
     public static void Retired(World world, Fighter f, DateOnly date, bool champion)
     {
-        if (!champion && FighterAbility.CurrentAbility(f) < 68) return;
+        if (!champion && !Newsworthy(world, f)) return;
         Post(world, date, NewsCategory.Retirement,
             $"{f.FullName} announces retirement",
             $"Hangs them up with a {f.Record} record. " + Flavor.Quotes.Say(f, Flavor.Moment.Retiring, date),
             f.Contract?.Promotion ?? default, f.Id);
     }
+
+    /// <summary>The line a name has to clear for the press to cover his signing or retirement.</summary>
+    public const int NewsworthyRead = 68;
+
+    /// <summary>
+    /// Is this fighter a name the press covers? Judged on the public read
+    /// (<see cref="Scouting.ScoutingService.PublicRead"/>: the outsider's view, a pure hash of the fighter's id, no
+    /// draw), so which signings make the news never leaks a hidden ability. A long record makes it the truth; an
+    /// unknown is read with the outsider's error.
+    /// </summary>
+    public static bool Newsworthy(World world, Fighter f) =>
+        Scouting.ScoutingService.PublicRead(world, f) >= NewsworthyRead;
 }

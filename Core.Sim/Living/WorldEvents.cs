@@ -114,7 +114,8 @@ public static class WorldEvents
             .FirstOrDefault();
         if (host is not null)
         {
-            f.Contract = PromotionSetup.SignContract(world, host, date, f, rng);
+            f.Contract = PromotionSetup.SignContract(world, host, date, f, rng,
+                Scouting.ScoutingService.PerceivedAbility(world, host, f));   // priced on what the host has seen (no draw)
             if (RankingService.DivisionFor(host, f) is { } div && !div.Rankings.Contains(f.Id))
                 div.Rankings.Insert(0, f.Id);   // the hype puts them straight in the mix
         }
@@ -273,7 +274,8 @@ public static class WorldEvents
         int locals = signed.Count(f => f.DiscoveredBy == promo.Id);
         // It opens the divisions it could actually staff.
         var opened = niche.Classes.Where(wc => signed.Any(f => f.WeightClass == wc)).ToArray();
-        PromotionSetup.ConfigureDivisions(world, promo, signed, opened, date, 15, null, Sex.Male);
+        PromotionSetup.ConfigureDivisions(world, promo, signed, opened, date, 15, null, Sex.Male,
+            seed: PromotionSetup.SeedScoreAsSeenBy(world, promo));   // its first rankings and belts: what it can see
         Finance.RevenueService.SeedEstablished(world, promo, date, rng);
         // A little founding buzz in its home metro to build on.
         if (Geography.WorldMap.AnchorCity(world, spec.Region)?.Id is { } anchor)

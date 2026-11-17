@@ -1,6 +1,5 @@
 using MmaManager.Core.Model;
 using System.Text.RegularExpressions;
-using MmaManager.Core.Sim.Ability;
 
 namespace MmaManager.Core.Sim.Living;
 
@@ -353,7 +352,9 @@ public static class Prologue
         var free = world.Fighters.Values
             .Where(f => f.Contract is null && f.Status == FighterStatus.Active && !f.LocalTalent
                         && f.Intangibles.Popularity.Value >= 35)
-            .OrderByDescending(f => FighterAbility.CurrentAbility(f) + f.Intangibles.Popularity.Value)
+            // The press's read plus the name, never the truth: these headlines are the player's first shopping tip.
+            .OrderByDescending(f => Scouting.ScoutingService.PublicRead(world, f) + f.Intangibles.Popularity.Value)
+            .ThenBy(f => f.Id.Value)
             .Take(5)
             .ToList();
 
@@ -370,7 +371,12 @@ public static class Prologue
         var whisper = world.Fighters.Values
             .Where(f => f.Contract is null && f.Status == FighterStatus.Active && !f.LocalTalent
                         && f.Record.Losses == 0 && f.Record.Wins >= 3 && f.AgeOn(startDate) <= 22)
-            .OrderByDescending(f => f.PotentialAbility.Value)
+            // What the scouts can actually see: the longest unbeaten run, finishes, youth (never the hidden
+            // ceiling - naming the highest-potential kid in the world on day one handed the player the truth).
+            .OrderByDescending(f => f.Record.Wins)
+            .ThenByDescending(f => f.Record.WinsByKo + f.Record.WinsBySubmission)
+            .ThenBy(f => f.AgeOn(startDate))
+            .ThenBy(f => f.Id.Value)
             .FirstOrDefault();
         if (whisper is not null)
             items.Add((startDate.AddDays(-5), NewsCategory.Debut,
