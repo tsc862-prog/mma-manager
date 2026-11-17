@@ -242,12 +242,15 @@ public static class OriginsFounding
     /// vacant belt. <paramref name="sizedToHouse"/> (an AI house): only as many of the lines as its purse can staff
     /// (<see cref="OriginsReforms.DivisionsItCanStaff"/>), whole ladder chapters in the order the sport drew them
     /// (heavy and light first); the rest it draws later, when its gate grows (<see cref="OriginsReforms.RunMonthly"/>).
-    /// The player's house is offered every line the sport has drawn: his to run as he likes.
+    /// The player's house opens the lines he chose (<paramref name="chosen"/>, of the drawn lines; PlayerFounding
+    /// validates and defaults them to the same staffing rule).
     /// </summary>
-    internal static void OpenDivisions(World world, Promotion promo, int prestige, DateOnly date, bool sizedToHouse = false)
+    internal static void OpenDivisions(World world, Promotion promo, int prestige, DateOnly date, bool sizedToHouse = false,
+        IReadOnlyCollection<WeightClass>? chosen = null)
     {
         var lines = DrawnLines(world);
         if (sizedToHouse && lines.Count > 0) lines = OriginsReforms.LinesItCanStaff(world, promo, lines);
+        if (chosen is not null && lines.Count > 0) lines = lines.Where(chosen.Contains).ToList();
         if (lines.Count > 0) OriginsReforms.DrawLines(world, promo, lines, date, announce: false);
         else
         {

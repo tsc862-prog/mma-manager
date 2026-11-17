@@ -470,7 +470,8 @@ public class PlayerFoundingTests
         Assert.Equal(choices.RoundsAndJudges, promo.Rules.Fight!.Judges);
         Assert.Equal(choices.Gloves[0], promo.Rules.Fight.Gloves);
         Assert.Equal(choices.OpenWeight, promo.Divisions.Any(d => d.Open));
-        Assert.Equal(choices.WeightLines.Count, promo.Divisions.Count(d => !d.Open));
+        // (Omitted divisions are the city's suggestion, not every drawn line.)
+        Assert.Equal(choices.Cities.First(c => c.Open).SuggestedLines.Count, promo.Divisions.Count(d => !d.Open));
         Assert.Equal(PlayerFounding.Bank, promo.Balance);
         Assert.NotEmpty(promo.SponsorDeals);   // a hometown backer, once the sport has them
         Assert.Equal(2, promo.Objectives.Count(o => o.Status == ObjectiveStatus.Active));

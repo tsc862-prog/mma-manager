@@ -23,8 +23,11 @@ public sealed record FoundingRules(
 /// </summary>
 public sealed record FoundingCity(
     CityId Id, string Name, string Country, string CountryCode, Region Region, int Market, int MmaInterest, string? Refusal,
-    FoundingRules Rules)
+    FoundingRules Rules, IReadOnlyList<WeightClass> SuggestedLines)
 {
+    // SuggestedLines: of the weight lines the sport has drawn, the ones a house founded here today would open by
+    // default (PlayerFounding.SuggestedDivisions: what its purse can staff, the AI newcomer's rule); empty when the
+    // sport has no lines yet or the city is closed to him.
     public bool Open => Refusal is null;
 }
 
@@ -56,12 +59,16 @@ public sealed record FoundingChoices(
 }
 
 /// <summary>
-/// The house the player asks to found: its name and abbreviation, its home city, and the rules the era leaves
-/// to him (null takes the first choice offered; a value the era forces may be given or left null).
+/// The house the player asks to found: its name and abbreviation, its home city, the rules the era leaves to him
+/// (null takes the first choice offered; a value the era forces may be given or left null), and, once the sport has
+/// drawn weight lines, which of them the house opens with (<see cref="Divisions"/>: null takes the city's suggested
+/// set, <see cref="FoundingCity.SuggestedLines"/>; a given set must hold the first split's lines and only lines the
+/// sport has drawn). The rest he can draw later through the reforms, one chapter at a time.
 /// </summary>
 public sealed record PlayerFoundingSpec(
     string Name, string Abbreviation, CityId City,
-    int? SingleRoundMinutes = null, GloveType? Gloves = null, Enclosure? Enclosure = null);
+    int? SingleRoundMinutes = null, GloveType? Gloves = null, Enclosure? Enclosure = null,
+    IReadOnlyCollection<WeightClass>? Divisions = null);
 
 /// <summary>
 /// An open tryout of local men: whether he can call one today (<see cref="Refusal"/> says why not), how many men it
@@ -85,7 +92,8 @@ public sealed record TryoutSigning(FighterId Fighter, string Name, int Age, Weig
 /// day gets (<see cref="OriginsFounding"/>): a city with a live scene that no ban has closed and no live house
 /// calls home; the era's rules, choosing where the AI would roll (the single round's length and the gloves before
 /// the sport has its own rules, the ring or the cage always) and taking what the era forces; one open division
-/// with a vacant belt, or the weight lines the sport has drawn; a fixed pick inside the AI newcomer's bank range
+/// with a vacant belt, or those of the weight lines the sport has drawn that he picks (by default what his purse can
+/// staff, the AI newcomer's rule: <see cref="SuggestedDivisions"/>); a fixed pick inside the AI newcomer's bank range
 /// (<see cref="BankSteps"/>) and prestige <see cref="Prestige"/>; the same popularity, tier clearance and hometown
 /// sponsor. Unlike the AI he signs nobody at founding: his roster is empty, and he has ONE free open tryout of
 /// local men (<see cref="HoldTryout"/>) whenever he calls it; after it, the AI houses' recurring tryout when he is
@@ -213,8 +221,10 @@ public static class PlayerFounding
             .Select(c =>
             {
                 var k = world.Get(c.Country);
+                string? refusal = CityRefusal(world, c, date, homes, scenes);
                 return new FoundingCity(c.Id, c.Name, k?.Name ?? "", k?.Code ?? "", c.Region, c.Market, c.MmaInterest,
-                    CityRefusal(world, c, date, homes, scenes), centre is not null && k?.Code == centre ? centreRules : general);
+                    refusal, centre is not null && k?.Code == centre ? centreRules : general,
+                    refusal is null ? SuggestedDivisions(world, c.Id) : Array.Empty<WeightClass>());
             }).ToList();
 
         var lines = OriginsFounding.DrawnLines(world);
@@ -223,7 +233,8 @@ public static class PlayerFounding
             notes.Add($"Houses founded in {Geography.WorldMap.CountryByCode(world, centre)?.Name ?? centre}, the sport's second centre, fight in a ring and keep their own rules.");
         notes.Add(lines.Count == 0
             ? "No weight classes yet: one open division, a vacant belt, any man can fight any man."
-            : $"The sport has drawn its weight lines: {string.Join(", ", lines.Select(OriginsReforms.Name).Select(s => s.ToLowerInvariant()))}, each with a vacant belt.");
+            : $"The sport has drawn its weight lines: {string.Join(", ", lines.Select(OriginsReforms.Name).Select(s => s.ToLowerInvariant()))}. "
+              + "You choose which to open, each with a vacant belt (the first split's two at least); the suggestion is what a new house's purse can staff in that city, and the rest you can draw later.");
         notes.Add($"You open with {Bank} in the bank, no fighters signed and one free open tryout of local men to call when you are ready.");
 
         return new FoundingChoices(
@@ -233,6 +244,45 @@ public static class PlayerFounding
 
     /// <summary>The rules a house founded today in this city fights under (chosen or forced), with the reasons.</summary>
     public static FoundingRules RulesIn(World world, CityId city) => RulesFor(world, InSecondCentre(world, city));
+
+    /// <summary>
+    /// Of the weight lines the sport has drawn (<see cref="FoundingChoices.WeightLines"/>), the ones a house founded
+    /// in this city today opens with unless he picks otherwise: the AI newcomer's rule
+    /// (<see cref="OriginsReforms.LinesItCanStaff"/>: whole ladder chapters in the sport's order while its purse cap
+    /// can staff them, the first split always), read off the house he would open (his prestige, his hometown
+    /// following, the room the town would give him). Empty before the first split. Read-only.
+    /// </summary>
+    public static IReadOnlyList<WeightClass> SuggestedDivisions(World world, CityId city)
+    {
+        var lines = OriginsFounding.DrawnLines(world);
+        if (lines.Count == 0 || world.Get(city) is not { } c) return Array.Empty<WeightClass>();
+        // The house as it would stand the moment it opens, never added to the world: the fields the purse cap reads.
+        var probe = new Promotion
+        {
+            Id = new PromotionId(int.MaxValue), Name = "", Abbreviation = "", BaseRegion = c.Region,
+            Prestige = Prestige, Reputation = 50, HomeCity = c.Id,
+        };
+        OriginsFounding.SeedPopularity(world, probe, c, Prestige);
+        return OriginsReforms.LinesItCanStaff(world, probe, lines);
+    }
+
+    /// <summary>Why this set of weight lines can't be his house's opening divisions (null when it can).</summary>
+    private static string? DivisionsRefusal(World world, IReadOnlyCollection<WeightClass> want)
+    {
+        var drawn = OriginsFounding.DrawnLines(world);
+        if (drawn.Count == 0)
+            return want.Count == 0 ? null : "The sport has no weight classes yet: a new house opens with one open division.";
+        foreach (var wc in want.Distinct().OrderBy(w => w))
+        {
+            if (!Enum.IsDefined(wc)) return "That is not a weight class.";
+            if (!drawn.Contains(wc))
+                return $"{OriginsReforms.Name(wc)} is not a line the sport has drawn: the lines are {string.Join(", ", drawn.Select(OriginsReforms.Name).Select(s => s.ToLowerInvariant()))}.";
+        }
+        var first = OriginsReforms.LinesOf(OriginsReforms.Ladder[0]).Where(drawn.Contains).ToList();
+        if (!first.All(want.Contains))
+            return $"A house split by weight opens with at least the first split's divisions: {string.Join(" and ", first.Select(OriginsReforms.Name).Select(s => s.ToLowerInvariant()))}.";
+        return null;
+    }
 
     private static bool InSecondCentre(World world, CityId city) =>
         OriginsScenes.SecondCentre(world) is { } code && world.Get(city) is { } c && world.Get(c.Country)?.Code == code;
@@ -315,6 +365,9 @@ public static class PlayerFounding
     {
         refused = Validate(world, date, spec, out var name, out var abbr, out var city, out var rules);
         if (refused is not null) return null;
+        // His opening divisions: the lines he picked, else the city's suggestion (computed before the house exists, as
+        // Choices shows it).
+        var divisions = spec.Divisions is { } picked ? picked.Distinct().ToList() : SuggestedDivisions(world, city!.Id).ToList();
         var country = world.Get(city!.Country)!;
 
         var promo = new Promotion
@@ -341,7 +394,7 @@ public static class PlayerFounding
         world.PlayerPromotion = promo.Id;
 
         OriginsFounding.SeedPopularity(world, promo, city, Prestige);
-        OriginsFounding.OpenDivisions(world, promo, Prestige, date);
+        OriginsFounding.OpenDivisions(world, promo, Prestige, date, chosen: divisions);
         var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ FoundSalt));
         Finance.Sponsorships.SeedFounding(world, promo, date, rng);
         RankingService.RecomputePromotion(world, promo, date);
@@ -379,6 +432,7 @@ public static class PlayerFounding
         if (CityRefusal(world, c, date, HomesOfLiveHouses(world), Era.Scenes(world).ToHashSet(StringComparer.Ordinal)) is { } why)
             return why;
         city = c;
+        if (spec.Divisions is { } wantLines && DivisionsRefusal(world, wantLines) is { } badLines) return badLines;
 
         var allowed = RulesIn(world, c.Id);
         if (allowed.UnifiedCode)

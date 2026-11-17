@@ -8,7 +8,7 @@ namespace MmaManager.Tests;
 
 /// <summary>
 /// The player's founding options in an Origins world: recurring open tryouts on the AI houses' rule (an option he
-/// calls).
+/// calls), and the choice of divisions at founding (suggested: what his purse can staff).
 /// </summary>
 public class PlayerFoundingOptionsTests
 {
@@ -110,5 +110,83 @@ public class PlayerFoundingOptionsTests
         new WorldTick().AdvanceWeeks(w, 60);   // well past the spacing, short of men the whole time
         Assert.Equal(0, Lines(promo, OriginsFounding.TryoutLedgerLine));
         Assert.True(PlayerFounding.TryoutOptions(w, w.CurrentDate).Available);
+    }
+
+    // ---- 3. the divisions he opens with ---------------------------------------------------------
+
+    /// <summary>A world in which the sport has drawn every men's line of the ladder (rounds and gloves too).</summary>
+    private static World AllLinesDrawn(ulong seed)
+    {
+        var w = Observer(seed);
+        Era.Unlock(w, Capability.Rounds);
+        Era.Unlock(w, Capability.Gloves);
+        foreach (var chapter in OriginsReforms.Ladder)
+            foreach (var wc in OriginsReforms.LinesOf(chapter)) Era.Unlock(w, Capability.Class(wc));
+        return w;
+    }
+
+    [Fact]
+    public void Choices_SuggestWhatHisPurseCanStaff_AndFoundingDefaultsToIt()
+    {
+        var w = AllLinesDrawn(7);
+        var choices = PlayerFounding.Choices(w, w.CurrentDate);
+        var drawn = choices.WeightLines;
+        Assert.Equal(OriginsReforms.Ladder.Sum(c => OriginsReforms.LinesOf(c).Count), drawn.Count);
+        Assert.All(choices.Cities.Where(c => !c.Open), c => Assert.Empty(c.SuggestedLines));
+        var city = choices.Cities.First(c => c.Open);
+        Assert.Equal(PlayerFounding.SuggestedDivisions(w, city.Id), city.SuggestedLines);
+        Assert.True(OriginsReforms.LinesOf(OriginsReforms.Ladder[0]).All(city.SuggestedLines.Contains));
+        Assert.True(city.SuggestedLines.Count < drawn.Count, $"suggested {city.SuggestedLines.Count} of {drawn.Count}: a new house's purse staffs a few lines, not the ladder");
+
+        // Omitted: the suggestion, not every line.
+        var promo = FoundOk(w, new PlayerFoundingSpec("Lantern Street Open", "LSO", city.Id));
+        var opened = promo.Divisions.Where(d => !d.Open).Select(d => d.WeightClass).OrderBy(x => x).ToList();
+        Assert.Equal(city.SuggestedLines.OrderBy(x => x), opened);
+        // ...which is the AI newcomer's own rule read off the house as it stands.
+        Assert.Equal(OriginsReforms.LinesItCanStaff(w, promo, drawn).OrderBy(x => x), opened);
+        Assert.All(promo.Divisions, d => Assert.Null(w.Get(d.Title!.Value)!.CurrentChampion));
+    }
+
+    [Fact]
+    public void Found_OpensTheLinesHePicks_AndRefusesASetItCannotTake()
+    {
+        var w = AllLinesDrawn(8);
+        var city = FirstOpen(w).Id;
+        PlayerFoundingSpec With(params WeightClass[] lines) => new("Harbour Lights Fighting", "HLF", city, Divisions: lines);
+        string Refuse(PlayerFoundingSpec s)
+        {
+            Assert.Null(PlayerFounding.Found(w, w.CurrentDate, s, out var why));
+            Assert.False(string.IsNullOrWhiteSpace(why));
+            return why!;
+        }
+
+        Assert.Contains("first split", Refuse(With(WeightClass.Heavyweight, WeightClass.Lightweight)));
+        Assert.Contains("first split", Refuse(With()));
+        Assert.Contains("not a weight class", Refuse(With(WeightClass.Heavyweight, WeightClass.Middleweight, (WeightClass)99)));
+        Assert.Contains("not a line the sport has drawn", Refuse(With(WeightClass.Heavyweight, WeightClass.Middleweight, WeightClass.Strawweight)));
+        Assert.False(w.HasPlayer);
+
+        // Every line he can name, a gap in the ladder included.
+        var pick = new[] { WeightClass.Middleweight, WeightClass.Heavyweight, WeightClass.Featherweight, WeightClass.Heavyweight };
+        var promo = FoundOk(w, With(pick));
+        Assert.Equal(new[] { WeightClass.Featherweight, WeightClass.Middleweight, WeightClass.Heavyweight },
+            promo.Divisions.Select(d => d.WeightClass).OrderBy(x => x));
+        Assert.All(promo.Divisions, d => Assert.False(d.Open));
+        // The bands still cover every man: the lightest takes everyone under its line, the next everyone above it.
+        Assert.Equal(WeightClass.Strawweight, promo.Divisions.Single(d => d.WeightClass == WeightClass.Featherweight).Lightest);
+        Assert.Equal(WeightClass.Featherweight + 1, promo.Divisions.Single(d => d.WeightClass == WeightClass.Middleweight).Lightest);
+    }
+
+    [Fact]
+    public void BeforeTheFirstSplit_HePicksNoLines()
+    {
+        var w = Observer(11);
+        var city = FirstOpen(w);
+        Assert.Empty(city.SuggestedLines);
+        Assert.Null(PlayerFounding.Found(w, w.CurrentDate,
+            new PlayerFoundingSpec("Harbour Lights Fighting", "HLF", city.Id, Divisions: new[] { WeightClass.Heavyweight }), out var why));
+        Assert.Contains("no weight classes yet", why);
+        var promo = FoundOk(w, new PlayerFoundingSpec("Harbour Lights Fighting", "HLF", city.Id, Divisions: Array.Empty<WeightClass>()));
+        Assert.True(Assert.Single(promo.Divisions).Open);
     }
 }
