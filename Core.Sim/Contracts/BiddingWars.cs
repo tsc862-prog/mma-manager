@@ -116,7 +116,7 @@ public static class BiddingWars
         Living.News.Post(world, date, NewsCategory.Signing,
             $"{f.FullName} signs with {winner.Name} after a bidding war",
             $"The final number: {war.CurrentBid}/fight plus a {offer.SigningBonus} signing bonus. The market sets the price, and the market was feeling rich.",
-            winner.Id);
+            winner.Id, f.Id);
     }
 
     private static void MaybeStart(World world, DateOnly date, SimRandom rng)

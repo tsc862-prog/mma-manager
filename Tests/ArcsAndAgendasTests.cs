@@ -113,7 +113,7 @@ public class ArcsAndAgendasTests
     // ---------------------------------------------------------------- the words
 
     private static readonly Regex Token = new(@"\{(\w+)\}");
-    private static readonly string[] KnownTokens = { "AOrg", "BOrg", "ARec", "BRec", "Belt" };
+    private static readonly string[] KnownTokens = { "AOrg", "BOrg", "AWhere", "BWhere", "ARec", "BRec", "Belt" };
     private static readonly string[] HiddenWords =
         { "ability", "potential", "overall", "ceiling", "skill", "stat ", "attribute", "talent score", "hidden", "ovr" };
     private static readonly string[] AnachronismsIn1993 =
@@ -219,37 +219,34 @@ public class ArcsAndAgendasTests
             case Cond.TitleWon:
             case Cond.TitleWonFrom:
             case Cond.TitleLost:
-            {
-                var t = w.Titles.Values.OrderBy(x => x.Id.Value).First();
-                var added = new List<TitleReign>();
-                if (b.When == Cond.TitleWonFrom)
-                {
-                    var r0 = new TitleReign { Champion = other.Id, WonOn = d.AddDays(-100), LostOn = recent };
-                    t.Lineage.Add(r0); added.Add(r0);
-                }
-                if (b.When == Cond.TitleLost)
-                {
-                    var r = new TitleReign { Champion = who.Id, WonOn = d.AddDays(-100), LostOn = recent };
-                    t.Lineage.Add(r); added.Add(r);
-                }
-                else
-                {
-                    var r = new TitleReign { Champion = who.Id, WonOn = recent };
-                    t.Lineage.Add(r); added.Add(r);
-                }
-                u.Add(() => { foreach (var r in added) t.Lineage.Remove(r); });
-                break;
-            }
             case Cond.Defended:
             case Cond.DefendedVs:
             {
                 var t = w.Titles.Values.OrderBy(x => x.Id.Value).First();
                 var was = t.CurrentChampion;
-                t.CurrentChampion = who.Id;
-                u.Add(() => t.CurrentChampion = was);
-                var opponent = b.When == Cond.DefendedVs ? other : third;
-                var f = AddBout(w, AddEvent(w, recent, EventStatus.Completed, u), who, opponent, who);
-                f.IsTitleFight = true; f.Title = t.Id;
+                var added = new List<TitleReign>();
+                var foe = b.When is Cond.TitleWonFrom or Cond.DefendedVs ? other : third;
+                Fighter winner, loser;
+                if (b.When == Cond.TitleLost) { winner = third; loser = who; }
+                else { winner = who; loser = foe; }
+                if (b.When is Cond.TitleWon or Cond.TitleWonFrom or Cond.TitleLost)
+                {
+                    // The loser held it and lost it on the night; the winner's reign opens on the night.
+                    var r0 = new TitleReign { Champion = loser.Id, WonOn = d.AddDays(-100), LostOn = recent };
+                    var r1 = new TitleReign { Champion = winner.Id, WonOn = recent };
+                    t.Lineage.Add(r0); t.Lineage.Add(r1); added.Add(r0); added.Add(r1);
+                    t.CurrentChampion = winner.Id;
+                }
+                else
+                {
+                    // A defence: the champion's reign began long before the night.
+                    var r0 = new TitleReign { Champion = who.Id, WonOn = d.AddDays(-200) };
+                    t.Lineage.Add(r0); added.Add(r0);
+                    t.CurrentChampion = who.Id;
+                }
+                var fight = AddBout(w, AddEvent(w, recent, EventStatus.Completed, u), winner, loser, winner);
+                fight.IsTitleFight = true; fight.Title = t.Id;
+                u.Add(() => { t.CurrentChampion = was; foreach (var r in added) t.Lineage.Remove(r); });
                 break;
             }
             case Cond.Defences:
@@ -410,7 +407,7 @@ public class ArcsAndAgendasTests
                 Arrange(w, arc, first, d, u);
         }
         var told = Arcs.RunWeekly(w, d);
-        Assert.InRange(told.Count, 1, Arcs.MaxPerWeek);
+        Assert.InRange(told.Count, 1, Arcs.MaxPerWeek);   // never more than the cap in a week
         // And the next week, the rest follow, never the same one twice.
         var next = Arcs.RunWeekly(w, d.AddDays(7));
         Assert.Empty(next.Intersect(told));
@@ -420,36 +417,93 @@ public class ArcsAndAgendasTests
 
     // ---------------------------------------------------------------- the tick
 
-    [Fact]
-    public void AdvancingTheWorld_TellsArcsAndOwners_WithoutTouchingTheFeedShape()
+    private static bool IsSaga(Accolade a) => Arcs.IsSagaMark(a.Title);
+
+    private static List<string> SagaMarks(World w) =>
+        w.Fighters.Values.OrderBy(f => f.Id.Value).SelectMany(f => f.Accolades.Where(IsSaga).Select(a => $"{f.Id.Value}|{a.Date}|{a.Title}")).ToList();
+
+    private static bool IsOwnerVoice(NewsItem n) =>
+        n.Category == NewsCategory.General && OwnerAgendas.All.Any(o => n.Headline.StartsWith(o.Owner + " on ", StringComparison.Ordinal));
+
+    [Theory]
+    [InlineData(21UL)]
+    [InlineData(22UL)]
+    public void TheRealTick_TellsArcs_AndTheOwnersSpeakAboutWhatTheTickItselfPosted(ulong seed)
     {
-        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 21 });
-        var tick = new WorldTick();
-        tick.AdvanceWeeks(w, 40);
-        var told = w.Fighters.Values.Where(f => f.Accolades.Any(a => a.Title.StartsWith(Arcs.AccoladePrefix, StringComparison.Ordinal))).ToList();
-        Assert.All(told, f => Assert.True(f.Designed));
-        foreach (var f in told)
-            foreach (var a in f.Accolades.Where(a => a.Title.StartsWith(Arcs.AccoladePrefix, StringComparison.Ordinal)))
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
+        w.PlayerPromotion = default;   // an observer: every owner may speak
+        new WorldTick().AdvanceWeeks(w, 78);
+
+        // Arcs: something was told, only ever on a designed lead, and each mark is a real beat.
+        Assert.NotEmpty(SagaMarks(w));
+        foreach (var f in w.Fighters.Values.Where(f => f.Accolades.Any(IsSaga)))
+        {
+            Assert.True(f.Designed);
+            foreach (var a in f.Accolades.Where(IsSaga))
                 Assert.Contains(Arcs.All, arc => arc.Lead == $"{f.FirstName} {f.LastName}" && arc.Beats.Any(b => Arcs.AccoladeTitle(arc, b) == a.Title));
-        // Owner voices read like a line from a named owner, about a named fighter.
-        var voices = w.News.Where(n => n.Category == NewsCategory.General && n.Headline.Contains(" on ")
-                                       && OwnerAgendas.All.Any(o => n.Headline.StartsWith(o.Owner + " on ", StringComparison.Ordinal))).ToList();
+        }
+
+        // Owners: quotes exist, and each answers a signing / title / retirement item of the same day about the same fighter.
+        var voices = w.News.Where(IsOwnerVoice).ToList();
+        Assert.NotEmpty(voices);
         foreach (var v in voices)
         {
-            Assert.StartsWith("“", v.Body);
+            Assert.StartsWith("\u201C", v.Body);
             Assert.DoesNotContain("{", v.Body);
-            Assert.NotNull(v.AboutFighter);
+            Assert.DoesNotContain("\"", v.Body);   // no nickname quotes inside the quoted line
+            if (v.Date > w.CurrentDate.AddDays(-84))   // (an older source may have left the capped feed already)
+            Assert.Contains(w.News, n => n.Date == v.Date && n.AboutFighter == v.AboutFighter
+                                         && (n.Category == NewsCategory.Signing || n.Category == NewsCategory.TitleChange || n.Category == NewsCategory.Retirement));
         }
     }
 
     [Fact]
-    public void TheOriginsWorld_AlsoTicksCleanly()
+    public void TheMonthlyBlocksNews_GetsOwnerQuotes_NotOnlyTheWeeklyOnes()
     {
-        var w = OriginsWorldTests.AiWorld(22);
-        new WorldTick().AdvanceWeeks(w, 40);
-        foreach (var f in w.Fighters.Values)
-            foreach (var a in f.Accolades.Where(a => a.Title.StartsWith(Arcs.AccoladePrefix, StringComparison.Ordinal)))
+        // The month's retirements, expiries, poachings and free-agent signings post news dated the day the month turns. Over
+        // a year or two of a built world some of the quoted items must be of those kinds (they are posted after the old
+        // hook position, so a pass that ran before them would never read them).
+        int quotedRetirementsOrSignings = 0;
+        foreach (ulong seed in new[] { 21UL, 22UL })
+        {
+            var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
+            w.PlayerPromotion = default;
+            new WorldTick().AdvanceWeeks(w, 104);
+            foreach (var v in w.News.Where(IsOwnerVoice))
+                if (w.News.Any(n => n.Date == v.Date && n.AboutFighter == v.AboutFighter
+                                    && (n.Category == NewsCategory.Retirement || n.Headline.Contains(" away from ") || n.Headline.Contains(" signs with "))))
+                    quotedRetirementsOrSignings++;
+        }
+        Assert.True(quotedRetirementsOrSignings >= 2, $"only {quotedRetirementsOrSignings}");
+    }
+
+    [Theory]
+    [InlineData(31UL)]
+    [InlineData(32UL)]
+    public void TheOriginsTick_TellsSomeBeats_OnTwoSeeds(ulong seed)
+    {
+        var w = OriginsWorldTests.AiWorld(seed);
+        new WorldTick().AdvanceWeeks(w, 52 * 8);
+        Assert.NotEmpty(SagaMarks(w));
+        foreach (var f in w.Fighters.Values.Where(f => f.Accolades.Any(IsSaga)))
+            foreach (var a in f.Accolades.Where(IsSaga))
                 Assert.Contains(ArcsOrigins.All, arc => arc.Lead == $"{f.FirstName} {f.LastName}" && arc.Beats.Any(b => Arcs.AccoladeTitle(arc, b) == a.Title));
+    }
+
+    [Fact]
+    public void ASeedRunTwice_TellsTheSameStories_WithArcsOn()
+    {
+        List<string> Run()
+        {
+            var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 41 });
+            new WorldTick().AdvanceWeeks(w, 40);
+            var l = SagaMarks(w);
+            l.AddRange(w.News.Select(n => $"{n.Date}|{n.Category}|{n.Headline}|{n.Body}"));
+            return l;
+        }
+        var a = Run(); var b = Run();
+        Assert.True(a.Count > 100);
+        Assert.Equal(a, b);
     }
 
     // ---------------------------------------------------------------- owners
@@ -516,12 +570,13 @@ public class ArcsAndAgendasTests
     public void TheOrgPage_CarriesTheOwnersAgenda()
     {
         var w = ModernWorld.Value;
-        var owned = w.Promotions.Values.Where(p => OwnerAgendas.Of(p.OwnerName) is not null).ToList();
+        var owned = w.Promotions.Values.Where(p => OwnerAgendas.Of(p, w.Mode) is not null).ToList();
         Assert.True(owned.Count >= 15);
-        foreach (var p in owned) Assert.Contains(OwnerAgendas.Of(p.OwnerName)!.PageLine, Biographer.Promotion(w, p));
+        foreach (var p in owned) Assert.Contains(OwnerAgendas.Of(p, w.Mode)!.PageLine, Biographer.Promotion(w, p));
         var o = OriginsWorld.Value;
-        foreach (var p in o.Promotions.Values.Where(p => OwnerAgendas.Of(p.OwnerName) is not null))
-            Assert.Contains(OwnerAgendas.Of(p.OwnerName)!.PageLine, Biographer.Promotion(o, p));
+        var oOwned = o.Promotions.Values.Where(p => OwnerAgendas.Of(p, o.Mode) is not null).ToList();
+        Assert.Equal(3, oOwned.Count);
+        foreach (var p in oOwned) Assert.Contains(OwnerAgendas.Of(p, o.Mode)!.PageLine, Biographer.Promotion(o, p));
     }
 
     [Fact]
@@ -585,6 +640,255 @@ public class ArcsAndAgendasTests
         }
         Assert.InRange(said, 15, 38);   // seventy in a hundred, give or take
     }
+    // ---------------------------------------------------------------- beats that must NOT fire
+
+    private static void TellEarlierSlots(Fighter lead, Arc arc, int upToSlotExclusive, DateOnly when)
+    {
+        foreach (var prior in arc.Beats.Where(x => x.Slot < upToSlotExclusive).GroupBy(x => x.Slot).Select(g => g.First()))
+            lead.Accolades.Add(new Accolade(when, Arcs.AccoladeTitle(arc, prior)));
+    }
+
+    private static void TellEveryOtherArc(World w, Arc keep, DateOnly when)
+    {
+        foreach (var other in ArcsModern.All.Where(a => a != keep))
+            if (w.Fighters.Values.SingleOrDefault(f => f.Designed && $"{f.FirstName} {f.LastName}" == other.Lead) is { } ol)
+                foreach (var ob in other.Beats) ol.Accolades.Add(new Accolade(when, Arcs.AccoladeTitle(other, ob)));
+    }
+
+    [Fact]
+    public void ARetiringChampion_WhoseBeltPassesToTheHeir_IsNotDethroned()
+    {
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 51 });
+        var arc = ArcsModern.All.Single(a => a.Id == "seo-mercer");
+        var seo = w.Fighters.Values.Single(f => f.Designed && f.LastName == "Seo");
+        var mercer = w.Fighters.Values.Single(f => f.Designed && f.LastName == "Mercer");
+        var d = w.CurrentDate.AddDays(500);
+        TellEveryOtherArc(w, arc, d.AddDays(-200));
+        TellEarlierSlots(seo, arc, 4, d.AddDays(-100));
+
+        var title = w.Titles.Values.Single(t => t.CurrentChampion == mercer.Id);
+        // Mercer retires: the real lifecycle hands the belt down (a new reign, no fight).
+        typeof(Lifecycle).GetMethod("VacateBelt", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .Invoke(null, new object[] { w, title, d.AddDays(-1) });
+        Assert.NotEqual(mercer.Id, title.CurrentChampion);
+        Assert.Contains(title.Lineage, r => r.WonOn == d.AddDays(-1));   // the heir's reign exists
+
+        Assert.DoesNotContain(Arcs.RunWeekly(w, d), t => t.Arc == arc);   // before the fix: "Seo takes the belt from Mercer"
+        // ...and if the heir was Seo himself, the headline would have been a lie.
+    }
+
+    [Fact]
+    public void AChampionWhoLeaves_LosesNothing_AndNobodyBeatsHim()
+    {
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 52 });
+        var arc = ArcsModern.All.Single(a => a.Id == "duarte-pires");
+        var duarte = w.Fighters.Values.Single(f => f.Designed && f.LastName == "Duarte");
+        var d = w.CurrentDate.AddDays(500);
+        TellEveryOtherArc(w, arc, d.AddDays(-200));
+        TellEarlierSlots(duarte, arc, 3, d.AddDays(-100));   // slots one and two told; slot three is "Duarte loses the belt"
+
+        var promo = w.Get(duarte.Contract!.Promotion)!;
+        MmaManager.Core.Sim.Contracts.ContractLifecycle.LeavePromotion(w, duarte, promo.Id, d.AddDays(-1), "he left");
+        Assert.Contains(w.Titles.Values, t => t.Lineage.Any(r => r.Champion == duarte.Id && r.LostOn == d.AddDays(-1)));   // the reign ended, without a defeat
+
+        Assert.DoesNotContain(Arcs.RunWeekly(w, d), t => t.Arc == arc && t.Beat.When == Cond.TitleLost);   // before the fix it fired
+    }
+
+    [Fact]
+    public void TheNightABeltIsWon_IsNotADefence()
+    {
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 53 });
+        var arc = ArcsModern.All.Single(a => a.Id == "brody-ironside");
+        var brody = w.Fighters.Values.Single(f => f.Designed && f.LastName == "Brody");
+        var third = w.Fighters.Values.First(f => f.Designed && f.Id != brody.Id);
+        var d = w.CurrentDate.AddDays(500);
+        TellEveryOtherArc(w, arc, d.AddDays(-200));
+        var t = w.Titles.Values.OrderBy(x => x.Id.Value).First();
+        var u = new Undo();
+
+        // He wins it tonight: a new reign opens on the night. "Brody retains" would be false.
+        var r0 = new TitleReign { Champion = third.Id, WonOn = d.AddDays(-90), LostOn = d.AddDays(-1) };
+        var r1 = new TitleReign { Champion = brody.Id, WonOn = d.AddDays(-1) };
+        t.Lineage.Add(r0); t.Lineage.Add(r1);
+        var was = t.CurrentChampion; t.CurrentChampion = brody.Id;
+        var f = AddBout(w, AddEvent(w, d.AddDays(-1), EventStatus.Completed, u), brody, third, brody);
+        f.IsTitleFight = true; f.Title = t.Id;
+        Assert.DoesNotContain(Arcs.RunWeekly(w, d), x => x.Arc == arc);
+
+        // The same man, defending a belt he won long ago, does tell it.
+        r1.LostOn = null;
+        t.Lineage.Remove(r1); t.Lineage.Add(new TitleReign { Champion = brody.Id, WonOn = d.AddDays(-300) });
+        Assert.Contains(Arcs.RunWeekly(w, d.AddDays(7)), x => x.Arc == arc && x.Beat.When == Cond.Defended);
+        t.CurrentChampion = was;
+    }
+
+    [Fact]
+    public void AnArcThatIsStarvedByTheCap_StillGetsTold_InTheWeeksThatFollow()
+    {
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 54 });
+        var u = new Undo();
+        var d = w.CurrentDate.AddDays(500);
+        var arranged = new List<Arc>();
+        foreach (var arc in ArcsModern.All)
+        {
+            var first = arc.Beats.First(b => b.Slot == 1);
+            if (arranged.Count < 12 && first.When is Cond.Booked or Cond.SignedWith or Cond.WonStreak) { Arrange(w, arc, first, d, u); arranged.Add(arc); }
+        }
+        Assert.True(arranged.Count > Arcs.MaxPerWeek * 2);   // more arcs wait than a week may tell
+        var told = new HashSet<Arc>();
+        for (int wk = 0; wk < 12; wk++)
+            foreach (var t in Arcs.RunWeekly(w, d.AddDays(7 * wk))) if (t.Beat.Slot == 1) told.Add(t.Arc);
+        foreach (var arc in arranged) Assert.Contains(arc, told);
+    }
+
+    // ---------------------------------------------------------------- the words, the second pass
+
+    private static readonly string[] Divisions = { "strawweight", "flyweight", "bantamweight", "featherweight", "lightweight", "welterweight", "middleweight", "heavyweight" };
+    private static readonly Regex AgeWords = new(@"\b(twenty|thirty|forty|teenage|-year-old|year-old)\b", RegexOptions.IgnoreCase);
+
+    [Fact]
+    public void BeatText_NamesNoHouse_City_Division_OrAge_ItsConditionDoesNotPin()
+    {
+        var houses = new List<(string Name, string Abbr, string? City)>();
+        foreach (var w in new[] { ModernWorld.Value, OriginsWorld.Value })
+            foreach (var p in w.Promotions.Values)
+                houses.Add((p.Name, p.Abbreviation, p.HomeCity is { } c ? w.Get(c)?.Name : null));
+        foreach (var a in OriginsArrivals.All.Where(a => a.Kind == OriginsArrivalKind.Promotion)) houses.Add((a.Name, a.Abbreviation ?? "", a.City));
+        var cities = houses.Select(h => h.City).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+
+        foreach (var arc in Arcs.All)
+            foreach (var b in arc.Beats)
+            {
+                var pinned = b.Org is null ? null : houses.Where(h => h.Abbr == b.Org).ToList();
+                foreach (var (where, text) in new[] { ("headline", b.Headline), ("body", b.Body) })
+                {
+                    string at = $"{arc.Id}/{b.Tag}/{where}";
+                    foreach (var h in houses)
+                    {
+                        if (pinned is not null && pinned.Contains(h)) continue;
+                        Assert.False(text.Contains(h.Name, StringComparison.OrdinalIgnoreCase), $"{at} names {h.Name}");
+                        if (h.Abbr.Length >= 3) Assert.False(Regex.IsMatch(text, $@"\b{Regex.Escape(h.Abbr)}\b"), $"{at} names {h.Abbr}");
+                    }
+                    foreach (var c in cities!)
+                        if (pinned is null || !pinned.Any(h => h.City == c))
+                            Assert.False(Regex.IsMatch(text, $@"\b{Regex.Escape(c!)}\b"), $"{at} names {c}");
+                    foreach (var dv in Divisions) Assert.False(text.Contains(dv, StringComparison.OrdinalIgnoreCase), $"{at} names {dv}");
+                    Assert.False(AgeWords.IsMatch(text), $"{at} states an age");
+                }
+            }
+    }
+
+    [Fact]
+    public void ATitleBeat_NamesItsBeltByToken_AndNoBeatClaimsAnythingAboutWhen()
+    {
+        foreach (var b in Arcs.All.SelectMany(a => a.Beats).Where(b => b.When is Cond.TitleWon or Cond.TitleWonFrom or Cond.TitleLost or Cond.Defended or Cond.DefendedVs))
+            Assert.Contains("{Belt}", b.Headline);
+        var when = new Regex(@"\b(tonight|today|this week|last night|yesterday|just now|at last|finally)\b", RegexOptions.IgnoreCase);
+        foreach (var (where, text) in BeatTexts(Arcs.All).Where(x => !x.Where.EndsWith("/tag")))
+            Assert.False(when.IsMatch(text), $"{where}: {text}");
+    }
+
+    [Fact]
+    public void TheOriginsArcs_NeverOpenOnABookedCard()
+    {
+        foreach (var arc in ArcsOrigins.All)
+        {
+            Assert.DoesNotContain(arc.Beats, b => b.When == Cond.Booked);
+            // Every opening step can happen without a card being announced ahead: a meeting, a win streak, a signing.
+            Assert.All(arc.Beats.Where(b => b.Slot == 1), b => Assert.Contains(b.When, new[] { Cond.Won, Cond.WonStreak, Cond.SignedWith }));
+        }
+    }
+
+    [Fact]
+    public void StoryMarks_AreNotHonours_AndTheScreensCanTellThemApart()
+    {
+        foreach (var arc in Arcs.All)
+            foreach (var b in arc.Beats)
+            {
+                string t = Arcs.AccoladeTitle(arc, b);
+                Assert.True(Arcs.IsSagaMark(t));
+                // None of the shapes a screen or a system reads as an honour.
+                Assert.False(t.EndsWith("gold") || t.EndsWith("silver") || t.EndsWith("bronze"), t);
+                Assert.False(t.Contains("of the Year") || t.StartsWith("Won ") || t.StartsWith("Signed at ") || t.StartsWith("Discovered") || t.StartsWith("Founding class"), t);
+            }
+        Assert.False(Arcs.IsSagaMark("2027 Fighter of the Year"));
+        Assert.False(Arcs.IsSagaMark("Won Crucible Challenge"));
+    }
+
+    // ---------------------------------------------------------------- the owners, the second pass
+
+    private static readonly string[] GenderedWords =
+        { "he", "him", "his", "himself", "she", "her", "hers", "herself", "man", "men", "woman", "women", "boy", "girl", "guy", "lad", "lady", "gentleman", "sir", "madam" };
+
+    [Fact]
+    public void EveryOwnerLine_ReadsRight_ForAManAndForAWoman()
+    {
+        foreach (var a in OwnerAgendas.All)
+            foreach (OwnerMoment m in Enum.GetValues<OwnerMoment>())
+                foreach (var line in OwnerVoices.Lines(a, m))
+                    foreach (var (first, last) in new[] { ("Alex", "Sample"), ("Alexandra", "Sample") })
+                    {
+                        string text = line.Replace("{F}", $"{first} {last}").Replace("{L}", last).Replace("{Org}", "AFC");
+                        Assert.DoesNotContain("\"", text);   // no nickname quotes inside the quoted line
+                        foreach (var word in Regex.Matches(text.ToLowerInvariant(), @"[a-z']+").Select(x => x.Value))
+                            Assert.False(GenderedWords.Contains(word), $"'{word}' in {a.Owner}: {text}");
+                    }
+    }
+
+    [Fact]
+    public void AnOwnersQuote_NamesTheFighterByFirstAndLastName_NeverTheNickname()
+    {
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 61 });
+        w.PlayerPromotion = default;
+        var afc = w.Promotions.Values.Single(p => p.Abbreviation == "AFC");
+        var f = w.Fighters.Values.First(x => x.Designed && x.Nickname is not null);
+        Assert.Contains("\"", f.FullName);   // the nickname is in FullName, in straight quotes
+        for (int i = 0; i < 60; i++)
+        {
+            var d = new DateOnly(2027, 1, 1).AddDays(i * 8);
+            w.CurrentDate = d;
+            News.Post(w, d, NewsCategory.TitleChange, $"{f.FullName} claims the vacant Test Belt {i}", "", afc.Id, f.Id);
+            OwnerVoices.RunWeekly(w, d);
+        }
+        var voices = w.News.Where(IsOwnerVoice).ToList();
+        Assert.NotEmpty(voices);
+        Assert.All(voices, v => Assert.DoesNotContain("\"", v.Body));
+        Assert.All(voices, v => Assert.DoesNotContain(f.Nickname!, v.Body));
+    }
+
+    [Fact]
+    public void AnAgenda_AttachesOnlyToItsDesignedHouse_ItsOwnerAndItsEra()
+    {
+        var o = OriginsWorldTests.AiWorld(71);
+        var cru = o.Promotions.Values.Single(p => p.Abbreviation == "CRU");
+        Assert.NotNull(OwnerAgendas.Of(cru, WorldMode.Origins));
+        Assert.Null(OwnerAgendas.Of(cru, WorldMode.Modern));                  // the right house in the wrong era
+
+        // A house founded later whose random owner happens to share a designed owner's name gets nothing.
+        var name = cru.OwnerName;
+        var abbr = cru.Abbreviation;
+        cru.Abbreviation = "ZZZ";
+        Assert.Null(OwnerAgendas.Of(cru, WorldMode.Origins));                 // the right name on the wrong house
+        cru.Abbreviation = abbr;
+        cru.OwnerName = "Somebody Else";
+        Assert.Null(OwnerAgendas.Of(cru, WorldMode.Origins));                 // the right house with another owner
+        cru.OwnerName = name;
+        Assert.NotNull(OwnerAgendas.Of(cru, WorldMode.Origins));
+
+        // And a Modern owner's agenda never attaches in an Origins world, even to a house that carries the abbreviation.
+        var afc = ModernWorld.Value.Promotions.Values.Single(p => p.Abbreviation == "AFC");
+        Assert.Null(OwnerAgendas.Of(afc, WorldMode.Origins));
+    }
+
+    [Fact]
+    public void ARenewal_IsNotASigning_ForTheOwnersVoice()
+    {
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 31 });
+        var afc = w.Promotions.Values.Single(p => p.Abbreviation == "AFC");
+        var item = new NewsItem(new DateOnly(2027, 2, 1), NewsCategory.Signing, "Ann Other re-signs with AFC", "", afc.Id, w.Fighters.Values.First().Id);
+        Assert.Empty(OwnerVoices.Moments(w, item));
+    }
+
     // ---------------------------------------------------------------- the sample sheet
 
     private static string When(Beat b, Arc arc) => b.When switch

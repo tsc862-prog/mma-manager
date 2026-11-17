@@ -9,7 +9,7 @@ public enum OwnerMoment { Signs, Crowns, LosesStar, Outbid }
 
 /// <summary>
 /// The owners speak. Once a week it reads the week's news and, when a designed owner's house signed a name, crowned
-/// a champion, lost a star or was outbid, a share of those moments gets a line from the owner, in their own agenda's
+/// a champion, lost a star or was outbid, a share of those moments gets a line (new deals only: a renewal is not "signing a name") from the owner, in their own agenda's
 /// voice, posted as news. Text only: it reads headlines the sim already wrote and writes a General item; no system
 /// reads it, nothing it does changes an outcome. The roll is a hash of the seed and the item (no draw from any
 /// stream): the same world says the same things.
@@ -51,7 +51,7 @@ public static class OwnerVoices
                     yield return (home, OwnerMoment.Signs, from);
                     if (from is not null) yield return (from, OwnerMoment.Outbid, home);
                 }
-                else if (home is not null && (h.Contains(" signs with ", StringComparison.Ordinal) || h.Contains(" re-signs with ", StringComparison.Ordinal)))
+                else if (home is not null && h.Contains(" signs with ", StringComparison.Ordinal))
                     yield return (home, OwnerMoment.Signs, null);
                 break;
             case NewsCategory.TitleChange:
@@ -71,7 +71,7 @@ public static class OwnerVoices
     private static void Speak(World world, DateOnly date, NewsItem n, Promotion promo, OwnerMoment moment, Promotion? other)
     {
         if (world.HasPlayer && promo.Id == world.PlayerPromotion) return;   // the player is the owner of his own house
-        if (OwnerAgendas.Of(promo.OwnerName) is not { } agenda) return;
+        if (OwnerAgendas.Of(promo, world.Mode) is not { } agenda) return;
         if (world.Get(n.AboutFighter!.Value) is not { } f) return;
 
         ulong h = Roll(world, n, promo, moment);
@@ -79,9 +79,9 @@ public static class OwnerVoices
         var lines = Lines(agenda, moment);
         if (lines.Length == 0) return;
         string line = lines[(int)((h >> 20) % (ulong)lines.Length)];
-        string text = line.Replace("{F}", f.FullName).Replace("{L}", f.LastName).Replace("{Org}", other?.Abbreviation ?? "Another house");
+        string text = line.Replace("{F}", $"{f.FirstName} {f.LastName}").Replace("{L}", f.LastName).Replace("{Org}", other?.Abbreviation ?? "Another house");
 
-        News.Post(world, date, NewsCategory.General,
+        News.Post(world, n.Date, NewsCategory.General,
             $"{agenda.Owner} on {f.LastName}", $"“{text}”", promo.Id, f.Id);
     }
 

@@ -46,7 +46,7 @@ public enum Cond
 /// <summary>
 /// One beat: the condition, the text, and the slot it holds. Beats that share a slot are alternatives (the
 /// belt changed hands, or it did not): the first whose condition holds is told, and the slot is then done.
-/// Text tokens: {AOrg} {BOrg} (a house's abbreviation, or "the open market"), {ARec} {BRec} (win-loss-draw),
+/// Text tokens: {AOrg} {BOrg} (a house's abbreviation, or "the open market"), {AWhere} {BWhere} ("with AFC" or "a free agent"), {ARec} {BRec} (win-loss-draw),
 /// {Belt} (the title in play). Names are written in, since the cast is authored.
 /// </summary>
 public sealed record Beat(
@@ -69,22 +69,32 @@ public sealed record Arc(string Id, string Title, WorldMode Mode, string Lead, s
 public static class Arcs
 {
     public const string AccoladePrefix = "Saga: ";
-    /// <summary>How far back a bout, a title change or a card can be and still count as news now.</summary>
-    public const int WindowDays = 14;
+    /// <summary>How far back a bout or a title change can be and still be told (four weekly passes see it, so a busy week cannot lose a beat).</summary>
+    public const int WindowDays = 28;
     /// <summary>At most this many beats a week, so a long-quiet world does not print a column of them at once.</summary>
-    public const int MaxPerWeek = 3;
+    public const int MaxPerWeek = 4;
 
     public static IReadOnlyList<Arc> All { get; } = ArcsModern.All.Concat(ArcsOrigins.All).ToArray();
 
     public static string AccoladeTitle(Arc arc, Beat beat) => $"{AccoladePrefix}{arc.Title}: {beat.Tag}";
+
+    /// <summary>
+    /// Whether an accolade is the told-once mark of a story beat. The marks are bookkeeping, not honours: screens that list
+    /// a fighter's honours leave them out (a defeat is a beat too).
+    /// </summary>
+    public static bool IsSagaMark(string accoladeTitle) => accoladeTitle.StartsWith(AccoladePrefix, StringComparison.Ordinal);
 
     /// <summary>Tell every beat that has come true. Returns the beats told (for tests and logs).</summary>
     public static List<(Arc Arc, Beat Beat)> RunWeekly(World world, DateOnly date)
     {
         var told = new List<(Arc, Beat)>();
         Ctx? ctx = null;
-        foreach (var arc in All)
+        // The pass starts at a different arc each week (by the week number) so the cap can only delay a late arc,
+        // never starve it.
+        int n = All.Count, start = n == 0 ? 0 : (date.DayNumber / 7) % n;
+        for (int k = 0; k < n; k++)
         {
+            var arc = All[(start + k) % n];
             if (arc.Mode != world.Mode) continue;
             ctx ??= new Ctx(world, date);
             if (ctx.Find(arc.Lead) is not { } lead) continue;
@@ -122,7 +132,8 @@ public static class Arcs
         var foil = ctx.Find(arc.Foil);
         string Org(Fighter? f) => f?.Contract is { } c && world.Get(c.Promotion) is { } p ? p.Abbreviation : "the open market";
         string Rec(Fighter? f) => f is null ? "" : f.Record.ToString();
-        string Fill(string s) => s.Replace("{AOrg}", Org(lead)).Replace("{BOrg}", Org(foil))
+        string Where(Fighter? f) => f?.Contract is { } c && world.Get(c.Promotion) is { } p ? $"with {p.Abbreviation}" : "a free agent";
+        string Fill(string s) => s.Replace("{AWhere}", Where(lead)).Replace("{BWhere}", Where(foil)).Replace("{AOrg}", Org(lead)).Replace("{BOrg}", Org(foil))
             .Replace("{ARec}", Rec(lead)).Replace("{BRec}", Rec(foil)).Replace("{Belt}", belt ?? "the belt");
 
         lead.Accolades.Add(new Accolade(date, AccoladeTitle(arc, beat)));
@@ -169,34 +180,42 @@ public static class Arcs
                 }
                 return false;
 
+            // A belt is won in the cage. A champion who retires or leaves is replaced without a fight (the heir, or a vacancy
+            // filled later): that is not "dethroned", and the loser of nothing has not "lost".
             case Cond.TitleWon:
-                foreach (var (t, reign) in ctx.NewReigns)
-                    if (reign.Champion == who.Id) { belt = t.Name; return after is null || reign.WonOn > after.Value; }
-                return false;
-
             case Cond.TitleWonFrom:
-                if (other is null) return false;
-                foreach (var (t, reign) in ctx.NewReigns)
+                foreach (var r in ctx.Recent)
                 {
-                    if (reign.Champion != who.Id) continue;
-                    int i = t.Lineage.IndexOf(reign);
-                    if (i > 0 && t.Lineage[i - 1].Champion == other.Id && (after is null || reign.WonOn > after.Value))
-                    { belt = t.Name; return true; }
+                    if (!Later(r.Event) || !r.Fight.IsTitleFight || r.Fight.Outcome!.Winner != who.Id) continue;
+                    if (b.When == Cond.TitleWonFrom && (other is null || r.Fight.Outcome.Loser != other.Id)) continue;
+                    if (r.Fight.Title is not { } tid || world.Get(tid) is not { } title) continue;
+                    // ...and it is a NEW reign, opened on the night.
+                    if (!title.Lineage.Any(x => x.Champion == who.Id && x.WonOn >= r.Event.Date)) continue;
+                    belt = title.Name;
+                    return true;
                 }
                 return false;
 
             case Cond.TitleLost:
-                foreach (var (t, reign) in ctx.EndedReigns)
-                    if (reign.Champion == who.Id && !reign.Vacated) { belt = t.Name; return after is null || reign.LostOn!.Value > after.Value; }
+                foreach (var r in ctx.Recent)
+                {
+                    if (!Later(r.Event) || !r.Fight.IsTitleFight || r.Fight.Outcome!.Loser != who.Id) continue;
+                    if (r.Fight.Title is not { } tid || world.Get(tid) is not { } title) continue;
+                    if (!title.Lineage.Any(x => x.Champion == who.Id && x.LostOn is { } l && l >= r.Event.Date && !x.Vacated)) continue;
+                    belt = title.Name;
+                    return true;
+                }
                 return false;
 
+            // A defence is a win by a man who was already champion BEFORE the night (the night a belt is won is not one).
             case Cond.Defended:
             case Cond.DefendedVs:
                 foreach (var r in ctx.Recent)
                 {
                     if (!Later(r.Event) || !r.Fight.IsTitleFight || r.Fight.Outcome!.Winner != who.Id) continue;
                     if (b.When == Cond.DefendedVs && (other is null || !Between(r.Fight, who.Id, other.Id))) continue;
-                    if (r.Fight.Title is not { } tid || world.Get(tid) is not { } title || title.CurrentChampion != who.Id) continue;
+                    if (r.Fight.Title is not { } tid || world.Get(tid) is not { } title) continue;
+                    if (!title.Lineage.Any(x => x.Champion == who.Id && x.WonOn < r.Event.Date && (x.LostOn is null || x.LostOn >= r.Event.Date))) continue;
                     belt = title.Name;
                     return true;
                 }
@@ -250,8 +269,6 @@ public static class Arcs
 
         public List<(Event Event, Fight Fight)> Recent { get; } = new();
         public HashSet<(int, int)> BookedPairs { get; } = new();
-        public List<(Title Title, TitleReign Reign)> NewReigns { get; } = new();
-        public List<(Title Title, TitleReign Reign)> EndedReigns { get; } = new();
 
         public Ctx(World world, DateOnly date)
         {
@@ -272,12 +289,6 @@ public static class Arcs
                         if (fight.Outcome is not null && !fight.OverturnedNc) Recent.Add((ev, fight));
                 }
             }
-            foreach (var t in world.Titles.Values)
-                foreach (var reign in t.Lineage)
-                {
-                    if (reign.WonOn.DayNumber > from && reign.WonOn.DayNumber <= date.DayNumber) NewReigns.Add((t, reign));
-                    if (reign.LostOn is { } lost && lost.DayNumber > from && lost.DayNumber <= date.DayNumber) EndedReigns.Add((t, reign));
-                }
         }
 
         public Fighter? Find(string fullName) => _byName.GetValueOrDefault(fullName);
