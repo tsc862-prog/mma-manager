@@ -194,6 +194,7 @@ public sealed class Matchmaker
             .SelectMany(e => e.Card).Where(f => f.IsTitleFight && f.Title is not null)
             .Select(f => f.Title!.Value).ToHashSet();
         var titleBouts = new List<(Title Title, WeightClass Wc, Fighter Red, Fighter Blue, long Priority)>();
+        Dictionary<(int, int), Rivalry>? feuds = null;   // by pair, built for the first champion with contenders (nothing here adds a rivalry)
         foreach (var division in promo.Divisions.Where(d => d.Title is not null))
         {
             var title = world.Get(division.Title!.Value);
@@ -210,7 +211,7 @@ public sealed class Matchmaker
             var champ = title.CurrentChampion is { } cid ? world.Get(cid) : null;
             if (champ is not null && Free(champ))
             {
-                if (PickChallenger(world, champ, contenders, recent) is { } challenger)
+                if (PickChallenger(world, champ, contenders, recent, contenders.Count == 0 ? null : feuds ??= Living.Storylines.RivalriesByPair(world)) is { } challenger)
                     titleBouts.Add((title, division.WeightClass, champ, challenger, DaysIdle(world, recent, champ.Id)));
             }
             else if (champ is null && contenders.Count >= 2)
@@ -298,15 +299,16 @@ public sealed class Matchmaker
     /// contender rather than freeze the belt when nobody else is available.
     /// </summary>
     private static Fighter? PickChallenger(World world, Fighter champ, List<Fighter> contenders,
-        IReadOnlyDictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
+        IReadOnlyDictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent,
+        Dictionary<(int, int), Rivalry>? feuds)
     {
-        if (contenders.Count == 0) return null;
+        if (contenders.Count == 0 || feuds is null) return null;
 
         // Whoever the champ most recently beat isn't owed an instant rematch.
         FighterId? staleRematch =
             recent.TryGetValue(champ.Id, out var r) && r.Won ? r.Opponent : null;
 
-        int HeatWith(Fighter c) => Living.Storylines.RivalryBetween(world, champ.Id, c.Id)?.Intensity ?? 0;
+        int HeatWith(Fighter c) => feuds.GetValueOrDefault(Living.Bonds.PairKey(champ.Id, c.Id))?.Intensity ?? 0;
         var grudge = contenders.Where(c => Worthy(c) && HeatWith(c) >= 40)
             .OrderByDescending(HeatWith).FirstOrDefault();
         if (grudge is not null && (grudge.Id != staleRematch || HeatWith(grudge) >= 70))
