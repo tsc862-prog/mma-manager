@@ -440,7 +440,7 @@ public class ArcsAndAgendasTests
         {
             Assert.True(f.Designed);
             foreach (var a in f.Accolades.Where(IsSaga))
-                Assert.Contains(Arcs.All, arc => arc.Lead == $"{f.FirstName} {f.LastName}" && arc.Beats.Any(b => Arcs.AccoladeTitle(arc, b) == a.Title));
+                Assert.True(Arcs.All.Any(arc => arc.Lead == $"{f.FirstName} {f.LastName}" && arc.Beats.Any(b => Arcs.AccoladeTitle(arc, b) == a.Title)), a.Title);
         }
 
         // Owners: quotes exist, and each answers a signing / title / retirement item of the same day about the same fighter.
@@ -452,8 +452,8 @@ public class ArcsAndAgendasTests
             Assert.DoesNotContain("{", v.Body);
             Assert.DoesNotContain("\"", v.Body);   // no nickname quotes inside the quoted line
             if (v.Date > w.CurrentDate.AddDays(-84))   // (an older source may have left the capped feed already)
-            Assert.Contains(w.News, n => n.Date == v.Date && n.AboutFighter == v.AboutFighter
-                                         && (n.Category == NewsCategory.Signing || n.Category == NewsCategory.TitleChange || n.Category == NewsCategory.Retirement));
+            Assert.True(w.News.Any(n => n.Date == v.Date && n.AboutFighter == v.AboutFighter
+                                         && (n.Category == NewsCategory.Signing || n.Category == NewsCategory.TitleChange || n.Category == NewsCategory.Retirement)), $"no source item for the owner line on {v.Date}");
         }
     }
 
@@ -487,7 +487,7 @@ public class ArcsAndAgendasTests
         Assert.NotEmpty(SagaMarks(w));
         foreach (var f in w.Fighters.Values.Where(f => f.Accolades.Any(IsSaga)))
             foreach (var a in f.Accolades.Where(IsSaga))
-                Assert.Contains(ArcsOrigins.All, arc => arc.Lead == $"{f.FirstName} {f.LastName}" && arc.Beats.Any(b => Arcs.AccoladeTitle(arc, b) == a.Title));
+                Assert.True(ArcsOrigins.All.Any(arc => arc.Lead == $"{f.FirstName} {f.LastName}" && arc.Beats.Any(b => Arcs.AccoladeTitle(arc, b) == a.Title)), a.Title);
     }
 
     [Fact]
@@ -718,27 +718,40 @@ public class ArcsAndAgendasTests
         // The same man, defending a belt he won long ago, does tell it.
         r1.LostOn = null;
         t.Lineage.Remove(r1); t.Lineage.Add(new TitleReign { Champion = brody.Id, WonOn = d.AddDays(-300) });
-        Assert.Contains(Arcs.RunWeekly(w, d.AddDays(7)), x => x.Arc == arc && x.Beat.When == Cond.Defended);
+        Assert.True(Arcs.RunWeekly(w, d.AddDays(7)).Any(x => x.Arc == arc && x.Beat.When == Cond.Defended));
         t.CurrentChampion = was;
     }
 
     [Fact]
-    public void AnArcThatIsStarvedByTheCap_StillGetsTold_InTheWeeksThatFollow()
+    public void TwelveBeatsThatComeTrueTogether_AreAllTold_BeforeTheirNewsGoesStale()
     {
+        // The cap (a few a week) and the window (a few weeks) together carry a dozen bouts' worth of beats from one busy night;
+        // a bout is told for as long as it is inside the window, so nothing a busy week produces is lost.
         var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 54 });
         var u = new Undo();
         var d = w.CurrentDate.AddDays(500);
-        var arranged = new List<Arc>();
+        var arranged = new List<(Arc Arc, Beat Beat)>();
         foreach (var arc in ArcsModern.All)
         {
-            var first = arc.Beats.First(b => b.Slot == 1);
-            if (arranged.Count < 12 && first.When is Cond.Booked or Cond.SignedWith or Cond.WonStreak) { Arrange(w, arc, first, d, u); arranged.Add(arc); }
+            var beat = arc.Beats.FirstOrDefault(b => b.Slot == 2 && !b.Swap && b.When is Cond.Won or Cond.TitleWonFrom);
+            if (beat is null || arranged.Count >= 12) continue;
+            var lead = w.Fighters.Values.Single(f => f.Designed && $"{f.FirstName} {f.LastName}" == arc.Lead);
+            TellEarlierSlots(lead, arc, 2, d.AddDays(-100));
+            Arrange(w, arc, beat, d, u);
+            arranged.Add((arc, beat));
         }
-        Assert.True(arranged.Count > Arcs.MaxPerWeek * 2);   // more arcs wait than a week may tell
-        var told = new HashSet<Arc>();
-        for (int wk = 0; wk < 12; wk++)
-            foreach (var t in Arcs.RunWeekly(w, d.AddDays(7 * wk))) if (t.Beat.Slot == 1) told.Add(t.Arc);
-        foreach (var arc in arranged) Assert.Contains(arc, told);
+        Assert.Equal(12, arranged.Count);
+        TellEveryOtherArc(w, arranged[0].Arc, d.AddDays(-200));   // (marks every other arc told; undo for the arranged ones below)
+        foreach (var (arc, _) in arranged)
+        {
+            var lead = w.Fighters.Values.Single(f => f.Designed && $"{f.FirstName} {f.LastName}" == arc.Lead);
+            lead.Accolades.RemoveAll(a => a.Title.StartsWith(Arcs.AccoladePrefix + arc.Title + ": ", StringComparison.Ordinal));
+            TellEarlierSlots(lead, arc, 2, d.AddDays(-100));
+        }
+        var told = new HashSet<string>();
+        for (int wk = 0; wk < 4; wk++)
+            foreach (var t in Arcs.RunWeekly(w, d.AddDays(7 * wk))) told.Add(t.Arc.Id);
+        foreach (var (arc, beat) in arranged) Assert.True(told.Contains(arc.Id), $"{arc.Id}/{beat.Tag} was never told");
     }
 
     // ---------------------------------------------------------------- the words, the second pass
