@@ -2641,6 +2641,11 @@
                RingsideSceneTemplate     RingsideScene: one national scene, when it woke and what it holds.
                FoundingCityTemplate      FoundingCityRow: a city in the founding list (refused ones greyed, reason as tooltip).
                TryoutManTemplate         TryoutManCard: a man the open tryout signed (face, age, division, scouts' read).
+               TryoutNote                Border: the sim's reason no tryout is on offer (warm, quiet).
+               FoundingLineToggle        ToggleButton: one weight line in the founding picker (gold when it opens;
+                                         a locked line keeps the gold and shows no hover).
+               FoundingLineTemplate      FoundingLine: name, and what it is (first split / your purse can staff it / beyond).
+               FoundingLineGroupTemplate FoundingLineGroup: a ladder chapter's title over its lines, in the sport's order.
              ===================================================================== -->
         <Style x:Key="RingsideStopBanner" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource ToneInfoDim}" />
@@ -2762,6 +2767,70 @@
                     </StackPanel>
                 </DockPanel>
             </Button>
+        </DataTemplate>
+        <Style x:Key="TryoutNote" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ToneWarnDim}" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,8,0,0" />
+            <Setter Property="MaxWidth" Value="620" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style x:Key="FoundingLineToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="b" Background="{StaticResource Track}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1.5"
+                                CornerRadius="{StaticResource Radius.Card}" Padding="10,6" Margin="0,0,8,8" Width="168">
+                            <DockPanel>
+                                <TextBlock x:Name="tick" DockPanel.Dock="Left" Text="○" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Top"
+                                           Foreground="{StaticResource TextMuted}" />
+                                <ContentPresenter />
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource TextSecondary}" /></Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="#2A2414" />
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                <Setter TargetName="tick" Property="Text" Value="●" />
+                                <Setter TargetName="tick" Property="Foreground" Value="{StaticResource Gold}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Cursor" Value="Arrow" />
+                                <Setter TargetName="tick" Property="Text" Value="■" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <DataTemplate x:Key="FoundingLineTemplate">
+            <ToggleButton Style="{StaticResource FoundingLineToggle}" IsChecked="{Binding On}" IsEnabled="{Binding CanToggle}"
+                          ToolTip="{Binding Tip}" ToolTipService.ShowOnDisabled="True">
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                    <TextBlock x:Name="note" Text="{Binding Note}" Style="{StaticResource Text.Caption}" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+            </ToggleButton>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Suggested}" Value="True"><Setter TargetName="note" Property="Foreground" Value="{StaticResource Gold}" /></DataTrigger>
+                <DataTrigger Binding="{Binding Beyond}" Value="True"><Setter TargetName="note" Property="Foreground" Value="{StaticResource ToneBad}" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <DataTemplate x:Key="FoundingLineGroupTemplate">
+            <StackPanel Margin="0,0,0,4">
+                <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Caption}" FontSize="11.5" Margin="0,0,0,4" />
+                <ItemsControl ItemsSource="{Binding Lines}" ItemTemplate="{StaticResource FoundingLineTemplate}" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
         </DataTemplate>
 
     </Application.Resources>

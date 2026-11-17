@@ -335,6 +335,8 @@ public sealed partial class PlayerBooking
         if (incoming.WeightClass == bout.WeightClass) return true;
         if (world.Mode == WorldMode.Origins)
         {
+            // (By design, a bout booked at open weight and kept on its card through a weight split, OriginsReforms.DrawLines,
+            // still takes any man as a replacement: it is fought as booked, at open weight, no weigh-in.)
             if (bout.OpenWeight || OpenWeight(world)) return true;
             var division = world.Get(world.PlayerPromotion)?.Divisions
                 .FirstOrDefault(d => d.Lightest is not null && d.WeightClass == bout.WeightClass && d.Matches(stay));

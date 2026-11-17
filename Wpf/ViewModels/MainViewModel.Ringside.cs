@@ -40,12 +40,12 @@ public sealed partial class MainViewModel
     public ICommand FoundPromotionCommand { get; private set; } = null!;
 
     /// <summary>
-    /// Is there a free open tryout to offer: a house the player founded mid-game (not one of the founding three he
-    /// may have started with) that has not held it yet. The sim's own refusal decides the rest.
+    /// Is an open tryout on offer today: the free founding one of a house he founded, or the recurring one any of his
+    /// houses gets when it is short of men (a founding house of the sport only ever the second). The sim decides
+    /// (<see cref="PlayerFounding.TryoutOptions"/>); the app is on the desk only while this holds or its window is open.
     /// </summary>
     private bool TryoutApplies =>
-        _world is { Mode: WorldMode.Origins, HasPlayer: true } w && w.Get(w.PlayerPromotion) is { Defunct: false } p
-        && OriginsPromotions.All.All(s => s.Abbreviation != p.Abbreviation)
+        _world is { Mode: WorldMode.Origins, HasPlayer: true } w && w.Get(w.PlayerPromotion) is { Defunct: false }
         && PlayerFounding.TryoutOptions(w, w.CurrentDate).Available;
 
     private void WireRingside()
@@ -62,8 +62,11 @@ public sealed partial class MainViewModel
             Autosave();
             StatusText = Tryout.Signed.Count == 0
                 ? "The open tryout is done, and nobody signed. The free-agent market is where the fighters are."
-                : $"The open tryout signed {Tryout.Signed.Count} local men. Book your first night when you're ready.";
+                : Tryout.JustHeldFree
+                    ? $"The open tryout signed {Tryout.Signed.Count} local men. Book your first night when you're ready."
+                    : $"The open tryout signed {Tryout.Signed.Count} local {(Tryout.Signed.Count == 1 ? "man" : "men")}. Put them on your next card.";
         };
+        Briefing.OpenTryout = () => { if (TryoutApplies) Desktop.Open("tryout"); };
         Tryout.BookCommand = new RelayCommand(() => { CloseTryout(); NavigateTo(Tab.BookEvent); });
         Tryout.LaterCommand = new RelayCommand(CloseTryout);
         Desktop.TryoutOffered = () => TryoutApplies;

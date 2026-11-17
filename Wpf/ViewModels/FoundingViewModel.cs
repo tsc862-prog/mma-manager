@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using MmaManager.Core.Model;
+using MmaManager.Core.Sim.Generation.Origins;
 using MmaManager.Core.Sim.Living;
 using MmaManager.Wpf.Mvvm;
 
@@ -24,6 +25,64 @@ public sealed class FoundingCityRow
     public bool Open => City.Open;
     public string? Refusal => City.Refusal;
 }
+
+/// <summary>
+/// One weight line the sport has drawn, as a toggle in the founding picker: whether the house opens it, whether it can
+/// be left out (the first split's lines cannot), and whether it is in the chosen city's suggested set (what the purse
+/// can staff there: <see cref="FoundingCity.SuggestedLines"/>). Words only; the set is checked by the sim on Found.
+/// </summary>
+public sealed class FoundingLine : ObservableObject
+{
+    private readonly Action _changed;
+
+    public FoundingLine(WeightClass wc, bool locked, Action changed)
+    {
+        Class = wc;
+        Name = OriginsReforms.Name(wc);
+        Locked = locked;
+        _changed = changed;
+        _on = locked;
+    }
+
+    public WeightClass Class { get; }
+    public string Name { get; }
+    /// <summary>One of the first split's lines: every house split by weight opens it.</summary>
+    public bool Locked { get; }
+    public bool CanToggle => !Locked;
+
+    private bool _on;
+    public bool On
+    {
+        get => _on;
+        set { if (Locked || !Set(ref _on, value)) return; Describe(); _changed(); }
+    }
+    /// <summary>Set by the window (a city change or "back to the suggestion"): no edit flag, no change callback.</summary>
+    internal void Put(bool on) { if (!Locked && Set(ref _on, on)) Describe(); }
+
+    private bool _suggested, _anySuggestion;
+    public bool Suggested => _suggested;
+    /// <summary>Opened, but more than the purse can staff in the chosen city.</summary>
+    public bool Beyond => _on && !_suggested && !Locked && _anySuggestion;
+    internal void Suggest(bool suggested, bool anySuggestion) { _suggested = suggested; _anySuggestion = anySuggestion; Describe(); }
+
+    public string Note { get; private set; } = "";
+    public string Tip { get; private set; } = "";
+
+    private void Describe()
+    {
+        Note = Locked ? "first split · always opens"
+            : _suggested ? "your purse can staff it here"
+            : _on && _anySuggestion ? "beyond what your purse staffs here"
+            : "you can draw it later";
+        Tip = Locked ? "Every house split by weight opens with the first split's divisions."
+            : _on ? "Opens with a vacant belt. Click to leave it out for now."
+            : "Click to open it too, with a vacant belt.";
+        OnPropertyChanged(string.Empty);
+    }
+}
+
+/// <summary>The lines one weight-line chapter of the sport drew, under its title, in the order the sport drew them.</summary>
+public sealed record FoundingLineGroup(string Title, IReadOnlyList<FoundingLine> Lines);
 
 /// <summary>One choice the era leaves to the founder (a round length, the gloves, ring or cage).</summary>
 public sealed record FoundingPick(string Label, int? Minutes = null, GloveType? Gloves = null, Enclosure? Enclosure = null)
@@ -61,9 +120,7 @@ public sealed class FoundingViewModel : ObservableObject
         Prestige = _choices.Prestige;
         StartLine = "A newcomer's money and a newcomer's name. Nobody is signed: you get one free open tryout of local men, "
                   + "then the free-agent market at their asking terms.";
-        Divisions = _choices.OpenWeight
-            ? "One open division with a vacant belt: no weight classes yet."
-            : $"The sport's weight lines, each with a vacant belt: {string.Join(", ", _choices.WeightLines.Select(OriginsReforms.Name))}.";
+        BuildLines();
         LateLine = PlayerFounding.LateInYear(today)
             ? $"It's late in {today.Year}: nobody will judge you on what is left of it. The owner's targets start on 1 January {today.Year + 1}."
             : $"The owner's targets run to the end of {today.Year}.";
@@ -116,6 +173,7 @@ public sealed class FoundingViewModel : ObservableObject
             if (!Set(ref _city, value)) return;
             DescribeCity();
             BuildPicks();
+            SuggestLines();
             Error = "";
             OnPropertyChanged(string.Empty);
             Revalidate();
@@ -188,11 +246,89 @@ public sealed class FoundingViewModel : ObservableObject
         FixedLine = fixedBits.Count == 0 ? "" : "Set by the sport here: " + string.Join("; ", fixedBits) + ".";
     }
 
+    // --- the divisions he opens (once the sport has drawn weight lines)
+    public ObservableCollection<FoundingLineGroup> LineGroups { get; } = new();
+    private readonly List<FoundingLine> _lines = new();
+    private bool _linesEdited;
+    /// <summary>The sport has drawn weight lines: he picks which his house opens.</summary>
+    public bool HasLinePicker => _lines.Count > 0;
+    /// <summary>Which lines the purse can staff in the chosen city, in words (empty when the city can't take a house).</summary>
+    public string SuggestLine { get; private set; } = "";
+    /// <summary>What the picked set means: how many belts, and the trade-off.</summary>
+    public string LinesLine { get; private set; } = "";
+    public bool LinesDifferFromSuggestion => _linesEdited && _city is { Open: true } c && c.City.SuggestedLines.Count > 0
+                                             && !_lines.Where(l => l.On).Select(l => l.Class).ToHashSet().SetEquals(c.City.SuggestedLines.Concat(_lines.Where(l => l.Locked).Select(l => l.Class)));
+    public ICommand ResetLinesCommand { get; private set; } = null!;
+
+    private void BuildLines()
+    {
+        ResetLinesCommand = new RelayCommand(() => { _linesEdited = false; SuggestLines(); });
+        if (_choices.OpenWeight) { Divisions = "One open division with a vacant belt: no weight classes yet. Any man can fight any man."; return; }
+        var drawn = _choices.WeightLines.ToHashSet();
+        var first = OriginsReforms.LinesOf(OriginsReforms.Ladder[0]).Where(drawn.Contains).ToHashSet();
+        var placed = new HashSet<WeightClass>();
+        foreach (var chapter in OriginsReforms.Ladder)
+        {
+            var lines = OriginsReforms.LinesOf(chapter).Where(wc => drawn.Contains(wc) && placed.Add(wc))
+                .Select(wc => new FoundingLine(wc, first.Contains(wc), LineToggled)).ToList();
+            if (lines.Count == 0) continue;
+            _lines.AddRange(lines);
+            LineGroups.Add(new FoundingLineGroup(OriginsChapters.ByKey(chapter).Title, lines));
+        }
+        var rest = _choices.WeightLines.Where(wc => !placed.Contains(wc)).OrderBy(wc => wc)
+            .Select(wc => new FoundingLine(wc, first.Contains(wc), LineToggled)).ToList();
+        if (rest.Count > 0) { _lines.AddRange(rest); LineGroups.Add(new FoundingLineGroup("Other lines", rest)); }
+    }
+
+    private void LineToggled()
+    {
+        _linesEdited = true;
+        SayLines();
+    }
+
+    /// <summary>The chosen city's suggested set: marked on every line, and picked unless he has made his own choice.</summary>
+    private void SuggestLines()
+    {
+        if (!HasLinePicker) { SayLines(); return; }
+        var suggested = _city is { Open: true } c ? c.City.SuggestedLines.ToHashSet() : new HashSet<WeightClass>();
+        foreach (var l in _lines)
+        {
+            l.Suggest(suggested.Contains(l.Class), suggested.Count > 0);
+            if (!_linesEdited && suggested.Count > 0) l.Put(suggested.Contains(l.Class));
+        }
+        string where = _city?.City.Name ?? "the city";
+        SuggestLine = suggested.Count == 0
+            ? "Pick a city that can take a house to see what your purse can staff there."
+            : $"What a new house's purse can staff in {where}: {Words(_lines.Where(l => l.Suggested || l.Locked).Select(l => l.Name.ToLowerInvariant()))}. That is the suggestion, marked in gold; it changes with the city.";
+        SayLines();
+    }
+
+    private void SayLines()
+    {
+        if (!HasLinePicker) return;
+        var on = _lines.Where(l => l.On).ToList();
+        int beyond = on.Count(l => l.Beyond);
+        LinesLine = "More divisions means more belts to crown and defend, and more men to keep signed: each needs men of its weight to fill a card."
+                    + (beyond > 0 ? $" {beyond} of these {(beyond == 1 ? "is" : "are")} beyond what your purse can staff here." : "")
+                    + " The rest you can draw later from HQ, one at a time.";
+        Divisions = $"{on.Count} division{(on.Count == 1 ? "" : "s")}, each with a vacant belt: {Words(on.Select(l => l.Name.ToLowerInvariant()))}.";
+        OnPropertyChanged(nameof(SuggestLine));
+        OnPropertyChanged(nameof(LinesLine));
+        OnPropertyChanged(nameof(Divisions));
+        OnPropertyChanged(nameof(LinesDifferFromSuggestion));
+    }
+
+    private static string Words(IEnumerable<string> items)
+    {
+        var l = items.ToList();
+        return l.Count switch { 0 => "", 1 => l[0], _ => string.Join(", ", l.Take(l.Count - 1)) + " and " + l[^1] };
+    }
+
     // --- what he opens with
     public string Bank { get; }
     public int Prestige { get; }
     public string StartLine { get; }
-    public string Divisions { get; }
+    public string Divisions { get; private set; } = "";
     public string LateLine { get; }
 
     // --- founding
@@ -243,9 +379,12 @@ public sealed class FoundingViewModel : ObservableObject
     {
         if (BlockReason is { Length: > 0 } blocked) { Error = blocked; return; }
         if (_city is null) return;
-        var spec = new PlayerFoundingSpec(Name, Abbreviation, _city.City.Id, Minutes?.Minutes, Gloves?.Gloves, Enclosure?.Enclosure);
+        // His divisions: the lines he has on (the first split's always among them); null before the sport draws any.
+        var divisions = HasLinePicker ? _lines.Where(l => l.On).Select(l => l.Class).ToList() : null;
+        var spec = new PlayerFoundingSpec(Name, Abbreviation, _city.City.Id, Minutes?.Minutes, Gloves?.Gloves, Enclosure?.Enclosure, divisions);
         string body = $"{Name.Trim()} ({Abbreviation.Trim().ToUpperInvariant()}) opens in {_city.City.Name}, {_city.City.Country}, today, "
-                    + $"with {Bank} in the bank, prestige {Prestige} and nobody signed.";
+                    + $"with {Bank} in the bank, prestige {Prestige} and nobody signed. "
+                    + (divisions is null ? "One open division." : $"{Divisions.TrimEnd('.')}.");
         if (Confirm is { } ask && !ask(body, "This ends watching from ringside: from today you run a promotion, and there is no going back to the seats."))
             return;
         var promo = PlayerFounding.Found(_w, _w.CurrentDate, spec, out var refused);

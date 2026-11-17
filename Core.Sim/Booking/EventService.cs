@@ -89,9 +89,7 @@ public sealed class EventService
         var house = world.Get(ev.Promotion);
         foreach (var fight in ev.Card)
         {
-            // A bout inside a banded division (Origins weight split) keeps the size term; never in today's mode.
-            bool banded = world.Mode == WorldMode.Origins && !fight.OpenWeight && house is not null
-                && house.Divisions.Any(d => d.Lightest is not null && d.WeightClass == fight.WeightClass);
+            bool banded = SizeTermFor(world, house, fight);
             // A rule set that fixes the rounds (one long round) is what the bout is fought over, so the
             // saved fight says so too. Round length has no field on Fight: it is the rules' (else the house's) minutes.
             if (houseRules?.Rounds is int fixedRounds) fight.ScheduledRounds = fixedRounds;
@@ -110,6 +108,22 @@ public sealed class EventService
 
         using (Living.TickProbe.Phase("run/settle")) Settle(world, ev);
     }
+
+    /// <summary>
+    /// The size term this bout asks the engine for (FightParams.BandedSizeTerm; Origins only, never in today's mode): a
+    /// bout inside a banded division (a weight split) keeps it, and so does an open-weight bout booked before the house
+    /// drew its lines (fought as booked: OriginsReforms.DrawLines). The engine applies it only on its custom-rules path
+    /// (Bout: size = custom && (rules.OpenWeight || BandedSizeTerm)). A house whose rules are today's in every field is
+    /// not on that path, and that can happen with a kept open-weight bout still on its card: a CAGE house that took the
+    /// commissions' code while still at open weight (the code's chapter does not wait for the first split) and then
+    /// splits. Its rules become today's (open weight off, cage), so a kept heavy-vs-light bout is fought with no size
+    /// term, the bigger man getting no edge from his size; so is every banded bout at such a house (as before this
+    /// change). A ring house, or any house not under the code, stays custom. Rare (a split-day card, at most a lead
+    /// window of nights) and left as it is: the engine is not changed here.
+    /// </summary>
+    internal static bool SizeTermFor(World world, Promotion? house, Fight fight) =>
+        world.Mode == WorldMode.Origins && house is not null
+        && (fight.OpenWeight || house.Divisions.Any(d => d.Lightest is not null && d.WeightClass == fight.WeightClass));
 
     /// <summary>
     /// Close out a card whose bouts are already simulated: settle the box office

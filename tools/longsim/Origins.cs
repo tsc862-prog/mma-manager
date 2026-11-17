@@ -164,7 +164,7 @@ public static partial class OriginsMode
 
         var start = world.Promotions.Values.ToDictionary(p => p.Id, p => p.Balance.Amount);
         var tick = new WorldTick();
-        var script = player is null && plan is null ? null : new Script();
+        var script = player is null && plan is null ? null : new Script { Founder = plan is not null };
         o.Observer = plan;
         sb.AppendLine($"day one {world.StartDate:yyyy-MM-dd}: {world.Promotions.Count} promotions, {world.Fighters.Count} men " +
                       $"({world.Fighters.Values.Count(f => f.Designed)} pioneers), {world.Fighters.Values.Count(f => f.Contract is null)} unsigned, " +
@@ -790,10 +790,29 @@ public static partial class OriginsMode
     {
         private readonly FighterValuation _valuation = new();
 
+        /// <summary>
+        /// The observer arm's player, who founded his own house (<see cref="PlayerFounding"/>): he also uses the founder's
+        /// options (a recurring open tryout whenever one is on offer). The plain <c>origins</c> arms leave this off, so their
+        /// scripted runs are unchanged.
+        /// </summary>
+        public bool Founder;
+
+        /// <summary>Would this weight chapter take the house past what its purse can staff (<see cref="OriginsReforms.DivisionsItCanStaff"/>)? Never the first split.</summary>
+        private static bool BeyondStaff(World w, Promotion p, string chapter)
+        {
+            if (!OriginsReforms.Ladder.Contains(chapter)) return false;
+            int have = p.Divisions.Count(d => !d.Open && d.Sex == Sex.Male);
+            int add = OriginsReforms.LinesOf(chapter).Count(wc => !p.Divisions.Any(d => !d.Open && d.Sex == Sex.Male && d.WeightClass == wc));
+            return have > 0 && have + add > OriginsReforms.DivisionsItCanStaff(w, p);
+        }
+
         public void Week(World w)
         {
             if (w.Get(w.PlayerPromotion) is not { Defunct: false } promo) return;
             var today = w.CurrentDate;
+            // A founder short of men calls an open tryout when the local gyms will stage one (the AI houses' rule).
+            if (Founder && PlayerFounding.TryoutHeldOn(promo) is not null && PlayerFounding.TryoutOptions(w, today) is { Available: true, Free: false })
+                PlayerFounding.HoldTryout(w, today, out _);
             bool booked = w.Events.Values.Any(e => e.Promotion == promo.Id && e.Status == EventStatus.Scheduled);
             var due = OriginsShows.NextNightDue(w, promo);
             var when = today.AddDays(21);
@@ -817,7 +836,8 @@ public static partial class OriginsMode
             // Monthly: keep the house deep enough for its night (men whose deals are fought out don't count).
             if (today.Day > 7) return;
             // ...and make the first reform the sport offers (rounds, gloves, a weight line): the player's own path to a chapter.
-            if (OriginsReforms.Options(w, promo, today).FirstOrDefault() is { } reform)
+            // (A founder draws a further weight line only when his purse can staff it, the AI houses' rule; the first split always.)
+            if (OriginsReforms.Options(w, promo, today).FirstOrDefault(o => !Founder || !BeyondStaff(w, promo, o.Chapter)) is { } reform)
                 OriginsReforms.Adopt(w, promo, reform.Chapter, today);
             // ...and pay for the room most of his men train in to teach the whole game, when the bank can stand it.
             if (OriginsCamps.Options(w, promo, today).FirstOrDefault() is { } room && promo.Balance.Amount > room.Cost.Amount * 4)
