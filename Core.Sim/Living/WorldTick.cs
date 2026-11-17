@@ -125,41 +125,41 @@ public sealed class WorldTick
         var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)after.DayNumber));
         var report = new WorldTickReport { Date = after };
 
-        report.Healed = Lifecycle.HealReturning(world, after);
+        using (TickProbe.Phase("week/heal")) report.Healed = Lifecycle.HealReturning(world, after);
         // The club shows the local circuit staged for this week's dates (no RNG:
         // their rolls were made when they were staged; the bouts seed off fight ids).
-        report.LocalFights += LocalCircuit.RunDue(world, after);
+        using (TickProbe.Phase("week/local-run")) report.LocalFights += LocalCircuit.RunDue(world, after);
         // The world's clock: AI promotions announce their shows weeks ahead,
         // fill the undercards as the dates close in, and take anyone who has
         // left, retired or been suspended off the cards they were booked on.
-        ForwardCalendar.RunWeekly(world, after, _matchmaker, _events);
+        using (TickProbe.Phase("week/calendar")) ForwardCalendar.RunWeekly(world, after, _matchmaker, _events);
 
         // The weeks before a card have their own stories: camp injuries force
         // withdrawals (and short-notice saves), the press tours sell the big
         // fights, and any public bidding war over a star escalates.
-        Storylines.RollCampWithdrawals(world, after, rng);
-        PressTour.RunWeekly(world, after, rng);
-        BiddingWars.RunWeekly(world, after, rng);
+        using (TickProbe.Phase("week/camp-withdrawals")) Storylines.RollCampWithdrawals(world, after, rng);
+        using (TickProbe.Phase("week/press-tour")) PressTour.RunWeekly(world, after, rng);
+        using (TickProbe.Phase("week/bidding-wars")) BiddingWars.RunWeekly(world, after, rng);
 
-        RunDueEvents(world, after, rng, report, runPlayerEvents);
+        using (TickProbe.Phase("week/events")) RunDueEvents(world, after, rng, report, runPlayerEvents);
 
         // Rival offers for the player's fighters on their last fight: answered,
         // timed out, or taken the day a window closes on a let-go one; and new
         // calls (no RNG stream: keyed hash rolls). Before the windows run, so a
         // closing window with an offer standing goes to the rival, not the market.
-        report.OfferNeedsYou = OfferMarket.RunWeekly(world, after);
+        using (TickProbe.Phase("week/offer-market")) report.OfferNeedsYou = OfferMarket.RunWeekly(world, after);
 
         // The player's deals that have been fought out: windows opened, the last
         // week warned, the run-out ones closed onto the open market (no RNG).
-        DealWindow.RunWeekly(world, after);
+        using (TickProbe.Phase("week/deal-window")) DealWindow.RunWeekly(world, after);
 
         // The authored stories, told as the world earns them: text only (news and one accolade), no draws, nothing a
         // system decides on reads them. Before the digest so the week's paper has them. (The owners speak at the tick's end.)
-        Flavor.Arcs.RunWeekly(world, after);
+        using (TickProbe.Phase("week/arcs")) Flavor.Arcs.RunWeekly(world, after);
 
         // The week's paper: one digest mail with the stories, the calendar,
         // and a prospect worth circling.
-        Digest.Weekly(world, after);
+        using (TickProbe.Phase("week/digest")) Digest.Weekly(world, after);
 
         // Monthly: development, retirements, newgen intake, roster restocking.
         if (after.Month != before.Month)
@@ -167,6 +167,7 @@ public sealed class WorldTick
             // Development runs through the ROOM a fighter trains in (their camp),
             // with the player org's coaching staff stacking on top for their own
             // roster — capped so the two levers can't compound into inflation.
+            var devPhase = TickProbe.Phase("month/development");
             double coach = world.Get(world.PlayerPromotion) is { } pp ? Org.StaffService.CoachGrowthMultiplier(pp) : 1.0;
             foreach (var f in world.Fighters.Values)
             {
@@ -176,9 +177,10 @@ public sealed class WorldTick
                 FighterDevelopment.Advance(f, after, rng, Math.Min(mult, 1.35),
                     world.Mode == WorldMode.Origins && OriginsCamps.TrainsOneArt(world, f));
             }
+            devPhase.Dispose();
 
-            report.Retired = Lifecycle.RollRetirements(world, after, rng);
-            report.Washouts = Lifecycle.RollWashouts(world, after, rng);
+            using (TickProbe.Phase("month/retirements")) report.Retired = Lifecycle.RollRetirements(world, after, rng);
+            using (TickProbe.Phase("month/washouts")) report.Washouts = Lifecycle.RollWashouts(world, after, rng);
             // Intake tracks outflow so the population self-balances instead of
             // ballooning — and because washouts prune the failures EARLY while
             // the intake arrives green, the whole pool tilts young: a wide base
@@ -197,106 +199,107 @@ public sealed class WorldTick
             int intake = report.Retired + report.Washouts + baseline;
             // The birth of the sport grows its own (Origins: specialists from the countries with a scene,
             // on the month's own stream, at a young sport's pace - it takes the shared stream nothing).
+            var newgenPhase = TickProbe.Phase("month/newgens");
             report.Newgens = world.Mode == WorldMode.Origins
                 ? OriginsTalent.Intake(world, Math.Max(0, OriginsTalent.MonthlyIntake(report.Retired + report.Washouts, actives, OriginsTalent.TargetFor(world))
                                                           - OriginsTalent.TryoutDeduction(world, after)), after).Count   // (a deduction bigger than the month's intake loses the excess)
                 : NewgenService.ForWorld(world).GenerateIntake(world, intake, rng).Count;
+            newgenPhase.Dispose();
 
             // Expiring deals renew / get poached / hit the market (the player's own
             // are courted weekly by OfferMarket instead), orgs trim the fighters
             // they no longer want, then everyone fills their gaps.
-            Promises.RunMonthly(world, after);  // promises made at the table: kept, broken, warned (no RNG; none in an AI world)
-            Lifers.RunMonthly(world, after);   // standing grievances wear lifers down (no RNG)
-            ContractLifecycle.ProcessExpiries(world, after);
-            report.Cuts = RosterManagement.RunMonthly(world, after);
-            report.FreeAgentSignings = FreeAgencyService.RunMonthly(world, after);
+            using (TickProbe.Phase("month/promises")) Promises.RunMonthly(world, after);  // promises made at the table: kept, broken, warned (no RNG; none in an AI world)
+            using (TickProbe.Phase("month/lifers")) Lifers.RunMonthly(world, after);   // standing grievances wear lifers down (no RNG)
+            using (TickProbe.Phase("month/expiries")) ContractLifecycle.ProcessExpiries(world, after);
+            using (TickProbe.Phase("month/roster-cuts")) report.Cuts = RosterManagement.RunMonthly(world, after);
+            using (TickProbe.Phase("month/free-agency")) report.FreeAgentSignings = FreeAgencyService.RunMonthly(world, after);
 
             // The scenes beyond the promotions: idle fighters take local fights,
             // and the wider combat-sports calendar (Olympics, world championships).
-            LocalCircuit.RunMonthly(world, after, rng);   // staged now, fought on their dates (report.LocalFights counts them then)
-            SpecialCircuit.RunMonthly(world, after, rng);
+            using (TickProbe.Phase("month/local-stage")) LocalCircuit.RunMonthly(world, after, rng);   // staged now, fought on their dates (report.LocalFights counts them then)
+            using (TickProbe.Phase("month/special-circuit")) SpecialCircuit.RunMonthly(world, after, rng);
 
             // Off-cage drama: feuds flare on social media, fresh beefs start, and
             // bad blood that can't be settled cools off instead of simmering forever.
-            Storylines.MonthlyDrama(world, after, rng);
-            Storylines.MaybeSuperfight(world, after, rng);   // a dominant champ moves up: champ vs champ
-            Acquisitions.RunMonthly(world, after, rng);      // the market consolidates: a giant buys a bleeding rival
-            Decisions.RunMonthly(world, after, rng);         // the owner's desk: calls awaiting the player
+            using (TickProbe.Phase("month/drama")) Storylines.MonthlyDrama(world, after, rng);
+            using (TickProbe.Phase("month/superfight")) Storylines.MaybeSuperfight(world, after, rng);   // a dominant champ moves up: champ vs champ
+            using (TickProbe.Phase("month/acquisitions")) Acquisitions.RunMonthly(world, after, rng);      // the market consolidates: a giant buys a bleeding rival
+            using (TickProbe.Phase("month/decisions")) Decisions.RunMonthly(world, after, rng);         // the owner's desk: calls awaiting the player
 
             // And the warm side: friendships form (camp mates hardest) and deepen,
             // and head coaches take the room's best prospect under their wing.
-            Bonds.RunMonthly(world, after, rng);
-            Camps.RunMonthly(world, after, rng);
+            using (TickProbe.Phase("month/bonds")) Bonds.RunMonthly(world, after, rng);
+            using (TickProbe.Phase("month/camps")) Camps.RunMonthly(world, after, rng);
 
             // A promotion that goes dark slips out of the conversation — its fame
             // fades a touch each month it doesn't put on a card. And a fighter left
             // on the shelf sours on the org that isn't using them.
-            DecayIdleOrgReputation(world, after);
-            DecayNeglectedLoyalty(world, after);
+            using (TickProbe.Phase("month/decay")) { DecayIdleOrgReputation(world, after); DecayNeglectedLoyalty(world, after); }
 
             // MMA interest decays toward each place's baseline, and a homegrown star
             // props up interest in their home region.
-            Geography.MmaInterest.Tick(world);
+            using (TickProbe.Phase("month/interest")) Geography.MmaInterest.Tick(world);
 
             // Recurring income (sponsors, broadcast, merch), then keeping the lights on.
-            Finance.RevenueService.CollectMonthly(world, after);
-            Org.AiFrontOffice.RunMonthly(world, after);      // rivals set marketing budgets, retain & build talent
-            Org.MarketingService.RunMonthly(world, after);   // active fighter promo pushes grow draws + bill
-            Org.OrgMarketing.ChargeMonthly(world, after);    // bill every promotion's brand campaign
-            Camps.ChargeMonthly(world, after);               // bill camp stipends + team deals (loyalty back)
-            Finance.Ledger.ChargeMonthlyOverhead(world, after);
+            using (TickProbe.Phase("month/revenue")) Finance.RevenueService.CollectMonthly(world, after);
+            using (TickProbe.Phase("month/front-office")) Org.AiFrontOffice.RunMonthly(world, after);      // rivals set marketing budgets, retain & build talent
+            using (TickProbe.Phase("month/marketing")) Org.MarketingService.RunMonthly(world, after);   // active fighter promo pushes grow draws + bill
+            using (TickProbe.Phase("month/org-marketing")) Org.OrgMarketing.ChargeMonthly(world, after);    // bill every promotion's brand campaign
+            using (TickProbe.Phase("month/camp-charges")) Camps.ChargeMonthly(world, after);               // bill camp stipends + team deals (loyalty back)
+            using (TickProbe.Phase("month/overhead")) Finance.Ledger.ChargeMonthlyOverhead(world, after);
 
             // With the month's money settled, anyone past the debt ceiling folds.
-            Org.Solvency.RunMonthly(world, after);
+            using (TickProbe.Phase("month/solvency")) Org.Solvency.RunMonthly(world, after);
 
             // A brand that hasn't run in months fades — prestige slips until it books again.
-            Org.Standing.MonthlyDrift(world, after);
+            using (TickProbe.Phase("month/standing")) Org.Standing.MonthlyDrift(world, after);
 
             // Offer eligible orgs a step up the ladder (player decides; AI promotes only
             // when it can afford the bigger stage, so it doesn't overextend and fold).
-            Org.PromotionLadder.RunMonthly(world, after);
+            using (TickProbe.Phase("month/ladder")) Org.PromotionLadder.RunMonthly(world, after);
 
             // Faces of the company: catch a lost face (crisis) and let AI orgs crown one.
-            Org.Franchise.RunMonthly(world, after);
+            using (TickProbe.Phase("month/franchise")) Org.Franchise.RunMonthly(world, after);
 
             // The macro living world: crossover stars arrive, new promotions launch.
-            WorldEvents.RunMonthly(world, after, rng);
+            using (TickProbe.Phase("month/world-events")) WorldEvents.RunMonthly(world, after, rng);
 
             // Nudge the player about expiring deals and the state of the books.
-            Mail.MonthlyReview(world, after);
+            using (TickProbe.Phase("month/mail")) Mail.MonthlyReview(world, after);
 
             // Owner objectives + year-end honours when the calendar rolls over.
             if (after.Year != before.Year)
             {
                 if (world.Get(world.PlayerPromotion) is { } py)
                     Org.Objectives.Seed(py, new DateOnly(after.Year, 1, 1), new DateOnly(after.Year, 12, 31), world);
-                Storylines.YearEndAwards(world, after);
+                using (TickProbe.Phase("month/year-end")) Storylines.YearEndAwards(world, after);
             }
-            Org.Objectives.Evaluate(world, after);
+            using (TickProbe.Phase("month/objectives")) Org.Objectives.Evaluate(world, after);
 
             // Refresh the cross-org and pound-for-pound rankings.
-            GlobalRankings.Recompute(world);
+            using (TickProbe.Phase("month/rankings")) GlobalRankings.Recompute(world);
         }
 
         // The sport's own history (Origins): chapters fire as the world earns them, and on the first week
         // of a month the Backlash, rule reforms, new houses and scheduled arrivals move. Keyed rolls only:
         // it takes nothing from the week's stream, and today's mode never enters.
-        if (world.Mode == WorldMode.Origins) OriginsTimeline.RunWeekly(world, after);
+        if (world.Mode == WorldMode.Origins)
+            using (TickProbe.Phase("week/origins-timeline")) OriginsTimeline.RunWeekly(world, after);
 
         // Whatever changed tonight comes off the calendar tonight, not next
         // week: the month's exits (expiries, cuts, retirements, sales, closures)
         // and the week's own (a belt passed on when a champion is suspended
         // after a card, a signing out of a bidding war).
-        ForwardCalendar.Audit(world, after);
-        LocalCircuit.Audit(world);
+        using (TickProbe.Phase("week/audit")) { ForwardCalendar.Audit(world, after); LocalCircuit.Audit(world); }
 
         // The week has moved the world: a rival offer's Desk call shows today's match
         // price (his last fight fought, his record, his people) — the number Match signs.
-        OfferMarket.RefreshDesk(world);
+        using (TickProbe.Phase("week/refresh-desk")) OfferMarket.RefreshDesk(world);
 
         // The owners' words come LAST: the month's retirements, expiries, poachings and free-agent signings, and the
         // Origins timeline, post their news dated tonight, and the next pass's window starts after tonight.
-        Flavor.OwnerVoices.RunWeekly(world, after);
+        using (TickProbe.Phase("week/owner-voices")) Flavor.OwnerVoices.RunWeekly(world, after);
 
         return report;
     }
