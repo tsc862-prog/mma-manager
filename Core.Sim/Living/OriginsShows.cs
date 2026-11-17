@@ -268,8 +268,8 @@ public static class OriginsShows
     public static Venue? HomeVenue(World world, Promotion promo) => HomeRoom(world, promo, out _);
 
     /// <summary>
-    /// <see cref="HomeVenue"/>, with the crowd a founder has seen at home (null for any other house, or a founder
-    /// with fewer than <see cref="SeenNights"/> nights): <see cref="Contracts.Negotiator.PurseCap"/> prices a
+    /// <see cref="HomeVenue"/>, with the crowd an AI founder has seen at home (null for any other house, the player's,
+    /// or a founder with fewer than <see cref="SeenNights"/> nights): <see cref="Contracts.Negotiator.PurseCap"/> prices a
     /// founder's men off it (one pass over the calendar for both).
     /// </summary>
     public static Venue? HomeRoom(World world, Promotion promo, out int? seenCrowd)
@@ -289,7 +289,7 @@ public static class OriginsShows
     /// <summary>
     /// A founder's room, once it has a record (Origins): history built its hall (the Crucible's four-thousand-seat
     /// pavilion), not its crowd. After <see cref="SeenNights"/> nights the house reads the crowd its last ones drew
-    /// at home (<see cref="Drew"/>, as <see cref="RoomIn"/> does) and, an AI house, takes the smaller room in its town
+    /// at home (<see cref="Drew"/>, as <see cref="RoomIn"/> does) and takes the smaller room in its town
     /// that leaves the most of the gate once the walls and the production are paid, when one beats its hall; never a
     /// bigger one (a founder's hall is its ceiling: a house that outdraws it stays, as it always did). The Crucible in
     /// a bad decade drew 1,500-2,300 into 4,000 seats and paid 16,000 a night for the empty rows.
@@ -297,12 +297,14 @@ public static class OriginsShows
     private static Venue SettledRoom(World world, Promotion promo, Venue authored, out int? seenCrowd)
     {
         seenCrowd = null;
+        // The player's house keeps its hall and its budget: where his nights go and what he pays are his calls (a
+        // scripted player whose purse budget read the crowd while he kept the hall re-signed fewer men and did worse).
+        if (promo.Id == world.PlayerPromotion) return authored;
         var recent = LastNights(world, promo.Id, SeenNights);
         if (recent.Count < SeenNights) return authored;
         var rooms = world.Venues.Values.Where(v => v.City == authored.City).OrderBy(v => v.Id.Value).ToList();
         int expected = (int)recent.Average(e => Drew(world, e, authored.City, rooms[0]));
         seenCrowd = expected;
-        if (promo.Id == world.PlayerPromotion) return authored;
         decimal seat = SeatPrice(world, promo);
         decimal Left(Venue v)
         {

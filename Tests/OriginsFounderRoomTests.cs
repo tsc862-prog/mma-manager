@@ -9,8 +9,8 @@ namespace MmaManager.Tests;
 /// A founder's room and purses follow the crowd it has seen (Origins tuning 2): the Crucible's authored hall holds
 /// 4,000, and in a bad decade it drew 1,500-2,300 into it, paid the whole rent and budgeted its purses for a full
 /// house (it folded in 2 of 40 seeds at 20 years). Once a founder has <see cref="OriginsShows.SeenNights"/> nights,
-/// an AI founder takes a smaller room in its own town when that leaves more of the gate, and every founder prices
-/// its men off the crowd it drew. Before its record, and for a house that fills its hall, nothing changes.
+/// an AI founder takes a smaller room in its own town when that leaves more of the gate and prices its men off the
+/// crowd it drew. The player's house keeps its hall and its budget. Before its record, and for a house that fills its hall, nothing changes.
 /// </summary>
 public class OriginsFounderRoomTests
 {
@@ -71,7 +71,7 @@ public class OriginsFounderRoomTests
     }
 
     [Fact]
-    public void AFounder_WithoutARecord_KeepsItsHall_AndThePlayerKeepsHisHallWhateverHeDraws()
+    public void AFounder_WithoutARecord_KeepsItsHall_AndThePlayerKeepsHisHallAndBudgetWhateverHeDraws()
     {
         var dayOne = OriginsWorldTests.AiWorld(11);
         foreach (var abbr in new[] { "CRU", "SFA", "DLB" })
@@ -92,10 +92,9 @@ public class OriginsFounderRoomTests
         Assert.Equal(hall.Id, OriginsShows.HomeVenue(w, cru)!.Id);      // ...the player's stays in his hall (his own call)
         decimal thinCap = Negotiator.PurseCap(w, cru);
         Drew(w, cru, hall.Capacity - 50);
-        Assert.True(thinCap < Negotiator.PurseCap(w, cru), "the player's purse budget reads his crowd too");
-        Drew(w, cru, hall.Capacity / 3);
+        Assert.Equal(thinCap, Negotiator.PurseCap(w, cru));             // ...and his purse budget is his hall's, as it was
         OriginsShows.HomeRoom(w, cru, out int? seen);
-        Assert.Equal(hall.Capacity / 3, seen);
+        Assert.Null(seen);
     }
 
     [Fact]

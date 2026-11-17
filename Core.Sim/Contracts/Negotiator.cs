@@ -291,7 +291,7 @@ public sealed class Negotiator
         // its own night. Today's mode never takes this branch.
         if (world.Mode == WorldMode.Origins)
         {
-            // A founder prices its men off the crowd it has drawn at home once it has a record (OriginsShows.HomeRoom):
+            // An AI founder prices its men off the crowd it has drawn at home once it has a record (OriginsShows.HomeRoom):
             // its hall was history's choice, not its crowd's, and a Crucible drawing 1,600 into 4,000 seats budgeted
             // purses for a full house and slid 60-80k a year (longsim origins 40 20). A founded house's room already
             // follows its crowd (RoomIn), so its capacity bounds it.
