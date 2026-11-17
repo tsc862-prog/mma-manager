@@ -1,5 +1,4 @@
 ﻿using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Contracts;
 using MmaManager.Core.Sim.Rng;
 
@@ -269,12 +268,9 @@ public static class Storylines
         var valuation = new FighterValuation();
         var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList()
             .Where(c => !ai || valuation.Evaluate(world, c).AskingPurse.Amount * 1.25m <= cap);
-        // (Today's mode keeps its order - true ability, a known fog leak left alone because changing it moves
-        // every tuned seed. An Origins world orders by what the house's scouts think.)
-        return world.Mode == WorldMode.Origins
-            ? roster.Concat(market).OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value)
-            : roster.Concat(market)
-            .OrderByDescending(c => Ability.FighterAbility.CurrentAbility(c));
+        // Ordered by what the house's scouts think (id as the last word), in either mode: the fog.
+        return roster.Concat(market)
+            .OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value);
     }
 
     // --- Before the card: fight-week withdrawals ----------------------------
@@ -961,7 +957,8 @@ public static class Storylines
             .Where(f => f.Status != FighterStatus.Retired && f.AgeOn(date) <= 24 && f.BoutHistory.Count > 0)
             .Where(f => eventDateByFight.TryGetValue(f.BoutHistory[0], out var d0) && d0.Year == year)
             .OrderByDescending(f => f.BoutHistory.Count(b => eventDateByFight.TryGetValue(b, out var d) && d.Year == year))
-            .ThenByDescending(FighterAbility.CurrentAbility).ThenBy(f => f.Id.Value)
+            // Ties go on the public record (wins, then fewer losses), never on hidden ability.
+            .ThenByDescending(f => f.Record.Wins).ThenBy(f => f.Record.Losses).ThenBy(f => f.Id.Value)
             .FirstOrDefault();
         if (rookie is not null)
         {
