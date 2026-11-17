@@ -185,6 +185,7 @@ public sealed class Matchmaker
         World world, Promotion promo, DateOnly fightDate, IReadOnlySet<FighterId>? exclude,
         Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
     {
+        using var _ = Living.TickProbe.Phase("mm/title-bouts");
         bool Free(Fighter f) => f.IsMatchReady(fightDate) && (exclude is null || !exclude.Contains(f.Id));
         // Booking around the calendar (an exclusion set given): a belt already
         // on the line on an announced card isn't put up twice.
@@ -231,6 +232,7 @@ public sealed class Matchmaker
     private static List<Candidate> Candidates(World world, Promotion promo, DateOnly fightDate,
         IReadOnlySet<FighterId>? exclude, Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
     {
+        using var _ = Living.TickProbe.Phase("mm/candidates");
         // Champions only fight for the belt — keep them out of the undercard pool.
         var champions = new HashSet<FighterId>();
         foreach (var d in promo.Divisions)
@@ -330,7 +332,7 @@ public sealed class Matchmaker
         foreach (var e in world.Events.Values) if (e.Status == EventStatus.Completed) completed++;
         var key = (world, world.CurrentDate, completed);
         if (_recent is not null && ReferenceEquals(_recentKey.World, world) && _recentKey == key) return _recent;
-        _recent = ComputeRecentBouts(world);
+        using (Living.TickProbe.Phase("mm/recent-bouts")) _recent = ComputeRecentBouts(world);
         _recentKey = key;
         return _recent;
     }

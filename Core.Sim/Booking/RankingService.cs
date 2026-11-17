@@ -21,8 +21,12 @@ public static class RankingService
         promo.Divisions.FirstOrDefault(d => d.Matches(f));
 
     /// <summary>Rebuild every division's contender ranking for a promotion from résumé scores.</summary>
-    public static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth = 15) =>
-        RecomputePromotion(world, promo, asOf, depth, Context.Build(world, asOf));
+    public static void RecomputePromotion(World world, Promotion promo, DateOnly asOf, int depth = 15)
+    {
+        Context ctx;
+        using (Living.TickProbe.Phase("rank/context")) ctx = Context.Build(world, asOf);
+        using (Living.TickProbe.Phase("rank/divisions")) RecomputePromotion(world, promo, asOf, depth, ctx);
+    }
 
     // A division's contenders are scored on EVERY result in the form window,
     // wherever it happened (the opponent's level carries the stage it was on):
@@ -160,8 +164,9 @@ public static class RankingService
 
         public static Context Build(World world, DateOnly asOf)
         {
-            var results = GatherAllResults(world, asOf);
-            foreach (var list in results.Values) list.Sort((a, b) => a.Date.CompareTo(b.Date));
+            Dictionary<FighterId, List<Result>> results;
+            using (Living.TickProbe.Phase("ctx/gather")) results = GatherAllResults(world, asOf);
+            using (Living.TickProbe.Phase("ctx/sort")) foreach (var list in results.Values) list.Sort((a, b) => a.Date.CompareTo(b.Date));
             var reigns = new Dictionary<FighterId, List<(DateOnly Won, DateOnly? Lost)>>();
             foreach (var t in world.Titles.Values)
                 foreach (var r in t.Lineage)

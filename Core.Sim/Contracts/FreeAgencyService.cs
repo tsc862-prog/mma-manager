@@ -101,11 +101,13 @@ public static class FreeAgencyService
                 // draw is worth pursuing over a slightly better but anonymous pro.
                 // The prestigious orgs bid first (outer loop), so the names tier up.
                 // A distressed org ranks the same pool by BARGAIN value instead.
+                var poolPhase = Living.TickProbe.Phase("fa/pool");
                 var pool = world.FreeAgents()
                     .Where(f => div.Matches(f) && f.Status == FighterStatus.Active)
                     .OrderByDescending(f => distress > 0 ? BargainAppeal(world, promo, f) : SigningAppeal(world, promo, f))
                     .ThenBy(f => f.Id.Value)
                     .ToList();
+                poolPhase.Dispose();
 
                 foreach (var fa in pool)
                 {
@@ -122,6 +124,8 @@ public static class FreeAgencyService
                     // otherwise (the rare elite/famous prospect still gets
                     // signed through Wants). Keeps the pipeline honest: debut at
                     // the bottom, climb on results.
+                    Living.TickProbe.Count("fa/candidate");
+                    using var wantsPhase = Living.TickProbe.Phase("fa/gates");
                     if (fa.Record.TotalBouts < 4
                         && Org.OrgSizing.SizeOf(promo) >= OrgSize.National
                         && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
@@ -129,11 +133,16 @@ public static class FreeAgencyService
                     // so thin it needs bodies just to put on a card.
                     if (Have() >= minBodies && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
 
+                    var evalPhase = Living.TickProbe.Phase("fa/evaluate");
                     var exp = Valuation.Evaluate(world, fa);
+                    evalPhase.Dispose();
                     if (exp.AskingPurse.Amount > purseCeiling) continue;   // out of a distressed budget
 
+                    var negPhase = Living.TickProbe.Phase("fa/negotiate");
                     var offer = Negotiator.AiOpeningOffer(world, promo, fa, exp);
-                    if (Negotiator.Evaluate(world, fa, offer, exp).Verdict != NegotiationVerdict.Accept) continue;
+                    var verdict = Negotiator.Evaluate(world, fa, offer, exp).Verdict;
+                    negPhase.Dispose();
+                    if (verdict != NegotiationVerdict.Accept) continue;
 
                     // A free agent the player is courting (open talks): the org puts
                     // this same deal in front of him with a deadline instead of signing

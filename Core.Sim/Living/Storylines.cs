@@ -37,7 +37,8 @@ public static class Storylines
         if (upcoming.Count == 0) return;
 
         // Who's already spoken for — a replacement can't be double-booked.
-        var booked = ForwardCalendar.Committed(world);
+        HashSet<FighterId> booked;
+        using (TickProbe.Phase("cw/committed")) booked = ForwardCalendar.Committed(world);
 
         foreach (var ev in upcoming)
         {
@@ -93,7 +94,9 @@ public static class Storylines
 
                 // The AI saves the bout if anyone plausible will take the call.
                 bool wasMain = ev.Card.Count > 0 && ReferenceEquals(ev.Card[^1], fight);
-                if (!SaveBout(world, ev, fight, hurt, booked, date, "Injured in camp"))
+                bool saved;
+                using (TickProbe.Phase("cw/save-bout")) saved = SaveBout(world, ev, fight, hurt, booked, date, "Injured in camp");
+                if (!saved)
                 {
                     // (An emptied card is rebuilt by the calendar's fill pass.)
                     if (ev.Card.Count > 0 && wasMain) ForwardCalendar.RestoreHeadliner(world, ev);
@@ -383,12 +386,12 @@ public static class Storylines
     // --- After the card -----------------------------------------------------
     public static void AfterEvent(World world, Event ev, DateOnly date, SimRandom rng)
     {
-        Awards(world, ev, date);
-        Milestones(world, ev, date);
-        Rivalries(world, ev, date, rng);
-        Callouts(world, ev, date, rng);
-        Suspensions(world, ev, date, rng);
-        Controversies(world, ev, date, rng);
+        using (TickProbe.Phase("story/awards")) Awards(world, ev, date);
+        using (TickProbe.Phase("story/milestones")) Milestones(world, ev, date);
+        using (TickProbe.Phase("story/rivalries")) Rivalries(world, ev, date, rng);
+        using (TickProbe.Phase("story/callouts")) Callouts(world, ev, date, rng);
+        using (TickProbe.Phase("story/suspensions")) Suspensions(world, ev, date, rng);
+        using (TickProbe.Phase("story/controversies")) Controversies(world, ev, date, rng);
     }
 
     private static bool Notable(World world, Event ev) =>

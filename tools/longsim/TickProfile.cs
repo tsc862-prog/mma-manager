@@ -64,7 +64,7 @@ public static class TickProfile
             TickProbe.Current = null;
             int active = world.Fighters.Values.Count(f => f.Status == FighterStatus.Active);
             perYear.Add((y, 52, total * 1000.0 / Stopwatch.Frequency, probe, world.Events.Count, world.Fighters.Count, active));
-            Console.WriteLine($"  year {y}: {total * 1000.0 / Stopwatch.Frequency / 52,7:0.0} ms/week  ({world.CurrentDate:yyyy-MM-dd}, {world.Events.Count} events, {world.Fighters.Count} fighters, {active} active, {world.News.Count} news)  wall {wall.Elapsed.TotalSeconds:0}s");
+            Console.WriteLine($"  year {y}: {total * 1000.0 / Stopwatch.Frequency / 52,7:0.0} ms/week  ({world.CurrentDate:yyyy-MM-dd}, {world.Events.Count} events, {world.Fighters.Count} fighters, {active} active, {world.News.Count} news, {world.Relationships.Count} bonds, {world.Rivalries.Count} rivalries, {world.Mail.Count} mail, {world.Titles.Values.Sum(t => t.Lineage.Count)} reigns)  wall {wall.Elapsed.TotalSeconds:0}s");
         }
 
         // Columns: years 1, 4, 8 (or whatever of them ran) plus the last.

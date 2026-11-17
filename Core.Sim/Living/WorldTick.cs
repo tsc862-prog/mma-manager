@@ -422,12 +422,12 @@ public sealed class WorldTick
         // promotion (or its local filler), none retired, suspended or booked
         // elsewhere, and no belt on a bout it can't be on.
         var announcedMain = ev.Card[^1];
-        ForwardCalendar.GuardAtRun(world, ev);
-        Storylines.RollPullouts(world, ev, ev.Date, rng);
+        using (TickProbe.Phase("events/guard")) ForwardCalendar.GuardAtRun(world, ev);
+        using (TickProbe.Phase("events/pullouts")) Storylines.RollPullouts(world, ev, ev.Date, rng);
         // AI cards: only a main event that actually came off the card is replaced
         // at the top of the bill (an announced feud headliner stays above a belt).
         if (aiCard && ev.Card.Count > 0 && !ev.Card.Contains(announcedMain)) ForwardCalendar.RestoreHeadliner(world, ev);
-        Storylines.RollWeightMisses(world, ev, ev.Date, rng);   // weigh-in day: fines, catchweights, stripped champs
+        using (TickProbe.Phase("events/weight-misses")) Storylines.RollWeightMisses(world, ev, ev.Date, rng);   // weigh-in day: fines, catchweights, stripped champs
         if (ev.Card.Count == 0)
         {
             // A promoted card that collapsed to nothing is a real black eye.
@@ -437,17 +437,18 @@ public sealed class WorldTick
             return;
         }
 
-        _events.RunEvent(world, ev, playByPlay);
-        AfterCard(world, ev, rng, report);
+        using (TickProbe.Phase("events/run")) _events.RunEvent(world, ev, playByPlay);
+        using (TickProbe.Phase("events/after-card")) AfterCard(world, ev, rng, report);
     }
 
     /// <summary>A card's aftermath: injuries, storylines, bonds and camps, the player's other cards, the tally.</summary>
     private static void AfterCard(World world, Event ev, SimRandom rng, WorldTickReport? report)
     {
-        int injuries = InjuryModel.RollForEvent(world, ev, ev.Date, rng);
-        Storylines.AfterEvent(world, ev, ev.Date, rng);
-        Bonds.AfterEvent(world, ev, ev.Date);   // a bout between friends/family leaves a mark
-        Camps.AfterEvent(world, ev, ev.Date);   // teammates colliding + a protégé's golden night
+        int injuries;
+        using (TickProbe.Phase("after/injuries")) injuries = InjuryModel.RollForEvent(world, ev, ev.Date, rng);
+        using (TickProbe.Phase("after/storylines")) Storylines.AfterEvent(world, ev, ev.Date, rng);
+        using (TickProbe.Phase("after/bonds")) Bonds.AfterEvent(world, ev, ev.Date);   // a bout between friends/family leaves a mark
+        using (TickProbe.Phase("after/camps")) Camps.AfterEvent(world, ev, ev.Date);   // teammates colliding + a protégé's golden night
         // A belt that changed hands tonight may sit on a later card of the player's
         // without its champion: put his other cards right now, not at the next tick.
         if (ev.Promotion == world.PlayerPromotion) ForwardCalendar.AuditPlayerCards(world, ev.Date);

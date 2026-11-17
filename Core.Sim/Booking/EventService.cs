@@ -73,7 +73,7 @@ public sealed class EventService
     {
         // Every card runs at a realistic length — flesh out the undercard from the
         // roster, or (for a small org) with local-vs-local filler.
-        CardFiller.PadToMinimum(world, ev);
+        using (Living.TickProbe.Phase("run/pad")) CardFiller.PadToMinimum(world, ev);
 
         // A card booked without an explicit main-card split fits itself to the
         // broadcast window the org's media deals demand (the whole card, if nobody's airing it).
@@ -104,11 +104,11 @@ public sealed class EventService
                 Rules = houseRules,
                 BandedSizeTerm = banded,
             };
-            _engine.Simulate(fight, world, opts);
-            ResultsProcessor.Apply(world, ev, fight);
+            using (Living.TickProbe.Phase("run/engine")) _engine.Simulate(fight, world, opts);
+            using (Living.TickProbe.Phase("run/results")) ResultsProcessor.Apply(world, ev, fight);
         }
 
-        Settle(world, ev);
+        using (Living.TickProbe.Phase("run/settle")) Settle(world, ev);
     }
 
     /// <summary>
@@ -119,7 +119,7 @@ public sealed class EventService
     /// </summary>
     public void Settle(World world, Event ev)
     {
-        ev.Financials = Financials.Compute(world, ev);
+        using (Living.TickProbe.Phase("settle/financials")) ev.Financials = Financials.Compute(world, ev);
         if (world.Get(ev.Promotion) is { } promo)
         {
             // Settle the box office as categorised ledger entries (netting to NetProfit).
@@ -133,7 +133,7 @@ public sealed class EventService
 
             // Fight night is when the commercial side gets paid: sponsor checks,
             // media rights fees, the merch table, the streaming platform's bump.
-            Finance.RevenueService.SettleEvent(world, promo, ev);
+            using (Living.TickProbe.Phase("settle/revenue")) Finance.RevenueService.SettleEvent(world, promo, ev);
 
             // Promises come due too: an accepted sponsor showcase is judged
             // against the card the player actually put on.
@@ -157,11 +157,10 @@ public sealed class EventService
                     && Geography.MmaInterest.InCity(world, host) < WarmMarketThreshold)
                     Geography.MmaInterest.BumpCity(world, host, reach - (int)OrgSize.National + 2);
             }
-            Org.Standing.AfterEvent(world, promo, ev);
-            Org.Milestones.CheckAfterEvent(world, promo, ev);
+            using (Living.TickProbe.Phase("settle/standing")) { Org.Standing.AfterEvent(world, promo, ev); Org.Milestones.CheckAfterEvent(world, promo, ev); }
 
             // Refresh contender rankings from the updated body of work.
-            RankingService.RecomputePromotion(world, promo, ev.Date);
+            using (Living.TickProbe.Phase("settle/rankings")) RankingService.RecomputePromotion(world, promo, ev.Date);
         }
 
         ev.Status = EventStatus.Completed;
