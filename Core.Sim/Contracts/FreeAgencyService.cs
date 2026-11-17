@@ -62,6 +62,11 @@ public static class FreeAgencyService
     public static int RunMonthly(World world, DateOnly date)
     {
         int signings = 0;
+        // The free agents as the pass opens, in world order. The pass only ever SHRINKS that set (a signing gives a
+        // man a contract; a staged club card a signing cancels retires an unfought local, never one of these): nobody
+        // enters it mid-pass, so filtering this list with today's test again is the world's FreeAgents() at that
+        // moment, without walking every fighter (retired ones included) for every division of every promotion.
+        var market = world.FreeAgents().ToList();
         foreach (var promo in world.Promotions.Values
                      .Where(p => p.Id != world.PlayerPromotion && p.Id != HarnessHandsOff && !p.Defunct)
                      .OrderByDescending(p => p.Prestige.Value)
@@ -102,7 +107,8 @@ public static class FreeAgencyService
                 // The prestigious orgs bid first (outer loop), so the names tier up.
                 // A distressed org ranks the same pool by BARGAIN value instead.
                 var poolPhase = Living.TickProbe.Phase("fa/pool");
-                var pool = world.FreeAgents()
+                var pool = market
+                    .Where(f => f.Contract is null && f.Status != FighterStatus.Retired && !f.LocalTalent)   // (World.FreeAgents' test, today)
                     .Where(f => div.Matches(f) && f.Status == FighterStatus.Active)
                     .OrderByDescending(f => distress > 0 ? BargainAppeal(world, promo, f) : SigningAppeal(world, promo, f))
                     .ThenBy(f => f.Id.Value)
