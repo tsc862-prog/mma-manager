@@ -90,7 +90,7 @@ public class OriginsBoomRosterTests
     }
 
     [Fact]
-    public void ASmallHouseShortOfMen_HoldsAnOpenTryout_OnceAYear_AndNeverForThePlayer()
+    public void ASmallHouseShortOfMen_HoldsAnOpenTryout_TwiceAYearAtMost_AndNeverForThePlayer()
     {
         var w = OriginsWorldTests.AiWorld(11);
         var sfa = House(w, "SFA");
@@ -108,9 +108,9 @@ public class OriginsBoomRosterTests
         });
         Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
 
-        // Short again inside the year: no second tryout.
+        // Short again inside the half-year: no second tryout.
         foreach (var f in men.Skip(3).ToList()) f.Contract = null;
-        OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(200));
+        OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(100));
         Assert.Equal(3, w.RosterOf(sfa.Id).Count());
         OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(OriginsFounding.TryoutEveryDays));
         Assert.Equal(OriginsShows.MinRoster(sfa) + 2, w.RosterOf(sfa.Id).Count());

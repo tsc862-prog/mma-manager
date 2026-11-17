@@ -334,7 +334,7 @@ public static class OriginsFounding
     private const ulong TryoutSalt = 0x0219_7A10_0007UL;
 
     /// <summary>An AI house holds an open tryout at most this often (days).</summary>
-    public const int TryoutEveryDays = 365;
+    public const int TryoutEveryDays = 182;   // (once a year left 6 of 40 seeds with a house at 7-9 men between tryouts: longsim origins 40 20)
 
     /// <summary>The ledger line that marks an AI house's open tryout (the durable record of when it last held one).</summary>
     public const string TryoutLedgerLine = "Open tryout";
@@ -343,7 +343,7 @@ public static class OriginsFounding
     /// The month's open tryouts (Origins, AI houses; after the month's free-agent pass): a solvent house holding fewer
     /// men than its night needs (<see cref="OriginsShows.MinRoster"/>, counted as the signing pass does: not retired,
     /// deal not run out) after the market has had its turn calls in local men, as it did the month it opened, and signs
-    /// them on the tryout terms (<see cref="TryoutMan"/>) up to its founding roster, at most once a year. This is how a
+    /// them on the tryout terms (<see cref="TryoutMan"/>) up to its founding roster, at most twice a year. This is how a
     /// small hall whose purse no free agent will take (the Boom's 500-a-purse houses, while every man left on the
     /// market asks 750 or more) keeps putting on its nights. Its own keyed stream (seed, day, house).
     /// The player's house is never touched: he has the market and his own tryout (<see cref="PlayerFounding.HoldTryout"/>).
