@@ -611,7 +611,7 @@ public sealed class FighterGenerator
                     if (attempt >= 8) f.FirstName = rng.Pick(firsts);   // deep collision: vary the first name too
                 }
             }
-            if (names.Taken(f.FirstName, f.LastName)) ResolveDeep(f, names, firsts, lasts, keepSurname);
+            if (names.Taken(f.FirstName, f.LastName)) ResolveDeep(f, names, firsts, lasts, keepSurname, culture);
         }
 
         // The fight name: the first tries stay in the authored pools, then the
@@ -625,12 +625,12 @@ public sealed class FighterGenerator
     /// <summary>
     /// A pool that is full (a culture has ten first names and a dozen surnames; the world has thousands of
     /// men): widen the space, off its own keyed stream so the draws the fight name makes after this are
-    /// untouched. 1) a fresh first and surname from the pool; 2) a double-barrelled surname of two pool
+    /// untouched. 1) a fresh first and surname from the pool, then from the pool plus the culture's reserve; 2) a double-barrelled surname of two pool
     /// surnames (a junior sharing a famous surname instead walks every first name in the world's naming);
     /// 3) a generation suffix (II, III...), which cannot run out. Every step is hash-picked off
     /// the fighter's id.
     /// </summary>
-    private void ResolveDeep(Fighter f, NameRegistry names, IReadOnlyList<string> firsts, IReadOnlyList<string> lasts, bool keepSurname)
+    private void ResolveDeep(Fighter f, NameRegistry names, IReadOnlyList<string> firsts, IReadOnlyList<string> lasts, bool keepSurname, string? culture)
     {
         var rng = new SimRandom(SimRandom.Mix(_worldSeed, (ulong)f.Id.Value ^ 0x7A3E_C0DEUL));
 
@@ -640,6 +640,25 @@ public sealed class FighterGenerator
             if (!keepSurname) f.LastName = rng.Pick(lasts);
         }
         if (!names.Taken(f.FirstName, f.LastName)) return;
+
+        // The culture's reserve (see NameReserve): first names and surnames the ordinary roll never draws,
+        // so only people the ladder could not settle ever wear them. A famous family's junior keeps the
+        // surname and takes a reserve first name.
+        var (reserveFirst, reserveLast) = NameReserve.For(culture);
+        if (f.Sex == Sex.Female) reserveFirst = Array.Empty<string>();   // the reserve first names are men's; women gain the surnames
+        if (reserveFirst.Count + reserveLast.Count > 0)
+        {
+            int nf = firsts.Count + reserveFirst.Count, nl = lasts.Count + reserveLast.Count;
+            for (int attempt = 0; attempt < 40 && names.Taken(f.FirstName, f.LastName); attempt++)
+            {
+                int fi = rng.Range(0, nf - 1);
+                f.FirstName = fi < firsts.Count ? firsts[fi] : reserveFirst[fi - firsts.Count];
+                if (keepSurname) continue;
+                int li = rng.Range(0, nl - 1);
+                f.LastName = li < lasts.Count ? lasts[li] : reserveLast[li - lasts.Count];
+            }
+            if (!names.Taken(f.FirstName, f.LastName)) return;
+        }
 
         if (keepSurname)
         {

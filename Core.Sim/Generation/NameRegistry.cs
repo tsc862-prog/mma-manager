@@ -60,6 +60,10 @@ internal sealed class NameRegistry
         names.AddRange(DesignedStaff.Staff.Select(s => s.Name));
         names.AddRange(DesignedStaff.Owners.Select(o => o.Name));
         names.AddRange(WorldEvents.CrossoverNames);
+        // The pioneer portraits are bound by exact "First Last" in every mode (PaintedLibrary.PioneerOf has no
+        // mode guard), so a generated man in today's world must not wear a pioneer's name and face.
+        names.AddRange(OriginsPioneers.All.Select(p => p.FullName));
+        names.AddRange(OriginsArrivals.All.Where(a => a.Pioneer is not null).Select(a => a.Pioneer!.FullName));
         return names;
     }
 
