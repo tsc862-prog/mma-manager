@@ -182,15 +182,24 @@ public class OriginsBoomRosterTests
     {
         var w = OriginsWorldTests.AiWorld(11);
         var sfa = House(w, "SFA");
+        int full = OriginsShows.MinRoster(sfa) + 2;
+        foreach (var fa in w.FreeAgents().Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male).OrderBy(f => f.Id.Value)
+                     .Take(Math.Max(0, full + 2 - w.RosterOf(sfa.Id).Count())).ToList())
+            ContractLifecycle.Sign(w, fa, new ContractOffer { Fighter = fa.Id, Promotion = sfa.Id, PursePerFight = new Money(500m), Fights = 3 }, w.CurrentDate);
         var men = w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).ToList();
-        Assert.True(men.Count >= OriginsShows.MinRoster(sfa), $"{men.Count} men");
-        Assert.True(OriginsFounding.NightReady(w, sfa, w.CurrentDate) >= OriginsShows.MinRoster(sfa));
-        // Hurt for months: on the books, but no use to the next night.
+        Assert.True(men.Count >= full, $"{men.Count} men");
+        // A full roster with men hurt waits for them to heal: no tryout.
         foreach (var f in men.Skip(3)) { f.Status = FighterStatus.Injured; f.ReadyToFightOn = w.CurrentDate.AddDays(120); }
         Assert.Equal(3, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
         OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.DoesNotContain(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        // Nine men on the books, six of them hurt: it can't run a night, so it holds one, back to its founding roster.
+        foreach (var f in men.Skip(9)) f.Contract = null;
+        Assert.Equal(9, OriginsFounding.OnTheBooks(w, sfa));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
         Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
-        Assert.Equal(OriginsShows.MinRoster(sfa) + 2, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        Assert.Equal(full, OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(3 + (full - 9), OriginsFounding.NightReady(w, sfa, w.CurrentDate));
     }
 
     [Fact]

@@ -342,11 +342,12 @@ public static class OriginsFounding
     public const string TryoutLedgerLine = "Open tryout";
 
     /// <summary>
-    /// The month's open tryouts (Origins, AI houses; after the month's free-agent pass): a house holding fewer men who
+    /// The month's open tryouts (Origins, AI houses; after the month's free-agent pass): a house with fewer men who
     /// could fight its next night than that night needs (<see cref="OriginsShows.MinRoster"/>; counted by
     /// <see cref="NightReady"/>: men the house could book a lead window from now, so the hurt and the suspended do not
-    /// count) after the market has had its turn calls in local men, as it did the month it opened, and signs them on the
-    /// tryout terms (<see cref="TryoutMan"/>) up to its founding roster, at most twice a year. This is how a small hall
+    /// count) and fewer than its founding roster on the books (<see cref="OnTheBooks"/>) after the market has had its
+    /// turn calls in local men, as it did the month it opened, and signs them on the tryout terms (<see cref="TryoutMan"/>)
+    /// until its founding roster is on the books again, at most twice a year. This is how a small hall
     /// whose purse no free agent will take (the Boom's 500-a-purse houses, while every man left on the market asks 750 or
     /// more) keeps putting on its nights. A house in the red holds one too: a tryout costs nothing up front, and a
     /// distressed house's offers (a fraction of its purse cap) reach nobody on the market, so without it a house in debt
@@ -362,8 +363,12 @@ public static class OriginsFounding
                      .Where(p => !p.Defunct && p.Id != world.PlayerPromotion)
                      .OrderBy(p => p.Id.Value).ToList())
         {
-            int held = NightReady(world, promo, date);
-            if (held >= OriginsShows.MinRoster(promo)) continue;
+            // Short when too few men could fight its next night AND it holds less than its founding roster: a full
+            // roster with men hurt waits for them to heal (a tryout then only swelled the sport: 39 of 40 seeds over
+            // the actives band at 12 years). It signs up to the founding roster on the books.
+            int target = OriginsShows.MinRoster(promo) + 2;
+            int onBooks = OnTheBooks(world, promo);
+            if (NightReady(world, promo, date) >= OriginsShows.MinRoster(promo) || onBooks >= target) continue;
             if (promo.Ledger.Any(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine
                                       && date.DayNumber - e.Date.DayNumber < TryoutEveryDays)) continue;
             var home = promo.HomeCity is { } hc ? world.Get(hc) : null;
@@ -371,8 +376,8 @@ public static class OriginsFounding
 
             var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ TryoutSalt ^ ((ulong)promo.Id.Value << 32)));
             gen ??= FighterGenerator.ForWorld(world);
-            int target = OriginsShows.MinRoster(promo) + 2, signed = 0;
-            for (int guard = 0; held + signed < target && guard < target * 2; guard++)
+            int signed = 0;
+            for (int guard = 0; onBooks + signed < target && guard < target * 2; guard++)
                 if (TryoutMan(world, gen, promo, country.Code, date, rng, Negotiator.WantsExclusivity(promo)) is { } man)
                 {
                     man.Accolades.Add(new Accolade(date, $"Signed at {promo.Name}'s open tryout"));
@@ -397,6 +402,10 @@ public static class OriginsFounding
         var night = date.AddDays(7 * OriginsShows.LeadWeeks);
         return world.RosterOf(promo.Id).Count(f => OriginsShows.CanBook(world, promo, f, night));
     }
+
+    /// <summary>The house's men on the books: not retired, deal not run out (hurt or not).</summary>
+    internal static int OnTheBooks(World world, Promotion promo) =>
+        world.RosterOf(promo.Id).Count(f => f.Status != FighterStatus.Retired && !DealWindow.OutOfDeal(world, f));
 
     // ------------------------------------------------------------------ scheduled arrivals
 
