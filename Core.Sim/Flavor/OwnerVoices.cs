@@ -5,7 +5,7 @@ using MmaManager.Core.Sim.Rng;
 namespace MmaManager.Core.Sim.Flavor;
 
 /// <summary>What happened to an owner's house, as the news told it.</summary>
-public enum OwnerMoment { Signs, Crowns, LosesStar, Outbid }
+public enum OwnerMoment { Signs, Crowns, Left, Retired, Outbid }
 
 /// <summary>
 /// The owners speak. Once a week it reads the week's news and, when a designed owner's house signed a name, crowned
@@ -21,7 +21,8 @@ public static class OwnerVoices
     {
         OwnerMoment.Signs => 35,
         OwnerMoment.Crowns => 70,
-        OwnerMoment.LosesStar => 70,
+        OwnerMoment.Left => 70,
+        OwnerMoment.Retired => 70,
         _ => 70,
     };
 
@@ -59,11 +60,11 @@ public static class OwnerVoices
                 if (h.Contains(" dethrones ", StringComparison.Ordinal) || h.Contains(" claims the vacant ", StringComparison.Ordinal))
                     yield return (home, OwnerMoment.Crowns, null);
                 else if (h.Contains(" vacates the ", StringComparison.Ordinal))
-                    yield return (home, OwnerMoment.LosesStar, null);
+                    yield return (home, OwnerMoment.Left, null);
                 break;
             case NewsCategory.Retirement:
                 if (home is not null && h.EndsWith(" announces retirement", StringComparison.Ordinal))
-                    yield return (home, OwnerMoment.LosesStar, null);
+                    yield return (home, OwnerMoment.Retired, null);
                 break;
         }
     }
@@ -81,7 +82,7 @@ public static class OwnerVoices
         string line = lines[(int)((h >> 20) % (ulong)lines.Length)];
         string text = line.Replace("{F}", $"{f.FirstName} {f.LastName}").Replace("{L}", f.LastName).Replace("{Org}", other?.Abbreviation ?? "Another house");
 
-        News.Post(world, n.Date, NewsCategory.General,
+        News.Post(world, date, NewsCategory.General,
             $"{agenda.Owner} on {f.LastName}", $"“{text}”", promo.Id, f.Id);
     }
 
@@ -89,7 +90,8 @@ public static class OwnerVoices
     {
         OwnerMoment.Signs => a.Signs,
         OwnerMoment.Crowns => a.Crowns,
-        OwnerMoment.LosesStar => a.LosesStar,
+        OwnerMoment.Left => a.Left,
+        OwnerMoment.Retired => a.Retired,
         _ => a.Outbid,
     };
 

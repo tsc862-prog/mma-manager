@@ -89,12 +89,10 @@ public static class Arcs
     {
         var told = new List<(Arc, Beat)>();
         Ctx? ctx = null;
-        // The pass starts at a different arc each week (by the week number) so the cap can only delay a late arc,
-        // never starve it.
-        int n = All.Count, start = n == 0 ? 0 : (date.DayNumber / 7) % n;
-        for (int k = 0; k < n; k++)
+        // Table order. (A rotating start was tried and buys nothing: what keeps a busy week safe is the cap together with
+        // the four-week window, not who goes first.)
+        foreach (var arc in All)
         {
-            var arc = All[(start + k) % n];
             if (arc.Mode != world.Mode) continue;
             ctx ??= new Ctx(world, date);
             if (ctx.Find(arc.Lead) is not { } lead) continue;
@@ -189,8 +187,10 @@ public static class Arcs
                     if (!Later(r.Event) || !r.Fight.IsTitleFight || r.Fight.Outcome!.Winner != who.Id) continue;
                     if (b.When == Cond.TitleWonFrom && (other is null || r.Fight.Outcome.Loser != other.Id)) continue;
                     if (r.Fight.Title is not { } tid || world.Get(tid) is not { } title) continue;
-                    // ...and it is a NEW reign, opened on the night.
+                    // ...and it is a NEW reign, opened on the night...
                     if (!title.Lineage.Any(x => x.Champion == who.Id && x.WonOn >= r.Event.Date)) continue;
+                    // ...taken FROM a man who held it going in and lost it on the night (a bout for a vacant belt takes nothing from anyone).
+                    if (b.When == Cond.TitleWonFrom && !title.Lineage.Any(x => x.Champion == other!.Id && x.WonOn < r.Event.Date && x.LostOn == r.Event.Date)) continue;
                     belt = title.Name;
                     return true;
                 }
@@ -201,7 +201,7 @@ public static class Arcs
                 {
                     if (!Later(r.Event) || !r.Fight.IsTitleFight || r.Fight.Outcome!.Loser != who.Id) continue;
                     if (r.Fight.Title is not { } tid || world.Get(tid) is not { } title) continue;
-                    if (!title.Lineage.Any(x => x.Champion == who.Id && x.LostOn is { } l && l >= r.Event.Date && !x.Vacated)) continue;
+                    if (!title.Lineage.Any(x => x.Champion == who.Id && x.LostOn == r.Event.Date && !x.Vacated)) continue;
                     belt = title.Name;
                     return true;
                 }
@@ -237,6 +237,7 @@ public static class Arcs
                 return who.Status == FighterStatus.Retired;
 
             case Cond.LeftOrg:
+                // (A house that has folded or been bought is still the house: a man whose house is gone HAS left it.)
                 if (ctx.Org(b.Org) is not { } home) return false;
                 return who.Status != FighterStatus.Retired && who.Contract?.Promotion != home.Id;
 
@@ -296,8 +297,9 @@ public static class Arcs
         public Promotion? Org(string? abbreviation)
         {
             if (abbreviation is null) return null;
-            _orgs ??= _world.Promotions.Values.Where(p => !p.Defunct).GroupBy(p => p.Abbreviation)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            // Defunct houses count (the live one wins a shared abbreviation).
+            _orgs ??= _world.Promotions.Values.GroupBy(p => p.Abbreviation)
+                .ToDictionary(g => g.Key, g => g.OrderBy(p => p.Defunct ? 1 : 0).ThenBy(p => p.Id.Value).First(), StringComparer.Ordinal);
             return _orgs.GetValueOrDefault(abbreviation);
         }
 
