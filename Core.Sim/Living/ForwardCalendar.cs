@@ -123,11 +123,11 @@ public static class ForwardCalendar
     /// </summary>
     public static void RunWeekly(World world, DateOnly date, Matchmaker matchmaker, EventService events)
     {
-        Audit(world, date);
+        using (TickProbe.Phase("calendar/audit")) Audit(world, date);
         // The birth of the sport keeps its own calendar: brackets, rings and garage nights (Origins).
         if (OriginsShows.Applies(world)) { OriginsShows.RunWeekly(world, date, events); return; }
-        Announce(world, date, matchmaker, events, postNews: true);
-        FillUndercards(world, date, matchmaker);
+        using (TickProbe.Phase("calendar/announce")) Announce(world, date, matchmaker, events, postNews: true);
+        using (TickProbe.Phase("calendar/fill")) FillUndercards(world, date, matchmaker);
     }
 
     /// <summary>
@@ -149,7 +149,8 @@ public static class ForwardCalendar
         bool postNews, bool startAfterToday = false)
     {
         var committed = Unbookable(world);
-        var lastMet = LastMeetings(world);
+        Dictionary<(int, int), DateOnly> lastMet;
+        using (TickProbe.Phase("ann/last-met")) lastMet = LastMeetings(world);
         int first = startAfterToday ? 1 : 0;
 
         // Which show weeks already have a card (any status: a cancelled night is
@@ -188,10 +189,13 @@ public static class ForwardCalendar
             {
                 var when = today.AddDays(7 * k);
                 if (!IsShowWeek(promo, when) || taken.Contains((promo.Id.Value, when.DayNumber))) continue;
-                bool flagship = SignatureEvents.For(promo, when) is not null && !HasSignature(world, promo, when.Year);
+                bool flagship;
+                using (TickProbe.Phase("ann/has-signature")) flagship = SignatureEvents.For(promo, when) is not null && !HasSignature(world, promo, when.Year);
                 if (k > lead && !flagship) continue;
                 var pool = flagship ? committed : around;
-                if (AnnounceCard(world, promo, when, today, matchmaker, events, pool, lastMet, postNews))
+                bool announced;
+                using (TickProbe.Phase("ann/card")) announced = AnnounceCard(world, promo, when, today, matchmaker, events, pool, lastMet, postNews);
+                if (announced)
                 {
                     taken.Add((promo.Id.Value, when.DayNumber));
                     // Keep both views in step: whoever was just booked is committed everywhere.
@@ -285,6 +289,7 @@ public static class ForwardCalendar
     /// </summary>
     private static HashSet<FighterId> Unbookable(World world)
     {
+        using var _ = TickProbe.Phase("cal/unbookable");
         var set = Committed(world);
         foreach (var f in world.Fighters.Values)
             if (f.Contract is { FightsRemaining: <= 0 }) set.Add(f.Id);
@@ -310,7 +315,9 @@ public static class ForwardCalendar
         Matchup? main = null, co = null;
         var off = new List<(DesignedBooking Row, string Why)>();
         var taken = new HashSet<FighterId>(committed);
+        var rowsPhase = TickProbe.Phase("card/booked-rows");
         var rows = BookedNights(world, promo).Where(n => n.Night == when).SelectMany(n => n.Rows).ToList();
+        rowsPhase.Dispose();
         foreach (var row in rows)
         {
             if (row.Order == 0 ? main is not null : co is not null) continue;
@@ -319,7 +326,7 @@ public static class ForwardCalendar
             if (row.Order == 0) main = bout; else co = bout;
             taken.Add(bout.Red); taken.Add(bout.Blue);
         }
-        if (main is null && FeudHeadliner(world, promo, when, taken, today, lastMet) is { } feud) main = feud;
+        using (TickProbe.Phase("card/feud")) if (main is null && FeudHeadliner(world, promo, when, taken, today, lastMet) is { } feud) main = feud;
         if (main is null && co is not null) main = matchmaker.BestBout(world, promo, when, taken, titleLength: true);
         if (main is { } chosenMain) { taken.Add(chosenMain.Red); taken.Add(chosenMain.Blue); }
 
@@ -333,7 +340,8 @@ public static class ForwardCalendar
         else top = matchmaker.Headliners(world, promo.Id, when, committed);
         if (top.Count == 0) return false;   // nobody to book this week, try again next tick
 
-        int number = world.Events.Values.Count(e => e.Promotion == promo.Id) + 1;
+        int number;
+        using (TickProbe.Phase("ann/number")) number = world.Events.Values.Count(e => e.Promotion == promo.Id) + 1;
         Event ev;
         if (signature is not null)
         {
@@ -345,7 +353,7 @@ public static class ForwardCalendar
         }
         else
         {
-            ev = events.CreateEvent(world, promo.Id, $"{promo.Abbreviation} Fight Night {number}", when, top,
+            using (TickProbe.Phase("card/create")) ev = events.CreateEvent(world, promo.Id, $"{promo.Abbreviation} Fight Night {number}", when, top,
                 Geography.WorldMap.PickTourStop(world, promo, when));
         }
 
@@ -357,6 +365,7 @@ public static class ForwardCalendar
             News.Post(world, today, NewsCategory.Withdrawal, OffHeadline(promo, ev, row), $"{why}. {promo.Abbreviation} goes ahead on {ev.Date:d MMMM} with another bout in its place.",
                 promo.Id, FindDesigned(world, row.Red)?.Id, ev.Id);
 
+        using var newsPhase = TickProbe.Phase("card/news");
         var mainRow = AuthoredBookingOn(world, ev);
         if (MeritsHeadline(world, ev, mainRow is not null))
         {
@@ -533,7 +542,8 @@ public static class ForwardCalendar
             if (world.Get(ev.Promotion) is not { Defunct: false } promo) continue;
             int need = CardSize(promo) - ev.Card.Count;
             if (need <= 0) continue;
-            var reserved = SignatureEvents.IsSignature(world, ev) ? new HashSet<FighterId>() : Reserved(world, promo, today);
+            HashSet<FighterId> reserved;
+            using (TickProbe.Phase("fill/reserved")) reserved = SignatureEvents.IsSignature(world, ev) ? new HashSet<FighterId>() : Reserved(world, promo, today);
             var around = reserved.Count == 0 ? committed : new HashSet<FighterId>(committed.Concat(reserved));
             // An emptied card is rebuilt top to bottom (a headliner and its
             // undercard, from whoever is free); otherwise just the undercard.

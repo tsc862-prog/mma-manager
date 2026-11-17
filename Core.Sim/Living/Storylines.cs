@@ -37,7 +37,8 @@ public static class Storylines
         if (upcoming.Count == 0) return;
 
         // Who's already spoken for — a replacement can't be double-booked.
-        var booked = ForwardCalendar.Committed(world);
+        HashSet<FighterId> booked;
+        using (TickProbe.Phase("cw/committed")) booked = ForwardCalendar.Committed(world);
 
         foreach (var ev in upcoming)
         {
@@ -93,7 +94,9 @@ public static class Storylines
 
                 // The AI saves the bout if anyone plausible will take the call.
                 bool wasMain = ev.Card.Count > 0 && ReferenceEquals(ev.Card[^1], fight);
-                if (!SaveBout(world, ev, fight, hurt, booked, date, "Injured in camp"))
+                bool saved;
+                using (TickProbe.Phase("cw/save-bout")) saved = SaveBout(world, ev, fight, hurt, booked, date, "Injured in camp");
+                if (!saved)
                 {
                     // (An emptied card is rebuilt by the calendar's fill pass.)
                     if (ev.Card.Count > 0 && wasMain) ForwardCalendar.RestoreHeadliner(world, ev);
@@ -267,14 +270,19 @@ public static class Storylines
         decimal cap = !ai ? decimal.MaxValue
             : Contracts.Negotiator.PurseCap(world, promo) * (distress > 0 ? Org.Solvency.DistressedPurseFactor(distress) : 1m);
         var valuation = new FighterValuation();
-        var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList()
-            .Where(c => !ai || valuation.Evaluate(world, c).AskingPurse.Amount * 1.25m <= cap);
+        var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList();
+        // A free agent is in the pool only if this house can pay his call (the roster always is). Pricing a man
+        // is the costly part, so today's mode prices them lazily in ability order: the stable sort keeps the
+        // pool's order among equals, so the filtered sorted sequence is the sorted filtered one, and the save
+        // (FirstOrDefault) prices only the men ahead of its pick instead of the whole market. (Pricing reads,
+        // never writes.)
+        bool Affordable((Fighter C, bool Market) x) => !x.Market || !ai || valuation.Evaluate(world, x.C).AskingPurse.Amount * 1.25m <= cap;
+        var pool = roster.Select(c => (C: c, Market: false)).Concat(market.Select(c => (C: c, Market: true)));
         // (Today's mode keeps its order - true ability, a known fog leak left alone because changing it moves
         // every tuned seed. An Origins world orders by what the house's scouts think.)
         return world.Mode == WorldMode.Origins
-            ? roster.Concat(market).OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value)
-            : roster.Concat(market)
-            .OrderByDescending(c => Ability.FighterAbility.CurrentAbility(c));
+            ? pool.Where(Affordable).Select(x => x.C).OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value)
+            : pool.OrderByDescending(x => Ability.FighterAbility.CurrentAbility(x.C)).Where(Affordable).Select(x => x.C);
     }
 
     // --- Before the card: fight-week withdrawals ----------------------------
@@ -383,12 +391,12 @@ public static class Storylines
     // --- After the card -----------------------------------------------------
     public static void AfterEvent(World world, Event ev, DateOnly date, SimRandom rng)
     {
-        Awards(world, ev, date);
-        Milestones(world, ev, date);
-        Rivalries(world, ev, date, rng);
-        Callouts(world, ev, date, rng);
-        Suspensions(world, ev, date, rng);
-        Controversies(world, ev, date, rng);
+        using (TickProbe.Phase("story/awards")) Awards(world, ev, date);
+        using (TickProbe.Phase("story/milestones")) Milestones(world, ev, date);
+        using (TickProbe.Phase("story/rivalries")) Rivalries(world, ev, date, rng);
+        using (TickProbe.Phase("story/callouts")) Callouts(world, ev, date, rng);
+        using (TickProbe.Phase("story/suspensions")) Suspensions(world, ev, date, rng);
+        using (TickProbe.Phase("story/controversies")) Controversies(world, ev, date, rng);
     }
 
     private static bool Notable(World world, Event ev) =>
@@ -504,6 +512,7 @@ public static class Storylines
 
     private static void Callouts(World world, Event ev, DateOnly date, SimRandom rng)
     {
+        Dictionary<FighterId, (DateOnly Date, FighterId Victor)>? lastLosses = null;   // built at the first callout, read by the rest
         foreach (var fight in ev.Card)
         {
             if (fight.Outcome?.Winner is not { } wid || world.Get(wid) is not { } w || w.LocalTalent) continue;
@@ -518,7 +527,8 @@ public static class Storylines
             // Who do they want? The belt, the man who beat them, or the name
             // one rung up the ladder — in that order of ambition.
             var champId = div?.Title is { } tid ? world.Get(tid)?.CurrentChampion : null;
-            FighterId? lastBeatMe = LastConqueror(world, w);
+            FighterId? lastBeatMe;
+            using (TickProbe.Phase("callout/last-losses")) lastBeatMe = LastConqueror(world, w, lastLosses ??= LastLosses(world));
             FighterId? rungAbove = null;
             if (div is not null)
             {
@@ -539,6 +549,7 @@ public static class Storylines
                 : null;
             if (pick is not { } callout) continue;
 
+            using var sayPhase = TickProbe.Phase("callout/say-and-post");
             News.Post(world, date, NewsCategory.Callout, callout.Line,
                 (finish ? "The statement finish came with a statement. " : "The mic work was sharper than the fight. ")
                 + Flavor.Quotes.Say(world, w, finish ? Flavor.Moment.WinFinish : Flavor.Moment.WinDecision, date,
@@ -555,24 +566,33 @@ public static class Storylines
         }
     }
 
-    // The last active fighter to hand them a loss (the revenge storyline).
-    // Scans recent events newest-first and only their small cards — a fighter's
-    // last loss is nearly always close by, and a grudge older than two years is
-    // cold anyway.
-    private static FighterId? LastConqueror(World world, Fighter f)
+    // The last active fighter to hand them a loss (the revenge storyline): the
+    // winner of his newest loss in the last two years (a grudge older than that
+    // is cold anyway), if that man is still active — nobody further back.
+    private static FighterId? LastConqueror(World world, Fighter f,
+        Dictionary<FighterId, (DateOnly Date, FighterId Victor)> lastLosses) =>
+        lastLosses.TryGetValue(f.Id, out var l)
+            ? world.Get(l.Victor) is { Status: FighterStatus.Active, LocalTalent: false } ? l.Victor : null
+            : null;
+
+    // Every fighter's newest loss inside the two-year window, with who beat him: the bout the old newest-first
+    // walk found first (completed events by date, newest first, ties in event order; card order inside a night).
+    // One walk for the whole card's callouts instead of a sorted walk per callout.
+    private static Dictionary<FighterId, (DateOnly Date, FighterId Victor)> LastLosses(World world)
     {
         var cutoff = world.CurrentDate.AddYears(-2);
-        foreach (var e in world.Events.Values
-                     .Where(e => e.Status == EventStatus.Completed && e.Date >= cutoff)
-                     .OrderByDescending(e => e.Date))
+        var map = new Dictionary<FighterId, (DateOnly Date, FighterId Victor)>();
+        foreach (var e in world.Events.Values)
         {
+            if (e.Status != EventStatus.Completed || e.Date < cutoff) continue;
             foreach (var bout in e.Card)
             {
-                if (bout.Outcome is not { } o || o.Loser != f.Id || o.Winner is not { } victor) continue;
-                return world.Get(victor) is { Status: FighterStatus.Active, LocalTalent: false } ? victor : null;
+                if (bout.Outcome is not { Loser: { } loser, Winner: { } victor }) continue;
+                // Strictly newer only: an equal date keeps the earlier event (and the earlier bout on one card).
+                if (!map.TryGetValue(loser, out var had) || e.Date > had.Date) map[loser] = (e.Date, victor);
             }
         }
-        return null;
+        return map;
     }
 
     // --- Champ vs champ: the superfight roll ---------------------------------
@@ -998,6 +1018,18 @@ public static class Storylines
 
     /// <summary>Whether two fighters have live bad blood (for gate/hype boosts).</summary>
     public static Rivalry? RivalryBetween(World world, FighterId a, FighterId b) => Between(world, a, b);
+
+    /// <summary>
+    /// <see cref="RivalryBetween"/> for many pairs at once: every rivalry by its (lower id, higher id) pair, the
+    /// FIRST in <see cref="World.Rivalries"/> order winning a duplicate, exactly as <c>FirstOrDefault</c> finds it.
+    /// A snapshot: valid only while nothing adds, removes or reorders a rivalry (intensity shows through).
+    /// </summary>
+    internal static Dictionary<(int, int), Rivalry> RivalriesByPair(World world)
+    {
+        var map = new Dictionary<(int, int), Rivalry>(world.Rivalries.Count);
+        foreach (var r in world.Rivalries) map.TryAdd(Bonds.PairKey(r.A, r.B), r);
+        return map;
+    }
 
     private static bool IsFinish(FightMethod m) => m is
         FightMethod.Knockout or FightMethod.TechnicalKnockout or

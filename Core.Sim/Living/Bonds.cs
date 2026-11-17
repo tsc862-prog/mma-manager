@@ -22,9 +22,27 @@ public static class Bonds
     /// Would these two rather not be booked against each other? Family never wants
     /// it; friends refuse while the friendship is real. Only a belt overrides.
     /// </summary>
-    public static bool WontFight(World world, FighterId a, FighterId b) =>
-        Between(world, a, b) is { } r
-        && (r.Kind is RelationshipKind.Family or RelationshipKind.Mentor || r.Strength >= 30);
+    public static bool WontFight(World world, FighterId a, FighterId b) => WontFight(Between(world, a, b));
+
+    /// <summary><see cref="WontFight(World, FighterId, FighterId)"/> on a bond already looked up (null: none).</summary>
+    internal static bool WontFight(Relationship? r) =>
+        r is not null && (r.Kind is RelationshipKind.Family or RelationshipKind.Mentor || r.Strength >= 30);
+
+    /// <summary>
+    /// <see cref="Between"/> for many pairs at once: every bond by its (lower id, higher id) pair, the FIRST in
+    /// <see cref="World.Relationships"/> order winning a duplicate, exactly as <c>FirstOrDefault</c> finds it.
+    /// A snapshot: valid only while nothing adds, removes or reorders a bond (it holds the live objects, so a
+    /// strength change shows through).
+    /// </summary>
+    internal static Dictionary<(int, int), Relationship> ByPair(World world)
+    {
+        var map = new Dictionary<(int, int), Relationship>(world.Relationships.Count);
+        foreach (var r in world.Relationships) map.TryAdd(PairKey(r.A, r.B), r);
+        return map;
+    }
+
+    internal static (int, int) PairKey(FighterId a, FighterId b) =>
+        a.Value < b.Value ? (a.Value, b.Value) : (b.Value, a.Value);
 
     /// <summary>
     /// Monthly: friendships form and deepen. The CAMP is the primary channel —
