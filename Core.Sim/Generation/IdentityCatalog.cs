@@ -31,6 +31,14 @@ public sealed class IdentityCatalog
     public int Count => _all.Count;
 
     /// <summary>
+    /// The marketable look (glam · adonis · menace · inked · babyface, or null) of the portrait the art layer
+    /// shows for this fighter in this world. Supplied by whoever built the catalog (the UI, from the pack
+    /// manifest); the sim reads it ONCE, when a fighter is created (<see cref="Living.Personas"/>). It must be
+    /// a pure function of the fighter's identity fields and the world's countries: no randomness, no clock.
+    /// </summary>
+    public Func<Fighter, World, string?>? LookOf { get; init; }
+
+    /// <summary>
     /// An identity for a fighter of this sex and weight class — a hard match on
     /// sex and an overlapping weight band. High-potential fighters prefer a
     /// three-stage (triptych) identity so the world's stars visibly age. Among

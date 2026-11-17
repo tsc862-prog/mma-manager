@@ -186,6 +186,7 @@ public static class OriginsWorldBuilder
         RankingService.RecomputeAll(world, start, o.RankingsDepth);
         GlobalRankings.Recompute(world);
         OriginsShows.SeedOpening(world);
+        Personas.StampAll(world);   // the portraits' looks (no catalog: nothing)
         return world;
     }
 
