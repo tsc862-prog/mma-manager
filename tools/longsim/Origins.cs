@@ -528,9 +528,11 @@ public static partial class OriginsMode
             int draws = bouts.Count(f => f.Outcome!.Method == FightMethod.Draw);
             int decisions = bouts.Count(f => f.Outcome!.Method is FightMethod.UnanimousDecision or FightMethod.SplitDecision or FightMethod.MajorityDecision);
             int tournaments = done.Count(e => e.Format == EventFormat.Tournament);
-            var title = p.Titles.Select(world.Get).OfType<Title>().FirstOrDefault();
-            // A bracket night has a champion when its winner took the belt (a new reign or the holder again).
-            int crowned = title?.Lineage.Count(r => r.WonOn.Year == year) ?? 0;
+            // The house's first belt still contested (a retired open-weight belt is history, not the house's belt).
+            var title = Belts.Current(world, p).FirstOrDefault();
+            // A bracket night has a champion when its winner took the belt (a new reign or the holder again);
+            // reigns won this year on any of the house's belts, the one it retired this year included.
+            int crowned = p.Titles.Select(world.Get).OfType<Title>().Sum(t => t.Lineage.Count(r => r.WonOn.Year == year));
             int brackets = done.Count(e => e.Format == EventFormat.Tournament);
             // (Read off the winners' accolades, a durable record: the news feed is capped.)
             int champions = done.Count(e => e.Format == EventFormat.Tournament

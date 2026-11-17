@@ -122,10 +122,13 @@ public static class OriginsShows
 
     private static Event? Announce(World world, Promotion promo, DateOnly when, EventService events, DateOnly today)
     {
-        int number = world.Events.Values.Count(e => e.Promotion == promo.Id && e.Status != EventStatus.Cancelled) + 1;
+        // (The away-night roll keys off the count of nights not cancelled, as it always has; the NAME takes the next
+        // number never used, so a called-off night never hands its number to the next one.)
+        int awayKey = world.Events.Values.Count(e => e.Promotion == promo.Id && e.Status != EventStatus.Cancelled) + 1;
+        int number = NextNightNumber(world, promo);
         // Where the night goes: home, a night abroad, or exile when the Backlash has closed the home room.
         // Nowhere at all (every hall it could reach is closed) and the house waits.
-        if (NightVenue(world, promo, when, number) is not { } room) return null;
+        if (NightVenue(world, promo, when, awayKey) is not { } room) return null;
         Event ev;
         if (promo.Rules.ShowFormat == ShowFormat.OneNightTournament)
         {
@@ -150,6 +153,31 @@ public static class OriginsShows
                     : $"{ev.Card.Count} bouts, {Rules(promo)}.",
                 promo.Id, ev.Card.Count > 0 ? ev.Card[^1].RedCorner : null, ev.Id);
         return ev;
+    }
+
+    /// <summary>
+    /// The number a house's next night carries: one past every night it has put on the books, cancelled ones included,
+    /// and past the highest number any of its nights still carries. A night called off keeps its number (the next show
+    /// is not a second "TOF 14"), as the modern calendar's numbering does (<see cref="Booking.PlayerBooking.NextCardNumber"/>,
+    /// <see cref="ForwardCalendar"/>). Only a card the player strikes from the books entirely gives its number back.
+    /// </summary>
+    internal static int NextNightNumber(World world, Promotion promo)
+    {
+        int count = 0, highest = 0;
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Promotion != promo.Id) continue;
+            count++;
+            if (!e.Name.StartsWith(promo.Abbreviation + " ", StringComparison.Ordinal)
+                && !e.Name.StartsWith(promo.Name + " ", StringComparison.Ordinal)
+                && !e.Name.StartsWith(promo.Name + ":", StringComparison.Ordinal)) continue;
+            int end = e.Name.Length, start = end;
+            while (start > 0 && char.IsAsciiDigit(e.Name[start - 1])) start--;
+            if (start < end && start > 0 && e.Name[start - 1] == ' '
+                && int.TryParse(e.Name.AsSpan(start, end - start), out int n))
+                highest = Math.Max(highest, n);
+        }
+        return Math.Max(count, highest) + 1;
     }
 
     private static string NightName(Promotion promo, int number) => promo.Rules.ShowFormat switch
@@ -379,8 +407,7 @@ public static class OriginsShows
         { reason = $"You can field {fit} of the {size} men a bracket needs on that date. Sign more, or pick a later night."; return null; }
         if (PlayerVenue(world, promo, date, city) is not { } room)
         { reason = "Every hall you could take the night to is closed by a ban."; return null; }
-        int number = world.Events.Values.Count(e => e.Promotion == promoId && e.Status != EventStatus.Cancelled) + 1;
-        return NewTournament(world, promo, date, name ?? $"{promo.Name} {number}", room);
+        return NewTournament(world, promo, date, name ?? $"{promo.Name} {NextNightNumber(world, promo)}", room);
     }
 
     /// <summary>
@@ -554,8 +581,7 @@ public static class OriginsShows
         if (world.Get(promoId) is not { Defunct: false } promo || card.Count == 0 || date <= world.CurrentDate) return null;
         // His own room, a city he names (one with a scene, awake or up for grabs), or exile when a ban closed his room.
         if (PlayerVenue(world, promo, date, city) is not { } room) return null;
-        int number = world.Events.Values.Count(e => e.Promotion == promoId && e.Status != EventStatus.Cancelled) + 1;
-        var ev = new EventService().CreateEvent(world, promoId, name ?? NightName(promo, number), date, card, room.City);
+        var ev = new EventService().CreateEvent(world, promoId, name ?? NightName(promo, NextNightNumber(world, promo)), date, card, room.City);
         ev.Venue = room.Name; ev.VenueId = room.Id;
         return ev;
     }
