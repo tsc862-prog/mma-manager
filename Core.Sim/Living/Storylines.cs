@@ -1002,6 +1002,18 @@ public static class Storylines
     /// <summary>Whether two fighters have live bad blood (for gate/hype boosts).</summary>
     public static Rivalry? RivalryBetween(World world, FighterId a, FighterId b) => Between(world, a, b);
 
+    /// <summary>
+    /// <see cref="RivalryBetween"/> for many pairs at once: every rivalry by its (lower id, higher id) pair, the
+    /// FIRST in <see cref="World.Rivalries"/> order winning a duplicate, exactly as <c>FirstOrDefault</c> finds it.
+    /// A snapshot: valid only while nothing adds, removes or reorders a rivalry (intensity shows through).
+    /// </summary>
+    internal static Dictionary<(int, int), Rivalry> RivalriesByPair(World world)
+    {
+        var map = new Dictionary<(int, int), Rivalry>(world.Rivalries.Count);
+        foreach (var r in world.Rivalries) map.TryAdd(Bonds.PairKey(r.A, r.B), r);
+        return map;
+    }
+
     private static bool IsFinish(FightMethod m) => m is
         FightMethod.Knockout or FightMethod.TechnicalKnockout or
         FightMethod.SubmissionTap or FightMethod.TechnicalSubmission;

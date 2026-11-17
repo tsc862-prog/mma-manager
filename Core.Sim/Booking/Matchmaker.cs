@@ -247,6 +247,11 @@ public sealed class Matchmaker
             .OrderByDescending(FighterAbility.CurrentAbility)
             .ToList();
 
+        // Every pair below asks after a bond and a feud: look them up by pair, not by walking both lists for each
+        // (they grow with the world). Nothing here adds or removes either.
+        var bonds = Living.Bonds.ByPair(world);
+        var feuds = Living.Storylines.RivalriesByPair(world);
+
         var candidates = new List<Candidate>();
         foreach (var division in promo.Divisions)
         {
@@ -272,8 +277,9 @@ public sealed class Matchmaker
                     // purse — training partners hardest of all. Only a belt puts
                     // them in the same cage (and the friendship pays).
                     if (a.Camp is { } room && a.Camp == b.Camp) continue;
-                    if (Living.Bonds.WontFight(world, a.Id, b.Id)) continue;
-                    bool feud = Living.Storylines.RivalryBetween(world, a.Id, b.Id) is { Intensity: >= 40 };
+                    var pair = Living.Bonds.PairKey(a.Id, b.Id);
+                    if (Living.Bonds.WontFight(bonds.GetValueOrDefault(pair))) continue;
+                    bool feud = feuds.GetValueOrDefault(pair) is { Intensity: >= 40 };
                     int tier = feud ? 2 : Contender(a.Id) && Contender(b.Id) ? 1 : 0;
                     double idle = DaysIdle(world, recent, a.Id) + DaysIdle(world, recent, b.Id);
                     double ability = FighterAbility.CurrentAbility(a) + FighterAbility.CurrentAbility(b);
