@@ -81,7 +81,7 @@ public static class WorldEvents
             Region.NorthAmerica, "USA", WeightClass.Middleweight, PrimaryStyle.WellRounded, 50, 62),
     };
 
-    private static void MaybeCrossover(World world, DateOnly date, SimRandom rng)
+    internal static void MaybeCrossover(World world, DateOnly date, SimRandom rng)
     {
         int m = Epoch(world, date);
         if (m < FirstCrossoverMonth || (m - FirstCrossoverMonth) % CrossoverEveryMonths != 0) return;
@@ -93,7 +93,8 @@ public static class WorldEvents
         int occurrence = (m - FirstCrossoverMonth) / CrossoverEveryMonths;
         var c = Crossovers[occurrence % Crossovers.Length];
         string full = $"{c.First} {c.Last}";
-        if (world.Fighters.Values.Any(f => f.FirstName == c.First && f.LastName == c.Last)) return;   // once
+        // Once (an authored debut only: a generated namesake must not suppress the celebrity).
+        if (world.Fighters.Values.Any(f => f.Designed && f.FirstName == c.First && f.LastName == c.Last)) return;
 
         // A boost, not a fixed maximum — the buzz varies from one crossover to the next.
         int pop = Math.Clamp(c.Popularity + rng.Range(-5, 5), 30, 78);

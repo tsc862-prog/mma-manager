@@ -462,4 +462,25 @@ public class UniqueNamesTests
     }
 
     private const ulong PinnedIntakeDigest = 1657296809180077220UL;
+
+    [Fact]
+    public void AGeneratedNamesake_DoesNotSuppressAnAuthoredCrossover()
+    {
+        // The crossover's "once" guard used to key on the display name, so a generated "Kwame Mensah" blocked the
+        // celebrity forever. The first crossover is month 6: plant a generated namesake and call the debut.
+        var w = Modern(1);
+        var gen = FighterGenerator.ForWorld(w);
+        var namesake = gen.Generate(w.NewFighterId(), w.CurrentDate, new GenOptions());
+        namesake.FirstName = "Bruno"; namesake.LastName = "Castellano";
+        w.Fighters[namesake.Id] = namesake;
+
+        var date = w.StartDate.AddMonths(6);
+        w.CurrentDate = date;
+        WorldEvents.MaybeCrossover(w, date, new SimRandom(5));
+        Assert.Contains(w.Fighters.Values, f => f.Designed && f.FirstName == "Bruno" && f.LastName == "Castellano");
+        // ...and he arrives once: a second pass in the same month adds nobody.
+        int count = w.Fighters.Count;
+        WorldEvents.MaybeCrossover(w, date, new SimRandom(5));
+        Assert.Equal(count, w.Fighters.Count);
+    }
 }
