@@ -141,7 +141,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="YOUR PROMOTION" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" Margin="10,4,0,4" />
+                                <TextBlock Text="{Binding Desktop.PromotionSectionTitle}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" Margin="10,4,0,4" />
                                 <ItemsControl ItemsSource="{Binding Desktop.PromotionApps}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -190,6 +190,7 @@
                     <TextBlock Text="{Binding LastAdvance}" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center"
                                MaxWidth="330" TextTrimming="CharacterEllipsis" ToolTip="{Binding LastAdvance}" Margin="0,0,14,0" />
                     <Button Command="{Binding OpenBriefingCommand}" Margin="0,0,8,0"
+                            Visibility="{Binding IsObserving, Converter={StaticResource InverseBoolToVis}}"
                             ToolTip="The briefing — why the clock stopped, what to do, what happened, what's next">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📋" Margin="0,0,5,0" />
@@ -203,6 +204,10 @@
                                     <DataTrigger Binding="{Binding Mail.UnreadCount}" Value="0">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>
+                                    <!-- no house, no mail: the inbox is hidden while watching -->
+                                    <DataTrigger Binding="{Binding IsObserving}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
@@ -211,9 +216,35 @@
                             <TextBlock Text="{Binding Mail.UnreadCount}" FontWeight="Bold" Foreground="{StaticResource Gold}" />
                         </StackPanel>
                     </Button>
+                    <!-- A ringside skip running: where it has got to, and the way to stop it at the end of this week -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0" Visibility="{Binding IsSkipping, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding SkipProgress}" FontWeight="SemiBold" Foreground="{StaticResource Gold}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Button Content="■ Stop" Command="{Binding StopSkipCommand}" FontWeight="SemiBold"
+                                ToolTip="Stop the clock at the end of this week" />
+                    </StackPanel>
                     <Button Content="Advance Week" Command="{Binding AdvanceWeekCommand}" />
                     <Button Content="Advance Month" Command="{Binding AdvanceMonthCommand}"
                             Background="{StaticResource Crimson}" BorderBrush="{StaticResource Crimson}" Foreground="White" FontWeight="SemiBold" />
+                    <!-- Watching from ringside: longer skips, each stopping early on the sport's big moments -->
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsObserving, Converter={StaticResource BoolToVis}}">
+                        <Button Content="3 Months" Command="{Binding AdvanceQuarterCommand}" Margin="6,0,0,0"
+                                ToolTip="Thirteen weeks; stops early if a chapter turns or a house opens or folds" />
+                        <Button Content="Next Chapter ▸" Command="{Binding AdvanceChapterCommand}" Margin="6,0,0,0" FontWeight="SemiBold"
+                                ToolTip="Run until the story turns its next chapter (or a house opens or folds; at most five years)">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                    <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
                     <Border Width="1" Background="{StaticResource Border}" Margin="10,4" />
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding DateText}" FontWeight="Bold" FontSize="12" Foreground="{StaticResource TextPrimary}" TextAlignment="Right" />
@@ -330,7 +361,7 @@
             <!-- Desktop icons, grouped like the old sidebar -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,14,0,0">
                 <StackPanel>
-                    <TextBlock Text="YOUR PROMOTION" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" Margin="6,0,0,6" />
+                    <TextBlock Text="{Binding Desktop.PromotionSectionTitle}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource OrgAccent}" Margin="6,0,0,6" />
                     <ItemsControl ItemsSource="{Binding Desktop.PromotionApps}" ItemTemplate="{StaticResource DesktopIconTemplate}" />
                 </StackPanel>
                 <StackPanel Margin="8,0,0,0">

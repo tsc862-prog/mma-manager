@@ -97,7 +97,8 @@ public sealed class StoryViewModel : ObservableObject
         var all = OriginsStory.SoFar(w);
         int yours = all.Count(c => c.Promotion == w.PlayerPromotion);
         TallyLine = all.Count == 0 ? "Nothing has happened yet that the history books will keep. It will."
-            : $"{all.Count} chapter{(all.Count == 1 ? "" : "s")} written so far" + (yours > 0 ? $", {yours} of them by your house." : ". None by your house yet.");
+            : $"{all.Count} chapter{(all.Count == 1 ? "" : "s")} written so far"
+              + (!w.HasPlayer ? ". You are watching from ringside." : yours > 0 ? $", {yours} of them by your house." : ". None by your house yet.");
         NoChapters = all.Count == 0;
 
         foreach (var g in all.GroupBy(c => c.Era).OrderByDescending(g => g.Key))

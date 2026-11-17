@@ -294,10 +294,11 @@ public sealed class FightersViewModel : ObservableObject
         NoMatches = total == 0;
         bool filtered = words.Length > 0 || div.Length > 0 || org.Length > 0 || from.Length > 0 || _shortlistOnly;
         string noun = filtered ? (total == 1 ? "match" : "matches") : "active fighters in the world";
+        string read = world.HasPlayer ? "your scout's read" : "the public read";   // watching from ringside: nobody scouts for him
         CountLine = total == 0 ? "No fighter matches."
-            : IsCapped ? $"Showing the best {matches.Count} of {total:N0} {noun}, by your scout's read. Search a name or narrow the filters to reach anyone."
-            : filtered ? $"{total:N0} {noun}, best first by your scout's read."
-            : $"All {total:N0} {noun}, best first by your scout's read.";
+            : IsCapped ? $"Showing the best {matches.Count} of {total:N0} {noun}, by {read}. Search a name or narrow the filters to reach anyone."
+            : filtered ? $"{total:N0} {noun}, best first by {read}."
+            : $"All {total:N0} {noun}, best first by {read}.";
 
         _selectedRow = _rows.FirstOrDefault(r => r.Id == _selectedFighterId);
         OnPropertyChanged(nameof(SelectedRow));

@@ -8,7 +8,17 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <DockPanel Grid.Column="0" Margin="0,0,12,0">
+            <!-- Origins, before the commissions agree one code: nobody publishes a list across promotions. Say why, and what brings one. -->
+            <Border Grid.ColumnSpan="2" Style="{StaticResource Panel}" VerticalAlignment="Top" MaxWidth="640" HorizontalAlignment="Left"
+                    Visibility="{Binding NotRecognised, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="NO WORLD RANKINGS YET" Style="{StaticResource Text.Kicker}" />
+                    <TextBlock Text="{Binding NotRecognisedLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding NotRecognisedNext}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+
+            <DockPanel Grid.Column="0" Margin="0,0,12,0" Visibility="{Binding Recognised, Converter={StaticResource BoolToVis}}">
                 <TextBlock DockPanel.Dock="Top" Text="Pound-for-pound" FontWeight="Bold" FontSize="14" Margin="0,0,0,4" />
                 <DataGrid ItemsSource="{Binding PoundForPound}" IsReadOnly="True" AutoGenerateColumns="False" HeadersVisibility="Column" mvvm:FighterLink.OpenOnDoubleClick="True">
                     <DataGrid.Columns>
@@ -22,15 +32,16 @@
                 </DataGrid>
             </DockPanel>
 
+            <Grid Grid.Column="1" Visibility="{Binding Recognised, Converter={StaticResource BoolToVis}}">
             <!-- An open-weight sport (Origins) has no divisions to rank: say so instead of an empty table -->
-            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="12,0,0,0" VerticalAlignment="Top"
+            <Border Style="{StaticResource Panel}" Margin="12,0,0,0" VerticalAlignment="Top"
                     Visibility="{Binding HasDivisions, Converter={StaticResource InverseBoolToVis}}">
                 <StackPanel>
                     <TextBlock Text="NO WEIGHT CLASSES YET" Style="{StaticResource Text.Kicker}" />
                     <TextBlock Text="{Binding NoDivisionsLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,4,0,0" />
                 </StackPanel>
             </Border>
-            <DockPanel Grid.Column="1" Visibility="{Binding HasDivisions, Converter={StaticResource BoolToVis}}">
+            <DockPanel Visibility="{Binding HasDivisions, Converter={StaticResource BoolToVis}}">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                     <TextBlock Text="Division rankings" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
                     <ComboBox Width="150" ItemsSource="{Binding Divisions}" SelectedItem="{Binding SelectedDivision}" Margin="10,0,0,0" HorizontalAlignment="Left" />
@@ -46,5 +57,6 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
+            </Grid>
         </Grid>
 </UserControl>

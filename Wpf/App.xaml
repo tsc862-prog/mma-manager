@@ -68,6 +68,26 @@
             </Style.Triggers>
         </Style>
 
+        <!-- The people in a fighter's life as a short passage (Biographer.PeopleText): a gold rule down
+             the left, readable body text, no table. Leads the profile's bio area. -->
+        <Style x:Key="PeoplePassage" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+            <Setter Property="CornerRadius" Value="0,6,6,0" />
+            <Setter Property="Padding" Value="12,8,12,9" />
+            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="MaxWidth" Value="680" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style x:Key="PeoplePassage.Text" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="LineHeight" Value="20" />
+            <Setter Property="Foreground" Value="#E2E6EA" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+
         <!-- A content card: the standard panel chrome for screen sections. -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceSunken}" />
@@ -2609,6 +2629,139 @@
                 <DataTrigger Binding="{Binding HasRefusal}" Value="False"><Setter TargetName="why" Property="Visibility" Value="Collapsed" /></DataTrigger>
                 <DataTrigger Binding="{Binding HasBuys}" Value="False"><Setter TargetName="buys" Property="Visibility" Value="Collapsed" /></DataTrigger>
             </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ===================================================================== RINGSIDE
+             The observer's screens (an Origins world with no house of the player's): Ringside, the founding
+             window and the open tryout.
+               RingsideStopBanner        Border: why the clock stopped while watching (Tag=True: a big moment).
+               FoundCard                 Border: the standing call to found a promotion (gold edge).
+               RingsideHouseTemplate     RingsideHouse: logo, owner face, where, what its nights are, public standing.
+               RingsideNightTemplate     RingsideNight: a past or coming night as one card line (opens the event).
+               RingsideSceneTemplate     RingsideScene: one national scene, when it woke and what it holds.
+               FoundingCityTemplate      FoundingCityRow: a city in the founding list (refused ones greyed, reason as tooltip).
+               TryoutManTemplate         TryoutManCard: a man the open tryout signed (face, age, division, scouts' read).
+             ===================================================================== -->
+        <Style x:Key="RingsideStopBanner" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ToneInfoDim}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ToneInfo}" />
+            <Setter Property="BorderThickness" Value="4,0,0,0" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ToneWarnDim}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="FoundCard" TargetType="Border">
+            <Setter Property="Background" Value="#211D14" />
+            <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Panel}" />
+            <Setter Property="Padding" Value="20,16" />
+        </Style>
+        <DataTemplate x:Key="RingsideHouseTemplate">
+            <Button Style="{StaticResource CardButton}" Margin="0,0,0,10" Command="{x:Static mvvm:AppCommands.OpenOrg}"
+                    CommandParameter="{Binding Id}" ToolTip="Open the promotion's page">
+                <Grid Margin="12,11">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="68" Height="68" CornerRadius="10" Background="#14171C" VerticalAlignment="Top">
+                        <Image Source="{Binding Logo}" Margin="6" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                        <DockPanel>
+                            <Border x:Name="trend" DockPanel.Dock="Right" Background="{StaticResource ToneGoodDim}" CornerRadius="{StaticResource Radius.Pill}" Padding="8,1" VerticalAlignment="Center">
+                                <TextBlock x:Name="trendText" Text="{Binding Trend}" FontSize="10.5" FontWeight="Bold" Foreground="{StaticResource ToneGood}" />
+                            </Border>
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Heading}" FontSize="16.5" />
+                        </DockPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <ContentControl x:Name="owner" Style="{StaticResource PersonFace}" Content="{Binding OwnerName}" Width="24" Height="24" Margin="0,0,7,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Byline}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+
+                        </StackPanel>
+                        <TextBlock Text="{Binding Night}" Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" LineHeight="18" />
+                        <TextBlock Text="{Binding Standing}" Style="{StaticResource Text.Caption}" Margin="0,5,0,0" />
+                        <TextBlock x:Name="champ" Text="{Binding Champion}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource Gold}" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasTrend}" Value="False"><Setter TargetName="trend" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding TrendTone}" Value="Warn">
+                    <Setter TargetName="trend" Property="Background" Value="{StaticResource ToneWarnDim}" />
+                    <Setter TargetName="trendText" Property="Foreground" Value="{StaticResource ToneWarn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasOwner}" Value="False"><Setter TargetName="owner" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding HasChampion}" Value="False"><Setter TargetName="champ" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <DataTemplate x:Key="RingsideNightTemplate">
+            <Button Style="{StaticResource CardButton}" Margin="0,0,0,6" Command="{x:Static mvvm:AppCommands.OpenEvent}"
+                    CommandParameter="{Binding Id}" ToolTip="Open the night">
+                <DockPanel Margin="10,8">
+                    <Image DockPanel.Dock="Left" Source="{Binding Logo}" Width="34" Height="34" Margin="0,0,10,0" VerticalAlignment="Top" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Heading}" FontSize="13.5" />
+                        <TextBlock Text="{Binding When}" Style="{StaticResource Text.Caption}" FontSize="11.5" />
+                        <TextBlock Text="{Binding Line}" Style="{StaticResource Text.Secondary}" FontSize="12" Margin="0,2,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </Button>
+        </DataTemplate>
+        <DataTemplate x:Key="RingsideSceneTemplate">
+            <Border Background="{StaticResource CardFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                    CornerRadius="{StaticResource Radius.Card}" Padding="11,7" Margin="0,0,0,6">
+                <StackPanel>
+                    <DockPanel>
+                        <Border x:Name="tag" DockPanel.Dock="Right" Background="{StaticResource ToneWarnDim}" CornerRadius="{StaticResource Radius.Pill}" Padding="7,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Tag}" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+                        </Border>
+                        <TextBlock Style="{StaticResource Text.Heading}" FontSize="13.5">
+                            <Run Text="{Binding Name, Mode=OneWay}" /><Run Text="  " /><Run Text="{Binding Since, Mode=OneWay}" FontSize="11.5" FontWeight="Normal" Foreground="{StaticResource TextMuted}" />
+                        </TextBlock>
+                    </DockPanel>
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Caption}" FontSize="11.5" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding SecondCentre}" Value="False"><Setter TargetName="tag" Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <DataTemplate x:Key="FoundingCityTemplate">
+            <DockPanel x:Name="row" Margin="2,4" ToolTip="{Binding Refusal}" ToolTipService.ShowOnDisabled="True">
+                <TextBlock x:Name="mark" DockPanel.Dock="Right" Text="{Binding Tag}" Style="{StaticResource Text.Caption}" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center" />
+                <StackPanel>
+                    <TextBlock x:Name="name" Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Line}" Style="{StaticResource Text.Caption}" FontSize="11.5" />
+                </StackPanel>
+            </DockPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Open}" Value="False">
+                    <Setter TargetName="row" Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <DataTemplate x:Key="TryoutManTemplate">
+            <Button Style="{StaticResource CardButton}" Margin="0,0,10,10" Width="290" Command="{x:Static mvvm:AppCommands.OpenFighter}"
+                    CommandParameter="{Binding Id}" ToolTip="Open the profile">
+                <DockPanel>
+                    <Border DockPanel.Dock="Left" Width="70" Height="84" CornerRadius="8,0,0,8" ClipToBounds="True" Background="{StaticResource SurfaceSunken}">
+                        <Image Source="{Binding Face.Image}" Stretch="UniformToFill" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                    <StackPanel Margin="12,8,8,6" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Heading}" />
+                        <TextBlock Text="{Binding Facts}" Style="{StaticResource Text.Caption}" />
+                        <controls:RatingBadge Value="{Binding Scout}" Margin="0,5,0,0" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </DockPanel>
+            </Button>
         </DataTemplate>
 
     </Application.Resources>

@@ -33,7 +33,7 @@
                         <TextBlock Text="{Binding SelectedFighter.Physicals}" Margin="0,2,0,0" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="SCOUT " FontSize="16" VerticalAlignment="Center"
-                                       ToolTip="Your scouts' read — the truth may differ until they're proven" />
+                                       ToolTip="{Binding ScoutTip}" />
                             <TextBlock Text="{Binding SelectedFighter.Ovr}" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding SelectedFighter.Record}" FontSize="16" Margin="18,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
@@ -99,42 +99,52 @@
                                     ToolTip="Pin them to the shortlist in the Notes app" />
                             <Button Content="Contract talks" Command="{Binding NegotiateFighterCommand}"
                                     CommandParameter="{Binding SelectedFighter.Id}" Padding="9,4"
+                                    Visibility="{Binding IsObserving, Converter={StaticResource InverseBoolToVis}}"
                                     ToolTip="Open negotiations on the Contracts screen — free agents, or re-signing your own" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
+                        <!-- (Wraps at the bio's width: four long labels in one row ran off the panel.) -->
+                        <WrapPanel Orientation="Horizontal" Margin="0,8,0,0" MaxWidth="900" HorizontalAlignment="Left">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding SelectedIsMine}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </StackPanel.Style>
+                            </WrapPanel.Style>
                             <Button Content="{Binding RetentionButtonText}" Command="{Binding RetainFighterCommand}"
-                                    Padding="9,4" Margin="0,0,8,0" />
+                                    Padding="9,4" Margin="0,0,8,6" />
                             <Button Content="{Binding MarketingButtonText}" Command="{Binding ToggleMarketingCommand}"
-                                    Padding="9,4" Margin="0,0,8,0" />
+                                    Padding="9,4" Margin="0,0,8,6" />
                             <Button Content="{Binding CampButtonText}" Command="{Binding ToggleCampStipendCommand}"
-                                    Padding="9,4" Margin="0,0,8,0" />
+                                    Padding="9,4" Margin="0,0,8,6" />
                             <Button Content="{Binding FaceButtonText}" Command="{Binding MakeFaceCommand}"
-                                    Padding="9,4" />
-                        </StackPanel>
+                                    Padding="9,4" Margin="0,0,0,6" />
+                        </WrapPanel>
 
-                        <!-- Bonds: family, friends, mentors, feuds — the relationship graph made visible -->
+                        <!-- The people in their life, as a passage: leads the bio (Biographer.PeopleText) -->
+                        <Border Style="{StaticResource PeoplePassage}"
+                                Visibility="{Binding SelectedFighter.HasPeople, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding SelectedFighter.PeopleKicker}" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" FontSize="10.5" />
+                                <TextBlock Text="{Binding SelectedFighter.PeopleText}" Style="{StaticResource PeoplePassage.Text}" />
+                            </StackPanel>
+                        </Border>
+                        <!-- Bonds: family, friends, mentors, feuds — the list, when there is no passage to say it -->
                         <TextBlock Text="{Binding SelectedFighter.BondsText}" Margin="0,8,0,0" LineHeight="19"
-                                   Foreground="#9FB6C9" TextWrapping="Wrap" MaxWidth="680">
+                                   Foreground="#9FB6C9" TextWrapping="Wrap" MaxWidth="680" HorizontalAlignment="Left">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedFighter.HasBonds}" Value="False">
+                                        <DataTrigger Binding="{Binding SelectedFighter.ShowBondsList}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <TextBlock Text="{Binding SelectedFighter.Story}" TextWrapping="Wrap" MaxWidth="680" LineHeight="18"
+                        <TextBlock Text="{Binding SelectedFighter.StoryBelowPeople}" TextWrapping="Wrap" MaxWidth="680" LineHeight="18" HorizontalAlignment="Left"
                                    Foreground="#C9CFD6" FontStyle="Italic" Margin="0,10,0,0" />
                     </StackPanel>
                 </StackPanel>

@@ -999,7 +999,13 @@ public partial class App : Application
                             if (div.Title is not { } tid || w.Get(tid)?.CurrentChampion is not { } cid || w.Get(cid) is not { } champ || !Free(champ)) continue;
                             var challenger = div.Rankings.Select(id => w.Get(id)).FirstOrDefault(c => c is not null && c.Id != cid && Free(c) && div.Matches(c));
                             if (challenger is not null)
+                            {
                                 booking.AddBout(w, ev, champ.Id, challenger.Id, 5, true, out _);
+                                // --tie: harness only, plant bad blood between the two so the quotes can say so
+                                // (Quotes.Say with the world picks a tie line on about 70% of calls for rivals).
+                                if (e.Args.Contains("--tie") && !w.Rivalries.Any(r => r.Involves(champ.Id) && r.Involves(challenger.Id)))
+                                    w.Rivalries.Add(new MmaManager.Core.Model.Rivalry { A = champ.Id, B = challenger.Id, Intensity = 85, Since = date.AddMonths(-8) });
+                            }
                         }
                     }
                     if (ev.Card.Count == 0) { booking.CancelEvent(w, ev); continue; }
@@ -1021,6 +1027,15 @@ public partial class App : Application
                 }
                 Console.WriteLine($"RENDERMOMENT after {nights} night(s): {m.GetType().Name} - {m.Headline} {m.Name}, {m.Subline} | {m.Kicker}");
                 Console.WriteLine($"RENDERMOMENT quote: {m.Quote} | answer: {m.Answer?.Text} (face {m.Answer?.HasPicture}) | {m.AlsoLine}");
+                if (m.SubjectId is int sid && vm.LiveWorld!.Get(new MmaManager.Core.Model.FighterId(sid)) is { } champNow)
+                {
+                    var mw = vm.LiveWorld!;
+                    var lastTitle = mw.Events.Values.Where(x => x.Promotion == mw.PlayerPromotion && x.Status == MmaManager.Core.Model.EventStatus.Completed)
+                        .OrderBy(x => x.Date).SelectMany(x => x.Card.Select(b => (x, b))).LastOrDefault(t => t.b.IsTitleFight && t.b.Outcome?.Winner == champNow.Id);
+                    if (lastTitle.b?.Outcome?.Loser is { } lid && mw.Get(lid) is { } beaten)
+                        Console.WriteLine($"RENDERMOMENT tie: {MmaManager.Core.Sim.Flavor.Ties.Strongest(mw, champNow, beaten, lastTitle.x.Date)?.Kind.ToString() ?? "none"}; "
+                            + $"world-less line would be {MmaManager.Core.Sim.Flavor.Quotes.Say(champNow, MmaManager.Core.Sim.Flavor.Moment.TitleWin, lastTitle.x.Date, beaten)}");
+                }
                 foreach (var f in m.Facts) Console.WriteLine($"RENDERMOMENT fact: {f.Label}: {f.Value} - {f.Detail}");
 
                 var root = (FrameworkElement)win.Content;
@@ -1783,6 +1798,20 @@ public partial class App : Application
                         vm.SelectedOrg = vm.Organizations.FirstOrDefault(p => p.Abbreviation == abbr) ?? vm.SelectedOrg;
                         Console.WriteLine($"ORIGINS rankings of {vm.SelectedOrg?.Abbreviation}: picks [{string.Join(" | ", vm.RankingDivisions.Select(p => p.Label))}]; divisions [{string.Join(" | ", vm.SelectedOrg?.Divisions.Select(FighterRow.DivisionLabel) ?? Array.Empty<string>())}]");
                     }
+                    if (e.Args.Contains("--plantcode"))
+                    {
+                        // Harness only: the commissions' one code arrives early. Your home region is licensed and the
+                        // chapter is recorded; then a week of play lets the sim's own weekly pass bind your house to it.
+                        var w = vm.LiveWorld!;
+                        if (w.Get(w.PlayerPromotion) is { HomeCity: { } hc } && w.Get(hc) is { } city && w.Get(city.Country) is { } country
+                            && !w.Era.Sanctions.Any(s => s.Country == country.Code && (s.Area is null || s.Area == city.Area)))
+                            w.Era.Sanctions.Add(new MmaManager.Core.Model.Sanction { Country = country.Code, Area = city.Area, On = w.CurrentDate });
+                        MmaManager.Core.Sim.Living.Era.Fire(w, MmaManager.Core.Sim.Living.OriginsReforms.Unified, w.CurrentDate);
+                        vm.AdvanceWeekCommand.Execute(null);
+                        var mine = w.Get(w.PlayerPromotion)!;
+                        Console.WriteLine($"ORIGINS code planted: bound {MmaManager.Core.Sim.Living.OriginsReforms.BoundByCode(w, mine)}, under it {MmaManager.Core.Sim.Living.OriginsReforms.HasUnified(mine)}, "
+                            + $"rounds {mine.Rules.StandardRounds}/{mine.Rules.TitleRounds} x {mine.Rules.RoundMinutes} min, rankings recognised {MmaManager.Core.Sim.Living.OriginsReforms.RankingsRecognised(w)}");
+                    }
                     if (e.Args.Contains("--nochapters"))
                     {
                         // The Story's empty-era state (harness only: the world is the harness's own).
@@ -2020,6 +2049,20 @@ public partial class App : Application
                     Console.WriteLine($"RENDERAPP letter: '{letter?.Subject}' from {letter?.Sender} — actions: {string.Join(" | ", letter?.Actions.Select(a => a.Text) ?? Array.Empty<string>())}");
                     Layout();
                 }
+                // --profile <people|plain>: open the Fighter Profile on a fighter with a people passage (mentor, family,
+                // feud, camp; the richest one first) or one with none, to see the bio area both ways.
+                if (e.Args.Contains("--profile"))
+                {
+                    var w = vm.LiveWorld!;
+                    bool people = e.Args[Array.IndexOf(e.Args, "--profile") + 1] != "plain";
+                    var pick = w.Fighters.Values.Where(f => f.Status == MmaManager.Core.Model.FighterStatus.Active && !f.LocalTalent)
+                        .Select(f => (f, n: MmaManager.Core.Sim.Flavor.Biographer.People(w, f).Count))
+                        .Where(t => people ? t.n > 0 : t.n == 0)
+                        .OrderByDescending(t => people ? Math.Min(t.n, 3) : 0).ThenBy(t => t.f.Id.Value).Select(t => t.f).FirstOrDefault();
+                    if (pick is not null) vm.OpenFighter(pick.Id.Value);
+                    Layout();
+                    Console.WriteLine($"RENDERAPP profile ({(people ? "people" : "plain")}): {pick?.FullName ?? "nobody"} - {(pick is null ? "" : MmaManager.Core.Sim.Flavor.Biographer.PeopleText(w, pick))}");
+                }
                 // --talks <fa|lifer|unhappy>: put someone across the Contracts table (or on the
                 // Fighter Profile, when that's the app): the top free agent, or one of our own
                 // made a holding lifer (a company man at loyalty 90) — "unhappy" also puts the
@@ -2248,6 +2291,106 @@ public partial class App : Application
             return;
         }
 
+        // Watching from ringside (an Origins world with no house of the player's, seed 1993 unless --seed N):
+        // `MmaManager.Wpf --renderringside <ringside|found|founded|tryout> W H [--years N] [--months N] [--city NAME] [--name NAME] <path>`.
+        //   ringside  the Ringside app (after --years/--months of the spectator's clock: three-month skips, so the
+        //             last stop's banner shows; every stop is printed);
+        //   found     the Found Your Promotion window, a name typed and a city picked (--city, else the first open);
+        //   founded   the desktop just after founding: the full set of apps back, the Open Tryout panel on top;
+        //   tryout    the same after the tryout was called (the men it signed).
+        if (e.Args.Contains("--renderringside"))
+        {
+            try
+            {
+                int at = Array.IndexOf(e.Args, "--renderringside");
+                string state = e.Args[at + 1];
+                int W = int.Parse(e.Args[at + 2]), H = int.Parse(e.Args[at + 3]);
+                string Arg(string flag, string fallback) => e.Args.Contains(flag) ? e.Args[Array.IndexOf(e.Args, flag) + 1] : fallback;
+                ulong seed = ulong.Parse(Arg("--seed", "1993"));
+                int years = int.Parse(Arg("--years", "0")), months = int.Parse(Arg("--months", "0"));
+                string p = e.Args[^1];
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(seed), OriginsStart.RingsideSummary);
+                var w0 = vm.LiveWorld!;
+                var until = w0.CurrentDate.AddYears(years).AddMonths(months);
+                while (w0.CurrentDate < until)
+                {
+                    vm.AdvanceQuarterCommand.Execute(null);
+                    if (vm.Ringside.Stop is { Big: true } s) Console.WriteLine($"RINGSIDE stop {w0.CurrentDate:d MMM yyyy}: {s.Headline}");
+                }
+                Console.WriteLine($"RINGSIDE {w0.CurrentDate:d MMM yyyy}: observing={vm.IsObserving}, apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}]");
+
+                var root = (FrameworkElement)win.Content;
+                void Snap(FrameworkElement el, int w, int h, string path)
+                {
+                    var size = new Size(w, h);
+                    for (int pass = 0; pass < 3; pass++)
+                    {
+                        el.Measure(size); el.Arrange(new Rect(size)); el.UpdateLayout();
+                        var t = System.Diagnostics.Stopwatch.StartNew();
+                        do System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() => { }));
+                        while (Portraits.PendingThumbs > 0 && t.ElapsedMilliseconds < 15000);
+                    }
+                    var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+                    rtb.Render(el);
+                    var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+                    using (var fs = File.Create(path)) enc.Save(fs);
+                    Console.WriteLine("RENDERRINGSIDE OK -> " + Path.GetFullPath(path));
+                }
+
+                FoundingViewModel Founding()
+                {
+                    var f = new FoundingViewModel(w0) { Name = Arg("--name", "Lantern Street Fighting") };
+                    string city = Arg("--city", "");
+                    f.SelectedCity = f.Cities.FirstOrDefault(c => c.Open && c.Name == city) ?? f.Cities.FirstOrDefault(c => c.Open) ?? f.SelectedCity;
+                    // --enclosure ring|cage: pick the fighting area on the form (when the city leaves it open).
+                    if (e.Args.Contains("--enclosure"))
+                        f.Enclosure = f.EnclosureChoices.FirstOrDefault(c => string.Equals(c.Enclosure?.ToString(), Arg("--enclosure", ""), StringComparison.OrdinalIgnoreCase)) ?? f.Enclosure;
+                    Console.WriteLine($"RINGSIDE founding: {f.Cities.Count(c => c.Open)} open of {f.Cities.Count} listed; city {f.SelectedCity?.Name}; abbreviation {f.Abbreviation}; "
+                                      + $"rules picks: minutes {f.MinuteChoices.Count}, gloves {f.GloveChoices.Count}, enclosure {f.EnclosureChoices.Count}");
+                    return f;
+                }
+
+                if (state == "found")
+                {
+                    var dlg = new FoundPromotionWindow(Founding(), interactive: false);
+                    Snap((FrameworkElement)dlg.Content, (int)dlg.Width, (int)dlg.Height, p);
+                }
+                else
+                {
+                    if (state is "founded" or "tryout")
+                    {
+                        // Lay the desk out first, so the centred Open Tryout panel knows the desk's size (as in play).
+                        root.Measure(new Size(W, H)); root.Arrange(new Rect(new Size(W, H))); root.UpdateLayout();
+                        var f = Founding();
+                        f.FoundCommand.Execute(null);
+                        if (f.Founded is null) throw new InvalidOperationException("founding refused: " + f.Error);
+                        vm.AfterFounding(f.Founded);
+                        Console.WriteLine($"RINGSIDE founded {f.Founded.Name} ({f.Founded.Abbreviation}): observing={vm.IsObserving}, apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}], "
+                                          + $"open [{string.Join(", ", vm.Desktop.Windows.Select(x => x.Spec.Id))}]; status: {vm.StatusText}");
+                        Console.WriteLine($"RINGSIDE picked \"{f.Enclosure?.Label}\"; the house rules now read: {string.Join(" | ", vm.Tryout.Rules)}");
+                        if (state == "tryout")
+                        {
+                            vm.Tryout.HoldCommand.Execute(null);
+                            Console.WriteLine($"RINGSIDE tryout: {vm.Tryout.Signed.Count} signed; ledger $0 lines skipped; status: {vm.StatusText}");
+                        }
+                    }
+                    else vm.Desktop.Open("ringside");
+                    // --skipping: the taskbar as it reads while a Next Chapter skip is running (progress, Stop, the rest disabled).
+                    if (e.Args.Contains("--skipping"))
+                    {
+                        vm.ShowSkipStateForHarness($"Watching…  {w0.CurrentDate.AddDays(7 * 23):MMMM yyyy}  ·  23 weeks");
+                        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                    }
+                    Snap(root, W, H, p);
+                }
+            }
+            catch (Exception ex) { Console.WriteLine("RENDERRINGSIDE FAIL: " + ex); }
+            Environment.Exit(0);
+            return;
+        }
+
         // Offscreen screenshot of the New Game setup dialog: `MmaManager.Wpf --rendernewgame [--takeover ABBR] <path>`.
         if (e.Args.Contains("--rendernewgame"))
         {
@@ -2263,6 +2406,7 @@ public partial class App : Application
                         if (item is NewGameWindow.TakeoverRow r && r.Spec.Abbreviation == abbr) win.TakeoverBox.SelectedItem = item;
                 }
                 if (e.Args.Contains("--origins")) win.ChooseOrigins(int.Parse(e.Args[Array.IndexOf(e.Args, "--origins") + 1]));
+                if (e.Args.Contains("--ringside")) win.ChooseRingside();   // Origins, watching from ringside
                 var root = (FrameworkElement)win.Content;
                 // The window sizes to its content: measure it at its width, then draw it at the height it wants.
                 for (int pass = 0; pass < 2; pass++)
@@ -2378,6 +2522,12 @@ public partial class App : Application
                     try
                     {
                         foreach (var open in vm.Desktop.Windows.ToList()) vm.Desktop.Close(open);
+                        // An app can leave the desk when its window closes (the Open Tryout, once the tryout is held).
+                        if (!vm.Desktop.PromotionApps.Concat(vm.Desktop.WorldApps).Contains(spec))
+                        {
+                            Console.WriteLine($"OK    {label,-8} {spec.Id,-14} {spec.Title}  (left the desk when its window closed, as it should)");
+                            continue;
+                        }
                         vm.Desktop.Open(spec.Id);
                         if (!vm.Desktop.Windows.Any(w => w.Spec.Id == spec.Id))
                             throw new InvalidOperationException("the app window did not open");
@@ -2414,6 +2564,80 @@ public partial class App : Application
                         Region = MmaManager.Core.Model.Region.Europe,
                     },
                 }, "You founded New Wave Fighting.");
+                vm.SelectedFighter = vm.Roster.FirstOrDefault();
+            });
+            // Origins from ringside: no house of the player's (day one, then two years on).
+            Smoke("ringside", vm => vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside."));
+            Smoke("ringside+", vm =>
+            {
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                for (int i = 0; i < 8; i++) vm.AdvanceQuarterCommand.Execute(null);
+                vm.AdvanceChapterCommand.Execute(null);
+                // Save and load it back through the app's own load path (the autosave is off in harness runs).
+                string tmp = Path.Combine(Path.GetTempPath(), $"ringside-smoke-{Environment.ProcessId}.mmasave");
+                MmaManager.Persistence.SaveGame.Save(vm.LiveWorld!, tmp);
+                vm.LoadFromPath(tmp);
+                File.Delete(tmp);
+                if (!vm.IsObserving) throw new InvalidOperationException("a ringside save loaded back with a house");
+                Console.WriteLine($"OK    ringside+ saved and loaded at {vm.LiveWorld!.CurrentDate:d MMM yyyy}; apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}]");
+                vm.AdvanceWeekCommand.Execute(null);
+            });
+            // Skips equal single weeks: three-month and Next Chapter skips vs the same number of Week clicks.
+            static string Fingerprint(MmaManager.Core.Model.World w) =>
+                $"{w.CurrentDate:yyyy-MM-dd} fighters {w.Fighters.Count} pop {w.Fighters.Values.Sum(f => (long)f.Intangibles.Popularity.Value)} "
+                + $"wins {w.Fighters.Values.Sum(f => (long)f.Record.Wins)} personas {w.Fighters.Values.Count(f => f.PersonaTag is { Length: > 0 })} "
+                + $"events {w.Events.Count} news {w.News.Count} chapters {w.Era.Chapters.Count} houses {w.Promotions.Count} "
+                + $"bank {w.Promotions.Values.Sum(p => p.Balance.Amount)}";
+            Smoke("skips", vm =>
+            {
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                var start = vm.LiveWorld!.CurrentDate;
+                // A stopped-early skip: three-month skips until one ends early on a big moment.
+                bool early = false;
+                for (int i = 0; i < 40 && !early; i++)
+                {
+                    vm.AdvanceQuarterCommand.Execute(null);
+                    early = vm.Ringside.Stop?.Kicker.StartsWith("TIME STOPPED EARLY", StringComparison.Ordinal) == true;
+                }
+                if (!early) throw new InvalidOperationException("no three-month skip stopped early in ten years");
+                Console.WriteLine($"OK    skips    stopped early: {vm.Ringside.Stop!.Kicker} | {vm.Ringside.Stop.Headline}");
+                // A Next Chapter skip.
+                int chapters = vm.LiveWorld.Era.Chapters.Count;
+                vm.AdvanceChapterCommand.Execute(null);
+                Console.WriteLine($"OK    skips    next chapter: {vm.Ringside.Stop!.Kicker} | {vm.Ringside.Stop.Headline} (chapters {chapters} -> {vm.LiveWorld.Era.Chapters.Count})");
+                // Stop pressed mid-skip (after the third week): the skip ends there, unless a big moment came first.
+                var before = vm.LiveWorld.CurrentDate;
+                vm.SkipProbe = n => { if (n == 3) vm.StopSkipCommand.Execute(null); };
+                vm.AdvanceChapterCommand.Execute(null);
+                vm.SkipProbe = null;
+                int ran = (vm.LiveWorld.CurrentDate.DayNumber - before.DayNumber) / 7;
+                if (ran > 3 || vm.IsSkipping) throw new InvalidOperationException($"Stop did not end the skip: {ran} weeks, skipping={vm.IsSkipping}");
+                Console.WriteLine($"OK    skips    stop pressed: {ran} weeks | {vm.Ringside.Stop!.Kicker}");
+                // Two more years of skips (Next Chapter and three months), so the comparison spans newgens and many nights.
+                while (vm.LiveWorld.CurrentDate < start.AddYears(3))
+                {
+                    vm.AdvanceChapterCommand.Execute(null);
+                    vm.AdvanceQuarterCommand.Execute(null);
+                }
+                // The same number of single Week clicks in a fresh world must give the same world.
+                int weeks = (vm.LiveWorld.CurrentDate.DayNumber - start.DayNumber) / 7;
+                var twin = (MainViewModel)new MainWindow().DataContext;
+                twin.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                for (int i = 0; i < weeks; i++) twin.AdvanceWeekCommand.Execute(null);
+                string a = Fingerprint(vm.LiveWorld), b = Fingerprint(twin.LiveWorld!);
+                if (a != b) throw new InvalidOperationException($"skips and single weeks differ after {weeks} weeks: skips {a} / weeks {b}");
+                Console.WriteLine($"OK    skips    {weeks} weeks by skips == {weeks} single weeks: {a}");
+            });
+            Smoke("founded+", vm =>
+            {
+                vm.StartWorld(WorldBuilder.Options.OriginsObserver(1993), "Ringside.");
+                for (int i = 0; i < 12; i++) vm.AdvanceQuarterCommand.Execute(null);
+                var f = new FoundingViewModel(vm.LiveWorld!) { Name = "Lantern Street Fighting" };
+                f.FoundCommand.Execute(null);
+                if (f.Founded is null) throw new InvalidOperationException("founding refused: " + f.Error);
+                vm.AfterFounding(f.Founded);
+                vm.Tryout.HoldCommand.Execute(null);
+                vm.AdvanceMonthCommand.Execute(null);
                 vm.SelectedFighter = vm.Roster.FirstOrDefault();
             });
 

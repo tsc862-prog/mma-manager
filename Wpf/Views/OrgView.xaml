@@ -229,6 +229,11 @@
                                        Visibility="{Binding HasReformsDoneLine, Converter={StaticResource BoolToVis}}" />
                             <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Caption}" Foreground="{StaticResource ToneGood}" TextWrapping="Wrap" Margin="0,4,0,0" />
                         </StackPanel>
+                        <!-- Origins, once the commission's code binds the house: the round controls stay in view, locked. -->
+                        <StackPanel Margin="0,0,0,8" Visibility="{Binding RulesLocked, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="SET BY THE COMMISSION" Style="{StaticResource Text.Kicker}" FontSize="10.5" />
+                            <TextBlock Text="{Binding RulesLockedLine}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                        </StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="150" />
@@ -237,19 +242,19 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Round length" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="0" Grid.Column="1" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" Orientation="Horizontal" Margin="0,2">
-                                <ComboBox Width="70" ItemsSource="{Binding RoundMinuteOptions}" SelectedItem="{Binding RoundMinutes}" />
+                            <TextBlock Grid.Row="0" Text="Round length" Visibility="{Binding ShowRoundControls, Converter={StaticResource BoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="0" Grid.Column="1" Visibility="{Binding ShowRoundControls, Converter={StaticResource BoolToVis}}" Orientation="Horizontal" Margin="0,2">
+                                <ComboBox Width="70" ItemsSource="{Binding RoundMinuteOptions}" SelectedItem="{Binding RoundMinutes}" IsEnabled="{Binding RulesEditable}" />
                                 <TextBlock Text="minutes" FontSize="11" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="6,0,0,0" />
                             </StackPanel>
-                            <TextBlock Grid.Row="1" Text="Standard bout" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="1" Grid.Column="1" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" Orientation="Horizontal" Margin="0,2">
-                                <ComboBox Width="70" ItemsSource="{Binding StandardRoundOptions}" SelectedItem="{Binding StandardRounds}" />
+                            <TextBlock Grid.Row="1" Text="Standard bout" Visibility="{Binding ShowRoundControls, Converter={StaticResource BoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Visibility="{Binding ShowRoundControls, Converter={StaticResource BoolToVis}}" Orientation="Horizontal" Margin="0,2">
+                                <ComboBox Width="70" ItemsSource="{Binding StandardRoundOptions}" SelectedItem="{Binding StandardRounds}" IsEnabled="{Binding RulesEditable}" />
                                 <TextBlock Text="rounds" FontSize="11" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="6,0,0,0" />
                             </StackPanel>
-                            <TextBlock Grid.Row="2" Text="Title fight" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="2" Grid.Column="1" Visibility="{Binding HasOwnRules, Converter={StaticResource InverseBoolToVis}}" Orientation="Horizontal" Margin="0,2">
-                                <ComboBox Width="70" ItemsSource="{Binding TitleRoundOptions}" SelectedItem="{Binding TitleRounds}" />
+                            <TextBlock Grid.Row="2" Text="Title fight" Visibility="{Binding ShowRoundControls, Converter={StaticResource BoolToVis}}" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="2" Grid.Column="1" Visibility="{Binding ShowRoundControls, Converter={StaticResource BoolToVis}}" Orientation="Horizontal" Margin="0,2">
+                                <ComboBox Width="70" ItemsSource="{Binding TitleRoundOptions}" SelectedItem="{Binding TitleRounds}" IsEnabled="{Binding RulesEditable}" />
                                 <TextBlock Text="rounds" FontSize="11" Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" Margin="6,0,0,0" />
                             </StackPanel>
                             <TextBlock Grid.Row="3" Text="Fight of the Night" FontSize="11" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"

@@ -247,6 +247,7 @@ public sealed class FinanceViewModel : ObservableObject
         MonthNet = new Money(inc + exp).ToString();
 
         var months = promo.Ledger
+            .Where(e => e.Amount.Amount != 0)   // a $0 line (the free open tryout) is not a month of money
             .GroupBy(e => (e.Date.Year, e.Date.Month))
             .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month)
             .Take(12)

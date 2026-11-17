@@ -10,7 +10,7 @@
             <DockPanel Grid.Column="0">
                 <StackPanel DockPanel.Dock="Top" Margin="2,0,0,8">
                     <TextBlock Text="Fight Camps" FontSize="18" FontWeight="SemiBold" />
-                    <TextBlock Text="Where the sport actually trains — the room shapes the fighter. ★ = your team deal."
+                    <TextBlock Text="{Binding Intro}"
                                Foreground="{StaticResource TextSecondary}" FontSize="11" />
                 </StackPanel>
                 <DataGrid ItemsSource="{Binding Camps}" SelectedItem="{Binding SelectedCamp}"
@@ -43,9 +43,11 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <Button Content="{Binding SponsorButtonText}" Command="{Binding SponsorCommand}"
-                            Padding="9,4" Margin="0,8,0,0" HorizontalAlignment="Left" />
+                            Padding="9,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                            Visibility="{Binding HasHouse, Converter={StaticResource BoolToVis}}" />
                     <Button Content="{Binding ReportButtonText}" Command="{Binding BuyReportCommand}"
-                            Padding="9,4" Margin="0,6,0,8" HorizontalAlignment="Left" />
+                            Padding="9,4" Margin="0,6,0,8" HorizontalAlignment="Left"
+                            Visibility="{Binding HasHouse, Converter={StaticResource BoolToVis}}" />
                     <TextBlock Text="{Binding Status}" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,0,0,6" />
                     <TextBlock Text="On the mats" FontWeight="Bold" Margin="0,2,0,4" />
                 </StackPanel>
