@@ -270,14 +270,19 @@ public static class Storylines
         decimal cap = !ai ? decimal.MaxValue
             : Contracts.Negotiator.PurseCap(world, promo) * (distress > 0 ? Org.Solvency.DistressedPurseFactor(distress) : 1m);
         var valuation = new FighterValuation();
-        var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList()
-            .Where(c => !ai || valuation.Evaluate(world, c).AskingPurse.Amount * 1.25m <= cap);
+        var market = world.FreeAgents().Where(c => Fits(c) && c.Record.TotalBouts >= 3).ToList();
+        // A free agent is in the pool only if this house can pay his call (the roster always is). Pricing a man
+        // is the costly part, so today's mode prices them lazily in ability order: the stable sort keeps the
+        // pool's order among equals, so the filtered sorted sequence is the sorted filtered one, and the save
+        // (FirstOrDefault) prices only the men ahead of its pick instead of the whole market. (Pricing reads,
+        // never writes.)
+        bool Affordable((Fighter C, bool Market) x) => !x.Market || !ai || valuation.Evaluate(world, x.C).AskingPurse.Amount * 1.25m <= cap;
+        var pool = roster.Select(c => (C: c, Market: false)).Concat(market.Select(c => (C: c, Market: true)));
         // (Today's mode keeps its order - true ability, a known fog leak left alone because changing it moves
         // every tuned seed. An Origins world orders by what the house's scouts think.)
         return world.Mode == WorldMode.Origins
-            ? roster.Concat(market).OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value)
-            : roster.Concat(market)
-            .OrderByDescending(c => Ability.FighterAbility.CurrentAbility(c));
+            ? pool.Where(Affordable).Select(x => x.C).OrderByDescending(c => Scouting.ScoutingService.PerceivedAbility(world, promo, c)).ThenBy(c => c.Id.Value)
+            : pool.OrderByDescending(x => Ability.FighterAbility.CurrentAbility(x.C)).Where(Affordable).Select(x => x.C);
     }
 
     // --- Before the card: fight-week withdrawals ----------------------------
