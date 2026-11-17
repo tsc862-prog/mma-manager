@@ -14,7 +14,8 @@ namespace MmaManager.Tests;
 /// build; recaptured from 29e733a after Origins phase 3, which changed only the three-year cases; recaptured again
 /// for the Origins money tuning, PR #64: the newcomer bank's base fell 150k -> 50k, which changes every house's
 /// balance and nothing else on the fixed-date cases (with a 150k base they reproduce the old values exactly), and
-/// the young sport's money changes the three-year worlds), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
+/// the young sport's money changes the three-year worlds; and for Origins tuning 2, where a founder's room and purses
+/// follow the crowd it has seen, which changes only the three-year worlds and the houses in them), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
 /// prestige, rules, roster), recapture: set FOUNDING_GOLDEN_OUT to a file path and run this class; it writes the
 /// new values instead of asserting.
 /// </summary>
@@ -23,14 +24,14 @@ public class OriginsFoundingGoldenTests
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
         ["s1-day1"] = "C0A6A81BAA1B8B9F71D2",
-        ["s1-years3-world"] = "2456B9D128E73C1F115F",
+        ["s1-years3-world"] = "392D8D467130155C91AB",
         ["s1-years3-house"] = "B34A2C7E0293DBFB353D",
         ["s2-day1"] = "49A25EE03EE55D5C44EA",
-        ["s2-years3-world"] = "7EB6D4D634D46C15F19A",
-        ["s2-years3-house"] = "E1813B7C0C53A54D5126",
+        ["s2-years3-world"] = "C6315A4A7866A156850D",
+        ["s2-years3-house"] = "DE7969B6F726E59A46BC",
         ["s3-day1"] = "8B18A7BC8DF1DC87464D",
-        ["s3-years3-world"] = "51632CD7DEE6976C34AF",
-        ["s3-years3-house"] = "384C5B782886E4541B20",
+        ["s3-years3-world"] = "21802CE0ABCFB1243490",
+        ["s3-years3-house"] = "2C2FDFD02FE310303CF9",
         ["s4-split"] = "C7036D9F547460489E28",
         ["s5-split"] = "F5E3833ECBD87E286F81",
         ["s6-tryouts"] = "9AB7EF497F834D5F857C",

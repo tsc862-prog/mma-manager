@@ -291,8 +291,19 @@ public sealed class Negotiator
         // its own night. Today's mode never takes this branch.
         if (world.Mode == WorldMode.Origins)
         {
-            var room = Living.OriginsShows.HomeVenue(world, promo);
+            // An AI founder prices its men off its expected home crowd once it has run three nights (OriginsShows.HomeRoom:
+            // its last three completed nights anywhere, each read as a home crowd - the gate for a home night with seats
+            // left, else the box-office model's DemandAt for its home town). Its hall was history's choice, not its
+            // crowd's, and a Crucible drawing 1,600 into 4,000 seats budgeted purses for a full house and slid 60-80k a
+            // year (longsim origins 40 20). A founded house's room already follows its crowd (RoomIn), so its capacity
+            // bounds it. The player's house is excluded (its cap is the hall's, as before).
+            // SIDE EFFECT: in Origins every man's ask is a share of FighterValuation.OriginsMarketCeiling, the highest
+            // PurseCap among live houses. When an AI founder's cap falls with its crowd the ceiling can fall with it and
+            // every man in the world asks less, at every house. A world where the player runs CRU keeps the hall-based
+            // cap in that maximum (asks as before); a world where he runs another house sees asks fall with CRU's crowd.
+            var room = Living.OriginsShows.HomeRoom(world, promo, out int? seen);
             decimal seats = Math.Min(attendance * (decimal)Booking.Financials.OriginsCrowdFactor, room?.Capacity ?? attendance);
+            if (seen is { } crowd) seats = Math.Min(seats, crowd);
             decimal take = seats * Booking.Financials.TicketPrice(world, prestige)
                          - Booking.Financials.OriginsProduction(seats) - SeatsRent(world, room, seats);
             return Math.Max(OriginsPurseFloor, Math.Round(take * 0.9m / 14m / 250m) * 250m);
