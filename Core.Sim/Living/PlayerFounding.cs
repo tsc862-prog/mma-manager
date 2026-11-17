@@ -63,8 +63,15 @@ public sealed record PlayerFoundingSpec(
     string Name, string Abbreviation, CityId City,
     int? SingleRoundMinutes = null, GloveType? Gloves = null, Enclosure? Enclosure = null);
 
-/// <summary>The free open tryout: whether he can call it, and what it is, in words.</summary>
-public sealed record TryoutOffer(string? Refusal, int Turnout, string Detail)
+/// <summary>
+/// An open tryout of local men: whether he can call one today (<see cref="Refusal"/> says why not), how many men it
+/// would sign at most (<see cref="Turnout"/>), and what it is, in words. <see cref="Free"/>: the house's one free
+/// founding tryout (always his once); otherwise a recurring tryout, which the house earns as an AI house does: when it
+/// is short of men, and at most once every <see cref="OriginsFounding.TryoutEveryDays"/> days.
+/// <see cref="NextPossibleOn"/>: when the spacing has kept him from one, the first day the spacing allows the next
+/// (he must still be short of men then); null when the spacing is not what stops him, or when he can call one today.
+/// </summary>
+public sealed record TryoutOffer(string? Refusal, int Turnout, string Detail, bool Free = true, DateOnly? NextPossibleOn = null)
 {
     public bool Available => Refusal is null;
 }
@@ -81,7 +88,8 @@ public sealed record TryoutSigning(FighterId Fighter, string Name, int Age, Weig
 /// with a vacant belt, or the weight lines the sport has drawn; a fixed pick inside the AI newcomer's bank range
 /// (<see cref="BankSteps"/>) and prestige <see cref="Prestige"/>; the same popularity, tier clearance and hometown
 /// sponsor. Unlike the AI he signs nobody at founding: his roster is empty, and he has ONE free open tryout of
-/// local men (<see cref="HoldTryout"/>) whenever he calls it. His desks are empty (he hires his own back office),
+/// local men (<see cref="HoldTryout"/>) whenever he calls it; after it, the AI houses' recurring tryout when he is
+/// short of men, as an option he calls (<see cref="TryoutOptions"/>). His desks are empty (he hires his own back office),
 /// his objectives run to the year's end, his inbox opens with a letter from the accountant. He is exempt from the
 /// sport's ceiling on houses (<see cref="OriginsFounding.Ceiling"/>) but counts toward it from then on, and when
 /// his house is the one that makes a "promotions at least" chapter happen, the story credits him.
@@ -94,7 +102,8 @@ public static class PlayerFounding
 {
     // Keyed streams of their own, with high bits unlike every other founding salt (OriginsFounding's are 0x0219_...),
     // so his founding on one day never shares a stream seed with an AI founding (or his tryout) on a nearby day.
-    private const ulong FoundSalt = 0x5A4D_C3E1_0000_0001UL, TryoutSalt = 0x6B71_92F4_0000_0002UL;
+    private const ulong FoundSalt = 0x5A4D_C3E1_0000_0001UL, TryoutSalt = 0x6B71_92F4_0000_0002UL,
+        RecurringTryoutSalt = 0x7C82_A3F5_0000_0003UL;
 
     /// <summary>The player's pick inside the AI newcomer's bank range: three of <see cref="OriginsFounding.NewcomerBankSteps"/> steps (the AI newcomers' median: 125k).</summary>
     public const int BankSteps = 3;
@@ -436,7 +445,8 @@ public static class PlayerFounding
         int shows = promo.Objectives.FirstOrDefault(o => o.Kind == ObjectiveKind.RunEvents)?.Target ?? 1;
         return $"The books are open: {promo.Balance} in the bank, a home in {city.Name}, {country.Name}, and {OriginsFounding.Describe(promo)}. "
              + $"House rules: {time}, {hands}, {where}. "
-             + "Nobody is signed. We have one open tryout of local men, free, whenever you call it; the rest come off the free-agent market at their asking terms. "
+             + "Nobody is signed. We have one open tryout of local men, free, whenever you call it; the rest come off the free-agent market at their asking terms "
+             + "(and when we run short of men, the local gyms will stage another tryout for us, twice a year at most). "
              + (late
                  ? $"There's too little of {promo.FoundedYear} left to judge us on it: the owner's targets start on 1 January."
                  : $"For the rest of {promo.FoundedYear} I'd like {shows} show{(shows == 1 ? "" : "s")} and the year finished in the black.");
@@ -486,9 +496,34 @@ public static class PlayerFounding
     public static DateOnly? TryoutHeldOn(Promotion promo) =>
         promo.Ledger.FirstOrDefault(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine)?.Date;
 
-    /// <summary>Can he call the free open tryout today, and what is it?</summary>
+    /// <summary>
+    /// The ledger line that records one of his recurring open tryouts: the AI houses' own mark
+    /// (<see cref="OriginsFounding.TryoutLedgerLine"/>), a $0 <see cref="FinanceCategory.Other"/> entry.
+    /// </summary>
+    public const string RecurringTryoutLedgerLine = OriginsFounding.TryoutLedgerLine;
+
+    /// <summary>The day of his last open tryout of either kind (the free one or a recurring one), or null: read off the ledger.</summary>
+    public static DateOnly? LastTryoutOn(Promotion promo)
+    {
+        DateOnly? last = null;
+        foreach (var e in promo.Ledger)
+            if (e.Category == FinanceCategory.Other && e.Description is TryoutLedgerLine or RecurringTryoutLedgerLine
+                && (last is null || e.Date > last))
+                last = e.Date;
+        return last;
+    }
+
+    /// <summary>
+    /// Can he call an open tryout today, and what is it? His first is the free one (<see cref="TryoutTurnout"/> men,
+    /// whenever he likes). After it, a recurring tryout on the AI houses' rule (<see cref="OriginsFounding.RunTryouts"/>):
+    /// only when the house is short of men (fewer than <see cref="OriginsShows.MinRoster"/> who could fight its next night
+    /// and fewer than MinRoster + 2 on the books) and at least <see cref="OriginsFounding.TryoutEveryDays"/> days after
+    /// his last tryout of either kind; it fills the house to its signing target. Never held for him: he calls it.
+    /// </summary>
     public static TryoutOffer TryoutOptions(World world, DateOnly date)
     {
+        if (world.Get(world.PlayerPromotion) is { } mine && world.Mode == WorldMode.Origins && TryoutHeldOn(mine) is not null)
+            return RecurringOffer(world, mine, date);
         string detail = $"One free open tryout: about {TryoutTurnout} local men who have trained for this turn up, and every one who fits a division signs on honest minimum terms (the sport's purse floor, three fights). Green, cheap and yours.";
         return new TryoutOffer(TryoutRefusal(world), TryoutTurnout, detail);
     }
@@ -502,13 +537,49 @@ public static class PlayerFounding
         return null;
     }
 
+    /// <summary>A recurring tryout for his house today: on offer, or why not and when the spacing would next allow one.</summary>
+    private static TryoutOffer RecurringOffer(World world, Promotion mine, DateOnly date)
+    {
+        int need = OriginsShows.MinRoster(mine);
+        bool shortHanded = OriginsFounding.ShortHanded(world, mine, date, out int onBooks);
+        int ready = OriginsFounding.NightReady(world, mine, date);
+        int target = OriginsFounding.TryoutTarget(mine);
+        string free = TryoutHeldOn(mine) is { } held ? $"You held your one free open tryout on {held:d MMMM yyyy}. " : "";
+        string detail = $"An open tryout of local men: as many as it takes to bring the house to {target} men on the books, on the tryout terms "
+                        + "(the sport's purse floor, three fights). Free, but only for a house short of men, and no more than twice a year.";
+        string? refusal = null;
+        DateOnly? next = null;
+        if (mine.Defunct) refusal = "The promotion has closed.";
+        else
+        {
+            var spacing = LastTryoutOn(mine) is { } last ? last.AddDays(OriginsFounding.TryoutEveryDays) : (DateOnly?)null;
+            bool tooSoon = spacing is { } s && s > date;
+            string shortText = $"An open tryout is for a house short of men: fewer than {need} who could fight your next night and fewer than {need + 2} on the books. "
+                               + $"You have {ready} ready and {onBooks} on the books; the free-agent market is where you sign now.";
+            if (tooSoon)
+            {
+                next = spacing;
+                refusal = free + $"The local gyms can stage another open tryout from {spacing:d MMMM yyyy}."
+                          + (shortHanded ? "" : " " + shortText);
+            }
+            else if (!shortHanded) refusal = free + shortText;
+            else if (mine.HomeCity is not { } hc || world.Get(hc) is not { } home || world.Get(home.Country) is null)
+                refusal = "The house has no home town to call local men from.";
+        }
+        return new TryoutOffer(refusal, Math.Max(0, target - onBooks), detail, Free: false, NextPossibleOn: next);
+    }
+
     /// <summary>
-    /// Hold the free open tryout today: local men of the home country, green and glad of the chance, each signed on
-    /// the tryout terms when the house has a division for him; the house is their discoverer. Once only. Returns the
-    /// men signed, as his scouts read them (empty, with the reason, when refused).
+    /// Hold an open tryout today: local men of the home country, green and glad of the chance, each signed on the
+    /// tryout terms when the house has a division for him; the house is their discoverer. The first is the free one
+    /// (<see cref="TryoutTurnout"/> men, exclusive, the ledger mark <see cref="TryoutLedgerLine"/>); after it, a recurring
+    /// tryout when <see cref="TryoutOptions"/> offers one (the AI houses' rule, terms and mark). Returns the men signed, as
+    /// his scouts read them (empty, with the reason, when refused).
     /// </summary>
     public static IReadOnlyList<TryoutSigning> HoldTryout(World world, DateOnly date, out string? refused)
     {
+        if (world.Mode == WorldMode.Origins && world.Get(world.PlayerPromotion) is { } held && TryoutHeldOn(held) is not null)
+            return HoldRecurring(world, held, date, out refused);
         refused = TryoutRefusal(world);
         if (refused is not null) return Array.Empty<TryoutSigning>();
         var promo = world.Get(world.PlayerPromotion)!;
@@ -527,12 +598,38 @@ public static class PlayerFounding
         Finance.Ledger.Record(promo, date, FinanceCategory.Other, new Money(0m), TryoutLedgerLine);
         RankingService.RecomputePromotion(world, promo, date);
 
-        var reads = signed.Select(f => new TryoutSigning(f.Id, f.FullName, f.AgeOn(date), f.WeightClass,
-            Scouting.ScoutingService.PerceivedAbility(world, promo, f))).ToList();
+        var reads = Reads(world, promo, signed, date);
         Mail.Post(world, date, MailCategory.General, "Matchmaking", "The open tryout",
             signed.Count == 0
                 ? "Nobody we could use turned up. The free-agent market is where the fighters are."
                 : $"{signed.Count} local men signed on the tryout terms: {string.Join("; ", reads.Select(r => $"{r.Name} ({r.Age})"))}. Green, all of them. Book them carefully.");
         return reads;
     }
+
+    /// <summary>A recurring tryout (the AI houses' rule, through <see cref="OriginsFounding.CallInLocals"/>), on its own keyed stream.</summary>
+    private static IReadOnlyList<TryoutSigning> HoldRecurring(World world, Promotion promo, DateOnly date, out string? refused)
+    {
+        var offer = RecurringOffer(world, promo, date);
+        refused = offer.Refusal;
+        if (refused is not null) return Array.Empty<TryoutSigning>();
+        var home = world.Get(promo.HomeCity!.Value)!;
+        string code = world.Get(home.Country)!.Code;
+        OriginsFounding.ShortHanded(world, promo, date, out int onBooks);
+        var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ RecurringTryoutSalt));
+        var signed = OriginsFounding.CallInLocals(world, FighterGenerator.ForWorld(world), promo, code, date, rng,
+            onBooks, OriginsFounding.TryoutTarget(promo));
+        Finance.Ledger.Record(promo, date, FinanceCategory.Other, new Money(0m), RecurringTryoutLedgerLine);
+        RankingService.RecomputePromotion(world, promo, date);
+        var reads = Reads(world, promo, signed, date);
+        Mail.Post(world, date, MailCategory.General, "Matchmaking", "The open tryout",
+            signed.Count == 0
+                ? "Nobody we could use turned up. The free-agent market is where the fighters are."
+                : $"{signed.Count} local men signed on the tryout terms: {string.Join("; ", reads.Select(r => $"{r.Name} ({r.Age})"))}. Green, all of them.");
+        return reads;
+    }
+
+    /// <summary>The men signed, as his scouts read them (never the truth).</summary>
+    private static List<TryoutSigning> Reads(World world, Promotion promo, List<Fighter> signed, DateOnly date) =>
+        signed.Select(f => new TryoutSigning(f.Id, f.FullName, f.AgeOn(date), f.WeightClass,
+            Scouting.ScoutingService.PerceivedAbility(world, promo, f))).ToList();
 }

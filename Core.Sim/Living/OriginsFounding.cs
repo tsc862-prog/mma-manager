@@ -355,7 +355,8 @@ public static class OriginsFounding
     /// could never stage the nights that would pay it back. The men sign on the house's own terms of exclusivity
     /// (<see cref="Negotiator.WantsExclusivity"/>: a small hall deals non-exclusive, no monthly retainer), not the
     /// founding tryout's. Its own keyed stream (seed, day, house).
-    /// The player's house is never touched: he has the market and his own tryout (<see cref="PlayerFounding.HoldTryout"/>).
+    /// The player's house is never touched: he has the market, his free tryout, and this same rule as an option he calls
+    /// himself (<see cref="PlayerFounding.TryoutOptions"/>, <see cref="PlayerFounding.HoldTryout"/>).
     /// </summary>
     public static void RunTryouts(World world, DateOnly date)
     {
@@ -371,9 +372,8 @@ public static class OriginsFounding
             // red fills to that solvent target too, not the smaller distressed one the free-agent pass aims for: the
             // tryout men cost nothing up front and sign on the floor purse, and the rule as written measured healthy
             // (longsim origins 40 12 and 40 20, all seeds).
-            int onBooks = OnTheBooks(world, promo);
-            if (NightReady(world, promo, date) >= OriginsShows.MinRoster(promo) || onBooks >= OriginsShows.MinRoster(promo) + 2) continue;
-            int target = Math.Max(OriginsShows.MinRoster(promo) + 2, OriginsShows.RosterDemand(promo));
+            if (!ShortHanded(world, promo, date, out int onBooks)) continue;
+            int target = TryoutTarget(promo);
             if (promo.Ledger.Any(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine
                                       && date.DayNumber - e.Date.DayNumber < TryoutEveryDays)) continue;
             var home = promo.HomeCity is { } hc ? world.Get(hc) : null;
@@ -381,13 +381,7 @@ public static class OriginsFounding
 
             var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ TryoutSalt ^ ((ulong)promo.Id.Value << 32)));
             gen ??= FighterGenerator.ForWorld(world);
-            int signed = 0;
-            for (int guard = 0; onBooks + signed < target && guard < target * 2; guard++)
-                if (TryoutMan(world, gen, promo, country.Code, date, rng, Negotiator.WantsExclusivity(promo)) is { } man)
-                {
-                    man.Accolades.Add(new Accolade(date, $"Signed at {promo.Name}'s open tryout"));
-                    signed++;
-                }
+            int signed = CallInLocals(world, gen, promo, country.Code, date, rng, onBooks, target).Count;
             Finance.Ledger.Record(promo, date, FinanceCategory.Other, new Money(0m), TryoutLedgerLine);
             if (signed == 0) continue;
             RankingService.RecomputePromotion(world, promo, date);
@@ -395,6 +389,40 @@ public static class OriginsFounding
                 $"Short of men and with no purse the market will take, {promo.Abbreviation} called in the local hopefuls: {signed} signed on the tryout terms.",
                 promo.Id);
         }
+    }
+
+    /// <summary>
+    /// Is the house short of men, as an open tryout means it (the one rule for an AI house's tryout and the player's
+    /// recurring one): fewer men who could fight its next night than that night needs (<see cref="NightReady"/> under
+    /// <see cref="OriginsShows.MinRoster"/>) AND fewer than its founding roster on the books (<see cref="OnTheBooks"/>
+    /// under MinRoster + 2). <paramref name="onBooks"/> is the second count.
+    /// </summary>
+    internal static bool ShortHanded(World world, Promotion promo, DateOnly date, out int onBooks)
+    {
+        onBooks = OnTheBooks(world, promo);
+        return NightReady(world, promo, date) < OriginsShows.MinRoster(promo) && onBooks < OriginsShows.MinRoster(promo) + 2;
+    }
+
+    /// <summary>The men on the books a tryout fills the house to: its solvent signing target, at least its founding roster.</summary>
+    internal static int TryoutTarget(Promotion promo) => Math.Max(OriginsShows.MinRoster(promo) + 2, OriginsShows.RosterDemand(promo));
+
+    /// <summary>
+    /// The open tryout itself: local men of <paramref name="countryCode"/> called in and signed on the tryout terms
+    /// (<see cref="TryoutMan"/>, the house's own terms of exclusivity, <see cref="Negotiator.WantsExclusivity"/>) until
+    /// <paramref name="target"/> men are on the books, at most twice that many tries; each signed man's accolade names the
+    /// tryout (<see cref="OriginsTalent.TryoutDeduction"/> finds them by it). Returns the men signed.
+    /// </summary>
+    internal static List<Fighter> CallInLocals(World world, FighterGenerator gen, Promotion promo, string countryCode, DateOnly date,
+        SimRandom rng, int onBooks, int target)
+    {
+        var signed = new List<Fighter>();
+        for (int guard = 0; onBooks + signed.Count < target && guard < target * 2; guard++)
+            if (TryoutMan(world, gen, promo, countryCode, date, rng, Negotiator.WantsExclusivity(promo)) is { } man)
+            {
+                man.Accolades.Add(new Accolade(date, $"Signed at {promo.Name}'s open tryout"));
+                signed.Add(man);
+            }
+        return signed;
     }
 
     /// <summary>
