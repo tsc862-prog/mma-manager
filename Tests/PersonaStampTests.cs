@@ -13,9 +13,10 @@ namespace MmaManager.Tests;
 public class PersonaStampTests
 {
     // Pinned on main (bb544d9) BEFORE the stamp moved into the sim: a headless world must not move by a bit.
-    // (Re-pinned when the story arcs and owner voices began posting news: News.Count is the LAST thing the digest mixes, and only its
-    // last digits moved; fighters, records, contracts, banks and cards are unchanged.)
-    private const string ModernNoCatalog12Weeks = "A265634054CDD45A";
+    // (Re-pinned when the story arcs and owner voices began posting news. News.Count is the LAST thing the digest mixes. Measured at
+    // week 12 with the two hooks on and off: Modern news 942 vs 851 (+91), Origins 30 vs 25 (+5); events (3936, 5) and the card totals
+    // (26127, 26) are identical. The old pins plus those deltas are the new pins: ...D3FD + 91 = ...D458, ...66A5 + 5 = ...66AA.)
+    private const string ModernNoCatalog12Weeks = "A265634054CDD458";
     private const string OriginsNoCatalog12Weeks = "30D0D2E6C36F66AA";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.
