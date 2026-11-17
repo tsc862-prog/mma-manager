@@ -524,11 +524,12 @@ public static partial class OriginsMode
     /// <summary>
     /// ORIGINS TITLE SHOTS: every title fight at a reigning champion the AI houses fought (snapshotted the week before,
     /// <see cref="TitleShots"/>), by the challenger's rank in the house's division going in: top 3, top 5, unranked.
-    /// By era (the bracket and card years before the unified code, then after). Read-only reporting.
+    /// By era (the bracket and card years before the unified code, then after). Card-night title fights only: a bracket
+    /// night's card is empty until it runs, so its title fights are never snapshotted. Read-only reporting.
     /// </summary>
     private static void TitleShotReport(List<Outcome> ai)
     {
-        Console.WriteLine($"===== ORIGINS TITLE SHOTS ({ai.Count} seeds, AI runs; challenger's rank at booking) =====");
+        Console.WriteLine($"===== ORIGINS TITLE SHOTS ({ai.Count} seeds, AI runs; challenger's rank at booking; card-night title fights only, bracket finals are not counted) =====");
         foreach (var (label, lo, hi) in new[] { ("all years", 0, 9999), ("1993-2005", 0, 2005), ("2006-2009", 2006, 2009), ("2010+", 2010, 9999) })
         {
             var s = ai.SelectMany(o => o.Shots).Where(x => x.Year >= lo && x.Year <= hi).Select(x => x.Shot).ToList();

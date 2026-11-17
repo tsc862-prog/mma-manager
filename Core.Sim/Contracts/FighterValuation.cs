@@ -136,7 +136,13 @@ public sealed class FighterValuation
     /// <summary>The modern ask that maps onto the whole Origins ceiling (a champion's money).</summary>
     public const decimal OriginsFullAsk = 30_000m;
 
-    /// <summary>The most any live house in an Origins world can pay a man a fight (its purse cap).</summary>
+    /// <summary>
+    /// The most any live house in an Origins world can pay a man a fight (its purse cap). Every Origins ask is a share
+    /// of it, so it moves every man's price: an AI founder's cap follows its expected home crowd once it has run three
+    /// nights (<see cref="Negotiator.PurseCap"/>, <see cref="Living.OriginsShows.HomeRoom"/>), so when the founder with
+    /// the top cap draws thin crowds the ceiling falls and asks fall at every house. The player's house keeps its
+    /// hall-based cap, so a world where he runs the house with the top cap keeps the old ceiling.
+    /// </summary>
     public static decimal OriginsMarketCeiling(World world)
     {
         decimal best = 0m;

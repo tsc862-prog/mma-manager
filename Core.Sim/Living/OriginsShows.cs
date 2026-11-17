@@ -261,16 +261,18 @@ public static class OriginsShows
 
     /// <summary>
     /// The house's own room: its authored home venue when it has one (a founder), else the best fit in its home
-    /// town. An AI founder in an Origins world moves down to a smaller room in its own town once its last
-    /// <see cref="SeenNights"/> nights say that room leaves more of the gate for the crowd it actually draws
+    /// town. An AI founder in an Origins world moves down to a smaller room in its own town once it has run
+    /// <see cref="SeenNights"/> nights and those nights, read as a home crowd, say that room leaves more of the gate
     /// (<see cref="SettledRoom"/>); the player keeps his hall (he can name his town for a night, as he always could).
     /// </summary>
     public static Venue? HomeVenue(World world, Promotion promo) => HomeRoom(world, promo, out _);
 
     /// <summary>
-    /// <see cref="HomeVenue"/>, with the crowd an AI founder has seen at home (null for any other house, the player's,
-    /// or a founder with fewer than <see cref="SeenNights"/> nights): <see cref="Contracts.Negotiator.PurseCap"/> prices a
-    /// founder's men off it (one pass over the calendar for both).
+    /// <see cref="HomeVenue"/>, with the home crowd an AI founder expects from its last <see cref="SeenNights"/>
+    /// completed nights (null for any other house, the player's, or a founder with fewer nights): each night is read as
+    /// <see cref="Drew"/> reads it, the gate itself for a home night with seats left over, else the box-office model's
+    /// crowd for the home town (<see cref="Financials.DemandAt"/>). <see cref="Contracts.Negotiator.PurseCap"/> prices
+    /// the founder's men off it (one pass over the calendar for both).
     /// </summary>
     public static Venue? HomeRoom(World world, Promotion promo, out int? seenCrowd)
     {
@@ -283,13 +285,19 @@ public static class OriginsShows
         return promo.HomeCity is { } hc ? Geography.WorldMap.PickVenueIn(world, promo, hc) : Geography.WorldMap.PickVenue(world, promo);
     }
 
-    /// <summary>How many of a founder's nights it reads before it trusts the crowd it has seen.</summary>
+    /// <summary>
+    /// How many completed nights a founder must have run before it reads them as its home crowd: its last ones, wherever
+    /// they were (home, a night away, exile, a bracket). Until then it keeps its hall and its hall-based purse budget.
+    /// </summary>
     public const int SeenNights = 3;
 
     /// <summary>
     /// A founder's room, once it has a record (Origins): history built its hall (the Crucible's four-thousand-seat
-    /// pavilion), not its crowd. After <see cref="SeenNights"/> nights the house reads the crowd its last ones drew
-    /// at home (<see cref="Drew"/>, as <see cref="RoomIn"/> does) and takes the smaller room in its town
+    /// pavilion), not its crowd. Once it has run <see cref="SeenNights"/> nights, the house reads its last three
+    /// completed nights anywhere as a home crowd, as <see cref="RoomIn"/> reads a founded house's (<see cref="Drew"/>:
+    /// the gate itself for a night in its home town with seats left over; for a sell-out, or a night away or in exile,
+    /// the crowd the box-office model says the home town would have sent, <see cref="Financials.DemandAt"/>, so this is
+    /// partly the model's estimate, not only gates seen). It then takes the smaller room in its town
     /// that leaves the most of the gate once the walls and the production are paid, when one beats its hall; never a
     /// bigger one (a founder's hall is its ceiling: a house that outdraws it stays, as it always did). The Crucible in
     /// a bad decade drew 1,500-2,300 into 4,000 seats and paid 16,000 a night for the empty rows.
