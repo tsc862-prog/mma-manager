@@ -50,7 +50,8 @@ dotnet run --no-build -c Release -- origins 5 5
 #    WorldChecker invariants (Check/WorldChecker.cs) hold all run; the Origins health line; digest twice.
 #    Prints a per-seed summary and an ORIGINS OBSERVER block (founded count and dates, refusals by reason, tryout
 #    sizes, survival and end bank by era). Exit code 1 if any seed fails.
-dotnet run --no-build -c Release -- origins-observer 40 12
+#    TITLE-ORPHAN (a retired open-weight belt still in Promotion.Titles; a known finding) is counted but only fails with --strict.
+dotnet run --no-build -c Release -- origins-observer 40 12 [--strict]
 ```
 
 Long runs: pipe to a log (`> sim.log 2>&1`) — a 30-year world takes ~5–6 min,

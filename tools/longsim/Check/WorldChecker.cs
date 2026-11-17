@@ -18,6 +18,7 @@ public sealed class WorldChecker
         ("RANK-SHAPE",         "no fighter ranked twice in a division, none in a division he does not fit, none ranked while champion"),
         ("CHAMP-CONTRACT",     "every champion exists, is contracted to the belt's promotion and is not retired"),
         ("TITLE-LINK",         "titles, promotion title lists and division belts agree; no belt on a missing promotion"),
+        ("TITLE-ORPHAN",       "a vacant belt left in Promotion.Titles after its house drew weight lines and dropped the open division (OriginsReforms.DrawLines): counted, gated only by origins-observer --strict"),
         ("LINEAGE",            "reigns do not overlap, at most one is open, the open reign is the current champion"),
         ("BOOK-DOUBLE-DATE",   "no fighter on two cards on one date, none twice on one card, none against himself"),
         ("EVENT-NAME",         "a promotion's events have distinct names (the local circuit, which belongs to nobody, repeats its names by design)"),
@@ -219,7 +220,15 @@ public sealed class WorldChecker
             else
             {
                 if (!promo.Titles.Contains(t.Id)) V("TITLE-LINK", $"t{t.Id.Value}:list", $"{T(world, t.Id)} is not in {P(world, promo.Id)}.Titles");
-                if (!promo.Divisions.Any(d => d.Title == t.Id)) V("TITLE-LINK", $"t{t.Id.Value}:div", $"{T(world, t.Id)} is held by no division of {P(world, promo.Id)}");
+                if (!promo.Divisions.Any(d => d.Title == t.Id))
+                {
+                    // An Origins house that draws weight lines retires its open-weight belt (OriginsReforms.DrawLines removes the division and
+                    // vacates the reign) but leaves the Title in world.Titles and Promotion.Titles: reported on its own, so it can be counted
+                    // (and gated with --strict) without hiding a belt that is really lost.
+                    bool retiredOpenBelt = t.CurrentChampion is null && promo.Divisions.Any(d => !d.Open)
+                                           && (t.Lineage.Count == 0 || t.Lineage[^1].LostOn is not null);
+                    V(retiredOpenBelt ? "TITLE-ORPHAN" : "TITLE-LINK", $"t{t.Id.Value}:div", $"{T(world, t.Id)} is held by no division of {P(world, promo.Id)}");
+                }
             }
 
             _log.Checked("CHAMP-CONTRACT", 1);

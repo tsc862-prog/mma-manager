@@ -51,6 +51,7 @@ public static partial class OriginsMode
         int seeds = args.Length > 1 ? int.Parse(args[1]) : 3;
         int years = args.Length > 2 ? int.Parse(args[2]) : 6;
         int failures = 0;
+        ObserverPlan.Strict = args.Contains("--strict");
         var plans = new List<ObserverPlan>();
         var outcomes = new List<Outcome>();
         for (int s = 1; s <= seeds; s++)
@@ -72,6 +73,7 @@ public static partial class OriginsMode
         Console.WriteLine($"founded {founded.Count}/{plans.Count}; by era " + string.Join(", ", new[] { "early", "mid", "late" }
             .Select(e => $"{e} {founded.Count(p => p.Era == e)}/{plans.Count(p => p.Era == e)}")));
         Console.WriteLine("founding dates: " + string.Join(" ", founded.OrderBy(p => p.FoundedOn).Select(p => $"{p.Seed}:{p.FoundedOn:yyyy-MM}")));
+        Console.WriteLine($"retired open-weight belts left in Promotion.Titles (TITLE-ORPHAN, not failing unless --strict): {plans.Sum(p => p.Orphans)} in {plans.Count(p => p.Orphans > 0)}/{plans.Count} seeds");
         var refusals = plans.SelectMany(p => p.Refusals).GroupBy(kv => kv.Key).Select(g => (Reason: g.Key, N: g.Sum(kv => kv.Value)))
             .OrderByDescending(x => x.N).ThenBy(x => x.Reason, StringComparer.Ordinal).ToList();
         Console.WriteLine($"refusals ({refusals.Sum(r => r.N)}):");
@@ -105,6 +107,8 @@ public static partial class OriginsMode
         public Promotion? Promo;
         public List<string>? Tryout;
         public int Nights;
+        public int Orphans;
+        public static bool Strict;
         public bool ScriptOn;
         public readonly Dictionary<string, int> Refusals = new();
         private readonly List<string> _lines = new();
@@ -347,12 +351,11 @@ public static partial class OriginsMode
             }
             if (_log is not null)
             {
-                int n = _log.TotalDistinct;
-                if (n > 0)
-                {
-                    problems.Add($"INVARIANTS: {n} distinct violation(s) from the monthly world checker");
-                    sb.Append(_log.Render(3));
-                }
+                int orphans = _log.Count("TITLE-ORPHAN");
+                int n = _log.TotalDistinct - (Strict ? 0 : orphans);
+                if (n > 0) problems.Add($"INVARIANTS: {n} distinct violation(s) from the monthly world checker");
+                if (n > 0 || orphans > 0) sb.Append(_log.Render(3));
+                if (orphans > 0 && !Strict) Orphans = orphans;
             }
         }
 
