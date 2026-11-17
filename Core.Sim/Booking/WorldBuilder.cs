@@ -480,6 +480,7 @@ public sealed class WorldBuilder
                     house.FaceOfCompany = face.Id;
 
         Living.Prologue.Write(world, o.StartDate);
+        Living.Personas.StampAll(world);   // the looks go on after the past was fought (no catalog: nothing)
         return world;
     }
 
