@@ -158,11 +158,13 @@ public static class AiFrontOffice
 
     // Lock down the most valuable fighter who's a genuine flight risk — paid from
     // surplus, and only when the bonus is a modest slice of it.
-    private static void RetainAFlightRisk(World world, Promotion promo, List<Fighter> roster, decimal surplus)
+    internal static void RetainAFlightRisk(World world, Promotion promo, List<Fighter> roster, decimal surplus)
     {
         var target = roster
             .Where(f => f.Loyalty < 50)
-            .OrderByDescending(f => FighterAbility.CurrentAbility(f) + f.Intangibles.Popularity.Value)
+            // "Most valuable" by the house's own read of its man (no draw), never the truth; id as the last word.
+            .OrderByDescending(f => Scouting.ScoutingService.PerceivedAbility(world, promo, f) + f.Intangibles.Popularity.Value)
+            .ThenBy(f => f.Id.Value)
             .FirstOrDefault(f => RetentionService.CanPay(world, promo, f, out _)
                                  && RetentionService.Quote(world, f).Amount <= surplus * 0.35m);
         if (target is not null) RetentionService.TryPayBonus(world, promo, target, out _);
