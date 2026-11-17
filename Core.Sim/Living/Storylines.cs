@@ -822,15 +822,38 @@ public static class Storylines
                     rec.WinsByDecision = Math.Max(0, rec.WinsByDecision - 1); break;
             }
             rec.NoContests++;
-            rec.CurrentStreak = 0;   // the freshest line on the record now reads NC
+            rec.CurrentStreak = StreakAfter(world, winner, fight.Id);
             winner.Momentum = Math.Clamp(winner.Momentum - 15, -40, 40);
         }
         if (world.Get(loseId) is { } loser)
         {
             loser.Record.Losses = Math.Max(0, loser.Record.Losses - 1);
             loser.Record.NoContests++;
-            loser.Record.CurrentStreak = 0;
+            loser.Record.CurrentStreak = StreakAfter(world, loser, fight.Id);
         }
+    }
+
+    // The NC resets the run, so the streak is whatever he has done SINCE the
+    // overturned bout. Usually that is nothing (the bout is his latest: 0), but
+    // on a one-night bracket he has already fought the later rounds that night.
+    private static int StreakAfter(World world, Fighter f, FightId overturned)
+    {
+        int at = f.BoutHistory.LastIndexOf(overturned);
+        if (at < 0 || at == f.BoutHistory.Count - 1) return 0;   // his latest bout: the record now ends on the NC
+        var later = new HashSet<FightId>(f.BoutHistory.Skip(at + 1));
+        var fights = new Dictionary<FightId, Fight>();
+        foreach (var ev in world.Events.Values)
+            foreach (var x in ev.Card)
+                if (later.Contains(x.Id)) fights[x.Id] = x;
+        int streak = 0;
+        for (int i = at + 1; i < f.BoutHistory.Count; i++)
+        {
+            if (!fights.TryGetValue(f.BoutHistory[i], out var b) || b.Outcome is not { } o) continue;
+            if (o.Winner is null || b.OverturnedNc) streak = 0;
+            else if (o.Winner == f.Id) streak = streak >= 0 ? streak + 1 : 1;
+            else streak = streak <= 0 ? streak - 1 : -1;
+        }
+        return streak;
     }
 
     /// <summary>

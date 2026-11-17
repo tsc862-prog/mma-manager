@@ -239,9 +239,11 @@ public class BigMoneyTests
     public void AnOverturnedResult_ReadsNcForBoth_AndTheRecordsAgree()
     {
         var world = Build();
-        var ev = world.Events.Values.First(e => e.Status == EventStatus.Completed
-            && e.Card.Any(f => f.Outcome is { Winner: not null, Method: FightMethod.Knockout }));
-        var fight = ev.Card.First(f => f.Outcome is { Winner: not null, Method: FightMethod.Knockout });
+        // A KO that is the latest bout on the winner's record: the overturned result is then the freshest line
+        // (an overturn of an older bout leaves the streak his later bouts say: OriginsQaFindingsTests).
+        bool Latest(Fight f) => f.Outcome is { Winner: { } w, Method: FightMethod.Knockout } && world.Get(w)!.BoutHistory is { Count: > 0 } h && h[^1] == f.Id;
+        var ev = world.Events.Values.Where(e => e.Status == EventStatus.Completed && e.Card.Any(Latest)).OrderBy(e => e.Id.Value).First();
+        var fight = ev.Card.First(Latest);
         var winner = world.Get(fight.Outcome!.Winner!.Value)!;
         var loser = world.Get(fight.Outcome!.Loser!.Value)!;
         int wins = winner.Record.Wins, kos = winner.Record.WinsByKo, losses = loser.Record.Losses;
