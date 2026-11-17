@@ -1,0 +1,80 @@
+<UserControl x:Class="MmaManager.Wpf.Views.TryoutView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- OPEN TRYOUT: a house founded from ringside takes its first step here. What the house is, the one free
+         tryout (called on the player's word), the men it signed, then on to booking the first night.
+         DataContext = MainViewModel (the shell); the screen reads Tryout. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}"
+                  DataContext="{Binding Tryout}">
+        <StackPanel Margin="22,18">
+            <DockPanel>
+                <Border DockPanel.Dock="Left" Style="{StaticResource HeroLogo}">
+                    <Image Source="{Binding Logo}" Margin="8" RenderOptions.BitmapScalingMode="HighQuality" />
+                </Border>
+                <StackPanel>
+                    <TextBlock Text="{Binding Kicker}" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" />
+                    <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.Display}" FontSize="28" />
+                    <TextBlock Text="{Binding Welcome}" Style="{StaticResource Text.Body}" Foreground="{StaticResource TextPrimary}" Margin="0,4,0,0"
+                               Visibility="{Binding HasWelcome, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Secondary}" LineHeight="18" Margin="0,6,0,0" />
+                </StackPanel>
+            </DockPanel>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="340" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <!-- Before: the call -->
+                    <StackPanel Visibility="{Binding HasSigned, Converter={StaticResource InverseBoolToVis}}">
+                        <Button Content="Call the open tryout" Command="{Binding HoldCommand}" Style="{StaticResource Button.Primary}"
+                                HorizontalAlignment="Left" Padding="22,10" FontSize="15"
+                                Visibility="{Binding CanHold, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Free, and once only: local men who fit a division sign on minimum terms" />
+                        <TextBlock Text="{Binding Refusal}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneWarn}" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding SignedLine}" Style="{StaticResource Text.Note}" Margin="0,8,0,0" />
+                    </StackPanel>
+                    <!-- After: the men, and the next step -->
+                    <StackPanel Visibility="{Binding HasSigned, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding SignedLine}" Style="{StaticResource Text.Secondary}" Margin="0,0,0,10" />
+                        <ItemsControl ItemsSource="{Binding Signed}" ItemTemplate="{StaticResource TryoutManTemplate}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Book your first night ▸" Command="{Binding BookCommand}" Padding="16,8" FontSize="13.5" Margin="0,0,10,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Button.Soft}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSigned}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource Crimson}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource Crimson}" />
+                                            <Setter Property="Foreground" Value="White" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Later" Command="{Binding LaterCommand}" Style="{StaticResource Button.Ghost}" Padding="14,8" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- The house it is -->
+                <Border Grid.Column="2" Style="{StaticResource Panel}" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="{Binding HouseName}" Style="{StaticResource Text.Title}" />
+                        <TextBlock Text="THE HOUSE RULES" Style="{StaticResource Text.Kicker}" Margin="0,10,0,6" Visibility="{Binding HasRules, Converter={StaticResource BoolToVis}}" />
+                        <ItemsControl ItemsSource="{Binding Rules}" ItemTemplate="{StaticResource RuleLineTemplate}" Focusable="False" />
+                        <TextBlock Text="THE OWNER'S TARGETS" Style="{StaticResource Text.Kicker}" Margin="0,10,0,4" />
+                        <TextBlock Text="{Binding TargetsLine}" Style="{StaticResource Text.Secondary}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

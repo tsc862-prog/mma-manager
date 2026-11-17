@@ -113,7 +113,7 @@
             <RadioButton x:Name="OriginsMode" GroupName="Mode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged" Unchecked="OnModeChanged">
                 <StackPanel Margin="4,0,0,0">
                     <TextBlock Text="Origins: 1 January 1993" FontWeight="SemiBold" FontSize="14" />
-                    <TextBlock Text="The sport has no name yet. Three tiny promotions on three continents, no weight classes, no television deals, no rulebook anyone agrees on. Run one of them."
+                    <TextBlock Text="The sport has no name yet. Three tiny promotions on three continents, no weight classes, no television deals, no rulebook anyone agrees on. Run one of them, or watch from ringside and found your own."
                                Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap" />
                 </StackPanel>
             </RadioButton>
@@ -141,6 +141,67 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <!-- or no house at all: watch from ringside, found your own later -->
+                    <ToggleButton x:Name="RingsideTile" Margin="2,8,2,0" Checked="OnRingsideChanged" Unchecked="OnRingsideChanged" Cursor="Hand">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="b" Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                                        CornerRadius="{StaticResource Radius.Card}" Padding="12,9">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="20" Background="#211D14" BorderBrush="{StaticResource Gold}" BorderThickness="1" Margin="0,0,11,0">
+                                            <TextBlock Text="🔔" FontSize="17" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Or watch from ringside" FontWeight="SemiBold" FontSize="13.5" />
+                                            <TextBlock Text="No company yet: all three houses are someone else's. Found your own whenever you're ready."
+                                                       Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="b" Property="Background" Value="{StaticResource CardHover}" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                        <Setter TargetName="b" Property="Background" Value="#211D14" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+
+                    <!-- watching: what it means, and the three houses you would be watching -->
+                    <Grid x:Name="RingsideDetail" Margin="2,12,2,0" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Watch from ringside" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Gold}" />
+                            <TextBlock Foreground="{StaticResource TextSecondary}" FontSize="12.5" TextWrapping="Wrap" LineHeight="19" Margin="0,6,0,0"
+                                       Text="You start with no company. Take a seat on 1 January 1993 and watch the sport take shape: the three houses run their nights, the story turns its chapters, the first names get made. When you're ready, and there is no deadline, found your own promotion in any city with a scene and room for one. You open with a newcomer's bank, an empty roster and one free open tryout of local men." />
+                            <TextBlock Text="While you watch, you see what the public sees: nobody scouts for you yet, and there is no inbox until you have a house."
+                                       Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        </StackPanel>
+                        <ItemsControl Grid.Column="1" x:Name="RingsideFaces" Margin="18,2,0,0" VerticalAlignment="Top" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Width="96" Margin="6,0,0,0">
+                                        <Border Width="84" Height="84" CornerRadius="42" ClipToBounds="True" Background="{StaticResource SurfaceSunken}" HorizontalAlignment="Center">
+                                            <Image Source="{Binding FounderFace}" Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock Text="{Binding FounderName}" FontSize="11.5" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <TextBlock Text="{Binding Name}" FontSize="10.5" Foreground="{StaticResource TextMuted}" TextAlignment="Center" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
 
                     <!-- the chosen house: who, where, what they think this is, its rules, its bank -->
                     <Grid x:Name="HouseDetail" Margin="2,10,2,0">

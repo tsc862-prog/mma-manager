@@ -11,7 +11,8 @@
             <!-- Left: every card in the world -->
             <DockPanel Grid.Column="0" Margin="0,0,10,0">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                    <CheckBox DockPanel.Dock="Right" Content="My events only" IsChecked="{Binding MineOnly}" VerticalAlignment="Center" />
+                    <CheckBox DockPanel.Dock="Right" Content="My events only" IsChecked="{Binding MineOnly}" VerticalAlignment="Center"
+                              Visibility="{Binding HasHouse, Converter={StaticResource BoolToVis}}" />
                     <TextBlock Text="EVENTS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
                 </DockPanel>
                 <DataGrid ItemsSource="{Binding Events}" SelectedItem="{Binding Selected}" RowHeight="34">
