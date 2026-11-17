@@ -2292,12 +2292,17 @@ public partial class App : Application
         }
 
         // Watching from ringside (an Origins world with no house of the player's, seed 1993 unless --seed N):
-        // `MmaManager.Wpf --renderringside <ringside|found|founded|tryout> W H [--years N] [--months N] [--city NAME] [--name NAME] <path>`.
+        // `MmaManager.Wpf --renderringside <ringside|found|founded|tryout|recurring|recurringheld|founder|founderheld> W H [--years N] [--months N]
+        //   [--city NAME] [--name NAME] [--lines a,b] [--house N] [--keep N] [--open APP] [--max] <path>`.
         //   ringside  the Ringside app (after --years/--months of the spectator's clock: three-month skips, so the
         //             last stop's banner shows; every stop is printed);
         //   found     the Found Your Promotion window, a name typed and a city picked (--city, else the first open);
         //   founded   the desktop just after founding: the full set of apps back, the Open Tryout panel on top;
-        //   tryout    the same after the tryout was called (the men it signed).
+        //   tryout    the same after the tryout was called (the men it signed);
+        //   recurring the founded house played on (nobody else signed) until the sim offers the recurring tryout;
+        //   recurringheld  the same after it was called (its men, and when the next could come);
+        //   founder / founderheld  a founding house run from day one (--house N), thinned by --keep N releases until short.
+        //   [--lines a,b] toggles weight lines on the founding form; [--open APP] brings an app to the front last.
         if (e.Args.Contains("--renderringside"))
         {
             try
@@ -2349,7 +2354,35 @@ public partial class App : Application
                         f.Enclosure = f.EnclosureChoices.FirstOrDefault(c => string.Equals(c.Enclosure?.ToString(), Arg("--enclosure", ""), StringComparison.OrdinalIgnoreCase)) ?? f.Enclosure;
                     Console.WriteLine($"RINGSIDE founding: {f.Cities.Count(c => c.Open)} open of {f.Cities.Count} listed; city {f.SelectedCity?.Name}; abbreviation {f.Abbreviation}; "
                                       + $"rules picks: minutes {f.MinuteChoices.Count}, gloves {f.GloveChoices.Count}, enclosure {f.EnclosureChoices.Count}");
+                    // --lines a,b,...: toggle these weight lines (by class name) after the city's suggestion is in.
+                    if (e.Args.Contains("--lines"))
+                        foreach (var name in Arg("--lines", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+                            if (f.LineGroups.SelectMany(g => g.Lines).FirstOrDefault(l => string.Equals(l.Class.ToString(), name, StringComparison.OrdinalIgnoreCase)) is { } line)
+                                line.On = !line.On;
+                    Console.WriteLine($"RINGSIDE lines: picker {f.HasLinePicker}; " + string.Join(" | ", f.LineGroups.Select(g => g.Title + ": "
+                        + string.Join(", ", g.Lines.Select(l => $"{l.Class}{(l.On ? "+" : "-")}{(l.Locked ? " locked" : "")}{(l.Suggested ? " suggested" : "")}")))));
+                    Console.WriteLine($"RINGSIDE divisions: {f.Divisions}");
                     return f;
+                }
+
+                // Play week by week (his nights simmed as they come; nobody signed) until the sim offers a tryout, then open it.
+                static void RecurringUntilOffered(MainViewModel m, MmaManager.Core.Model.World w, int maxWeeks)
+                {
+                    for (int i = 0; i < maxWeeks && !MmaManager.Core.Sim.Living.PlayerFounding.TryoutOptions(w, w.CurrentDate).Available; i++)
+                        OriginsHarness.Play(m, 1, hold: false);
+                    var o = MmaManager.Core.Sim.Living.PlayerFounding.TryoutOptions(w, w.CurrentDate);
+                    Console.WriteLine($"RINGSIDE {w.CurrentDate:d MMM yyyy}: offer available {o.Available}, free {o.Free}, turnout {o.Turnout}, next {o.NextPossibleOn}; refusal '{o.Refusal}'; "
+                                      + $"apps [{string.Join(", ", m.Desktop.PromotionApps.Select(a => a.Id))}]");
+                    m.Briefing.Attach(w);
+                    Console.WriteLine($"RINGSIDE briefing waiting: {string.Join(" | ", m.Briefing.Waiting.Select(x => x.Text + " / " + x.Detail))}");
+                    m.Desktop.Open("tryout");
+                }
+                static void HoldRecurring(MainViewModel m, MmaManager.Core.Model.World w)
+                {
+                    m.Tryout.HoldCommand.Execute(null);
+                    var o = MmaManager.Core.Sim.Living.PlayerFounding.TryoutOptions(w, w.CurrentDate);
+                    Console.WriteLine($"RINGSIDE recurring tryout held: {m.Tryout.Signed.Count} signed; status: {m.StatusText}; next offer: available {o.Available}, next {o.NextPossibleOn}; "
+                                      + $"kicker '{m.Tryout.Kicker}', next line '{m.Tryout.NextLine}'");
                 }
 
                 if (state == "found")
@@ -2376,7 +2409,47 @@ public partial class App : Application
                             Console.WriteLine($"RINGSIDE tryout: {vm.Tryout.Signed.Count} signed; ledger $0 lines skipped; status: {vm.StatusText}");
                         }
                     }
+                    else if (state is "recurring" or "recurringheld")
+                    {
+                        // A house he founded, its free tryout held, then played week by week (nobody else signed) until the
+                        // sim offers the recurring tryout (short of men, half a year on); "recurringheld" then calls it.
+                        root.Measure(new Size(W, H)); root.Arrange(new Rect(new Size(W, H))); root.UpdateLayout();
+                        var f = Founding();
+                        f.FoundCommand.Execute(null);
+                        if (f.Founded is null) throw new InvalidOperationException("founding refused: " + f.Error);
+                        vm.AfterFounding(f.Founded);
+                        vm.Tryout.HoldCommand.Execute(null);
+                        vm.Tryout.LaterCommand?.Execute(null);
+                        Console.WriteLine($"RINGSIDE free tryout: {vm.Tryout.Signed.Count} signed on {w0.CurrentDate:d MMM yyyy}");
+                        RecurringUntilOffered(vm, w0, 60);
+                        if (state == "recurringheld") HoldRecurring(vm, w0);
+                    }
+                    else if (state is "founder" or "founderheld")
+                    {
+                        // A founding house of the sport run from day one (--house 0 Crucible | 1 | 2), its roster thinned by
+                        // releases (through the game's own release) until it is short of men: the recurring tryout only.
+                        int house = int.Parse(Arg("--house", "0"));
+                        vm.StartWorld(WorldBuilder.Options.Origins(1993, house), OriginsHarness.Summary(house));
+                        var w1 = vm.LiveWorld!;
+                        root.Measure(new Size(W, H)); root.Arrange(new Rect(new Size(W, H))); root.UpdateLayout();
+                        var promo = w1.Get(w1.PlayerPromotion)!;
+                        int keep = int.Parse(Arg("--keep", "3"));
+                        foreach (var man in w1.RosterOf(promo.Id).OrderByDescending(x => x.Id.Value).Skip(keep).ToList())
+                            MmaManager.Core.Sim.Contracts.ContractLifecycle.Release(w1, man, dentReputation: false);
+                        vm.Contracts.OnChanged?.Invoke();
+                        var offer = MmaManager.Core.Sim.Living.PlayerFounding.TryoutOptions(w1, w1.CurrentDate);
+                        Console.WriteLine($"RINGSIDE founder {promo.Abbreviation}: founded by player {MmaManager.Core.Sim.Living.PlayerFounding.FoundedByPlayer(promo)}; "
+                                          + $"{w1.RosterOf(promo.Id).Count()} on the roster; offer available {offer.Available}, free {offer.Free}, turnout {offer.Turnout}; "
+                                          + $"refusal '{offer.Refusal}'; apps [{string.Join(", ", vm.Desktop.PromotionApps.Select(a => a.Id))}]");
+                        if (offer.Free) throw new InvalidOperationException("a founding house was offered the free tryout");
+                        vm.Desktop.Open("tryout");
+                        if (state == "founderheld") HoldRecurring(vm, w1);
+                    }
                     else vm.Desktop.Open("ringside");
+                    // --open <app>: bring another app to the front last (the briefing's "also on your desk", say).
+                    if (e.Args.Contains("--open")) vm.Desktop.Open(Arg("--open", "home"));
+                    // --max: maximize that app's window (with a tall render it shows all of it).
+                    if (e.Args.Contains("--max") && vm.Desktop.Windows.FirstOrDefault(x => x.Spec.Id == Arg("--open", "tryout")) is { } front) front.IsMaximized = true;
                     // --skipping: the taskbar as it reads while a Next Chapter skip is running (progress, Stop, the rest disabled).
                     if (e.Args.Contains("--skipping"))
                     {

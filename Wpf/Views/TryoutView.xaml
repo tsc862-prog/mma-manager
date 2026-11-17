@@ -1,8 +1,9 @@
 <UserControl x:Class="MmaManager.Wpf.Views.TryoutView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- OPEN TRYOUT: a house founded from ringside takes its first step here. What the house is, the one free
-         tryout (called on the player's word), the men it signed, then on to booking the first night.
+    <!-- OPEN TRYOUT: a house founded from ringside takes its first step here (the one free tryout), and any house
+         of his that is short of men is offered the recurring one here (twice a year at most). What is on offer,
+         called on the player's word; the men THAT tryout signed; then on to booking a night.
          DataContext = MainViewModel (the shell); the screen reads Tryout. -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}"
                   DataContext="{Binding Tryout}">
@@ -30,11 +31,13 @@
                 <StackPanel>
                     <!-- Before: the call -->
                     <StackPanel Visibility="{Binding HasSigned, Converter={StaticResource InverseBoolToVis}}">
-                        <Button Content="Call the open tryout" Command="{Binding HoldCommand}" Style="{StaticResource Button.Primary}"
+                        <Button Content="{Binding HoldText}" Command="{Binding HoldCommand}" Style="{StaticResource Button.Primary}"
                                 HorizontalAlignment="Left" Padding="22,10" FontSize="15"
                                 Visibility="{Binding CanHold, Converter={StaticResource BoolToVis}}"
-                                ToolTip="Free, and once only: local men who fit a division sign on minimum terms" />
-                        <TextBlock Text="{Binding Refusal}" Style="{StaticResource Text.Note}" Foreground="{StaticResource ToneWarn}" Margin="0,8,0,0" />
+                                ToolTip="{Binding HoldTip}" />
+                        <Border Style="{StaticResource TryoutNote}" Visibility="{Binding HasRefusal, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding Refusal}" Style="{StaticResource Text.Secondary}" Foreground="{StaticResource ToneWarn}" />
+                        </Border>
                         <TextBlock Text="{Binding SignedLine}" Style="{StaticResource Text.Note}" Margin="0,8,0,0" />
                     </StackPanel>
                     <!-- After: the men, and the next step -->
@@ -46,8 +49,10 @@
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
                     </StackPanel>
+                    <TextBlock Text="{Binding NextLine}" Style="{StaticResource Text.Note}" Foreground="{StaticResource TextSoft}" Margin="0,10,0,0"
+                               Visibility="{Binding HasNextLine, Converter={StaticResource BoolToVis}}" />
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                        <Button Content="Book your first night ▸" Command="{Binding BookCommand}" Padding="16,8" FontSize="13.5" Margin="0,0,10,0">
+                        <Button Content="{Binding BookText}" Command="{Binding BookCommand}" Padding="16,8" FontSize="13.5" Margin="0,0,10,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.Soft}">
                                     <Style.Triggers>

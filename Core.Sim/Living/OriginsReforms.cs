@@ -465,7 +465,9 @@ public static class OriginsReforms
 
     /// <summary>
     /// Draw new weight lines at a house: the open division (if any) gives way, every line gets a division and
-    /// a vacant belt, the bands are re-cut, and champions left outside their band give their belts up.
+    /// a vacant belt, the bands are re-cut, and champions left outside their band give their belts up. Bouts already
+    /// on announced cards are fought as booked (the lines bind from the next night booked); only a belt that no longer
+    /// fits comes off its bout.
     /// </summary>
     internal static void DrawLines(World world, Promotion p, IReadOnlyList<WeightClass> add, DateOnly date, bool announce = true)
     {
@@ -564,31 +566,31 @@ public static class OriginsReforms
             }
         }
 
-        // Bouts already on the books that the new lines put across a division (or on a retired belt) come off
-        // the card; the house tops its cards up from the right divisions before the night.
-        // The bouts that stay are relabelled by their division and weigh in like any division's bout.
-        var pulled = new List<string>();
+        // Bouts already on the books on announced nights are fought as booked (grandfathered): the new lines bind from
+        // the next night the house books. Only a belt can't be kept where it no longer belongs: a bout for a belt that
+        // no division of the house carries now (the retired open-weight belt), or for a division's belt with a man the
+        // new lines put outside that division, goes on as a non-title bout, so no belt is ever won outside its division.
+        var unbelted = new List<string>();
         foreach (var ev in world.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Scheduled && e.Format == EventFormat.Card)
                      .OrderBy(e => e.Date).ThenBy(e => e.Id.Value))
         {
-            foreach (var f in ev.Card.ToList())
+            foreach (var f in ev.Card)
             {
+                if (!f.IsTitleFight && f.Title is null) continue;
                 var a = world.Get(f.RedCorner); var b = world.Get(f.BlueCorner);
-                var home = a is null || b is null ? null
-                    : lines.FirstOrDefault(d => d.Matches(a) && d.Matches(b) && (f.Title is null || d.Title == f.Title));
-                if (home is null)
-                {
-                    ev.Card.Remove(f);
-                    pulled.Add($"{a?.FullName ?? "?"} vs {b?.FullName ?? "?"} ({ev.Name})");
-                    continue;
-                }
-                f.WeightClass = home.WeightClass;
-                f.OpenWeight = false;
+                // (The lookup covers the men's lines only: a women's title bout would lose its belt here. Origins has no
+                // women's divisions today; give them their own lookup when it does.)
+                var division = f.Title is { } belt ? lines.FirstOrDefault(d => d.Title == belt) : null;
+                if (division is not null && a is not null && b is not null && division.Matches(a) && division.Matches(b)) continue;
+                unbelted.Add($"{a?.FullName ?? "?"} vs {b?.FullName ?? "?"} ({ev.Name})");
+                f.IsTitleFight = false;
+                f.Title = null;
             }
         }
-        if (pulled.Count > 0 && p.Id == world.PlayerPromotion)
-            Mail.Post(world, date, MailCategory.General, "Matchmaking", "The new weight lines took bouts off our cards",
-                $"These bouts now cross a weight line and are off: {string.Join("; ", pulled)}. Rebook the men inside their new divisions.");
+        if (unbelted.Count > 0 && p.Id == world.PlayerPromotion)
+            Mail.Post(world, date, MailCategory.General, "Matchmaking", "The new weight lines and the bouts on our cards",
+                "Every bout already on our cards goes ahead as booked; the new lines bind from the next night we book. "
+                + $"These were for a belt the split has retired or moved, so they go ahead without it: {string.Join("; ", unbelted)}.");
 
         RankingService.RecomputePromotion(world, p, date);
         foreach (var id in enterAtTop)

@@ -161,6 +161,8 @@ public sealed class BriefingViewModel : ObservableObject
     public Action<int>? OpenFighter { get; set; }
     public Action<int>? OpenEvent { get; set; }
     public Action? Close { get; set; }
+    /// <summary>Opens the Open Tryout app (when one is on offer).</summary>
+    public Action? OpenTryout { get; set; }
     public ICommand? NegotiateCommand { get; set; }
     /// <summary>Stop courting a free agent a rival has made an offer to (parameter = fighter id; asks first).</summary>
     public ICommand? LetCourtedGoCommand { get; set; }
@@ -1283,6 +1285,18 @@ public sealed class BriefingViewModel : ObservableObject
                     break;
             }
         }
+        // An open tryout on offer (Origins): the sim's offer, free or recurring, until he calls it or it lapses.
+        if (w.Mode == WorldMode.Origins && w.HasPlayer && PlayerFounding.TryoutOptions(w, today) is { Available: true } tryout)
+            Waiting.Add(new BriefingItem
+            {
+                Icon = "People",
+                Text = tryout.Free ? "Your free open tryout is waiting" : "Short of men: an open tryout is on offer",
+                Detail = tryout.Free
+                    ? $"About {tryout.Turnout} local men, signed on minimum terms"
+                    : tryout.Turnout > 0 ? $"Up to {tryout.Turnout} local men would sign  ·  twice a year at most" : "Twice a year at most",
+                Tone = tryout.Free ? CardTone.Good : CardTone.Warn,
+                ActionText = "Open tryout ▸", Command = Do(() => OpenTryout?.Invoke()),
+            });
         int unread = w.Mail.Count(m => !m.Read);
         if (unread > 0)
         {
