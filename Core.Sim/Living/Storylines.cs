@@ -522,7 +522,8 @@ public static class Storylines
             // Who do they want? The belt, the man who beat them, or the name
             // one rung up the ladder — in that order of ambition.
             var champId = div?.Title is { } tid ? world.Get(tid)?.CurrentChampion : null;
-            FighterId? lastBeatMe = LastConqueror(world, w, lastLosses ??= LastLosses(world));
+            FighterId? lastBeatMe;
+            using (TickProbe.Phase("callout/last-losses")) lastBeatMe = LastConqueror(world, w, lastLosses ??= LastLosses(world));
             FighterId? rungAbove = null;
             if (div is not null)
             {
@@ -543,6 +544,7 @@ public static class Storylines
                 : null;
             if (pick is not { } callout) continue;
 
+            using var sayPhase = TickProbe.Phase("callout/say-and-post");
             News.Post(world, date, NewsCategory.Callout, callout.Line,
                 (finish ? "The statement finish came with a statement. " : "The mic work was sharper than the fight. ")
                 + Flavor.Quotes.Say(world, w, finish ? Flavor.Moment.WinFinish : Flavor.Moment.WinDecision, date,

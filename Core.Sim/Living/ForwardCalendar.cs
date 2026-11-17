@@ -315,7 +315,9 @@ public static class ForwardCalendar
         Matchup? main = null, co = null;
         var off = new List<(DesignedBooking Row, string Why)>();
         var taken = new HashSet<FighterId>(committed);
+        var rowsPhase = TickProbe.Phase("card/booked-rows");
         var rows = BookedNights(world, promo).Where(n => n.Night == when).SelectMany(n => n.Rows).ToList();
+        rowsPhase.Dispose();
         foreach (var row in rows)
         {
             if (row.Order == 0 ? main is not null : co is not null) continue;
@@ -324,7 +326,7 @@ public static class ForwardCalendar
             if (row.Order == 0) main = bout; else co = bout;
             taken.Add(bout.Red); taken.Add(bout.Blue);
         }
-        if (main is null && FeudHeadliner(world, promo, when, taken, today, lastMet) is { } feud) main = feud;
+        using (TickProbe.Phase("card/feud")) if (main is null && FeudHeadliner(world, promo, when, taken, today, lastMet) is { } feud) main = feud;
         if (main is null && co is not null) main = matchmaker.BestBout(world, promo, when, taken, titleLength: true);
         if (main is { } chosenMain) { taken.Add(chosenMain.Red); taken.Add(chosenMain.Blue); }
 
@@ -351,7 +353,7 @@ public static class ForwardCalendar
         }
         else
         {
-            ev = events.CreateEvent(world, promo.Id, $"{promo.Abbreviation} Fight Night {number}", when, top,
+            using (TickProbe.Phase("card/create")) ev = events.CreateEvent(world, promo.Id, $"{promo.Abbreviation} Fight Night {number}", when, top,
                 Geography.WorldMap.PickTourStop(world, promo, when));
         }
 
@@ -363,6 +365,7 @@ public static class ForwardCalendar
             News.Post(world, today, NewsCategory.Withdrawal, OffHeadline(promo, ev, row), $"{why}. {promo.Abbreviation} goes ahead on {ev.Date:d MMMM} with another bout in its place.",
                 promo.Id, FindDesigned(world, row.Red)?.Id, ev.Id);
 
+        using var newsPhase = TickProbe.Phase("card/news");
         var mainRow = AuthoredBookingOn(world, ev);
         if (MeritsHeadline(world, ev, mainRow is not null))
         {

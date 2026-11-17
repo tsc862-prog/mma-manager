@@ -73,14 +73,17 @@ public static class TickProfile
         double Ms(Probe p, string k) => p.Ticks.GetValueOrDefault(k) * 1000.0 / Stopwatch.Frequency / 52;
 
         Console.WriteLine();
-        Console.WriteLine($"{"phase (ms/week)",-34}" + string.Join("", cols.Select(c => $"{"y" + c,9}")) + $"{"growth",9}");
+        Console.WriteLine($"{"phase (ms/week)",-34}" + string.Join("", cols.Select(c => $"{"y" + c,9}")) + $"{"growth",9}{"calls/wk",10}{"us/call",9}");
         var names = perYear.SelectMany(r => r.Probe.Ticks.Keys).Distinct()
             .OrderByDescending(k => Ms(perYear[^1].Probe, k)).ThenBy(k => k, StringComparer.Ordinal).ToList();
         foreach (var k in names)
         {
             var vals = cols.Select(c => Ms(perYear[c - 1].Probe, k)).ToList();
             string growth = vals[0] > 0.05 ? $"{vals[^1] / vals[0],8:0.0}x" : "        -";
-            Console.WriteLine($"{k,-34}" + string.Join("", vals.Select(v => $"{v,9:0.00}")) + growth);
+            var last = perYear[cols[^1] - 1].Probe;
+            double calls = last.Calls.GetValueOrDefault(k) / 52.0;
+            string per = calls > 0 ? $"{vals[^1] * 1000 / calls,9:0}" : "        -";
+            Console.WriteLine($"{k,-34}" + string.Join("", vals.Select(v => $"{v,9:0.00}")) + growth + $"{calls,10:0.0}" + per);
         }
         var tot = cols.Select(c => perYear[c - 1].TotalMs / 52).ToList();
         Console.WriteLine($"{"TOTAL AdvanceWeek",-34}" + string.Join("", tot.Select(v => $"{v,9:0.00}")) + $"{tot[^1] / tot[0],8:0.0}x");
