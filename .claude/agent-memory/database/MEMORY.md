@@ -3,3 +3,4 @@
 - [Narratives pass canon](narratives-pass-canon.md) — 2026-11 story webs across bios/owners/staff/Origins; text-only vs world-changing; claim-regex rules
 - [Bond voices canon](bond-voices-canon.md) — tie-aware quotes + Biographer.People: tie order, shares, era rules, gaps
 - [Unique names canon](unique-names-canon.md) — full-name uniqueness: scope, ladder, reserved sets, staff residual (PR #70)
+- [Arcs and agendas canon](arcs-and-agendas-canon.md) — 31 arcs (accolade = fired record), 25 owner agendas + weekly voices; rules, hooks, what needs a save break

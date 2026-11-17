@@ -334,7 +334,8 @@ public sealed class FighterRow
 
     /// <summary>Career honours, newest first, for the profile page ("" = none).</summary>
     public string AccoladesText => string.Join("\n",
-        _f.Accolades.OrderByDescending(a => a.Date).Select(a => $"🏆 {a.Title}"));
+        _f.Accolades.Where(a => !MmaManager.Core.Sim.Flavor.Arcs.IsSagaMark(a.Title))   // (story-beat marks are bookkeeping, not honours)
+            .OrderByDescending(a => a.Date).Select(a => $"🏆 {a.Title}"));
 
     public string StatusLine => $"{Status}   ·   Morale {Morale}   ·   Momentum {Momentum}"
         + $"   ·   {MmaManager.Core.Sim.Generation.Personality.Label(_f.Disposition)}"
@@ -453,7 +454,7 @@ public sealed class FighterRow
                     }));
             }
 
-        foreach (var a in _f.Accolades)
+        foreach (var a in _f.Accolades.Where(a => !MmaManager.Core.Sim.Flavor.Arcs.IsSagaMark(a.Title)))   // (story-beat marks are bookkeeping, not honours)
             rows.Add((a.Date, false, new AchievementRow
             {
                 Glyph = a.Title.Contains("Fighter of the Year") ? "🏅"

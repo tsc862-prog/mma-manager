@@ -153,6 +153,10 @@ public sealed class WorldTick
         // week warned, the run-out ones closed onto the open market (no RNG).
         DealWindow.RunWeekly(world, after);
 
+        // The authored stories, told as the world earns them: text only (news and one accolade), no draws, nothing a
+        // system decides on reads them. Before the digest so the week's paper has them. (The owners speak at the tick's end.)
+        Flavor.Arcs.RunWeekly(world, after);
+
         // The week's paper: one digest mail with the stories, the calendar,
         // and a prospect worth circling.
         Digest.Weekly(world, after);
@@ -289,6 +293,10 @@ public sealed class WorldTick
         // The week has moved the world: a rival offer's Desk call shows today's match
         // price (his last fight fought, his record, his people) — the number Match signs.
         OfferMarket.RefreshDesk(world);
+
+        // The owners' words come LAST: the month's retirements, expiries, poachings and free-agent signings, and the
+        // Origins timeline, post their news dated tonight, and the next pass's window starts after tonight.
+        Flavor.OwnerVoices.RunWeekly(world, after);
 
         return report;
     }
