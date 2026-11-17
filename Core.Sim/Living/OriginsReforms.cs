@@ -342,7 +342,57 @@ public static class OriginsReforms
         p.Rules.RoundMinutes = 5;
     }
 
-    /// <summary>The month's AI reforms: each AI house weighs its open reforms on a keyed roll (one reform a month at most).</summary>
+    /// <summary>
+    /// How much of a house's purse cap staffs one weight division: a house at the floor purse
+    /// (<see cref="Contracts.Negotiator.OriginsPurseFloor"/>, 500) runs two (heavy and light), every 250 more buys
+    /// one more, and a house paying 2,000 a purse runs the whole ladder. (longsim origins 40 20: the founders and
+    /// the authored giants budget 2,000-4,000 a purse; the small halls of the Boom that ran out of men, 500-1,250,
+    /// had opened all seven or eight lines at once, a signing target of 42-48 men for a 900-seat hall.)
+    /// </summary>
+    public const decimal PurseCapPerDivision = 250m;
+
+    /// <summary>
+    /// The men's weight divisions an AI house can staff (Origins): its purse cap over
+    /// <see cref="PurseCapPerDivision"/>, at least the first split's two, at most the whole ladder. A small house
+    /// runs a few wide divisions, not eight thin ones. (A rule for the AI's own choices: the player's house may
+    /// draw every line the sport has.)
+    /// </summary>
+    public static int DivisionsItCanStaff(World world, Promotion p)
+    {
+        int ladder = Ladder.Sum(ch => LinesOf(ch).Count);
+        return Math.Clamp((int)(Contracts.Negotiator.PurseCap(world, p) / PurseCapPerDivision), LinesOf(Ladder[0]).Count, ladder);
+    }
+
+    /// <summary>
+    /// Of <paramref name="drawn"/> (lines the sport has drawn), the ones this house can staff: whole ladder chapters
+    /// in the sport's order, while the count stays within <see cref="DivisionsItCanStaff"/> (the first split always).
+    /// </summary>
+    internal static List<WeightClass> LinesItCanStaff(World world, Promotion p, IReadOnlyList<WeightClass> drawn)
+    {
+        int room = DivisionsItCanStaff(world, p);
+        var keep = new List<WeightClass>();
+        foreach (var chapter in Ladder)
+        {
+            var add = LinesOf(chapter).Where(drawn.Contains).ToList();
+            if (add.Count == 0 || (keep.Count > 0 && keep.Count + add.Count > room)) break;
+            keep.AddRange(add);
+        }
+        return keep;
+    }
+
+    /// <summary>Would drawing this weight chapter's lines take the AI house past what it can staff? (Never the first split.)</summary>
+    private static bool BeyondItsStaff(World world, Promotion p, string chapter)
+    {
+        if (!Ladder.Contains(chapter)) return false;
+        int have = p.Divisions.Count(d => !d.Open && d.Sex == Sex.Male);
+        int add = LinesOf(chapter).Count(wc => !p.Divisions.Any(d => !d.Open && d.Sex == Sex.Male && d.WeightClass == wc));
+        return have > 0 && have + add > DivisionsItCanStaff(world, p);
+    }
+
+    /// <summary>
+    /// The month's AI reforms: each AI house weighs its open reforms on a keyed roll (one reform a month at most).
+    /// A weight line waits until the house can staff it (<see cref="DivisionsItCanStaff"/>); the first split never waits.
+    /// </summary>
     public static void RunMonthly(World world, DateOnly date)
     {
         int month = OriginsTimeline.Month(world, date);
@@ -352,6 +402,7 @@ public static class OriginsReforms
         {
             foreach (var option in Options(world, p, date))
             {
+                if (BeyondItsStaff(world, p, option.Chapter)) continue;   // (keyed rolls: passing one moves no other)
                 if (OriginsTimeline.Roll(world, AdoptSalt, (ulong)p.Id.Value, (ulong)month, OriginsTimeline.KeyHash(option.Chapter)) >= Chance(world, p, option.Chapter, date))
                     continue;
                 Adopt(world, p, option.Chapter, date);

@@ -149,7 +149,7 @@ public static class OriginsFounding
 
         // Known at home, a little around its country; the lines the sport has drawn, or one open division.
         SeedPopularity(world, promo, city, prestige);
-        OpenDivisions(world, promo, prestige, date);
+        OpenDivisions(world, promo, prestige, date, sizedToHouse: true);
 
         // --- its men ---------------------------------------------------------------------
         int signed = SignFoundingRoster(world, promo, country.Code, date, rng);
@@ -237,10 +237,17 @@ public static class OriginsFounding
         Enum.GetValues<WeightClass>()
             .Where(wc => wc != WeightClass.Strawweight && world.Era.IsUnlocked(Capability.Class(wc))).ToList();
 
-    /// <summary>A new house's divisions: the lines the sport has drawn, each with a vacant belt, else one open division with a vacant belt.</summary>
-    internal static void OpenDivisions(World world, Promotion promo, int prestige, DateOnly date)
+    /// <summary>
+    /// A new house's divisions: the lines the sport has drawn, each with a vacant belt, else one open division with a
+    /// vacant belt. <paramref name="sizedToHouse"/> (an AI house): only as many of the lines as its purse can staff
+    /// (<see cref="OriginsReforms.DivisionsItCanStaff"/>), whole ladder chapters in the order the sport drew them
+    /// (heavy and light first); the rest it draws later, when its gate grows (<see cref="OriginsReforms.RunMonthly"/>).
+    /// The player's house is offered every line the sport has drawn: his to run as he likes.
+    /// </summary>
+    internal static void OpenDivisions(World world, Promotion promo, int prestige, DateOnly date, bool sizedToHouse = false)
     {
         var lines = DrawnLines(world);
+        if (sizedToHouse && lines.Count > 0) lines = OriginsReforms.LinesItCanStaff(world, promo, lines);
         if (lines.Count > 0) OriginsReforms.DrawLines(world, promo, lines, date, announce: false);
         else
         {
