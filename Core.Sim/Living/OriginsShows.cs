@@ -259,16 +259,66 @@ public static class OriginsShows
         return home is not null && !Era.Banned(world, home.City, date) ? home : ExileVenue(world, promo, date);
     }
 
-    /// <summary>The house's own room (its authored home venue when it has one, else the best fit in its home town).</summary>
-    public static Venue? HomeVenue(World world, Promotion promo)
+    /// <summary>
+    /// The house's own room: its authored home venue when it has one (a founder), else the best fit in its home
+    /// town. An AI founder in an Origins world moves down to a smaller room in its own town once its last
+    /// <see cref="SeenNights"/> nights say that room leaves more of the gate for the crowd it actually draws
+    /// (<see cref="SettledRoom"/>); the player keeps his hall (he can name his town for a night, as he always could).
+    /// </summary>
+    public static Venue? HomeVenue(World world, Promotion promo) => HomeRoom(world, promo, out _);
+
+    /// <summary>
+    /// <see cref="HomeVenue"/>, with the crowd a founder has seen at home (null for any other house, or a founder
+    /// with fewer than <see cref="SeenNights"/> nights): <see cref="Contracts.Negotiator.PurseCap"/> prices a
+    /// founder's men off it (one pass over the calendar for both).
+    /// </summary>
+    public static Venue? HomeRoom(World world, Promotion promo, out int? seenCrowd)
     {
+        seenCrowd = null;
         var spec = Generation.Origins.OriginsPromotions.All.FirstOrDefault(s => s.Abbreviation == promo.Abbreviation);
         if (spec is not null && world.Venues.Values.Where(v => v.Name == spec.HomeVenue && v.City == promo.HomeCity)
                 .OrderBy(v => v.Id.Value).FirstOrDefault() is { } authored)
-            return authored;
+            return world.Mode == WorldMode.Origins ? SettledRoom(world, promo, authored, out seenCrowd) : authored;
         if (world.Mode == WorldMode.Origins && promo.HomeCity is { } home) return RoomIn(world, promo, home);
         return promo.HomeCity is { } hc ? Geography.WorldMap.PickVenueIn(world, promo, hc) : Geography.WorldMap.PickVenue(world, promo);
     }
+
+    /// <summary>How many of a founder's nights it reads before it trusts the crowd it has seen.</summary>
+    public const int SeenNights = 3;
+
+    /// <summary>
+    /// A founder's room, once it has a record (Origins): history built its hall (the Crucible's four-thousand-seat
+    /// pavilion), not its crowd. After <see cref="SeenNights"/> nights the house reads the crowd its last ones drew
+    /// at home (<see cref="Drew"/>, as <see cref="RoomIn"/> does) and, an AI house, takes the smaller room in its town
+    /// that leaves the most of the gate once the walls and the production are paid, when one beats its hall; never a
+    /// bigger one (a founder's hall is its ceiling: a house that outdraws it stays, as it always did). The Crucible in
+    /// a bad decade drew 1,500-2,300 into 4,000 seats and paid 16,000 a night for the empty rows.
+    /// </summary>
+    private static Venue SettledRoom(World world, Promotion promo, Venue authored, out int? seenCrowd)
+    {
+        seenCrowd = null;
+        var recent = LastNights(world, promo.Id, SeenNights);
+        if (recent.Count < SeenNights) return authored;
+        var rooms = world.Venues.Values.Where(v => v.City == authored.City).OrderBy(v => v.Id.Value).ToList();
+        int expected = (int)recent.Average(e => Drew(world, e, authored.City, rooms[0]));
+        seenCrowd = expected;
+        if (promo.Id == world.PlayerPromotion) return authored;
+        decimal seat = SeatPrice(world, promo);
+        decimal Left(Venue v)
+        {
+            int crowd = Math.Min(v.Capacity, expected);
+            return crowd * seat - Financials.OriginsProduction(crowd) - Financials.RentOf(world, v).Amount;
+        }
+        decimal hall = Left(authored);
+        var smaller = rooms.Where(v => v.Capacity < authored.Capacity && Left(v) > hall)
+            .OrderByDescending(Left).ThenByDescending(v => v.Capacity).ThenBy(v => v.Id.Value).FirstOrDefault();
+        return smaller ?? authored;
+    }
+
+    /// <summary>What a seat at this house's night sells for (a bracket's premium included).</summary>
+    private static decimal SeatPrice(World world, Promotion promo) =>
+        Financials.TicketPrice(world, promo.Prestige.Value)
+        * (promo.Rules.ShowFormat == ShowFormat.OneNightTournament ? Financials.OriginsBracketTicketPremium : 1m);
 
     /// <summary>
     /// The room an Origins house takes in a city: the one that leaves the most of the night's gate once the
@@ -286,8 +336,7 @@ public static class OriginsShows
         int expected = recent.Count == 0
             ? 600 + 100 * promo.Prestige.Value
             : (int)recent.Average(e => Drew(world, e, city, rooms[0]));
-        decimal seat = Financials.TicketPrice(world, promo.Prestige.Value)
-                       * (promo.Rules.ShowFormat == ShowFormat.OneNightTournament ? Financials.OriginsBracketTicketPremium : 1m);
+        decimal seat = SeatPrice(world, promo);
         decimal Left(Venue v)
         {
             int crowd = Math.Min(v.Capacity, expected);

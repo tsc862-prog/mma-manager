@@ -291,8 +291,13 @@ public sealed class Negotiator
         // its own night. Today's mode never takes this branch.
         if (world.Mode == WorldMode.Origins)
         {
-            var room = Living.OriginsShows.HomeVenue(world, promo);
+            // A founder prices its men off the crowd it has drawn at home once it has a record (OriginsShows.HomeRoom):
+            // its hall was history's choice, not its crowd's, and a Crucible drawing 1,600 into 4,000 seats budgeted
+            // purses for a full house and slid 60-80k a year (longsim origins 40 20). A founded house's room already
+            // follows its crowd (RoomIn), so its capacity bounds it.
+            var room = Living.OriginsShows.HomeRoom(world, promo, out int? seen);
             decimal seats = Math.Min(attendance * (decimal)Booking.Financials.OriginsCrowdFactor, room?.Capacity ?? attendance);
+            if (seen is { } crowd) seats = Math.Min(seats, crowd);
             decimal take = seats * Booking.Financials.TicketPrice(world, prestige)
                          - Booking.Financials.OriginsProduction(seats) - SeatsRent(world, room, seats);
             return Math.Max(OriginsPurseFloor, Math.Round(take * 0.9m / 14m / 250m) * 250m);

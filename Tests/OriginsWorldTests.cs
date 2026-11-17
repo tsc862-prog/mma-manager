@@ -223,7 +223,11 @@ public class OriginsWorldTests : IClassFixture<OriginsYearFixture>
                 // No judges: nothing goes to the cards.
                 if (!p.Rules.Fight!.Judges)
                     Assert.DoesNotContain(ev.Card, f => f.Outcome!.Method is FightMethod.UnanimousDecision or FightMethod.SplitDecision or FightMethod.MajorityDecision);
-                Assert.Equal(OriginsShows.HomeVenue(w, p)!.Id, ev.VenueId);
+                // At home: the founder's hall, or (once its crowd has been seen) a smaller room in its own town.
+                var room = w.Get(ev.VenueId!.Value)!;
+                var hall = w.Venues.Values.Single(v => v.City == p.HomeCity && v.Name == OriginsPromotions.All.Single(s => s.Abbreviation == p.Abbreviation).HomeVenue);
+                Assert.Equal(p.HomeCity, room.City);
+                Assert.True(room.Capacity <= hall.Capacity, $"{ev.Name} in {room.Name} ({room.Capacity}), bigger than {hall.Name}");
             }
         }
         // The garage never sets two men of one gym against each other.
