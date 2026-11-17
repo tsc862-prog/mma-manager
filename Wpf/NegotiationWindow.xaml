@@ -245,11 +245,14 @@
                                     <TextBlock Style="{StaticResource Slip.Note}"><Run Text="wants " /><Run Text="{Binding HisPurse, Mode=OneWay}" /></TextBlock>
                                 </DockPanel>
 
+                                <!-- (A house that pays no win bonus, an Origins bracket house, has no such lever.) -->
+                                <StackPanel Visibility="{Binding PaysWinBonus, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="WIN BONUS" Style="{StaticResource Slip.Label}" />
                                 <DockPanel>
                                     <TextBlock Text="$" Style="{StaticResource Slip.Value}" VerticalAlignment="Center" Margin="0,0,4,0" Width="9" /><TextBox Width="110" Style="{StaticResource Slip.Field}" Text="{Binding OfferWinBonus, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" />
                                     <TextBlock Style="{StaticResource Slip.Note}"><Run Text="wants " /><Run Text="{Binding HisWinBonus, Mode=OneWay}" /></TextBlock>
                                 </DockPanel>
+                                </StackPanel>
 
                                 <TextBlock Text="SIGNING BONUS" Style="{StaticResource Slip.Label}" />
                                 <DockPanel>

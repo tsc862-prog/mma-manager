@@ -57,9 +57,25 @@ public sealed class WorldRankingsViewModel : ObservableObject
     public string NoDivisionsLine => "Every man in the sport fights at open weight, so the pound-for-pound list is the only ranking there is. "
         + "When the sport splits into weight classes, their rankings appear here.";
 
+    /// <summary>
+    /// The sport recognises rankings across promotions (<see cref="Core.Sim.Living.OriginsReforms.RankingsRecognised"/>):
+    /// always today; in Origins only once the commissions agree one code. Before then nobody publishes a list.
+    /// </summary>
+    public bool Recognised { get; private set; } = true;
+    public bool NotRecognised => !Recognised;
+    public string NotRecognisedLine =>
+        "Every promotion ranks its own fighters, and no list across them means anything yet: each house fights under its own rules, "
+        + "so a win in one ring proves little in another.";
+    public string NotRecognisedNext =>
+        "When the athletic commissions agree one code of rules for the sport, the world rankings and pound-for-pound list are published here. "
+        + "Until then, your own house's rankings are in the Rankings app.";
+
     public void Attach(World world)
     {
         _world = world;
+        Recognised = Core.Sim.Living.OriginsReforms.RankingsRecognised(world);
+        OnPropertyChanged(nameof(Recognised));
+        OnPropertyChanged(nameof(NotRecognised));
         // Only the classes the sport has split out (every one, today).
         var classes = Enum.GetValues<WeightClass>().Where(w => FighterRow.ClassExists(w, Sex.Male)).ToList();
         if (!classes.SequenceEqual(Divisions))
