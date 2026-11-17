@@ -205,6 +205,7 @@ public static class OriginsTalent
         gen.AssignHometown(world, f, countryCode);
         if (names is null) gen.EnsureUniqueName(world, f); else gen.EnsureUniqueName(world, f, names);
         world.Fighters[id] = f;
+        Personas.Stamp(world, f);   // his portrait's look (no catalog: nothing)
         return f;
     }
 

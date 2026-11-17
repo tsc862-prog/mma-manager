@@ -103,6 +103,7 @@ public static class WorldEvents
             Age: 29, Overall: c.Overall, Wins: 0, Losses: 0, Popularity: pop, Country: c.Country));
         f.Momentum = 0;
         f.Accolades.Add(new Accolade(date, $"MMA crossover — {c.Backstory}"));
+        Personas.Stamp(world, f);   // his portrait's look (no catalog: nothing)
 
         // A marquee outsider debuts on the biggest AI stage that will have them —
         // never the player's org (the player signs their own talent).

@@ -96,6 +96,7 @@ public static class FoundingClass
                 f.Accolades.Add(new Accolade(date, $"Founding class — tried out for {promo.Name}"));
                 world.Fighters[f.Id] = f;
                 gen.EnsureUniqueName(world, f, names);
+                Personas.Stamp(world, f);   // his portrait's look, AFTER the name is settled (no catalog: nothing)
                 Camps.JoinLocalCamp(world, f, rng);
                 made.Add(f);
             }

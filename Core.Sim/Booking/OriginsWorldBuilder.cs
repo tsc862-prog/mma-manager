@@ -43,7 +43,7 @@ public static class OriginsWorldBuilder
     /// <summary>The house's nights and its bracket purse, by abbreviation (authored rule sets say the size).</summary>
     private static readonly Dictionary<string, (ShowFormat Format, decimal Prize)> Formats = new(StringComparer.Ordinal)
     {
-        ["CRU"] = (ShowFormat.OneNightTournament, 30_000m),   // the winner's cheque is the whole pitch (a 1993 gate can pay this much)
+        ["CRU"] = (ShowFormat.OneNightTournament, 20_000m),   // the winner's cheque is the whole pitch: about a quarter of a good night's gate (no pay-per-view yet)
         ["SFA"] = (ShowFormat.Card, 0m),
         ["DLB"] = (ShowFormat.GymChallenge, 0m),
     };
@@ -140,6 +140,8 @@ public static class OriginsWorldBuilder
                 f.Contract.PursePerFight = new Money(Contracts.Negotiator.OriginsPurseFloor);
                 f.Contract.WinBonus = new Money(Contracts.Negotiator.OriginsPurseFloor / 2);
             }
+            // (A bracket house pays no win bonuses: the cheque is the bonus. The signing's draws are kept.)
+            f.Contract.WinBonus = Contracts.Negotiator.WinBonusAt(world, house.Id, f.Contract.WinBonus);
             f.Loyalty = Math.Clamp(30 + (row.Fighter.Age - 24) * 2, 22, 58);
         }
 
@@ -185,6 +187,7 @@ public static class OriginsWorldBuilder
         RankingService.RecomputeAll(world, start, o.RankingsDepth);
         GlobalRankings.Recompute(world);
         OriginsShows.SeedOpening(world);
+        Personas.StampAll(world);   // the portraits' looks (no catalog: nothing)
         return world;
     }
 

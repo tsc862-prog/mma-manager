@@ -1220,12 +1220,6 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedOrg));
         RefreshRankingPicks();   // (after the viewed house is known: the picks are labelled by it)
 
-        // Stamp portrait personas onto the model: the marketable look baked into
-        // each fighter's assigned portrait (glam/adonis/menace/inked/babyface)
-        // feeds draw power and popularity growth in the sim.
-        foreach (var f in _world.Fighters.Values)
-            f.PersonaTag = Art.PaintedLibrary.PersonaFor(f) ?? f.PersonaTag;
-
         // Index every simulated bout so fighter profiles can show their history.
         _fightIndex = _world.Events.Values
             .SelectMany(e => e.Card.Select(f => (fight: f, ev: e)))

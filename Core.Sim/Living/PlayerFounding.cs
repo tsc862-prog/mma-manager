@@ -96,8 +96,8 @@ public static class PlayerFounding
     // so his founding on one day never shares a stream seed with an AI founding (or his tryout) on a nearby day.
     private const ulong FoundSalt = 0x5A4D_C3E1_0000_0001UL, TryoutSalt = 0x6B71_92F4_0000_0002UL;
 
-    /// <summary>The player's pick inside the AI newcomer's bank range: two of <see cref="OriginsFounding.NewcomerBankSteps"/> steps.</summary>
-    public const int BankSteps = 2;
+    /// <summary>The player's pick inside the AI newcomer's bank range: three of <see cref="OriginsFounding.NewcomerBankSteps"/> steps (the AI newcomers' median: 125k).</summary>
+    public const int BankSteps = 3;
 
     /// <summary>The player's prestige at founding (the AI newcomer rolls 4 to 8).</summary>
     public const int Prestige = 5;

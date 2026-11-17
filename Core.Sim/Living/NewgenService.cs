@@ -61,6 +61,7 @@ public sealed class NewgenService
             intake.Add(prospect);
 
             if (elder is not null) TieDynasty(world, prospect, elder, rng);
+            Personas.Stamp(world, prospect);             // his portrait's look, now (no catalog: nothing)
             Camps.JoinLocalCamp(world, prospect, rng);   // find a room near home
         }
         return intake;

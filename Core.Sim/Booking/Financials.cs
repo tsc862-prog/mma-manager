@@ -37,6 +37,40 @@ public static class Financials
     /// van; no television truck. Today's is 10,000 + 12 a head.
     /// </summary>
     public static decimal OriginsProduction(decimal attendance) => 4_000m + attendance * 9m;
+
+    /// <summary>
+    /// A 1993 room's rent a seat (Origins): what the founders' own halls cost. The atlas's rooms are priced for
+    /// today's sport (7-11 a seat against a 55 ticket); in a world selling 20-dollar seats that rent is out of
+    /// its era, and a new house in a rented hall paid four tenths of its gate for the walls.
+    /// </summary>
+    public const decimal OriginsRentPerSeat = 4m;
+
+    /// <summary>
+    /// What a night in this room pays for the walls: its rent, or in an Origins world a 1993 rent
+    /// (<see cref="OriginsRentPerSeat"/> a seat at most). Today's mode: the room's rent, unchanged.
+    /// </summary>
+    public static Money RentOf(World world, Venue? venue) =>
+        venue is null ? Money.Zero
+        : world.Mode == WorldMode.Origins ? new Money(Math.Min(venue.Rent.Amount, venue.Capacity * OriginsRentPerSeat))
+        : venue.Rent;
+
+    /// <summary>
+    /// The house <paramref name="ev"/>'s card would draw with no walls if it were staged in
+    /// <paramref name="room"/>'s city (same night, same card): what a booker reads off the queue outside a
+    /// sold-out night when he weighs a room. Read-only; the event itself is not touched.
+    /// </summary>
+    public static int DemandAt(World world, Event ev, Venue room)
+    {
+        var there = new Event
+        {
+            Id = ev.Id, Promotion = ev.Promotion, Name = ev.Name, Date = ev.Date, VenueId = room.Id,
+            Region = world.Get(room.City) is { } c ? c.Region : ev.Region,
+            Tier = ev.Tier, Format = ev.Format, Card = ev.Card, HypeBonus = ev.HypeBonus,
+        };
+        // (A past night's clash belongs to that week's calendar, not to the room: left out, which also keeps
+        // this off a scan of every card in the world.)
+        return Compute(world, there, capByRoom: false, countClash: false).Attendance;
+    }
     private const decimal PpvPrice = 45m;
 
     /// <summary>
@@ -121,7 +155,7 @@ public static class Financials
              // (it used to be run, and so exist, from the day it was staged)
              && !Living.LocalCircuit.IsLocalCard(o));
 
-    private static EventFinancials Compute(World world, Event ev, bool capByRoom)
+    private static EventFinancials Compute(World world, Event ev, bool capByRoom, bool countClash = true)
     {
         var promo = world.Get(ev.Promotion);
         int prestige = promo?.Prestige.Value ?? 40;
@@ -151,7 +185,7 @@ public static class Financials
         // trinket adds a line to the poster.
         if (main is { IsTitleFight: true, Title: { } beltId } && world.Get(beltId) is { } belt)
             drawPower += (int)(belt.Prestige.Value * 0.3);
-        bool clash = world.Events.Values.Any(o => IsClash(world, ev.Promotion, ev.Date, ev.Id, o));
+        bool clash = countClash && world.Events.Values.Any(o => IsClash(world, ev.Promotion, ev.Date, ev.Id, o));
         double counterProgramming = clash ? -ClashPenalty : 0;
 
         // Head-to-head market split: sharing a region with same-or-bigger promotions
@@ -206,7 +240,7 @@ public static class Financials
         // Production scales with the actual house — a small-hall show is a few
         // staff and a rented cage, a packed arena is a television production.
         // (Rent rolls in so it flows through the box office and ledger.)
-        var rent = venue?.Rent ?? Money.Zero;
+        var rent = RentOf(world, venue);
         var production = world.Mode == WorldMode.Origins
             ? new Money(OriginsProduction(attendance) * prodMult) + rent
             : new Money((10_000m + attendance * 12m) * prodMult) + rent;
@@ -243,6 +277,15 @@ public static class Financials
     private static Money Payroll(World world, Event ev)
     {
         var total = Money.Zero;
+        // A one-night bracket (Origins only: no other night is a tournament) pays each man his purse once for
+        // the night, however many times he fights, and the winner's cheque is the bonus: the 1993 deal was an
+        // entry fee and a prize, not three purses and three win bonuses for the finalist.
+        if (ev.Format == EventFormat.Tournament)
+        {
+            foreach (var id in ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }).Distinct())
+                if (world.Get(id)?.Contract is { } c) total += c.PursePerFight;
+            return total;
+        }
         foreach (var fight in ev.Card)
         {
             total += PursePlusBonus(world.Get(fight.RedCorner), fight);

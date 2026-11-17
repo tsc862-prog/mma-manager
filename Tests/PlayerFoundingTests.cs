@@ -57,7 +57,7 @@ public class PlayerFoundingTests
         Assert.Equal(new[] { GloveType.Bare, GloveType.Optional }, choices.Gloves);
         Assert.Equal(new[] { Enclosure.Cage, Enclosure.Ring }, choices.Enclosures);
         Assert.True(choices.OpenWeight);
-        Assert.Equal(200_000m, choices.Bank.Amount);
+        Assert.Equal(OriginsFounding.NewcomerBank(PlayerFounding.BankSteps), choices.Bank.Amount);   // (125k: 50k and three steps of 25k, the AI newcomers' median)
         Assert.Equal(5, choices.Prestige);
         Assert.NotEmpty(choices.Notes);
     }
@@ -258,7 +258,7 @@ public class PlayerFoundingTests
         Assert.Equal(promo.Id, w.PlayerPromotion);
         Assert.True(promo.IsPlayerControlled);
         Assert.Single(w.Promotions.Values, p => p.IsPlayerControlled);
-        Assert.Equal(200_000m, promo.Balance.Amount);
+        Assert.Equal(PlayerFounding.Bank.Amount, promo.Balance.Amount);
         Assert.InRange(promo.Balance.Amount, OriginsFounding.NewcomerBank(0), OriginsFounding.NewcomerBank(OriginsFounding.NewcomerBankSteps));
         Assert.Equal(5, promo.Prestige.Value);
         Assert.Equal(50, promo.Reputation.Value);
@@ -503,7 +503,7 @@ public class PlayerFoundingTests
             Assert.Equal(ScoutingService.PerceivedAbility(w, promo, f), m.ScoutedRead);   // the fog, never the truth
         }
         Assert.Equal(men.Count, w.RosterOf(promo.Id).Count());
-        Assert.Equal(200_000m, promo.Balance.Amount);   // free
+        Assert.Equal(PlayerFounding.Bank.Amount, promo.Balance.Amount);   // free
         Assert.Equal(w.CurrentDate, PlayerFounding.TryoutHeldOn(promo));
 
         // Once.
