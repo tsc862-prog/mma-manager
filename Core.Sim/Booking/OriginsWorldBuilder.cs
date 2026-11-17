@@ -180,6 +180,7 @@ public static class OriginsWorldBuilder
         // --- The people behind the desks ---------------------------------------------
         Org.StaffService.SeedMarket(world, rng);
         Org.StaffService.SeedFrontOffices(world, rng, useDesigned: false);
+        Generation.StaffNaming.Resolve(world);   // generated staff yield to fighters and authored people (no draw)
         if (world.Get(world.PlayerPromotion) is { } player)
             Org.Objectives.Seed(player, start, new DateOnly(start.Year, 12, 31), world);
 
