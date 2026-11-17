@@ -158,8 +158,9 @@ public sealed class NegotiationViewModel : ObservableObject
         _exp = exp;   // (only for the asking quote's reasons; his side comes from the session's view)
         BondLine = renewal ? AskText.Bond(world, fighter) : "";
         _promoId = promo.Id;
+        PaysWinBonus = Negotiator.PaysWinBonus(world, promo.Id);
 
-        Name = $"{fighter.FirstName} {fighter.LastName}";
+        Name =$"{fighter.FirstName} {fighter.LastName}";
         FirstName = fighter.FirstName;
         Nickname = string.IsNullOrWhiteSpace(fighter.Nickname) ? "" : $"“{fighter.Nickname}”";
         Portrait = Portraits.For(fighter, world);
@@ -192,7 +193,7 @@ public sealed class NegotiationViewModel : ObservableObject
         var his = _view.Position;
         _offerFights = his.Fights;
         _offerPurse = RoundTo(his.PursePerFight.Amount * 0.85m);
-        _offerWinBonus = RoundTo(his.WinBonus.Amount * 0.85m);
+        _offerWinBonus = PaysWinBonus ? RoundTo(his.WinBonus.Amount * 0.85m) : 0m;
         _offerSigningBonus = his.SigningBonus.Amount;
 
         Transcript.Add(new(FirstName, _view.OpeningLine, "Him"));
@@ -292,7 +293,10 @@ public sealed class NegotiationViewModel : ObservableObject
     private bool _offerExclusive, _offerChampionsClause;
 
     public decimal OfferPurse { get => _offerPurse; set { if (Set(ref _offerPurse, value)) RefreshTotals(); } }
-    public decimal OfferWinBonus { get => _offerWinBonus; set { if (Set(ref _offerWinBonus, value)) RefreshTotals(); } }
+    public decimal OfferWinBonus { get => _offerWinBonus; set { if (Set(ref _offerWinBonus, PaysWinBonus ? value : 0m)) RefreshTotals(); } }
+    /// <summary>Does your house pay a win bonus at all (<see cref="Negotiator.PaysWinBonus"/>; an Origins bracket house pays none)?
+    /// When it doesn't, the lever is off the slip and the offer carries none.</summary>
+    public bool PaysWinBonus { get; }
     public decimal OfferSigningBonus { get => _offerSigningBonus; set { if (Set(ref _offerSigningBonus, value)) RefreshTotals(); } }
     public decimal OfferPerfBonus { get => _offerPerfBonus; set { if (Set(ref _offerPerfBonus, value)) RefreshTotals(); } }
     // (The deal's length re-prices the promises too: an activity promise can't name more fights than the deal holds.)
@@ -598,7 +602,7 @@ public sealed class NegotiationViewModel : ObservableObject
         Fighter = _fighter.Id,
         Promotion = _world.PlayerPromotion,
         PursePerFight = new Money(Math.Max(0, OfferPurse)),
-        WinBonus = new Money(Math.Max(0, OfferWinBonus)),
+        WinBonus = PaysWinBonus ? new Money(Math.Max(0, OfferWinBonus)) : Money.Zero,
         SigningBonus = new Money(Math.Max(0, OfferSigningBonus)),
         PerformanceBonus = new Money(Math.Max(0, OfferPerfBonus)),
         PpvPoints = Math.Max(0, OfferPpvPoints),
@@ -613,7 +617,7 @@ public sealed class NegotiationViewModel : ObservableObject
     };
 
     private string Describe(ContractOffer offer) =>
-        $"{offer.PursePerFight} a fight, {offer.WinBonus} to win, {offer.SigningBonus} up front, {offer.Fights} fights"
+        $"{offer.PursePerFight} a fight, " + (PaysWinBonus ? $"{offer.WinBonus} to win, " : "") + $"{offer.SigningBonus} up front, {offer.Fights} fights"
         + (offer.PpvPoints > 0 ? $", {offer.PpvPoints} PPV points" : "")
         + (offer.PerformanceBonus.Amount > 0 ? $", {offer.PerformanceBonus} performance bonus" : "")
         + (offer.Exclusive ? ", exclusive" : ", non-exclusive")
@@ -667,7 +671,7 @@ public sealed class NegotiationViewModel : ObservableObject
     {
         var his = _view.Position;
         _offerPurse = his.PursePerFight.Amount;
-        _offerWinBonus = his.WinBonus.Amount;
+        _offerWinBonus = PaysWinBonus ? his.WinBonus.Amount : 0m;
         _offerSigningBonus = his.SigningBonus.Amount;
         _offerFights = his.Fights;
         OnPropertyChanged(nameof(OfferPurse));

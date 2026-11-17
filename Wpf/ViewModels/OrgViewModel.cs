@@ -229,22 +229,34 @@ public sealed partial class OrgViewModel : ObservableObject
 
     private OrgRules? Rules => _world?.Get(_world.PlayerPromotion)?.Rules;
 
+    /// <summary>
+    /// The commission's code binds your house (<see cref="Core.Sim.Living.OriginsReforms.BoundByCode"/>): the round length and
+    /// the bout lengths are the code's, so the controls show them locked instead of taking an edit.
+    /// </summary>
+    public bool RulesLocked { get; private set; }
+    public bool RulesEditable => !RulesLocked;
+    /// <summary>The round controls are on the panel: today's rules (the owner's to set), or locked to the code.</summary>
+    public bool ShowRoundControls => !HasOwnRules || RulesLocked;
+    public string RulesLockedLine => RulesLocked
+        ? $"The commission that licenses you sets these now: {StandardRounds} rounds of {RoundMinutes} minutes a bout, {TitleRounds} for a title. They are not yours to change."
+        : "";
+
     public int RoundMinutes
     {
         get => Rules?.RoundMinutes ?? 5;
-        set { if (Rules is { } r && r.RoundMinutes != value) { r.RoundMinutes = value; OnPropertyChanged(); } }
+        set { if (!RulesLocked && Rules is { } r && r.RoundMinutes != value) { r.RoundMinutes = value; OnPropertyChanged(); } }
     }
 
     public int StandardRounds
     {
         get => Rules?.StandardRounds ?? 3;
-        set { if (Rules is { } r && r.StandardRounds != value) { r.StandardRounds = value; OnPropertyChanged(); OnChanged?.Invoke(); } }
+        set { if (!RulesLocked && Rules is { } r && r.StandardRounds != value) { r.StandardRounds = value; OnPropertyChanged(); OnChanged?.Invoke(); } }
     }
 
     public int TitleRounds
     {
         get => Rules?.TitleRounds ?? 5;
-        set { if (Rules is { } r && r.TitleRounds != value) { r.TitleRounds = value; OnPropertyChanged(); OnChanged?.Invoke(); } }
+        set { if (!RulesLocked && Rules is { } r && r.TitleRounds != value) { r.TitleRounds = value; OnPropertyChanged(); OnChanged?.Invoke(); } }
     }
 
     /// <summary>Fight of the Night bonus in dollars (0 = none), edited as plain text.</summary>
@@ -356,9 +368,15 @@ public sealed partial class OrgViewModel : ObservableObject
         HouseRuleLines = HouseRules.For(promo);
         if (HouseRules.NightLine(promo) is { Length: > 0 } night && HouseRules.HasOwn(promo))
             HouseRuleLines = new[] { night }.Concat(HouseRuleLines).ToList();
+        // (Once the house has taken the code: a bracket still on its books runs first, under the old rules.)
+        RulesLocked = Core.Sim.Living.OriginsReforms.BoundByCode(_world, promo) && Core.Sim.Living.OriginsReforms.HasUnified(promo);
         OnPropertyChanged(nameof(HouseRuleLines));
         OnPropertyChanged(nameof(HasOwnRules));
         OnPropertyChanged(nameof(HouseRulesBlurb));
+        OnPropertyChanged(nameof(RulesLocked));
+        OnPropertyChanged(nameof(RulesEditable));
+        OnPropertyChanged(nameof(ShowRoundControls));
+        OnPropertyChanged(nameof(RulesLockedLine));
         RefreshReforms(promo);
         if (SelectedBeltless is not { } sel || !BeltlessDivisions.Contains(sel))
             SelectedBeltless = BeltlessDivisions.FirstOrDefault();
