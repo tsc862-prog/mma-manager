@@ -48,8 +48,8 @@ public sealed class CampsViewModel : ObservableObject
 
     public CampsViewModel()
     {
-        SponsorCommand = new RelayCommand(ToggleSponsor, () => SelectedCamp is not null);
-        BuyReportCommand = new RelayCommand(BuyReport, () => SelectedCamp is not null);
+        SponsorCommand = new RelayCommand(ToggleSponsor, () => SelectedCamp is not null && HasHouse);
+        BuyReportCommand = new RelayCommand(BuyReport, () => SelectedCamp is not null && HasHouse);
     }
 
     public ObservableCollection<CampRow> Camps { get; } = new();
@@ -89,9 +89,20 @@ public sealed class CampsViewModel : ObservableObject
         ? "Buy camp report"
         : $"Buy camp report — {Core.Sim.Living.Camps.ReportCost(SelectedCamp.Model)} (a scout's week on their mats, mailed back)";
 
+    /// <summary>The player runs a promotion: a team deal and a camp report are a house's levers (hidden while watching).</summary>
+    public bool HasHouse { get; private set; } = true;
+
+    /// <summary>The screen's one-line intro (the ★ legend only means something to a house).</summary>
+    public string Intro => HasHouse
+        ? "Where the sport actually trains — the room shapes the fighter. ★ = your team deal."
+        : "Where the sport actually trains — the room shapes the fighter.";
+
     public void Attach(World world)
     {
         _world = world;
+        HasHouse = world.HasPlayer;
+        OnPropertyChanged(nameof(HasHouse));
+        OnPropertyChanged(nameof(Intro));
         var sponsored = world.Get(world.PlayerPromotion)?.SponsoredCamp;
         var keep = SelectedCamp?.Model.Id;
         Camps.Clear();

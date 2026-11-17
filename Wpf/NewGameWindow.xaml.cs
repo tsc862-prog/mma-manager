@@ -79,6 +79,7 @@ public partial class NewGameWindow : Window
 
         foreach (var house in OriginsStart.Houses) HouseBox.Items.Add(house);
         HouseBox.SelectedIndex = 0;
+        RingsideFaces.ItemsSource = OriginsStart.Houses;
 
         SeedBox.Text = Random.Shared.Next(1, 1_000_000).ToString();
     }
@@ -95,7 +96,28 @@ public partial class NewGameWindow : Window
 
     private void OnHouseChanged(object sender, RoutedEventArgs e)
     {
-        if (HouseDetail is not null) HouseDetail.DataContext = HouseBox.SelectedItem;
+        if (HouseDetail is null) return;
+        HouseDetail.DataContext = HouseBox.SelectedItem;
+        // Picking a house is not watching: the ringside tile lets go.
+        if (HouseBox.SelectedItem is not null && RingsideTile?.IsChecked == true) RingsideTile.IsChecked = false;
+        ShowOriginsDetail();
+    }
+
+    /// <summary>Watching from ringside: no house picked, the ringside story in the detail's place.</summary>
+    private void OnRingsideChanged(object sender, RoutedEventArgs e)
+    {
+        if (RingsideTile.IsChecked == true) HouseBox.SelectedIndex = -1;
+        else if (HouseBox.SelectedIndex < 0) HouseBox.SelectedIndex = 0;
+        ShowOriginsDetail();
+    }
+
+    private bool Watching => RingsideTile?.IsChecked == true;
+
+    private void ShowOriginsDetail()
+    {
+        if (RingsideDetail is null || HouseDetail is null) return;
+        RingsideDetail.Visibility = Watching ? Visibility.Visible : Visibility.Collapsed;
+        HouseDetail.Visibility = Watching ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>Harness hook: show the Origins choice with one house picked.</summary>
@@ -103,6 +125,13 @@ public partial class NewGameWindow : Window
     {
         OriginsMode.IsChecked = true;
         HouseBox.SelectedIndex = Math.Clamp(house, 0, HouseBox.Items.Count - 1);
+    }
+
+    /// <summary>Harness hook: show the Origins choice watching from ringside.</summary>
+    internal void ChooseRingside()
+    {
+        OriginsMode.IsChecked = true;
+        RingsideTile.IsChecked = true;
     }
 
     private void OnScaleChanged(object sender, RoutedEventArgs e)
@@ -161,6 +190,11 @@ public partial class NewGameWindow : Window
             };
             Summary = $"You founded {name} — {new Money(scale.Balance)} in the bank, an empty gym, and "
                       + $"{city ?? FighterRow.Pretty(region.ToString())} as home turf. Hire your fighters, book loud, climb.";
+        }
+        else if (OriginsMode.IsChecked == true && Watching)
+        {
+            Result = WorldBuilder.Options.OriginsObserver(seed);
+            Summary = OriginsStart.RingsideSummary;
         }
         else if (OriginsMode.IsChecked == true)
         {

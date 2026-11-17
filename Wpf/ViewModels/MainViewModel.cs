@@ -40,7 +40,7 @@ public static class Tab
 /// exposes it as bindable collections for the four screens, and drives New Game /
 /// Save / Load and time advancement through the sim.
 /// </summary>
-public sealed class MainViewModel : ObservableObject
+public sealed partial class MainViewModel : ObservableObject
 {
     /// <summary>Set by App when any command-line render/selftest hook is running:
     /// boot straight into the deterministic quick-start world (seed 2026) instead
@@ -66,17 +66,18 @@ public sealed class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        NewGameCommand = new RelayCommand(NewGame);
-        SaveCommand = new RelayCommand(Save, () => _world is not null);
-        LoadCommand = new RelayCommand(Load);
+        // (Nothing that replaces or writes the world while a ringside skip is running: IsSkipping.)
+        NewGameCommand = new RelayCommand(NewGame, () => !IsSkipping);
+        SaveCommand = new RelayCommand(Save, () => _world is not null && !IsSkipping);
+        LoadCommand = new RelayCommand(Load, () => !IsSkipping);
         QuickStartCommand = new RelayCommand(QuickStart);
         ContinueCommand = new RelayCommand(ContinueCareer, () => HasContinue);
         ExitCommand = new RelayCommand(() => System.Windows.Application.Current?.Shutdown());
 
         // The front door's CONTINUE: the newest save in the default directory.
         RefreshContinue();
-        AdvanceWeekCommand = new RelayCommand(() => Advance(1));
-        AdvanceMonthCommand = new RelayCommand(() => Advance(4));
+        AdvanceWeekCommand = new RelayCommand(() => Advance(1), () => !IsSkipping);
+        AdvanceMonthCommand = new RelayCommand(() => Advance(4), () => !IsSkipping);
         ViewProfileCommand = new RelayCommand(() => NavigateTo(Tab.Fighter), () => SelectedFighter is not null);
         OpenFighterCommand = new RelayCommand<int>(OpenFighter);
         OpenInboxCommand = new RelayCommand(() => NavigateTo(Tab.Inbox));
@@ -158,6 +159,7 @@ public sealed class MainViewModel : ObservableObject
         Moments.OpenEvent = id => OpenEventCommand.Execute(id);
         WireMail();
         WireBriefing();
+        WireRingside();
 
         RankingDivisions = new ObservableCollection<DivisionPick>(RankingPicks());
 
@@ -360,6 +362,7 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private void NegotiateFighter(int fighterId)
     {
+        if (IsObserving) { StatusText = NoHouseLine; return; }
         var id = new FighterId(fighterId);
         if (Contracts.OpenTalksWith(id))
         {
@@ -382,6 +385,7 @@ public sealed class MainViewModel : ObservableObject
     private void BookFighter(int fighterId)
     {
         if (_world is null || _world.Get(new FighterId(fighterId)) is not { } f) return;
+        if (IsObserving) { StatusText = NoHouseLine; return; }
         var w = _world;
         string name = $"{f.FirstName} {f.LastName}";
         // His deal is fought out: nobody can book him until he re-signs. The table, and why.
@@ -790,11 +794,15 @@ public sealed class MainViewModel : ObservableObject
     // --- Actions ------------------------------------------------------------
     private void NewGame()
     {
+        if (IsSkipping) return;
         var dialog = new NewGameWindow();
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
             dialog.Owner = owner;
         if (dialog.ShowDialog() != true || dialog.Result is null) return;   // cancelled — keep the current world
         StartWorld(dialog.Result, dialog.Summary);
+
+        // Watching from ringside: no house yet, so Ringside is home (BeginSession opens it).
+        if (IsObserving) { StatusText = dialog.Summary; return; }
 
         // A founded promotion starts with an empty gym — land on the free-agent
         // market so the first move (hiring a roster) is right in front of you.
@@ -815,6 +823,7 @@ public sealed class MainViewModel : ObservableObject
     {
         // Generate fighters to match real portraits from the pack.
         _world = new WorldBuilder().Build(options with { IdentityCatalog = ArtCatalog });
+        Tryout.Welcome = "";   // a founding's "just opened" words belong to that career only
         Moments.Reset();
         Briefing.Reset();
         LastAdvance = summary;
@@ -826,7 +835,9 @@ public sealed class MainViewModel : ObservableObject
 
     private void Advance(int weeks)
     {
-        if (_world is null) return;
+        if (_world is null || IsSkipping) return;
+        // No house of the player's: the spectator's clock (stops on the sport's big moments, then Ringside).
+        if (IsObserving) { AdvanceWatching(weeks, toChapter: false); return; }
         Moments.Reset();   // a moment never holds the clock: moving on takes it down (and what waited behind it)
         int unreadBefore = _world.Mail.Count(m => !m.Read);
 
@@ -1015,11 +1026,11 @@ public sealed class MainViewModel : ObservableObject
 
     private void Save()
     {
-        if (_world is not { } world) return;
+        if (_world is not { } world || IsSkipping) return;
 
         // Default the save name to the org so a career's saves sort together.
         string name = world.Get(world.PlayerPromotion)?.Abbreviation.ToLowerInvariant() is { Length: > 0 } abbr
-            ? $"{abbr}-career" : "career";
+            ? $"{abbr}-career" : world.HasPlayer ? "career" : $"ringside-{world.CurrentDate.Year}";
         var dialog = new SaveFileDialog
         {
             Filter = "MMA save (*.mmasave)|*.mmasave", DefaultExt = ".mmasave",
@@ -1068,6 +1079,7 @@ public sealed class MainViewModel : ObservableObject
 
     private void Load()
     {
+        if (IsSkipping) return;
         var picker = new LoadGameWindow();
         if (System.Windows.Application.Current?.MainWindow is { IsLoaded: true } owner)
             picker.Owner = owner;
@@ -1075,12 +1087,13 @@ public sealed class MainViewModel : ObservableObject
         LoadFromPath(picker.ChosenPath);
     }
 
-    private void LoadFromPath(string path)
+    internal void LoadFromPath(string path)
     {
         try
         {
             _world = SaveGame.Load(path);
             _world.ArtCatalog = ArtCatalog;                      // re-attach for future newgens
+            Tryout.Welcome = "";
             Moments.Reset();
             Briefing.Reset();
             Briefing.Loaded(_world);                             // chapters in the save were told already
@@ -1119,7 +1132,7 @@ public sealed class MainViewModel : ObservableObject
         if (HeadlessAutoBoot) { Desktop.Open("home"); return; }
 
         IsBooting = true;
-        BootLine = $"Signing in — the desk of {OrgName}";
+        BootLine = IsObserving ? "Taking a seat at ringside" : $"Signing in — the desk of {OrgName}";
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.9) };
         timer.Tick += (_, _) =>
         {
@@ -1135,6 +1148,12 @@ public sealed class MainViewModel : ObservableObject
     private void MorningBriefing()
     {
         if (_world is null) return;
+        if (IsObserving)
+        {
+            Desktop.Notify("🔔", "A seat at ringside", "No promotion of your own yet. Watch the sport take shape, and found yours when you're ready.",
+                () => Desktop.Open("ringside"));
+            return;
+        }
         int unread = _world.Mail.Count(m => !m.Read);
         var next = _world.Events.Values
             .Where(e => e.Status == EventStatus.Scheduled && e.Promotion == _world.PlayerPromotion)
@@ -1153,6 +1172,7 @@ public sealed class MainViewModel : ObservableObject
     private void RefreshDeskNotes(Promotion? promo)
     {
         DeskNotes.Clear();
+        if (_world is not null && IsObserving) { RingsideNotes(); return; }
         if (_world is null || promo is null) return;
 
         var next = _world.Events.Values
@@ -1182,12 +1202,17 @@ public sealed class MainViewModel : ObservableObject
         Title = player is null ? "PromoterOS" : $"PromoterOS — {player.Name}";
         PlayerLogo = player is null ? null : LogoFactory.ForPromotion(player);
         DateText = _world.CurrentDate.ToString("dddd, d MMMM yyyy");
-        BalanceText = player?.Balance.ToString() ?? "—";
+        BalanceText = player?.Balance.ToString() ?? (IsObserving ? "Watching from ringside" : "—");
+        OnPropertyChanged(nameof(IsObserving));
+        OnPropertyChanged(nameof(ScoutTip));
+        // No house of the player's: Ringside replaces the house's apps (and they come back when he founds one).
+        Desktop.SetObserving(IsObserving);
+        Desktop.ShowTryoutApp(TryoutApplies);
 
         // The sidebar wears the org: name, the climb, and the org's signature
         // accent colour (the same one that dresses its posters) pushed into the
         // app resources so every {DynamicResource OrgAccent} follows the player.
-        OrgName = player?.Name ?? "";
+        OrgName = player?.Name ?? (IsObserving ? "Ringside" : "");
         if (player is not null)
         {
             var standing = Core.Sim.Org.OrgSizing.Progress(player);
@@ -1255,6 +1280,8 @@ public sealed class MainViewModel : ObservableObject
         // The Story So Far is an Origins app: on the desktop only while an Origins world is loaded.
         Desktop.ShowStoryApp(_world.Mode == WorldMode.Origins);
         if (_world.Mode == WorldMode.Origins) Story.Attach(_world);
+        if (IsObserving) Ringside.Attach(_world);
+        if (TryoutApplies || Desktop.Windows.Any(w => w.Spec.Id == "tryout")) Tryout.Attach(_world);
         if (Desktop.Windows.Any(w => w.Spec.Id == "briefing")) Briefing.Attach(_world);   // (opening it attaches it)
         RefreshDeskNotes(player);
     }

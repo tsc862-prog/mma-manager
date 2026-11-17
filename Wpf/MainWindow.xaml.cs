@@ -40,6 +40,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        // A ringside skip still running ends here, between two weeks, and its world is autosaved.
+        (DataContext as MainViewModel)?.EndSkipForClose();
         // Remember where the apps live for the next session.
         (DataContext as MainViewModel)?.Desktop.SaveLayout();
         base.OnClosing(e);
