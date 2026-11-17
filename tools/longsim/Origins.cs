@@ -79,6 +79,7 @@ public static class OriginsMode
         Console.WriteLine("===== origins: all seeds =====");
         foreach (var t in totals) Console.WriteLine(t);
         MoneyReport(aiRuns, scriptedRuns, years);
+        LadderReport(aiRuns, scriptedRuns);
         Console.WriteLine(failures == 0 ? "ORIGINS HEALTH: OK" : $"ORIGINS HEALTH: {failures} seed(s) failed");
         return failures == 0 ? 0 : 1;
     }
@@ -98,6 +99,7 @@ public static class OriginsMode
         public Dictionary<string, List<string>> Trace = new();
         public Dictionary<string, HashSet<FighterId>> LastRoster = new();
         public List<House> Houses = new();
+        public List<(string Key, DateOnly On, string Who)> Ladder = new();   // the weight-ladder chapters: when, and who (or the time limit)
         public int Years;
 
         public bool Healthy(bool deterministic) =>
@@ -343,6 +345,13 @@ public static class OriginsMode
         }
 
         o.Chapters = world.Era.Chapters.Count;
+        foreach (var r in world.Era.Chapters.Where(r => OriginsReforms.Ladder.Contains(r.Key)).OrderBy(r => r.FiredOn))
+        {
+            var by = r.Promotion is { } lp ? world.Get(lp) : null;
+            string who = by is null ? "time limit"
+                : $"{by.Abbreviation} ({(founderAbbrs.Contains(by.Abbreviation) ? "founder" : arrivalNames.Contains(by.Name) ? "authored" : "founded")}{(by.Id == world.PlayerPromotion ? ", player" : "")})";
+            o.Ladder.Add((r.Key, r.FiredOn, who));
+        }
         if (world.Fighters.Count <= fightersAtStart) o.Problems.Add("no new men turned pro");
         o.Banks = string.Join(", ", banks);
         o.Summary = sb.ToString();
@@ -468,6 +477,28 @@ public static class OriginsMode
         var shFounded = sh.Where(h => h.Kind == "founded").ToList();
         if (shFounded.Count > 0)
             Console.WriteLine($"   (founded houses in the scripted worlds: {shFounded.Count} opened, alive at the end {shFounded.Count(h => h.FoldedAt is null)})");
+    }
+
+    /// <summary>
+    /// ORIGINS LADDER: when each weight-ladder chapter fired in every seed and who drew it (a house crowning the first
+    /// champion of the new class, or the chapter's time limit), then per chapter across the seeds: how often it fired,
+    /// the median and range of its date, and how often it fell to the time limit. Read-only reporting.
+    /// </summary>
+    private static void LadderReport(List<Outcome> ai, List<Outcome> scripted)
+    {
+        Console.WriteLine($"===== ORIGINS LADDER ({ai.Count} seeds) =====");
+        for (int i = 0; i < ai.Count; i++)
+            Console.WriteLine($"seed {i + 1} AI: " + string.Join("; ", ai[i].Ladder.Select(l => $"{l.Key} {l.On:yyyy-MM} {l.Who}")));
+        foreach (var (label, runs) in new[] { ("AI", ai), ("scripted", scripted) })
+            foreach (var key in OriginsReforms.Ladder)
+            {
+                var fired = runs.SelectMany(o => o.Ladder.Where(l => l.Key == key)).ToList();
+                if (fired.Count == 0) { Console.WriteLine($"{label} {key}: fired 0/{runs.Count}"); continue; }
+                var days = fired.Select(l => l.On).OrderBy(d => d).ToList();
+                Console.WriteLine($"{label} {key}: fired {fired.Count}/{runs.Count}, median {days[days.Count / 2]:yyyy-MM}, earliest {days[0]:yyyy-MM}, latest {days[^1]:yyyy-MM}; " +
+                                  $"time limit {fired.Count(l => l.Who == "time limit")}, founder {fired.Count(l => l.Who.Contains("founder"))}, " +
+                                  $"authored {fired.Count(l => l.Who.Contains("authored"))}, founded {fired.Count(l => l.Who.Contains("(founded"))}, player {fired.Count(l => l.Who.Contains("player"))}");
+            }
     }
 
     private static DateOnly? LastNight(World world, Promotion p) =>

@@ -96,6 +96,7 @@ public class OriginsBoomRosterTests
         var sfa = House(w, "SFA");
         foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
         Assert.Equal(3, w.RosterOf(sfa.Id).Count());
+        sfa.Balance = new Money(-40_000m);   // a house in the red holds one too: it costs nothing up front
         int before = w.Fighters.Count;
 
         OriginsFounding.RunTryouts(w, w.CurrentDate);
@@ -105,6 +106,7 @@ public class OriginsBoomRosterTests
         {
             Assert.Equal(sfa.Id, f.DiscoveredBy);
             Assert.Equal(Negotiator.OriginsPurseFloor, f.Contract!.PursePerFight.Amount);
+            Assert.Equal(Negotiator.WantsExclusivity(sfa), f.Contract.IsExclusive);   // the house's own terms, not the founding tryout's
         });
         Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
 
@@ -121,6 +123,74 @@ public class OriginsBoomRosterTests
         foreach (var f in pw.RosterOf(mine.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
         OriginsFounding.RunTryouts(pw, pw.CurrentDate);
         Assert.Equal(3, pw.RosterOf(mine.Id).Count());
+    }
+
+    [Fact]
+    public void WhatAHouseCanStaff_InTheMiddle_IsOneDivisionPer250OfItsPurse()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var house = House(w, "DLB");
+        house.Prestige = 30;
+        var room = OriginsShows.HomeVenue(w, house)!;
+        var seen = new Dictionary<decimal, int>();
+        for (int seats = 150; seats <= 6_000; seats += 25)
+        {
+            room.Capacity = seats;
+            seen.TryAdd(Negotiator.PurseCap(w, house), OriginsReforms.DivisionsItCanStaff(w, house));
+        }
+        // A 1,000 purse staffs four divisions, 1,250 five, 1,500 six (between the floor's two and the ladder's eight).
+        Assert.Equal(4, seen[1_000m]);
+        Assert.Equal(5, seen[1_250m]);
+        Assert.Equal(6, seen[1_500m]);
+        Assert.Equal(3, seen[750m]);
+    }
+
+    [Fact]
+    public void AnAiHouse_WaitsForTheNextWeightLine_UntilItsPurseCanStaffIt()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var on = new DateOnly(2001, 6, 1);
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0], OriginsReforms.Ladder[1] })
+        {
+            Era.Fire(w, key, on);
+            foreach (var u in Core.Sim.Generation.Origins.OriginsChapters.ByKey(key).Unlocks)
+                if (Era.TryFromChapterUnlock(u, out var cap)) Era.Unlock(w, cap);
+        }
+        var sfa = House(w, "SFA");
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0] })
+            if (OriginsReforms.Options(w, sfa, on).Any(o => o.Chapter == key)) Assert.True(OriginsReforms.Adopt(w, sfa, key, on), key);
+        int Lines() => sfa.Divisions.Count(d => !d.Open && d.Sex == Sex.Male);
+        Assert.Equal(2, Lines());
+        Assert.Contains(OriginsReforms.Options(w, sfa, on), o => o.Chapter == OriginsReforms.Ladder[1]);
+
+        // At the floor purse: ten years of monthly chances (6% a month) and the middle of the ladder never comes.
+        sfa.Prestige = 1;
+        OriginsShows.HomeVenue(w, sfa)!.Capacity = 150;
+        Assert.Equal(2, OriginsReforms.DivisionsItCanStaff(w, sfa));
+        for (int m = 1; m <= 120; m++) OriginsReforms.RunMonthly(w, on.AddMonths(m));
+        Assert.Equal(2, Lines());
+
+        // A purse that staffs the ladder: it draws the next lines inside the same ten years.
+        sfa.Prestige = 60;
+        OriginsShows.HomeVenue(w, sfa)!.Capacity = 20_000;
+        for (int m = 121; m <= 240 && Lines() == 2; m++) OriginsReforms.RunMonthly(w, on.AddMonths(m));
+        Assert.True(Lines() >= 4, $"{Lines()} lines");
+    }
+
+    [Fact]
+    public void AHouseWhoseMenAreHurt_CountsOnlyTheMenWhoCouldFightItsNextNight()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        var men = w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).ToList();
+        Assert.True(men.Count >= OriginsShows.MinRoster(sfa), $"{men.Count} men");
+        Assert.True(OriginsFounding.NightReady(w, sfa, w.CurrentDate) >= OriginsShows.MinRoster(sfa));
+        // Hurt for months: on the books, but no use to the next night.
+        foreach (var f in men.Skip(3)) { f.Status = FighterStatus.Injured; f.ReadyToFightOn = w.CurrentDate.AddDays(120); }
+        Assert.Equal(3, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        Assert.Equal(OriginsShows.MinRoster(sfa) + 2, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
     }
 
     [Fact]

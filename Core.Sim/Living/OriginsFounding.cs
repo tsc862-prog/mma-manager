@@ -311,10 +311,12 @@ public static class OriginsFounding
 
     /// <summary>
     /// One man from an open tryout of local men, green and glad of the chance, the house his discoverer: signed on
-    /// the tryout terms (the Origins purse floor, three fights, exclusive) when the house has a division for him,
-    /// else null (he walks back out a free agent). Two draws on <paramref name="rng"/>: his age, then his level.
+    /// the tryout terms (the Origins purse floor, three fights; exclusive unless <paramref name="exclusive"/> says
+    /// otherwise) when the house has a division for him, else null (he walks back out a free agent). Two draws on
+    /// <paramref name="rng"/>: his age, then his level.
     /// </summary>
-    internal static Fighter? TryoutMan(World world, FighterGenerator gen, Promotion promo, string countryCode, DateOnly date, SimRandom rng)
+    internal static Fighter? TryoutMan(World world, FighterGenerator gen, Promotion promo, string countryCode, DateOnly date, SimRandom rng,
+        bool exclusive = true)
     {
         var f = OriginsTalent.Create(world, gen, date, countryCode, rng.Range(20, 27), rng.GaussianInt(42, 6, 30, 56));
         OriginsTalent.FindGym(world, f);
@@ -324,7 +326,7 @@ public static class OriginsFounding
         {
             Fighter = f.Id, Promotion = promo.Id,
             PursePerFight = new Money(Negotiator.OriginsPurseFloor), WinBonus = new Money(Negotiator.OriginsPurseFloor / 2),
-            Fights = 3, Exclusive = true,
+            Fights = 3, Exclusive = exclusive,
         }, date);
         return f;
     }
@@ -340,22 +342,27 @@ public static class OriginsFounding
     public const string TryoutLedgerLine = "Open tryout";
 
     /// <summary>
-    /// The month's open tryouts (Origins, AI houses; after the month's free-agent pass): a solvent house holding fewer
-    /// men than its night needs (<see cref="OriginsShows.MinRoster"/>, counted as the signing pass does: not retired,
-    /// deal not run out) after the market has had its turn calls in local men, as it did the month it opened, and signs
-    /// them on the tryout terms (<see cref="TryoutMan"/>) up to its founding roster, at most twice a year. This is how a
-    /// small hall whose purse no free agent will take (the Boom's 500-a-purse houses, while every man left on the
-    /// market asks 750 or more) keeps putting on its nights. Its own keyed stream (seed, day, house).
+    /// The month's open tryouts (Origins, AI houses; after the month's free-agent pass): a house holding fewer men who
+    /// could fight its next night than that night needs (<see cref="OriginsShows.MinRoster"/>; counted by
+    /// <see cref="NightReady"/>: men the house could book a lead window from now, so the hurt and the suspended do not
+    /// count) after the market has had its turn calls in local men, as it did the month it opened, and signs them on the
+    /// tryout terms (<see cref="TryoutMan"/>) up to its founding roster, at most twice a year. This is how a small hall
+    /// whose purse no free agent will take (the Boom's 500-a-purse houses, while every man left on the market asks 750 or
+    /// more) keeps putting on its nights. A house in the red holds one too: a tryout costs nothing up front, and a
+    /// distressed house's offers (a fraction of its purse cap) reach nobody on the market, so without it a house in debt
+    /// could never stage the nights that would pay it back. The men sign on the house's own terms of exclusivity
+    /// (<see cref="Negotiator.WantsExclusivity"/>: a small hall deals non-exclusive, no monthly retainer), not the
+    /// founding tryout's. Its own keyed stream (seed, day, house).
     /// The player's house is never touched: he has the market and his own tryout (<see cref="PlayerFounding.HoldTryout"/>).
     /// </summary>
     public static void RunTryouts(World world, DateOnly date)
     {
         FighterGenerator? gen = null;
         foreach (var promo in world.Promotions.Values
-                     .Where(p => !p.Defunct && p.Id != world.PlayerPromotion && p.Balance.Amount >= 0)
+                     .Where(p => !p.Defunct && p.Id != world.PlayerPromotion)
                      .OrderBy(p => p.Id.Value).ToList())
         {
-            int held = world.RosterOf(promo.Id).Count(f => f.Status != FighterStatus.Retired && !DealWindow.OutOfDeal(world, f));
+            int held = NightReady(world, promo, date);
             if (held >= OriginsShows.MinRoster(promo)) continue;
             if (promo.Ledger.Any(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine
                                       && date.DayNumber - e.Date.DayNumber < TryoutEveryDays)) continue;
@@ -366,7 +373,7 @@ public static class OriginsFounding
             gen ??= FighterGenerator.ForWorld(world);
             int target = OriginsShows.MinRoster(promo) + 2, signed = 0;
             for (int guard = 0; held + signed < target && guard < target * 2; guard++)
-                if (TryoutMan(world, gen, promo, country.Code, date, rng) is { } man)
+                if (TryoutMan(world, gen, promo, country.Code, date, rng, Negotiator.WantsExclusivity(promo)) is { } man)
                 {
                     man.Accolades.Add(new Accolade(date, $"Signed at {promo.Name}'s open tryout"));
                     signed++;
@@ -378,6 +385,17 @@ public static class OriginsFounding
                 $"Short of men and with no purse the market will take, {promo.Abbreviation} called in the local hopefuls: {signed} signed on the tryout terms.",
                 promo.Id);
         }
+    }
+
+    /// <summary>
+    /// The house's men who could fight the next night it can put on the books (<see cref="OriginsShows.LeadWeeks"/>
+    /// from <paramref name="date"/>): the one bookability rule its nights use (<see cref="OriginsShows.CanBook"/>:
+    /// active, fit by then, a fight left on his deal, deal not run out).
+    /// </summary>
+    internal static int NightReady(World world, Promotion promo, DateOnly date)
+    {
+        var night = date.AddDays(7 * OriginsShows.LeadWeeks);
+        return world.RosterOf(promo.Id).Count(f => OriginsShows.CanBook(world, promo, f, night));
     }
 
     // ------------------------------------------------------------------ scheduled arrivals
