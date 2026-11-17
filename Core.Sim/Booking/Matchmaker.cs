@@ -1,5 +1,4 @@
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 
 namespace MmaManager.Core.Sim.Booking;
 
@@ -167,7 +166,7 @@ public sealed class Matchmaker
             double bestScore = -1;
             for (int i = 0; i < card.Count; i++)
             {
-                double s = Combined(world, card[i]);
+                double s = Combined(world, promo, card[i]);
                 if (s > bestScore) { bestScore = s; best = i; }
             }
             var promoted = card[best] with { Rounds = promo.Rules.TitleRounds };
@@ -238,12 +237,15 @@ public sealed class Matchmaker
                 champions.Add(cid);
 
         // One pass over the world's fighters for the org's free roster (the
-        // divisions then split it), ordered strongest first.
+        // divisions then split it), ordered strongest first BY THE HOUSE'S OWN
+        // READ (the fog: a matchmaker pairs the fighters he thinks are close, not
+        // the ones who truly are), id as the last word.
         var free = world.RosterOf(promo.Id)
             .Where(f => f.IsMatchReady(fightDate) && !champions.Contains(f.Id)
                         && (exclude is null || !exclude.Contains(f.Id)))
-            .OrderByDescending(FighterAbility.CurrentAbility)
             .ToList();
+        var seen = free.ToDictionary(f => f.Id, f => Seen(world, promo, f));
+        free = free.OrderByDescending(f => seen[f.Id]).ThenBy(f => f.Id.Value).ToList();
 
         var candidates = new List<Candidate>();
         foreach (var division in promo.Divisions)
@@ -274,7 +276,7 @@ public sealed class Matchmaker
                     bool feud = Living.Storylines.RivalryBetween(world, a.Id, b.Id) is { Intensity: >= 40 };
                     int tier = feud ? 2 : Contender(a.Id) && Contender(b.Id) ? 1 : 0;
                     double idle = DaysIdle(world, recent, a.Id) + DaysIdle(world, recent, b.Id);
-                    double ability = FighterAbility.CurrentAbility(a) + FighterAbility.CurrentAbility(b);
+                    double ability = seen[a.Id] + seen[b.Id];
                     candidates.Add(new Candidate(a.Id, b.Id, division.WeightClass, tier, idle, ability));
                 }
         }
@@ -357,11 +359,19 @@ public sealed class Matchmaker
         return last;
     }
 
-    private static double Combined(World world, Matchup m)
+    private static double Combined(World world, Promotion promo, Matchup m)
     {
         var a = world.Get(m.Red);
         var b = world.Get(m.Blue);
-        return (a is null ? 0 : FighterAbility.CurrentAbility(a))
-             + (b is null ? 0 : FighterAbility.CurrentAbility(b));
+        return (a is null ? 0 : Seen(world, promo, a))
+             + (b is null ? 0 : Seen(world, promo, b));
     }
+
+    /// <summary>
+    /// What this house's matchmaker thinks a fighter is worth in the cage: its scouted read
+    /// (<see cref="Scouting.ScoutingService.PerceivedAbility(World?, Promotion, Fighter)"/>), never the truth.
+    /// A pure hash of (house, fighter): no RNG stream is touched.
+    /// </summary>
+    private static int Seen(World world, Promotion promo, Fighter f) =>
+        Scouting.ScoutingService.PerceivedAbility(world, promo, f);
 }
