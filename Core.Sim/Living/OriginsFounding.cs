@@ -100,9 +100,8 @@ public static class OriginsFounding
             var options = FoundableCities(world, date);
             if (options.Count == 0) return null;
             Span<double> weights = stackalloc double[options.Count];
-            var served = HousesByCountry(world);
             for (int i = 0; i < options.Count; i++)
-                weights[i] = CityWeight(options[i], served.GetValueOrDefault(options[i].Country));
+                weights[i] = Math.Max(1, options[i].Market) * Math.Max(1, options[i].MmaInterest - 20);
             city = options[rng.WeightedIndex(weights)];
         }
         if (city is null || world.Get(city.Country) is not { } country) return null;
@@ -211,25 +210,6 @@ public static class OriginsFounding
         return world.Cities.Values
             .Where(c => !taken.Contains(c.Id) && world.Get(c.Country) is { } k && scenes.Contains(k.Code) && !Era.Banned(world, c.Id, date))
             .OrderBy(c => c.Id.Value).ToList();
-    }
-
-    /// <summary>
-    /// How strongly a new house is drawn to a city: its market and its appetite for the sport, divided by one plus
-    /// the live houses its country already has (a served market is a crowded one). Without the divisor the USA's
-    /// fight towns took 40% of the new houses of 2000-05 while woken scenes abroad waited (longsim origins 40 20,
-    /// ORIGINS SPREAD). Only the weights of the one keyed pick change: no draw is added or moved.
-    /// </summary>
-    internal static double CityWeight(City city, int housesInCountry) =>
-        Math.Max(1, city.Market) * Math.Max(1, city.MmaInterest - 20) / (1.0 + housesInCountry);
-
-    /// <summary>The live houses in each country (by their home city).</summary>
-    internal static Dictionary<CountryId, int> HousesByCountry(World world)
-    {
-        var d = new Dictionary<CountryId, int>();
-        foreach (var p in world.Promotions.Values)
-            if (!p.Defunct && p.HomeCity is { } hc && world.Get(hc) is { } c)
-                d[c.Country] = d.GetValueOrDefault(c.Country) + 1;
-        return d;
     }
 
     /// <summary>The home cities of the live houses.</summary>

@@ -123,35 +123,3 @@ public class OriginsFounderRoomTests
         }
     }
 }
-
-/// <summary>
-/// Where new houses open (Origins tuning 2): a city's pull is its market and appetite, divided by one plus the live
-/// houses its country already has, so the woken scenes abroad get their share once the USA's towns are served.
-/// </summary>
-public class OriginsFoundingSpreadTests
-{
-    [Fact]
-    public void ACitysPull_FallsWithEachHouseItsCountryAlreadyHas()
-    {
-        var c = new City { Id = new CityId(1), Name = "X", Region = Region.NorthAmerica, Country = new CountryId(1), Market = 60, MmaInterest = 70 };
-        double alone = OriginsFounding.CityWeight(c, 0);
-        Assert.Equal(60 * 50, alone);
-        Assert.Equal(alone / 2, OriginsFounding.CityWeight(c, 1));
-        Assert.Equal(alone / 4, OriginsFounding.CityWeight(c, 3));
-        // A dead market stays at the floor, served or not.
-        var dead = new City { Id = new CityId(2), Name = "Y", Region = Region.NorthAmerica, Country = new CountryId(1), Market = 0, MmaInterest = 10 };
-        Assert.Equal(1, OriginsFounding.CityWeight(dead, 0));
-    }
-
-    [Fact]
-    public void HousesByCountry_CountsTheLiveHousesByHomeCity()
-    {
-        var w = OriginsWorldTests.AiWorld(11);
-        var by = OriginsFounding.HousesByCountry(w);
-        Assert.Equal(3, by.Values.Sum());
-        Assert.All(by.Values, n => Assert.Equal(1, n));   // CRU (USA), SFA (Japan), DLB (Brazil)
-        var cru = w.Promotions.Values.Single(p => p.Abbreviation == "CRU");
-        cru.Defunct = true;
-        Assert.Equal(2, OriginsFounding.HousesByCountry(w).Values.Sum());
-    }
-}
