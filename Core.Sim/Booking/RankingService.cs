@@ -264,39 +264,40 @@ public static class RankingService
         }
     }
 
-    // GatherAllResults restricted to a set of fighters and everyone they met inside the window: one walk for
-    // the set's own results, a second for their opponents'. Each fighter's list gets all of his results in the
-    // same walk order as GatherAllResults gives it.
+    // GatherAllResults restricted to a set of fighters and everyone they met inside the window: one walk of the
+    // events for the set's own results (noting every decisive bout of the window as it goes, in walk order), a
+    // second over those notes for their opponents'. Each fighter's list gets all of his results in the same walk
+    // order as GatherAllResults gives it.
     private static Dictionary<FighterId, List<Result>> GatherResultsOf(World world, DateOnly asOf, IEnumerable<Fighter> only)
     {
         var since = asOf.AddYears(-4);
         var mine = new HashSet<FighterId>();
         foreach (var f in only) mine.Add(f.Id);
         var map = new Dictionary<FighterId, List<Result>>();
-        Walk(mine);
+        var window = new List<(FighterId Winner, FighterId Loser, bool Finish, DateOnly Date, int Stage)>();
+        foreach (var ev in world.Events.Values)
+        {
+            if (ev.Date < since) continue;
+            foreach (var fight in ev.Card)
+            {
+                if (fight.Outcome is not { Winner: { } winner, Loser: { } loser } o) continue;
+                var bout = (winner, loser, IsFinish(o.Method), ev.Date, world.Get(ev.Promotion)?.Prestige.Value ?? 0);
+                window.Add(bout);
+                Note(mine, bout);
+            }
+        }
         var met = new HashSet<FighterId>();
         foreach (var list in map.Values)
             foreach (var r in list)
                 if (!mine.Contains(r.Opponent)) met.Add(r.Opponent);
-        if (met.Count > 0) Walk(met);
+        if (met.Count > 0)
+            foreach (var bout in window) Note(met, bout);
         return map;
 
-        void Walk(HashSet<FighterId> who)
+        void Note(HashSet<FighterId> who, (FighterId Winner, FighterId Loser, bool Finish, DateOnly Date, int Stage) b)
         {
-            foreach (var ev in world.Events.Values)
-            {
-                if (ev.Date < since) continue;
-                foreach (var fight in ev.Card)
-                {
-                    if (fight.Outcome is not { Winner: { } winner, Loser: { } loser } o) continue;
-                    bool w = who.Contains(winner), l = who.Contains(loser);
-                    if (!w && !l) continue;
-                    bool finish = IsFinish(o.Method);
-                    int stage = world.Get(ev.Promotion)?.Prestige.Value ?? 0;
-                    if (w) Add(map, winner, new Result(loser, true, finish, ev.Date, stage));
-                    if (l) Add(map, loser, new Result(winner, false, finish, ev.Date, stage));
-                }
-            }
+            if (who.Contains(b.Winner)) Add(map, b.Winner, new Result(b.Loser, true, b.Finish, b.Date, b.Stage));
+            if (who.Contains(b.Loser)) Add(map, b.Loser, new Result(b.Winner, false, b.Finish, b.Date, b.Stage));
         }
 
         static void Add(Dictionary<FighterId, List<Result>> m, FighterId id, Result r)
