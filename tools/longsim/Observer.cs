@@ -52,6 +52,10 @@ public static partial class OriginsMode
         int years = args.Length > 2 ? int.Parse(args[2]) : 6;
         int failures = 0;
         ObserverPlan.Strict = args.Contains("--strict");
+        // Diagnosis arm: he founds and holds his tryout as usual, then hands the house to the AI (it stops being the
+        // player's), so the AI's own rules run a house opened on the player's terms. Separates "the terms" from "the script".
+        ObserverPlan.AiRunsIt = args.Contains("--ai-runs-it");
+        if (ObserverPlan.AiRunsIt) Console.WriteLine("(--ai-runs-it: after his tryout the house is handed to the AI)");
         var plans = new List<ObserverPlan>();
         var outcomes = new List<Outcome>();
         for (int s = 1; s <= seeds; s++)
@@ -109,7 +113,7 @@ public static partial class OriginsMode
         public List<string>? Tryout;
         public int Nights;
         public int Orphans, RetiredBelts;
-        public static bool Strict;
+        public static bool Strict, AiRunsIt;
         public bool ScriptOn;
         public readonly Dictionary<string, int> Refusals = new();
         private readonly List<string> _lines = new();
@@ -158,7 +162,16 @@ public static partial class OriginsMode
             {
                 HoldTryout(w, problems);
             }
-            if (Promo is not null && Tryout is not null) ScriptOn = true;
+            if (Promo is not null && Tryout is not null)
+            {
+                if (AiRunsIt && w.PlayerPromotion == Promo.Id)
+                {
+                    // (Diagnosis only: the house becomes the AI's; nobody is the player from here on.)
+                    Promo.IsPlayerControlled = false;
+                    w.PlayerPromotion = default;
+                }
+                ScriptOn = !AiRunsIt;
+            }
         }
 
         public void After(World w, List<string> problems)
