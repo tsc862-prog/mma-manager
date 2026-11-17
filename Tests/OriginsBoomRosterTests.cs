@@ -1,4 +1,5 @@
 using MmaManager.Core.Model;
+using MmaManager.Core.Sim.Booking;
 using MmaManager.Core.Sim.Contracts;
 using MmaManager.Core.Sim.Living;
 
@@ -48,6 +49,78 @@ public class OriginsBoomRosterTests
             if (negotiator.Evaluate(w, f, offer, exp).Verdict == NegotiationVerdict.Accept) signable++;
         }
         Assert.True(signable > 0, $"none of {unknowns.Count} unknown free agents would sign at the small house's floor purse");
+    }
+
+    [Fact]
+    public void AnAiHouse_FoundedAfterTheWholeLadder_OpensOnlyTheLinesItsPurseCanStaff()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.OriginsObserver(4));
+        Era.Unlock(w, Capability.Rounds);
+        Era.Unlock(w, Capability.Gloves);
+        foreach (var chapter in OriginsReforms.Ladder)
+            foreach (var wc in OriginsReforms.LinesOf(chapter)) Era.Unlock(w, Capability.Class(wc));
+        Assert.Equal(8, OriginsFounding.DrawnLines(w).Count);
+
+        var house = OriginsFounding.Found(w, w.CurrentDate, null)!;
+        var lines = house.Divisions.Where(d => d.Sex == Sex.Male).ToList();
+        int staff = OriginsReforms.DivisionsItCanStaff(w, house);
+        Assert.True(Negotiator.PurseCap(w, house) < 2_000m, $"a new house's purse {Negotiator.PurseCap(w, house)}");
+        Assert.InRange(lines.Count, 2, staff);
+        Assert.True(lines.Count < 8);
+        Assert.DoesNotContain(lines, d => d.Open);
+        // Whole chapters, heavy and light first: the heaviest line is there, so every man has a division.
+        foreach (var wc in OriginsReforms.LinesOf(OriginsReforms.Ladder[0])) Assert.Contains(lines, d => d.WeightClass == wc);
+        Assert.All(w.Fighters.Values.Where(f => f.Sex == Sex.Male), f => Assert.Contains(lines, d => d.Matches(f)));
+        // Its signing target follows: a few wide divisions, not eight thin ones.
+        Assert.True(OriginsShows.RosterDemand(house) <= 24, $"wants {OriginsShows.RosterDemand(house)} men");
+    }
+
+    [Fact]
+    public void WhatAHouseCanStaff_RisesWithItsPurse_FromTheFirstSplitToTheWholeLadder()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var small = House(w, "DLB");
+        small.Prestige = 1;
+        OriginsShows.HomeVenue(w, small)!.Capacity = 150;
+        Assert.Equal(2, OriginsReforms.DivisionsItCanStaff(w, small));
+        var giant = House(w, "SFA");
+        giant.Prestige = 60;
+        OriginsShows.HomeVenue(w, giant)!.Capacity = 20_000;
+        Assert.Equal(8, OriginsReforms.DivisionsItCanStaff(w, giant));
+    }
+
+    [Fact]
+    public void ASmallHouseShortOfMen_HoldsAnOpenTryout_OnceAYear_AndNeverForThePlayer()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
+        Assert.Equal(3, w.RosterOf(sfa.Id).Count());
+        int before = w.Fighters.Count;
+
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        var men = w.RosterOf(sfa.Id).ToList();
+        Assert.Equal(OriginsShows.MinRoster(sfa) + 2, men.Count);
+        Assert.All(men.Where(f => f.Id.Value > before), f =>
+        {
+            Assert.Equal(sfa.Id, f.DiscoveredBy);
+            Assert.Equal(Negotiator.OriginsPurseFloor, f.Contract!.PursePerFight.Amount);
+        });
+        Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+
+        // Short again inside the year: no second tryout.
+        foreach (var f in men.Skip(3).ToList()) f.Contract = null;
+        OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(200));
+        Assert.Equal(3, w.RosterOf(sfa.Id).Count());
+        OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(OriginsFounding.TryoutEveryDays));
+        Assert.Equal(OriginsShows.MinRoster(sfa) + 2, w.RosterOf(sfa.Id).Count());
+
+        // The player's house is his own: nobody holds a tryout for him.
+        var pw = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, 1));
+        var mine = pw.Get(pw.PlayerPromotion)!;
+        foreach (var f in pw.RosterOf(mine.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
+        OriginsFounding.RunTryouts(pw, pw.CurrentDate);
+        Assert.Equal(3, pw.RosterOf(mine.Id).Count());
     }
 
     [Fact]

@@ -329,6 +329,57 @@ public static class OriginsFounding
         return f;
     }
 
+    // ------------------------------------------------------------------ a small house's open tryout
+
+    private const ulong TryoutSalt = 0x0219_7A10_0007UL;
+
+    /// <summary>An AI house holds an open tryout at most this often (days).</summary>
+    public const int TryoutEveryDays = 365;
+
+    /// <summary>The ledger line that marks an AI house's open tryout (the durable record of when it last held one).</summary>
+    public const string TryoutLedgerLine = "Open tryout";
+
+    /// <summary>
+    /// The month's open tryouts (Origins, AI houses; after the month's free-agent pass): a solvent house holding fewer
+    /// men than its night needs (<see cref="OriginsShows.MinRoster"/>, counted as the signing pass does: not retired,
+    /// deal not run out) after the market has had its turn calls in local men, as it did the month it opened, and signs
+    /// them on the tryout terms (<see cref="TryoutMan"/>) up to its founding roster, at most once a year. This is how a
+    /// small hall whose purse no free agent will take (the Boom's 500-a-purse houses, while every man left on the
+    /// market asks 750 or more) keeps putting on its nights. Its own keyed stream (seed, day, house).
+    /// The player's house is never touched: he has the market and his own tryout (<see cref="PlayerFounding.HoldTryout"/>).
+    /// </summary>
+    public static void RunTryouts(World world, DateOnly date)
+    {
+        FighterGenerator? gen = null;
+        foreach (var promo in world.Promotions.Values
+                     .Where(p => !p.Defunct && p.Id != world.PlayerPromotion && p.Balance.Amount >= 0)
+                     .OrderBy(p => p.Id.Value).ToList())
+        {
+            int held = world.RosterOf(promo.Id).Count(f => f.Status != FighterStatus.Retired && !DealWindow.OutOfDeal(world, f));
+            if (held >= OriginsShows.MinRoster(promo)) continue;
+            if (promo.Ledger.Any(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine
+                                      && date.DayNumber - e.Date.DayNumber < TryoutEveryDays)) continue;
+            var home = promo.HomeCity is { } hc ? world.Get(hc) : null;
+            if (home is null || world.Get(home.Country) is not { } country) continue;
+
+            var rng = new SimRandom(SimRandom.Mix(world.RngSeed, (ulong)date.DayNumber ^ TryoutSalt ^ ((ulong)promo.Id.Value << 32)));
+            gen ??= FighterGenerator.ForWorld(world);
+            int target = OriginsShows.MinRoster(promo) + 2, signed = 0;
+            for (int guard = 0; held + signed < target && guard < target * 2; guard++)
+                if (TryoutMan(world, gen, promo, country.Code, date, rng) is { } man)
+                {
+                    man.Accolades.Add(new Accolade(date, $"Signed at {promo.Name}'s open tryout"));
+                    signed++;
+                }
+            Finance.Ledger.Record(promo, date, FinanceCategory.Other, new Money(0m), TryoutLedgerLine);
+            if (signed == 0) continue;
+            RankingService.RecomputePromotion(world, promo, date);
+            News.Post(world, date, NewsCategory.General, $"{promo.Name} holds an open tryout",
+                $"Short of men and with no purse the market will take, {promo.Abbreviation} called in the local hopefuls: {signed} signed on the tryout terms.",
+                promo.Id);
+        }
+    }
+
     // ------------------------------------------------------------------ scheduled arrivals
 
     /// <summary>
