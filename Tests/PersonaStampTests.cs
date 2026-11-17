@@ -13,8 +13,10 @@ namespace MmaManager.Tests;
 public class PersonaStampTests
 {
     // Pinned on main (bb544d9) BEFORE the stamp moved into the sim: a headless world must not move by a bit.
-    private const string ModernNoCatalog12Weeks = "A265634054CDD3FD";
-    private const string OriginsNoCatalog12Weeks = "30D0D2E6C36F66A5";
+    // (Re-pinned when the story arcs and owner voices began posting news: News.Count is the LAST thing the digest mixes, and only its
+    // last digits moved; fighters, records, contracts, banks and cards are unchanged.)
+    private const string ModernNoCatalog12Weeks = "A265634054CDD45A";
+    private const string OriginsNoCatalog12Weeks = "30D0D2E6C36F66AA";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.
     private static string Digest(World w)
