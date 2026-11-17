@@ -10,8 +10,9 @@ namespace MmaManager.Tests;
 
 /// <summary>
 /// The weekly tick's performance work must not change one outcome. These are digests of whole worlds (every public
-/// member of the model graph, dictionaries walked in their enumeration order, so a changed ORDER shows too) after two
-/// years of ticking (four for the small Origins world), captured from main at 3bca307 before the tick-perf changes (branch world/tick-perf). A pure
+/// member of the model graph, dictionaries walked in their enumeration order, so a changed ORDER shows too) after the
+/// years each key names (mode-kind-seed-yYears: an all-AI or player world today, a player or observer world in 1993),
+/// captured from main at f8469e1, built on its own without any tick-perf change (branch world/tick-perf). A pure
 /// performance change keeps every one of them; a change that moves a draw, a tie-break or an iteration order that
 /// feeds a roll turns this red. When the sim changes ON PURPOSE (anything that moves outcomes), recapture: set
 /// TICK_IDENTITY_OUT to a file path and run this class; it writes the new values instead of asserting.
@@ -20,20 +21,23 @@ public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11"] = "223615FA4C881CD37696",       // 2027-12-30, 4633 events, 7466 fighters
-        ["modern-player-4"] = "9A2E193816E4EB50E233",    // 2027-12-30, 4569 events, 7640 fighters
-        ["origins-player-3"] = "C062AC7C8F8F935C5C3F",   // 1996-12-27, 68 events, 174 fighters
+        ["modern-ai-11-y2"] = "223615FA4C881CD37696",   // 2027-12-30, 4633 events, 7466 fighters
+        ["modern-player-4-y2"] = "9A2E193816E4EB50E233",   // 2027-12-30, 4569 events, 7640 fighters
+        ["origins-player-3-y4"] = "C062AC7C8F8F935C5C3F",   // 1996-12-27, 68 events, 174 fighters
+        ["origins-player-8-y10"] = "826AB4C5EEC7CFCD9DA2",   // 2002-12-20, 193 events, 316 fighters
+        ["origins-observer-5-y10"] = "6DF3B350926295502B50",   // 2002-12-20, 306 events, 432 fighters
+        ["origins-observer-6-y20"] = "D32CCB40D1CED3529B09",   // 2012-12-07, 855 events, 1081 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });
 
     [Theory]
     [MemberData(nameof(Cases))]
-    public void TwoYearsOfTicking_MatchMainBeforeThePerfWork(string key)
+    public void Ticking_MatchesMainWithoutThePerfWork(string key)
     {
         var world = Build(key);
         var tick = new WorldTick();
-        int weeks = key.StartsWith("origins") ? 208 : 104;   // the young sport is small: give it four years
+        int weeks = 52 * int.Parse(key.Split('-')[^1][1..]);
         for (int w = 0; w < weeks; w++) tick.AdvanceWeek(world);
         string digest = Digest(world);
 
@@ -49,8 +53,9 @@ public class TickIdentityTests
     private static World Build(string key)
     {
         var parts = key.Split('-');
-        ulong seed = ulong.Parse(parts[^1]);
-        if (parts[0] == "origins") return new WorldBuilder().Build(WorldBuilder.Options.Origins(seed, 0));
+        ulong seed = ulong.Parse(parts[2]);
+        if (parts[0] == "origins")
+            return new WorldBuilder().Build(parts[1] == "observer" ? WorldBuilder.Options.OriginsObserver(seed) : WorldBuilder.Options.Origins(seed, 0));
         var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
         if (parts[1] == "ai")
         {
