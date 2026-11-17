@@ -11,12 +11,12 @@ namespace MmaManager.Core.Sim.Org;
 /// </summary>
 public static class StaffService
 {
-    private static readonly string[] FirstNames =
+    internal static readonly string[] FirstNames =
     {
         "Marcus", "Elena", "Dmitri", "Sofia", "Andre", "Priya", "Hakim", "Nora",
         "Tomas", "Grace", "Ivan", "Lena", "Owen", "Mei", "Diego", "Ruth",
     };
-    private static readonly string[] LastNames =
+    internal static readonly string[] LastNames =
     {
         "Vance", "Okoro", "Petrov", "Marsh", "Cole", "Nakamura", "Rahman", "Diaz",
         "Fischer", "Bauer", "Sung", "Almeida", "Novak", "Reeves", "Adeyemi", "Cross",
