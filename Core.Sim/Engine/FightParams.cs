@@ -50,8 +50,10 @@ public sealed record FightParams
 
     /// <summary>
     /// A bout inside a BANDED division (Origins, after a weight split: the light division runs from flyweight
-    /// to middleweight): the size term applies although the rules are not open weight. Only the Origins
-    /// booker sets it, and only on a custom rule set; today's same-class fights never carry it.
+    /// to middleweight), or an open-weight bout kept after the house drew its lines: the size term applies
+    /// although the rules are not open weight. Only the Origins booker sets it (EventService.SizeTermFor);
+    /// today's mode never carries it. Under a custom rule set the full size term runs; under today's rules
+    /// only its relative edge does, and the bout otherwise stays on the modern path (Bout.ApplyRelativeSize).
     /// </summary>
     public bool BandedSizeTerm { get; init; }
 

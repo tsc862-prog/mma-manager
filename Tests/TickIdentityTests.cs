@@ -21,6 +21,9 @@ namespace MmaManager.Tests;
 /// old true-ability gate they match the earlier pins exactly); observer-5-y10 moves only through Rookie of the Year's
 /// tie-break (now the public record), and observer-6-y20 through both. (Measured by putting each back in turn: the
 /// pioneer-arrival price and the matchmaker's read move none of the four.)
+/// Recaptured on engine/unified-size-term: origins-observer-6-y20 only. A banded or kept open-weight bout now gets its
+/// size term under today's rules too (a cage house under the commissions' code that has split); by 2012 such bouts are
+/// fought in that world, so their results move. No other key changed: the modern worlds never set the flag.
 /// </summary>
 public class TickIdentityTests
 {
@@ -31,7 +34,7 @@ public class TickIdentityTests
         ["origins-player-3-y4"] = "DD053702786FDAA157BE",   // 1996-12-27, 68 events, 174 fighters
         ["origins-player-8-y10"] = "40A3DF3D684C222C947A",   // 2002-12-20, 193 events, 316 fighters
         ["origins-observer-5-y10"] = "495D373A7013769D8021",   // 2002-12-20, 306 events, 432 fighters
-        ["origins-observer-6-y20"] = "DE190BBC92F1AB9DB1BF",   // 2012-12-07, 855 events, 1081 fighters
+        ["origins-observer-6-y20"] = "EB5BC22F673C0A9D578F",   // 2012-12-07, 839 events, 1082 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });

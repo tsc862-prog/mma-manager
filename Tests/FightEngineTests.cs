@@ -144,4 +144,94 @@ public class FightEngineTests
         // Not everything is a finish, and not everything is a decision.
         Assert.InRange(split.FinishPct, 15.0, 60.0);
     }
+
+    // ------------------------------------------------ the size term on today's rules (BandedSizeTerm)
+
+    /// <summary>A pair of the same build in the same division label; only natural weight differs.</summary>
+    private static (Fighter A, Fighter B) SizePair(int i)
+    {
+        var gen = new FighterGenerator((ulong)(4100 + i));
+        Fighter M(int id) => gen.Generate(new FighterId(id), Today, new GenOptions
+        { Overall = 55 + (i * 5) % 25, Style = (PrimaryStyle)((i + id) % 8), WeightClass = WeightClass.Heavyweight, WithRecord = false, Age = 28 });
+        return (M(1), M(2));
+    }
+
+    private static string Print(FightOutcome o, Fighter red, Fighter blue)
+    {
+        string S(FighterId id)
+        {
+            var s = o.Stats[id];
+            return $"{s.SignificantStrikesLanded}/{s.SignificantStrikesAttempted}/{s.TakedownsLanded}/{s.TakedownsAttempted}/{s.SubmissionAttempts}/{s.KnockdownsScored}/{s.ControlTimeSeconds}";
+        }
+        string card = o.RoundScores is null ? "-" : string.Join(",", o.RoundScores.Select(r => $"{r.Red}-{r.Blue}"));
+        string text = o.PlayByPlay is null ? "-" : string.Join("\n", o.PlayByPlay);
+        return $"{o.Winner?.Value}:{o.Method}:{o.EndRound}:{o.EndTimeSeconds}:{S(red.Id)}:{S(blue.Id)}:{card}\n{text}";
+    }
+
+    [Fact]
+    public void BandedSizeTerm_OnTodaysRules_GivesTheBiggerManHisEdge()
+    {
+        // 113 kg against 77 kg in one banded division, fought under today's rules (a cage house under the
+        // unified code). Each pair fights twice with the weights swapped, so skill cancels and only size is left.
+        var engine = new FightEngine();
+        int bigWins = 0, bigWinsOff = 0, smallWins = 0, n = 0;
+        for (int i = 0; i < 300; i++)
+        {
+            var (a, b) = SizePair(i);
+            for (int swap = 0; swap < 2; swap++)
+            {
+                var big = swap == 0 ? a : b; var small = swap == 0 ? b : a;
+                big.NaturalWeightLbs = 249; small.NaturalWeightLbs = 170;
+                ulong seed = SimRandom.Mix(919, (ulong)(2 * i + swap));
+                var on = engine.Simulate(a, b, new FightParams { GeneratePlayByPlay = false, BandedSizeTerm = true }, seed);
+                var off = engine.Simulate(a, b, new FightParams { GeneratePlayByPlay = false }, seed);
+                n++;
+                if (on.Winner == big.Id) bigWins++;
+                if (on.Winner == small.Id) smallWins++;
+                if (off.Winner == big.Id) bigWinsOff++;
+                Assert.InRange(on.EndRound, 1, 3);                          // still today's three rounds
+            }
+        }
+        double pOn = 100.0 * bigWins / n, pOff = 100.0 * bigWinsOff / n, pSmall = 100.0 * smallWins / n;
+        Assert.True(pOn > pOff + 12, $"bigger man's win %: flagged {pOn:0.0}, unflagged {pOff:0.0}");
+        Assert.True(pOn > 2 * pSmall, $"bigger man {pOn:0.0}% vs smaller man {pSmall:0.0}%");
+        Assert.InRange(pOff, 40.0, 60.0);                                   // unflagged, size is ignored
+    }
+
+    [Fact]
+    public void WithoutTheFlag_TodaysBoutIgnoresNaturalWeight()
+    {
+        // The unflagged modern bout is the one the golden masters pin; it never reads natural weight, so a
+        // real size gap changes nothing - word for word, the same fight as two men of one size.
+        var engine = new FightEngine();
+        for (int i = 0; i < 150; i++)
+        {
+            var (a, b) = SizePair(i);
+            ulong seed = SimRandom.Mix(920, (ulong)i);
+            var p = new FightParams { GeneratePlayByPlay = true, TextSeed = (ulong)i };
+            a.NaturalWeightLbs = 249; b.NaturalWeightLbs = 170;
+            string gap = Print(engine.Simulate(a, b, p, seed), a, b);
+            a.NaturalWeightLbs = 0; b.NaturalWeightLbs = 0;
+            string level = Print(engine.Simulate(a, b, p, seed), a, b);
+            Assert.Equal(level, gap);
+        }
+    }
+
+    [Fact]
+    public void BandedSizeTerm_OnTodaysRules_IsExactlyNeutralBetweenSameSizeMen()
+    {
+        // Flag on, both men the same natural weight: every relative term is x1.0 or +0.0, the absolute part
+        // stays today's, and there is no tale-of-the-tape line, so the fight is byte-identical, text included.
+        var engine = new FightEngine();
+        foreach (int lbs in new[] { 0, 170, 249 })
+            for (int i = 0; i < 150; i++)
+            {
+                var (a, b) = SizePair(i);
+                a.NaturalWeightLbs = lbs; b.NaturalWeightLbs = lbs;
+                ulong seed = SimRandom.Mix(921, (ulong)i);
+                var off = engine.Simulate(a, b, new FightParams { GeneratePlayByPlay = true, TextSeed = (ulong)i }, seed);
+                var on = engine.Simulate(a, b, new FightParams { GeneratePlayByPlay = true, TextSeed = (ulong)i, BandedSizeTerm = true }, seed);
+                Assert.Equal(Print(off, a, b), Print(on, a, b));
+            }
+    }
 }
