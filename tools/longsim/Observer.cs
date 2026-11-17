@@ -86,6 +86,8 @@ public static partial class OriginsMode
         var tr = founded.Where(p => p.Tryout is not null).Select(p => p.Tryout!.Count).ToList();
         if (tr.Count > 0)
             Console.WriteLine($"tryouts held {tr.Count}: men signed min {tr.Min()} mean {tr.Average():0.0} max {tr.Max()}; empty {tr.Count(n => n == 0)}");
+        Console.WriteLine($"recurring tryouts held {founded.Sum(p => p.RecurringTryouts)} in {founded.Count(p => p.RecurringTryouts > 0)}/{founded.Count} houses; " +
+                          $"divisions at founding mean {(founded.Count == 0 ? 0 : founded.Average(p => p.FoundingDivisions)):0.0}");
         var alive = founded.Where(p => p.Promo is { Defunct: false }).ToList();
         Console.WriteLine($"player-founded houses alive at the end {alive.Count}/{founded.Count}; folded " +
             string.Join(" ", founded.Where(p => p.Promo!.Defunct).Select(p => $"{p.Seed}:{p.Promo!.Abbreviation}")));
@@ -113,6 +115,7 @@ public static partial class OriginsMode
         public List<string>? Tryout;
         public int Nights;
         public int Orphans, RetiredBelts;
+        public int RecurringTryouts, FoundingDivisions;
         public static bool Strict, AiRunsIt;
         public bool ScriptOn;
         public readonly Dictionary<string, int> Refusals = new();
@@ -257,9 +260,10 @@ public static partial class OriginsMode
             }
             Promo = promo;
             FoundedOn = date;
+            FoundingDivisions = promo.Divisions.Count;
             _tryoutOn = date.AddDays(7 * _tryoutDelayWeeks);
             Count("(founded)");
-            _lines.Add($"  OBSERVER founded {promo.Name} ({promo.Abbreviation}) on {when} in {city.Name}, {city.Country} ({Era}); rules {promo.Rules.ShowFormat}, rounds {promo.Rules.StandardRounds}x{promo.Rules.RoundMinutes}, {promo.Rules.Fight?.Gloves} {promo.Rules.Fight?.Enclosure}, bank {promo.Balance}");
+            _lines.Add($"  OBSERVER founded {promo.Name} ({promo.Abbreviation}) on {when} in {city.Name}, {city.Country} ({Era}); divisions {promo.Divisions.Count} ({string.Join(" ", promo.Divisions.Select(d => d.Open ? "Open" : d.WeightClass.ToString()))}), rules {promo.Rules.ShowFormat}, rounds {promo.Rules.StandardRounds}x{promo.Rules.RoundMinutes}, {promo.Rules.Fight?.Gloves} {promo.Rules.Fight?.Enclosure}, bank {promo.Balance}");
             if (w.Promotions.Count != before + 1) Bad(problems, "count", $"{when}: founding changed the promotion count by {w.Promotions.Count - before}");
             if (!w.HasPlayer || w.PlayerPromotion != promo.Id) Bad(problems, "notPlayer", $"{when}: after Found the world's player is not the new house");
             if (promo.Balance.Amount != PlayerFounding.Bank.Amount)
@@ -357,8 +361,9 @@ public static partial class OriginsMode
             {
                 Nights = w.Events.Values.Count(e => e.Promotion == Promo.Id && e.Status == EventStatus.Completed);
                 var ours = w.Get(Promo.Id)!;
+                RecurringTryouts = ours.Ledger.Count(l => l.Category == FinanceCategory.Other && l.Description == OriginsFounding.TryoutLedgerLine);
                 double aliveYears = ((ours.Defunct ? (ours.Ledger.Count > 0 ? ours.Ledger[^1].Date : w.CurrentDate) : w.CurrentDate).DayNumber - FoundedOn!.Value.DayNumber) / 365.25;
-                sb.AppendLine($"  OBSERVER house {ours.Abbreviation}: {(ours.Defunct ? "FOLDED" : "alive")}, {Nights} nights, bank {ours.Balance.Amount:N0}, roster {w.RosterOf(ours.Id).Count()}, tryout {Tryout?.Count ?? -1} men, alive {aliveYears:0.0}y");
+                sb.AppendLine($"  OBSERVER house {ours.Abbreviation}: {(ours.Defunct ? "FOLDED" : "alive")}, {Nights} nights, bank {ours.Balance.Amount:N0}, roster {w.RosterOf(ours.Id).Count()}, tryout {Tryout?.Count ?? -1} men, recurring tryouts {RecurringTryouts}, divisions {FoundingDivisions} at founding / {ours.Divisions.Count} at the end, alive {aliveYears:0.0}y");
                 if (!ours.Defunct && aliveYears >= 1.5 && Nights == 0)
                     Bad(problems, "noNights", $"the house {ours.Abbreviation} founded {FoundedOn:yyyy-MM-dd} ran no night in {aliveYears:0.0} years alive");
                 if (Tryout is null && !ours.Defunct) Bad(problems, "noTryout", "the tryout was never held");
