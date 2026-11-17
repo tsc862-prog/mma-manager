@@ -92,6 +92,18 @@
                             <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding EnclosureChoices}" SelectedItem="{Binding Enclosure}" Margin="0,0,0,8" MaxWidth="360" HorizontalAlignment="Left" MinWidth="280"
                                       Visibility="{Binding HasEnclosureChoice, Converter={StaticResource BoolToVis}}" />
                         </Grid>
+
+                        <!-- The divisions he opens: only once the sport has drawn weight lines (before that, one open division) -->
+                        <StackPanel Visibility="{Binding HasLinePicker, Converter={StaticResource BoolToVis}}">
+                            <DockPanel Margin="0,14,0,4">
+                                <Button DockPanel.Dock="Right" Content="Back to the suggestion" Command="{Binding ResetLinesCommand}" Style="{StaticResource Button.Ghost}"
+                                        Padding="8,2" FontSize="11.5" VerticalAlignment="Center"
+                                        Visibility="{Binding LinesDifferFromSuggestion, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="THE DIVISIONS YOU OPEN" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Text="{Binding SuggestLine}" Style="{StaticResource Text.Secondary}" LineHeight="18" Margin="0,0,0,8" />
+                            <ItemsControl ItemsSource="{Binding LineGroups}" ItemTemplate="{StaticResource FoundingLineGroupTemplate}" Focusable="False" />
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -104,7 +116,9 @@
                             <Run Text="in the bank  ·  prestige " /><Run Text="{Binding Prestige, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
                         </TextBlock>
                         <TextBlock Text="{Binding StartLine}" Style="{StaticResource Text.Secondary}" LineHeight="18" Margin="0,10,0,0" />
-                        <TextBlock Text="{Binding Divisions}" Style="{StaticResource Text.Secondary}" LineHeight="18" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding Divisions}" Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextPrimary}" LineHeight="18" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding LinesLine}" Style="{StaticResource Text.Secondary}" LineHeight="18" Margin="0,4,0,0"
+                                   Visibility="{Binding HasLinePicker, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Text="{Binding LateLine}" Style="{StaticResource Text.Secondary}" LineHeight="18" Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>
