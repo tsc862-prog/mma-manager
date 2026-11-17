@@ -860,7 +860,7 @@ public sealed partial class MainViewModel : ObservableObject
         StatusText = "";
 
         var before = BriefingBaseline.Take(_world);   // ids only: what the briefing compares against
-        var r = AdvanceWeekByWeek(weeks);
+        var r = _tick.AdvanceWeeksStoppingForPlayer(_world, weeks);
         LastAdvance =
             $"Advanced to {r.Date:d MMM yyyy}: {r.EventsRun} events, {r.Fights} fights " +
             $"({(r.Fights == 0 ? 0 : 100.0 * r.Finishes / r.Fights):0.0}% finishes), " +
@@ -1193,40 +1193,6 @@ public sealed partial class MainViewModel : ObservableObject
         if (DeskNotes.Count == 1 && next is not null) DeskNotes.Add("all quiet — build something");
     }
 
-    /// <summary>
-    /// Stamp portrait personas onto the model: the marketable look baked into each fighter's assigned portrait
-    /// (glam/adonis/menace/inked/babyface) feeds draw power and popularity growth in the sim. The sim reads it, so
-    /// it must be stamped after EVERY week the app advances (not only when the screens refresh), or a multi-week
-    /// advance would give a different world from the same number of single weeks. (A sim task will stop the sim
-    /// depending on this UI-stamped field; until then this is the one place it is written.)
-    /// </summary>
-    private void StampPersonas()
-    {
-        if (_world is null) return;
-        foreach (var f in _world.Fighters.Values)
-            f.PersonaTag = Art.PaintedLibrary.PersonaFor(f) ?? f.PersonaTag;
-    }
-
-    /// <summary>
-    /// The ordinary advance, one week at a time (stamping personas after each, exactly as single Week clicks do),
-    /// stopping where <see cref="WorldTick.AdvanceWeeksStoppingForPlayer"/> would: a card of his due, a main event
-    /// lost, a rival's offer that needs him. Same weeks, same stops, same report as handing it all the weeks at once.
-    /// </summary>
-    private WorldTickReport AdvanceWeekByWeek(int weeks)
-    {
-        var total = new WorldTickReport { Date = _world.CurrentDate };
-        for (int i = 0; i < weeks; i++)
-        {
-            var week = _tick.AdvanceWeeksStoppingForPlayer(_world, 1);
-            total.Add(week);
-            total.PendingPlayerEvent ??= week.PendingPlayerEvent;
-            total.MainEventLost ??= week.MainEventLost;
-            StampPersonas();
-            if (week.PendingPlayerEvent is not null || week.MainEventLost is not null || week.OfferNeedsYou is not null) break;
-        }
-        return total;
-    }
-
     // --- Refresh ------------------------------------------------------------
     private void RefreshAll()
     {
@@ -1278,8 +1244,6 @@ public sealed partial class MainViewModel : ObservableObject
         _selectedOrg = _world.Get(_world.PlayerPromotion) ?? Organizations.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedOrg));
         RefreshRankingPicks();   // (after the viewed house is known: the picks are labelled by it)
-
-        StampPersonas();
 
         // Index every simulated bout so fighter profiles can show their history.
         _fightIndex = _world.Events.Values

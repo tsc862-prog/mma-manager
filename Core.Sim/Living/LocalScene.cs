@@ -90,6 +90,7 @@ public static class LocalScene
         rec.WinsByDecision = rec.Wins - rec.WinsByKo;
 
         world.Fighters[id] = f;
+        Personas.Stamp(world, f);   // the look of the portrait he would wear (no catalog: nothing)
         return f;
     }
 

@@ -121,7 +121,7 @@ public sealed partial class MainViewModel
     /// which a chapter fired or a house opened or folded, so he never skips past the moment he might want to step
     /// in. "To the next chapter" stops on those too, or after <see cref="ChapterSkipWeeks"/> with nothing.
     /// Ringside then says why the clock stopped. Every week is the sim's own single week, run on this (the UI)
-    /// thread in order, with personas stamped after it as a single Week click does; between weeks the loop yields
+    /// thread in order; between weeks the loop yields
     /// to the dispatcher so the window stays alive, shows progress and can be stopped (harness runs never yield).
     /// </summary>
     private async void AdvanceWatching(int weeks, bool toChapter)
@@ -142,7 +142,6 @@ public sealed partial class MainViewModel
             while (ran < weeks)
             {
                 var r = _tick.AdvanceWeeksStoppingForPlayer(w, 1);
-                StampPersonas();
                 events += r.EventsRun; fights += r.Fights; ran++;
                 if (BigMoments(w, chaptersBefore, liveBefore, moments, out headline, out detail)) break;
                 SkipProbe?.Invoke(ran);
