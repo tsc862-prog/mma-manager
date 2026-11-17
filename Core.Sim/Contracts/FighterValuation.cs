@@ -94,8 +94,13 @@ public sealed class FighterValuation
         // richest house in the sport could put up for one purse. (Today's market has no such ceiling.)
         // (Today's price is the man's standing; 1993's is that standing as a share of the sport's best purse:
         // an unknown asks a few hundred dollars, a name half the ceiling, a champion all of it.)
+        // The bottom of that scale is the sport's floor purse (Negotiator.OriginsPurseFloor, applied below), the
+        // purse the smallest house can always pay, NOT a fixed share of the richest house's: a share floor (it was
+        // 15%) rose with the giants, and once the best purse passed ~4,200 every unknown asked 750 against the 500
+        // a small hall can budget, so the small houses of the Boom signed nobody and ran out of men (longsim
+        // origins 40 20: 27 of 40 seeds). Below that ceiling the two read the same.
         if (world.Mode == WorldMode.Origins)
-            purse = OriginsMarketCeiling(world) * Math.Clamp(purse / OriginsFullAsk, 0.15m, 1m);
+            purse = OriginsMarketCeiling(world) * Math.Clamp(purse / OriginsFullAsk, 0m, 1m);
         purse = world.Mode == WorldMode.Origins
             ? Math.Max(Negotiator.OriginsPurseFloor, RoundTo(purse, 250m))   // a 1993 purse can be a few hundred dollars
             : Math.Max(1_500m, RoundTo(purse, 500m));

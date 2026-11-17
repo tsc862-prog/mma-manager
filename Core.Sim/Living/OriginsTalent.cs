@@ -382,6 +382,32 @@ public static class OriginsTalent
     public static int MonthlyIntake(int leavers, int actives, int target) =>
         leavers + Math.Clamp((target - actives) / 6, 0, 4);
 
+    /// <summary>
+    /// What the open tryouts take off this month's intake from the gyms (<paramref name="today"/> is the month's first
+    /// weekly tick, as the tick's month block runs): each tryout man stands in for one new man from
+    /// the gyms, in one month of the year after his tryout (the month a hash of his id picks), so a big tryout is spread
+    /// over a year of intakes instead of landing on one. Draw-free. The caller (WorldTick) clamps the month's intake at
+    /// zero (<c>Math.Max(0, intake - deduction)</c>): a month whose intake is smaller than its deduction loses the excess,
+    /// which is not carried over.
+    /// </summary>
+    public static int TryoutDeduction(World world, DateOnly today)
+    {
+        var from = OriginsBacklash.PreviousMonthlyTick(today);   // (the last month's pass: windows meet, never overlap)
+        int n = 0;
+        foreach (var f in world.Fighters.Values)
+            foreach (var a in f.Accolades)
+                if (IsTryout(a))
+                {
+                    var due = a.Date.AddMonths(1 + (int)((uint)f.Id.Value % 12));
+                    if (due > from && due <= today) n++;
+                    break;
+                }
+        return n;
+    }
+
+    private static bool IsTryout(Accolade a) =>
+        a.Title.StartsWith("Signed at ", StringComparison.Ordinal) && a.Title.EndsWith("open tryout", StringComparison.Ordinal);
+
     /// <summary>The houses' total demand for men on day one (three houses of a dozen), which <see cref="TargetActives"/> was tuned to.</summary>
     public const int DayOneDemand = 36;
 
