@@ -25,6 +25,7 @@ public sealed class NewgenService
     public IReadOnlyList<Fighter> GenerateIntake(World world, int count, SimRandom rng)
     {
         var intake = new List<Fighter>(count);
+        var names = NameRegistry.Build(world);   // one set for the whole intake; each prospect joins it as he is named
         for (int i = 0; i < count; i++)
         {
             var id = world.NewFighterId();
@@ -54,6 +55,9 @@ public sealed class NewgenService
             var prospect = _gen.Generate(id, world.CurrentDate, options);
             _gen.AssignHometown(world, prospect);
             world.Fighters[id] = prospect;
+            // A name nobody else carries (a famous name's junior keeps the surname, so only his first name moves).
+            if (elder is not null) prospect.LastName = elder.LastName;
+            _gen.EnsureUniqueName(world, prospect, names, keepSurname: elder is not null);
             intake.Add(prospect);
 
             if (elder is not null) TieDynasty(world, prospect, elder, rng);
@@ -90,7 +94,7 @@ public sealed class NewgenService
 
     private static void TieDynasty(World world, Fighter prospect, Fighter elder, SimRandom rng)
     {
-        prospect.LastName = elder.LastName;
+        // (The caller already set the shared surname and made the first name unique.)
         int gap = elder.AgeOn(world.CurrentDate) - prospect.AgeOn(world.CurrentDate);
         string relation = gap >= 16
             ? prospect.Sex == Sex.Female ? "daughter" : "son"

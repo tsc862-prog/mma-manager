@@ -458,6 +458,7 @@ public sealed class WorldBuilder
 
         Org.StaffService.SeedMarket(world, rng);
         Org.StaffService.SeedFrontOffices(world, rng, o.UseDesignedRoster);   // every house has people behind the desks
+        Generation.StaffNaming.Resolve(world);                                // and nobody there shares a name with anybody (no draw)
         if (o.UseDesignedRoster) Org.StaffService.SeedOwners(world);          // and somebody whose money it is
         if (world.Get(world.PlayerPromotion) is { } player)
             Org.Objectives.Seed(player, o.StartDate, new DateOnly(o.StartDate.Year, 12, 31));
