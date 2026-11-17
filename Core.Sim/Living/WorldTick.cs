@@ -153,6 +153,11 @@ public sealed class WorldTick
         // week warned, the run-out ones closed onto the open market (no RNG).
         DealWindow.RunWeekly(world, after);
 
+        // The authored stories and the owners' words, told as the world earns them: text only (news and one
+        // accolade), no draws, nothing a system decides on reads them. Before the digest so the week's paper has them.
+        Flavor.Arcs.RunWeekly(world, after);
+        Flavor.OwnerVoices.RunWeekly(world, after);
+
         // The week's paper: one digest mail with the stories, the calendar,
         // and a prospect worth circling.
         Digest.Weekly(world, after);

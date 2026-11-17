@@ -257,6 +257,8 @@ public static partial class Biographer
                 if (!note.TrimEnd().EndsWith('.')) sb.Append('.');
                 sb.Append(' ');
             }
+            // What the owner is after, in words (authored; text only).
+            if (OwnerAgendas.PageLine(owner) is { Length: > 0 } agenda) sb.Append(agenda).Append(' ');
         }
 
         // Flagship champion.
