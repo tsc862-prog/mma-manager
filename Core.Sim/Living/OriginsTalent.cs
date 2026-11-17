@@ -380,7 +380,7 @@ public static class OriginsTalent
 
     /// <summary>
     /// The men an open tryout signed in (<paramref name="from"/>, <paramref name="to"/>] (read off their accolade, the
-    /// durable record): new men the sport made last month, so the month's intake from the gyms is that many fewer.
+    /// durable record): new men the sport made (<see cref="TryoutDeduction"/> takes them off the gyms' intake).
     /// (Without it the small houses' tryouts of the Boom swelled the sport past its actives band: longsim origins 40 20.)
     /// </summary>
     public static int TryoutMenSince(World world, DateOnly from, DateOnly to)
@@ -388,10 +388,34 @@ public static class OriginsTalent
         int n = 0;
         foreach (var f in world.Fighters.Values)
             foreach (var a in f.Accolades)
-                if (a.Date > from && a.Date <= to && a.Title.EndsWith("open tryout", StringComparison.Ordinal) && a.Title.StartsWith("Signed at ", StringComparison.Ordinal))
+                if (a.Date > from && a.Date <= to && IsTryout(a))
                 { n++; break; }
         return n;
     }
+
+    /// <summary>
+    /// What the open tryouts take off this month's intake from the gyms (<paramref name="today"/> is the month's first
+    /// weekly tick, as the tick's month block runs): each tryout man stands in for one new man from
+    /// the gyms, in one month of the year after his tryout (the month a hash of his id picks), so a tryout bigger than a
+    /// month's intake still comes off whole. Exact and draw-free.
+    /// </summary>
+    public static int TryoutDeduction(World world, DateOnly today)
+    {
+        var from = OriginsBacklash.PreviousMonthlyTick(today);   // (the last month's pass: windows meet, never overlap)
+        int n = 0;
+        foreach (var f in world.Fighters.Values)
+            foreach (var a in f.Accolades)
+                if (IsTryout(a))
+                {
+                    var due = a.Date.AddMonths(1 + (int)((uint)f.Id.Value % 12));
+                    if (due > from && due <= today) n++;
+                    break;
+                }
+        return n;
+    }
+
+    private static bool IsTryout(Accolade a) =>
+        a.Title.StartsWith("Signed at ", StringComparison.Ordinal) && a.Title.EndsWith("open tryout", StringComparison.Ordinal);
 
     /// <summary>The houses' total demand for men on day one (three houses of a dozen), which <see cref="TargetActives"/> was tuned to.</summary>
     public const int DayOneDemand = 36;

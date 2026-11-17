@@ -216,6 +216,11 @@ public class OriginsBoomRosterTests
         Assert.True(signed > 0);
         Assert.Equal(signed, OriginsTalent.TryoutMenSince(w, day.AddDays(-1), day.AddMonths(1)));
         Assert.Equal(0, OriginsTalent.TryoutMenSince(w, day, day.AddMonths(1)));   // (from, to]: the day itself is out
+        // Each comes off the gyms' intake exactly once, in one month of the year after.
+        int off = 0;
+        for (var d = day.AddDays(7); d <= day.AddDays(7 * 70); d = d.AddDays(7))
+            if (d.AddDays(-7).Month != d.Month) off += OriginsTalent.TryoutDeduction(w, d);   // the month's first weekly tick
+        Assert.Equal(signed, off);
     }
 
     [Fact]

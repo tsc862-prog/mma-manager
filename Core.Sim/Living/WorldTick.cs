@@ -195,7 +195,7 @@ public sealed class WorldTick
             // on the month's own stream, at a young sport's pace - it takes the shared stream nothing).
             report.Newgens = world.Mode == WorldMode.Origins
                 ? OriginsTalent.Intake(world, Math.Max(0, OriginsTalent.MonthlyIntake(report.Retired + report.Washouts, actives, OriginsTalent.TargetFor(world))
-                                                          - OriginsTalent.TryoutMenSince(world, after.AddMonths(-1), after)), after).Count
+                                                          - OriginsTalent.TryoutDeduction(world, after)), after).Count
                 : NewgenService.ForWorld(world).GenerateIntake(world, intake, rng).Count;
 
             // Expiring deals renew / get poached / hit the market (the player's own
