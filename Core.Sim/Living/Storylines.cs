@@ -507,6 +507,7 @@ public static class Storylines
 
     private static void Callouts(World world, Event ev, DateOnly date, SimRandom rng)
     {
+        Dictionary<FighterId, (DateOnly Date, FighterId Victor)>? lastLosses = null;   // built at the first callout, read by the rest
         foreach (var fight in ev.Card)
         {
             if (fight.Outcome?.Winner is not { } wid || world.Get(wid) is not { } w || w.LocalTalent) continue;
@@ -521,7 +522,7 @@ public static class Storylines
             // Who do they want? The belt, the man who beat them, or the name
             // one rung up the ladder — in that order of ambition.
             var champId = div?.Title is { } tid ? world.Get(tid)?.CurrentChampion : null;
-            FighterId? lastBeatMe = LastConqueror(world, w);
+            FighterId? lastBeatMe = LastConqueror(world, w, lastLosses ??= LastLosses(world));
             FighterId? rungAbove = null;
             if (div is not null)
             {
@@ -558,24 +559,33 @@ public static class Storylines
         }
     }
 
-    // The last active fighter to hand them a loss (the revenge storyline).
-    // Scans recent events newest-first and only their small cards — a fighter's
-    // last loss is nearly always close by, and a grudge older than two years is
-    // cold anyway.
-    private static FighterId? LastConqueror(World world, Fighter f)
+    // The last active fighter to hand them a loss (the revenge storyline): the
+    // winner of his newest loss in the last two years (a grudge older than that
+    // is cold anyway), if that man is still active — nobody further back.
+    private static FighterId? LastConqueror(World world, Fighter f,
+        Dictionary<FighterId, (DateOnly Date, FighterId Victor)> lastLosses) =>
+        lastLosses.TryGetValue(f.Id, out var l)
+            ? world.Get(l.Victor) is { Status: FighterStatus.Active, LocalTalent: false } ? l.Victor : null
+            : null;
+
+    // Every fighter's newest loss inside the two-year window, with who beat him: the bout the old newest-first
+    // walk found first (completed events by date, newest first, ties in event order; card order inside a night).
+    // One walk for the whole card's callouts instead of a sorted walk per callout.
+    private static Dictionary<FighterId, (DateOnly Date, FighterId Victor)> LastLosses(World world)
     {
         var cutoff = world.CurrentDate.AddYears(-2);
-        foreach (var e in world.Events.Values
-                     .Where(e => e.Status == EventStatus.Completed && e.Date >= cutoff)
-                     .OrderByDescending(e => e.Date))
+        var map = new Dictionary<FighterId, (DateOnly Date, FighterId Victor)>();
+        foreach (var e in world.Events.Values)
         {
+            if (e.Status != EventStatus.Completed || e.Date < cutoff) continue;
             foreach (var bout in e.Card)
             {
-                if (bout.Outcome is not { } o || o.Loser != f.Id || o.Winner is not { } victor) continue;
-                return world.Get(victor) is { Status: FighterStatus.Active, LocalTalent: false } ? victor : null;
+                if (bout.Outcome is not { Loser: { } loser, Winner: { } victor }) continue;
+                // Strictly newer only: an equal date keeps the earlier event (and the earlier bout on one card).
+                if (!map.TryGetValue(loser, out var had) || e.Date > had.Date) map[loser] = (e.Date, victor);
             }
         }
-        return null;
+        return map;
     }
 
     // --- Champ vs champ: the superfight roll ---------------------------------
