@@ -41,7 +41,7 @@ namespace LongSim;
 /// <c>ORIGINS_NIGHTS=&lt;abbr&gt;</c> prints every night that house runs. Exit code 1 when any seed fails its
 /// health line or breaks an invariant.
 /// </summary>
-public static class OriginsMode
+public static partial class OriginsMode
 {
     public const int MinActives = 80, MaxActives = 160, ActivesPerExtraHouse = 30;
     public const double CadenceShare = 0.6;
@@ -101,6 +101,7 @@ public static class OriginsMode
         public List<House> Houses = new();
         public List<(string Key, DateOnly On, string Who)> Ladder = new();   // the weight-ladder chapters: when, and who (or the time limit)
         public int Years;
+        public ObserverPlan? Observer;
 
         public bool Healthy(bool deterministic) =>
             Exception is null && Violations.Count == 0 && Folds.Count == 0 && Problems.Count == 0 && deterministic;
@@ -137,14 +138,14 @@ public static class OriginsMode
         public decimal NightNet => Gate - Production - Payroll;
     }
 
-    private static Outcome RunOne(ulong seed, int years, int? player)
+    private static Outcome RunOne(ulong seed, int years, int? player, ObserverPlan? plan = null)
     {
         var o = new Outcome();
         var sb = new StringBuilder();
         World world;
         try
         {
-            var options = WorldBuilder.Options.Origins(seed, player ?? 0);
+            var options = plan is not null ? WorldBuilder.Options.OriginsObserver(seed) : WorldBuilder.Options.Origins(seed, player ?? 0);
             world = new WorldBuilder().Build(options);
             if (player is null)
             {
@@ -158,7 +159,8 @@ public static class OriginsMode
 
         var start = world.Promotions.Values.ToDictionary(p => p.Id, p => p.Balance.Amount);
         var tick = new WorldTick();
-        var script = player is null ? null : new Script();
+        var script = player is null && plan is null ? null : new Script();
+        o.Observer = plan;
         sb.AppendLine($"day one {world.StartDate:yyyy-MM-dd}: {world.Promotions.Count} promotions, {world.Fighters.Count} men " +
                       $"({world.Fighters.Values.Count(f => f.Designed)} pioneers), {world.Fighters.Values.Count(f => f.Contract is null)} unsigned, " +
                       $"{world.Camps.Count} gyms; unlocked: {string.Join(", ", world.Era.Unlocked)}");
@@ -181,8 +183,10 @@ public static class OriginsMode
                 var aliveAtStart = world.Promotions.Values.Where(p => !p.Defunct).Select(p => p.Id).ToHashSet();
                 do
                 {
-                    script?.Week(world);
+                    plan?.Before(world, o.Problems);
+                    if (plan is null || plan.ScriptOn) script?.Week(world);
                     var r = tick.AdvanceWeek(world);
+                    plan?.After(world, o.Problems);
                     newgens += r.Newgens; retired += r.Retired; washouts += r.Washouts;
                     if (y >= years - 2) RosterTrace(world, o);
                     var weekAgo = world.CurrentDate.AddDays(-7);
@@ -353,6 +357,7 @@ public static class OriginsMode
             o.Ladder.Add((r.Key, r.FiredOn, who));
         }
         if (world.Fighters.Count <= fightersAtStart) o.Problems.Add("no new men turned pro");
+        if (plan is not null) { plan.Finish(world, o.Problems, sb); o.PlayerAbbr = world.Get(world.PlayerPromotion)?.Abbreviation ?? "(none)"; }
         o.Banks = string.Join(", ", banks);
         o.Summary = sb.ToString();
         o.Digest = LongSim.Check.WorldGraph.Digest(world, canonical: false);
@@ -659,7 +664,9 @@ public static class OriginsMode
         }
         bool Before(Capability cap, DateOnly used) => UnlockedOn(cap) is not { } on || used < on.AddDays(-7);
 
-        if (world.Promotions.Values.Count(p => !p.Defunct) > 3 && !world.Era.HasFired("rivals-appear"))
+        // (A house the player founded is exempt from the sport's ceiling on houses: PlayerFounding.)
+        var foundersHere = OriginsPromotions.All.Select(x => x.Abbreviation).ToHashSet();
+        if (world.Promotions.Values.Count(p => !p.Defunct && !(p.IsPlayerControlled && !foundersHere.Contains(p.Abbreviation))) > 3 && !world.Era.HasFired("rivals-appear"))
             o.Violations.Add($"{when}: a fourth house before the rivals appeared");
         foreach (var p in world.Promotions.Values)
         {
