@@ -613,6 +613,7 @@ public class ArcsAndAgendasTests
         Assert.Equal(OwnerMoment.Crowns, OwnerVoices.Moments(w, Item(NewsCategory.TitleChange, "A dethrones B for the Belt", afc)).Single().Moment);
         Assert.Equal(OwnerMoment.LosesStar, OwnerVoices.Moments(w, Item(NewsCategory.TitleChange, "A vacates the Belt", afc)).Single().Moment);
         Assert.Equal(OwnerMoment.LosesStar, OwnerVoices.Moments(w, Item(NewsCategory.Retirement, "A announces retirement", afc)).Single().Moment);
+        Assert.Equal(OwnerMoment.Signs, OwnerVoices.Moments(w, Item(NewsCategory.Signing, "Ann Other signs with Apex Fighting Championship after a bidding war", afc)).Single().Moment);   // BiddingWars now names the fighter
         Assert.Empty(OwnerVoices.Moments(w, Item(NewsCategory.Result, "A beats B", afc)));
         Assert.Empty(OwnerVoices.Moments(w, Item(NewsCategory.General, "Katherine Ross on Other", afc)));   // the owners do not answer themselves
     }
