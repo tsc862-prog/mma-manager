@@ -8,7 +8,8 @@ namespace MmaManager.Tests;
 
 /// <summary>
 /// The player's founding options in an Origins world: recurring open tryouts on the AI houses' rule (an option he
-/// calls), and the choice of divisions at founding (suggested: what his purse can staff).
+/// calls), the choice of divisions at founding (suggested: what his purse can staff), and a weight split that keeps
+/// the bouts already booked on announced nights (for every house).
 /// </summary>
 public class PlayerFoundingOptionsTests
 {
@@ -188,5 +189,110 @@ public class PlayerFoundingOptionsTests
         Assert.Contains("no weight classes yet", why);
         var promo = FoundOk(w, new PlayerFoundingSpec("Harbour Lights Fighting", "HLF", city.Id, Divisions: Array.Empty<WeightClass>()));
         Assert.True(Assert.Single(promo.Divisions).Open);
+    }
+
+    // ---- 4. a weight split keeps the bouts already booked ----------------------------------------
+
+    private static DateOnly Month(int m) => new DateOnly(1993, 1, 1).AddMonths(m);
+
+    private static void Fired(World w, DateOnly on, params string[] keys)
+    {
+        foreach (var k in keys)
+        {
+            Era.Fire(w, k, on);
+            foreach (var u in OriginsChapters.ByKey(k).Unlocks)
+                if (Era.TryFromChapterUnlock(u, out var cap)) Era.Unlock(w, cap);
+        }
+    }
+
+    private static void ReadyToSplit(World w)
+    {
+        w.CurrentDate = Month(60);
+        Fired(w, Month(2), "crucible-first-night", "first-star");
+        Fired(w, Month(34), "press-turns");
+        Fired(w, Month(50), "rounds-and-judges", "gloves-adopted");
+    }
+
+    [Fact]
+    public void ASplit_KeepsTheBoutsOnAnAnnouncedCard_AndNoRetiredBeltIsWon()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, 1));   // the player runs SFA, a card house at open weight
+        var sfa = w.Get(w.PlayerPromotion)!;
+        ReadyToSplit(w);
+        foreach (var e in w.Events.Values.Where(e => e.Promotion == sfa.Id).ToList()) w.Events.Remove(e.Id);
+        var date = w.CurrentDate.AddDays(35);
+        var men = w.RosterOf(sfa.Id)
+            .Where(f => f.Sex == Sex.Male && f.IsMatchReady(date) && !Core.Sim.Contracts.DealWindow.OutOfDeal(w, f))
+            .OrderBy(f => f.Id.Value).Take(4).ToList();
+        Assert.Equal(4, men.Count);
+        men[0].WeightClass = WeightClass.Heavyweight;   // the open-weight belt bout crosses the new line...
+        men[1].WeightClass = WeightClass.Middleweight;
+        men[2].WeightClass = WeightClass.Welterweight;  // ...and so does an ordinary bout
+        men[3].WeightClass = WeightClass.LightHeavyweight;
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(w, date);
+        Assert.True(booking.AddBout(w, ev, men[2].Id, men[3].Id, 3, false, out var err), err);
+        Assert.True(booking.AddBout(w, ev, men[0].Id, men[1].Id, 3, true, out err), err);
+        var openBelt = sfa.Divisions.Single(d => d.Open).Title!.Value;
+        Assert.Contains(ev.Card, f => f.Title == openBelt);
+
+        Assert.True(OriginsReforms.TryAdopt(w, sfa, OriginsReforms.Ladder[0], w.CurrentDate, out var refused), refused);
+
+        // Both bouts stay, fought as booked (open weight); the retired belt's bout goes on without it.
+        Assert.Equal(2, ev.Card.Count);
+        Assert.All(ev.Card, f => Assert.True(f.OpenWeight));
+        Assert.All(ev.Card, f => Assert.False(f.IsTitleFight));
+        Assert.All(ev.Card, f => Assert.Null(f.Title));
+        var mail = Assert.Single(w.Mail, m => m.Subject == "The new weight lines and the bouts on our cards");
+        Assert.Contains(men[0].FullName, mail.Body);
+        Assert.DoesNotContain(w.Mail, m => m.Subject == "The new weight lines took bouts off our cards");
+
+        // The night runs with both bouts, and no belt is won on it.
+        var reignsBefore = w.Titles.Values.Sum(t => t.Lineage.Count);
+        w.CurrentDate = ev.Date;
+        new WorldTick().RunEventLive(w, ev, playByPlay: false);
+        Assert.Equal(EventStatus.Completed, ev.Status);
+        Assert.Equal(2, ev.Card.Count(f => f.Outcome is not null));
+        Assert.Equal(reignsBefore, w.Titles.Values.Sum(t => t.Lineage.Count));
+        Assert.Null(w.Get(openBelt)!.CurrentChampion);
+
+        // The new lines bind from the next night: a new bout across them is refused.
+        var next = booking.CreateEvent(w, ev.Date.AddDays(40));
+        Assert.False(booking.AddBout(w, next, men[0].Id, men[1].Id, 3, false, out err));
+    }
+
+    [Fact]
+    public void ALaterSplit_KeepsABeltBoutOnlyWhenBothMenStayInItsDivision_AtAnAiHouse()
+    {
+        var w = OriginsWorldTests.AiWorld(4);
+        var sfa = w.Promotions.Values.Single(p => p.Abbreviation == "SFA");
+        OriginsReforms.DrawLines(w, sfa, OriginsReforms.LinesOf(OriginsReforms.Ladder[0]), w.CurrentDate);
+        foreach (var e in w.Events.Values.Where(e => e.Promotion == sfa.Id && e.Status == EventStatus.Scheduled).ToList()) w.Events.Remove(e.Id);
+        var heavy = sfa.Divisions.Single(d => d.WeightClass == WeightClass.Heavyweight);
+        var men = w.RosterOf(sfa.Id).Where(f => f.Sex == Sex.Male).OrderBy(f => f.Id.Value).Take(4).ToList();
+        Assert.Equal(4, men.Count);
+        men[0].WeightClass = WeightClass.Heavyweight;
+        men[1].WeightClass = WeightClass.Heavyweight;
+        men[2].WeightClass = WeightClass.Heavyweight;
+        men[3].WeightClass = WeightClass.LightHeavyweight;   // in the heavy band now, his own division after the next split
+        var date = w.CurrentDate.AddDays(28);
+        var ev = OriginsShows.ScheduleCard(w, sfa.Id, date, new[]
+        {
+            new Matchup(men[2].Id, men[3].Id, WeightClass.Heavyweight, 3, true, heavy.Title),
+            new Matchup(men[0].Id, men[1].Id, WeightClass.Heavyweight, 3, true, heavy.Title),
+        })!;
+        Assert.NotNull(ev);
+        Assert.Equal(2, ev.Card.Count(f => f.IsTitleFight));
+
+        OriginsReforms.DrawLines(w, sfa, OriginsReforms.LinesOf(OriginsReforms.Ladder[1]), w.CurrentDate);
+
+        Assert.Equal(2, ev.Card.Count);   // nothing taken off
+        var kept = ev.Card.Single(f => f.RedCorner == men[0].Id);
+        Assert.True(kept.IsTitleFight);
+        Assert.Equal(heavy.Title, kept.Title);
+        var crossed = ev.Card.Single(f => f.RedCorner == men[2].Id);
+        Assert.False(crossed.IsTitleFight);
+        Assert.Null(crossed.Title);
+        Assert.Equal(WeightClass.Heavyweight, crossed.WeightClass);   // as booked
     }
 }

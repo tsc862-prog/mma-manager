@@ -89,9 +89,10 @@ public sealed class EventService
         var house = world.Get(ev.Promotion);
         foreach (var fight in ev.Card)
         {
-            // A bout inside a banded division (Origins weight split) keeps the size term; never in today's mode.
-            bool banded = world.Mode == WorldMode.Origins && !fight.OpenWeight && house is not null
-                && house.Divisions.Any(d => d.Lightest is not null && d.WeightClass == fight.WeightClass);
+            // A bout inside a banded division (Origins weight split) keeps the size term; never in today's mode. So does
+            // an open-weight bout booked before the house drew its lines (fought as booked: OriginsReforms.DrawLines).
+            bool banded = world.Mode == WorldMode.Origins && house is not null
+                && (fight.OpenWeight || house.Divisions.Any(d => d.Lightest is not null && d.WeightClass == fight.WeightClass));
             // A rule set that fixes the rounds (one long round) is what the bout is fought over, so the
             // saved fight says so too. Round length has no field on Fight: it is the rules' (else the house's) minutes.
             if (houseRules?.Rounds is int fixedRounds) fight.ScheduledRounds = fixedRounds;
