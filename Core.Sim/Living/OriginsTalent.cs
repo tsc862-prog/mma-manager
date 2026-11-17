@@ -383,25 +383,12 @@ public static class OriginsTalent
         leavers + Math.Clamp((target - actives) / 6, 0, 4);
 
     /// <summary>
-    /// The men an open tryout signed in (<paramref name="from"/>, <paramref name="to"/>] (read off their accolade, the
-    /// durable record): new men the sport made (<see cref="TryoutDeduction"/> takes them off the gyms' intake).
-    /// (Without it the small houses' tryouts of the Boom swelled the sport past its actives band: longsim origins 40 20.)
-    /// </summary>
-    public static int TryoutMenSince(World world, DateOnly from, DateOnly to)
-    {
-        int n = 0;
-        foreach (var f in world.Fighters.Values)
-            foreach (var a in f.Accolades)
-                if (a.Date > from && a.Date <= to && IsTryout(a))
-                { n++; break; }
-        return n;
-    }
-
-    /// <summary>
     /// What the open tryouts take off this month's intake from the gyms (<paramref name="today"/> is the month's first
     /// weekly tick, as the tick's month block runs): each tryout man stands in for one new man from
-    /// the gyms, in one month of the year after his tryout (the month a hash of his id picks), so a tryout bigger than a
-    /// month's intake still comes off whole. Exact and draw-free.
+    /// the gyms, in one month of the year after his tryout (the month a hash of his id picks), so a big tryout is spread
+    /// over a year of intakes instead of landing on one. Draw-free. The caller (WorldTick) clamps the month's intake at
+    /// zero (<c>Math.Max(0, intake - deduction)</c>): a month whose intake is smaller than its deduction loses the excess,
+    /// which is not carried over.
     /// </summary>
     public static int TryoutDeduction(World world, DateOnly today)
     {

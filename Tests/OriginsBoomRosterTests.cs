@@ -204,23 +204,108 @@ public class OriginsBoomRosterTests
     }
 
     [Fact]
-    public void TryoutMen_AreLastMonthsNewMen_SoTheGymsSendThatManyFewer()
+    public void TryoutMen_EachComeOffTheGymsIntake_ExactlyOnce()
     {
         var w = OriginsWorldTests.AiWorld(11);
         var sfa = House(w, "SFA");
         foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Contract = null;
         var day = w.CurrentDate;
-        Assert.Equal(0, OriginsTalent.TryoutMenSince(w, day.AddMonths(-1), day));
         OriginsFounding.RunTryouts(w, day);
         int signed = w.RosterOf(sfa.Id).Count() - 3;
         Assert.True(signed > 0);
-        Assert.Equal(signed, OriginsTalent.TryoutMenSince(w, day.AddDays(-1), day.AddMonths(1)));
-        Assert.Equal(0, OriginsTalent.TryoutMenSince(w, day, day.AddMonths(1)));   // (from, to]: the day itself is out
         // Each comes off the gyms' intake exactly once, in one month of the year after.
         int off = 0;
         for (var d = day.AddDays(7); d <= day.AddDays(7 * 70); d = d.AddDays(7))
             if (d.AddDays(-7).Month != d.Month) off += OriginsTalent.TryoutDeduction(w, d);   // the month's first weekly tick
         Assert.Equal(signed, off);
+    }
+
+    [Fact]
+    public void TheTick_SendsFewerNewMen_TheMonthATryoutManFallsDue()
+    {
+        // A scout world finds the first month whose intake is at least three new men.
+        const int K = 3;
+        var scout = OriginsWorldTests.AiWorld(11);
+        var tick = new WorldTick();
+        int weeks = -1;
+        for (int k = 0; k < 52 * 3; k++)
+        {
+            var r = tick.AdvanceWeek(scout);
+            if (scout.CurrentDate.AddDays(-7).Month != scout.CurrentDate.Month && r.Newgens >= K) { weeks = k; break; }
+        }
+        Assert.True(weeks >= 0, "no month with an intake of three in three years");
+
+        // Two copies of the world up to the week before that month's tick; in one, three men carry a tryout
+        // accolade that falls due on it.
+        var plain = OriginsWorldTests.AiWorld(11);
+        var tried = OriginsWorldTests.AiWorld(11);
+        new WorldTick().AdvanceWeeks(plain, weeks);
+        new WorldTick().AdvanceWeeks(tried, weeks);
+        var monthTick = tried.CurrentDate.AddDays(7);
+        foreach (var f in tried.Fighters.Values.Where(f => f.Status == FighterStatus.Active).OrderBy(f => f.Id.Value).Take(K))
+            f.Accolades.Add(new Accolade(monthTick.AddMonths(-(1 + (int)((uint)f.Id.Value % 12))), "Signed at Test Promotion's open tryout"));
+        Assert.Equal(K, OriginsTalent.TryoutDeduction(tried, monthTick));
+
+        var a = new WorldTick().AdvanceWeek(plain);
+        var b = new WorldTick().AdvanceWeek(tried);
+        Assert.True(a.Newgens >= K, $"intake {a.Newgens}");
+        Assert.Equal(a.Newgens - K, b.Newgens);
+    }
+
+    [Fact]
+    public void TheTryoutTrigger_IsTheNextNight_ButOnlyBelowTheFoundingRoster()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var sfa = House(w, "SFA");
+        int min = OriginsShows.MinRoster(sfa);
+        // Eleven men on the books (one under the founding roster), every one fit for the next night: no tryout.
+        SetRoster(w, sfa, min + 1);
+        Assert.Equal(min + 1, OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(min + 1, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.DoesNotContain(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        Assert.Equal(min + 1, OriginsFounding.OnTheBooks(w, sfa));
+
+        // The same eleven, two of them hurt for months: nine could fight the next night, under what it needs. A tryout.
+        foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Take(2)) { f.Status = FighterStatus.Injured; f.ReadyToFightOn = w.CurrentDate.AddDays(120); }
+        Assert.Equal(min + 1, OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(min - 1, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
+        Assert.True(OriginsFounding.OnTheBooks(w, sfa) > min + 1);
+    }
+
+    [Fact]
+    public void ATryout_FillsToTheSigningTarget_NotJustTheFoundingRoster()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var on = new DateOnly(2001, 6, 1);
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0] })
+        {
+            Era.Fire(w, key, on);
+            foreach (var u in Core.Sim.Generation.Origins.OriginsChapters.ByKey(key).Unlocks)
+                if (Era.TryFromChapterUnlock(u, out var cap)) Era.Unlock(w, cap);
+        }
+        var sfa = House(w, "SFA");
+        foreach (var key in new[] { OriginsReforms.Rounds, OriginsReforms.Gloves, OriginsReforms.Ladder[0] })
+            if (OriginsReforms.Options(w, sfa, on).Any(o => o.Chapter == key)) Assert.True(OriginsReforms.Adopt(w, sfa, key, on), key);
+        Assert.Equal(2, sfa.Divisions.Count(d => !d.Open && d.Sex == Sex.Male));
+        int min = OriginsShows.MinRoster(sfa), demand = OriginsShows.RosterDemand(sfa);
+        Assert.True(demand > min + 2, $"signing target {demand}, founding roster {min + 2}");   // (split: eight a division)
+
+        SetRoster(w, sfa, 3);
+        OriginsFounding.RunTryouts(w, w.CurrentDate);
+        Assert.Equal(demand, OriginsFounding.OnTheBooks(w, sfa));
+    }
+
+    /// <summary>Exactly <paramref name="n"/> fit men on the house's books (free agents signed on, or the rest let go), in id order.</summary>
+    private static void SetRoster(World w, Promotion p, int n)
+    {
+        foreach (var fa in w.FreeAgents().Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male && p.Divisions.Any(d => d.Matches(f)))
+                     .OrderBy(f => f.Id.Value).Take(Math.Max(0, n - w.RosterOf(p.Id).Count())).ToList())
+            ContractLifecycle.Sign(w, fa, new ContractOffer { Fighter = fa.Id, Promotion = p.Id, PursePerFight = new Money(500m), Fights = 3 }, w.CurrentDate);
+        foreach (var f in w.RosterOf(p.Id).OrderBy(f => f.Id.Value).Skip(n).ToList()) f.Contract = null;
+        foreach (var f in w.RosterOf(p.Id)) { f.Status = FighterStatus.Active; f.ReadyToFightOn = null; f.CurrentInjury = null; }
     }
 
     [Fact]
