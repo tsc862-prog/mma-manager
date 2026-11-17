@@ -101,7 +101,7 @@ public class OriginsBoomRosterTests
 
         OriginsFounding.RunTryouts(w, w.CurrentDate);
         var men = w.RosterOf(sfa.Id).ToList();
-        Assert.Equal(OriginsShows.MinRoster(sfa) + 2, men.Count);
+        Assert.Equal(Math.Max(OriginsShows.MinRoster(sfa) + 2, OriginsShows.RosterDemand(sfa)), men.Count);
         Assert.All(men.Where(f => f.Id.Value > before), f =>
         {
             Assert.Equal(sfa.Id, f.DiscoveredBy);
@@ -115,7 +115,7 @@ public class OriginsBoomRosterTests
         OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(100));
         Assert.Equal(3, w.RosterOf(sfa.Id).Count());
         OriginsFounding.RunTryouts(w, w.CurrentDate.AddDays(OriginsFounding.TryoutEveryDays));
-        Assert.Equal(OriginsShows.MinRoster(sfa) + 2, w.RosterOf(sfa.Id).Count());
+        Assert.Equal(Math.Max(OriginsShows.MinRoster(sfa) + 2, OriginsShows.RosterDemand(sfa)), w.RosterOf(sfa.Id).Count());
 
         // The player's house is his own: nobody holds a tryout for him.
         var pw = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, 1));
@@ -193,13 +193,14 @@ public class OriginsBoomRosterTests
         Assert.Equal(3, OriginsFounding.NightReady(w, sfa, w.CurrentDate));
         OriginsFounding.RunTryouts(w, w.CurrentDate);
         Assert.DoesNotContain(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
-        // Nine men on the books, six of them hurt: it can't run a night, so it holds one, back to its founding roster.
+        // Nine men on the books, six of them hurt: it can't run a night, so it holds one, up to its signing target.
         foreach (var f in men.Skip(9)) f.Contract = null;
         Assert.Equal(9, OriginsFounding.OnTheBooks(w, sfa));
         OriginsFounding.RunTryouts(w, w.CurrentDate);
         Assert.Single(sfa.Ledger, e => e.Description == OriginsFounding.TryoutLedgerLine);
-        Assert.Equal(full, OriginsFounding.OnTheBooks(w, sfa));
-        Assert.Equal(3 + (full - 9), OriginsFounding.NightReady(w, sfa, w.CurrentDate));
+        int fill = Math.Max(full, OriginsShows.RosterDemand(sfa));
+        Assert.Equal(fill, OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(3 + (fill - 9), OriginsFounding.NightReady(w, sfa, w.CurrentDate));
     }
 
     [Fact]

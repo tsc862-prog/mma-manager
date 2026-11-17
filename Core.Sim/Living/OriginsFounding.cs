@@ -347,7 +347,7 @@ public static class OriginsFounding
     /// <see cref="NightReady"/>: men the house could book a lead window from now, so the hurt and the suspended do not
     /// count) and fewer than its founding roster on the books (<see cref="OnTheBooks"/>) after the market has had its
     /// turn calls in local men, as it did the month it opened, and signs them on the tryout terms (<see cref="TryoutMan"/>)
-    /// until its founding roster is on the books again, at most twice a year. This is how a small hall
+    /// until its signing target (<see cref="OriginsShows.RosterDemand"/>) is on the books, at most twice a year. This is how a small hall
     /// whose purse no free agent will take (the Boom's 500-a-purse houses, while every man left on the market asks 750 or
     /// more) keeps putting on its nights. A house in the red holds one too: a tryout costs nothing up front, and a
     /// distressed house's offers (a fraction of its purse cap) reach nobody on the market, so without it a house in debt
@@ -365,10 +365,11 @@ public static class OriginsFounding
         {
             // Short when too few men could fight its next night AND it holds less than its founding roster: a full
             // roster with men hurt waits for them to heal (a tryout then only swelled the sport: 39 of 40 seeds over
-            // the actives band at 12 years). It signs up to the founding roster on the books.
-            int target = OriginsShows.MinRoster(promo) + 2;
+            // the actives band at 12 years). It signs up to its own signing target (what the free-agent pass aims
+            // for; filling only to the founding roster left houses at 8-9 men before the half-year was up).
             int onBooks = OnTheBooks(world, promo);
-            if (NightReady(world, promo, date) >= OriginsShows.MinRoster(promo) || onBooks >= target) continue;
+            if (NightReady(world, promo, date) >= OriginsShows.MinRoster(promo) || onBooks >= OriginsShows.MinRoster(promo) + 2) continue;
+            int target = Math.Max(OriginsShows.MinRoster(promo) + 2, OriginsShows.RosterDemand(promo));
             if (promo.Ledger.Any(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine
                                       && date.DayNumber - e.Date.DayNumber < TryoutEveryDays)) continue;
             var home = promo.HomeCity is { } hc ? world.Get(hc) : null;
