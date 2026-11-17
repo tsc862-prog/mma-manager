@@ -73,7 +73,7 @@ public sealed record PlayerFoundingSpec(
 /// <summary>
 /// An open tryout of local men: whether he can call one today (<see cref="Refusal"/> says why not), how many men it
 /// would sign at most (<see cref="Turnout"/>), and what it is, in words. <see cref="Free"/>: the house's one free
-/// founding tryout (always his once); otherwise a recurring tryout, which the house earns as an AI house does: when it
+/// founding tryout (once, for a house he founded through PlayerFounding.Found; a founding house of the sport has none); otherwise a recurring tryout, which the house earns as an AI house does: when it
 /// is short of men, and at most once every <see cref="OriginsFounding.TryoutEveryDays"/> days.
 /// <see cref="NextPossibleOn"/>: when the spacing has kept him from one, the first day the spacing allows the next
 /// (he must still be short of men then); null when the spacing is not what stops him, or when he can call one today.
@@ -568,19 +568,32 @@ public static class PlayerFounding
     }
 
     /// <summary>
-    /// Can he call an open tryout today, and what is it? His first is the free one (<see cref="TryoutTurnout"/> men,
+    /// Can he call an open tryout today, and what is it? In a house he founded, his first is the free one (<see cref="TryoutTurnout"/> men,
     /// whenever he likes). After it, a recurring tryout on the AI houses' rule (<see cref="OriginsFounding.RunTryouts"/>):
     /// only when the house is short of men (fewer than <see cref="OriginsShows.MinRoster"/> who could fight its next night
     /// and fewer than MinRoster + 2 on the books) and at least <see cref="OriginsFounding.TryoutEveryDays"/> days after
-    /// his last tryout of either kind; it fills the house to its signing target. Never held for him: he calls it.
+    /// his last tryout of either kind; it fills the house to its signing target. A founding house of the sport (CRU, SFA,
+    /// DLB: <see cref="FoundedByPlayer"/> false) has only the recurring one. Never held for him: he calls it.
     /// </summary>
     public static TryoutOffer TryoutOptions(World world, DateOnly date)
     {
-        if (world.Get(world.PlayerPromotion) is { } mine && world.Mode == WorldMode.Origins && TryoutHeldOn(mine) is not null)
+        if (world.Get(world.PlayerPromotion) is { } mine && world.Mode == WorldMode.Origins && RecurringOnly(mine))
             return RecurringOffer(world, mine, date);
         string detail = $"One free open tryout: about {TryoutTurnout} local men who have trained for this turn up, and every one who fits a division signs on honest minimum terms (the sport's purse floor, three fights). Green, cheap and yours.";
         return new TryoutOffer(TryoutRefusal(world), TryoutTurnout, detail);
     }
+
+    /// <summary>
+    /// Was this house founded through <see cref="Found"/> (so it has a free founding tryout of its own)? Every other house
+    /// the player can run in an Origins world is one of the sport's founding houses (<see cref="OriginsPromotions.All"/>,
+    /// matched by abbreviation as <see cref="OriginsShows.HomeRoom"/> matches them; Found refuses those names and
+    /// abbreviations, in any case), which opens with its roster signed. The arrivals are never the player's.
+    /// </summary>
+    public static bool FoundedByPlayer(Promotion promo) =>
+        !OriginsPromotions.All.Any(sp => string.Equals(sp.Abbreviation, promo.Abbreviation, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Is the only open tryout left to this house the recurring one: a founding house's, or after his free one?</summary>
+    private static bool RecurringOnly(Promotion promo) => !FoundedByPlayer(promo) || TryoutHeldOn(promo) is not null;
 
     private static string? TryoutRefusal(World world)
     {
@@ -598,7 +611,8 @@ public static class PlayerFounding
         bool shortHanded = OriginsFounding.ShortHanded(world, mine, date, out int onBooks);
         int ready = OriginsFounding.NightReady(world, mine, date);
         int target = OriginsFounding.TryoutTarget(mine);
-        string free = TryoutHeldOn(mine) is { } held ? $"You held your one free open tryout on {held:d MMMM yyyy}. " : "";
+        string free = TryoutHeldOn(mine) is { } held ? $"You held your one free open tryout on {held:d MMMM yyyy}. "
+            : !FoundedByPlayer(mine) ? $"{mine.Name} opened with its roster signed: the free founding tryout is for a house you found yourself. " : "";
         string detail = $"An open tryout of local men: as many as it takes to bring the house to {target} men on the books, on the tryout terms "
                         + "(the sport's purse floor, three fights). Free, but only for a house short of men, and no more than twice a year.";
         string? refusal = null;
@@ -632,7 +646,7 @@ public static class PlayerFounding
     /// </summary>
     public static IReadOnlyList<TryoutSigning> HoldTryout(World world, DateOnly date, out string? refused)
     {
-        if (world.Mode == WorldMode.Origins && world.Get(world.PlayerPromotion) is { } held && TryoutHeldOn(held) is not null)
+        if (world.Mode == WorldMode.Origins && world.Get(world.PlayerPromotion) is { } held && RecurringOnly(held))
             return HoldRecurring(world, held, date, out refused);
         refused = TryoutRefusal(world);
         if (refused is not null) return Array.Empty<TryoutSigning>();

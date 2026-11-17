@@ -578,6 +578,8 @@ public static class OriginsReforms
             {
                 if (!f.IsTitleFight && f.Title is null) continue;
                 var a = world.Get(f.RedCorner); var b = world.Get(f.BlueCorner);
+                // (The lookup covers the men's lines only: a women's title bout would lose its belt here. Origins has no
+                // women's divisions today; give them their own lookup when it does.)
                 var division = f.Title is { } belt ? lines.FirstOrDefault(d => d.Title == belt) : null;
                 if (division is not null && a is not null && b is not null && division.Matches(a) && division.Matches(b)) continue;
                 unbelted.Add($"{a?.FullName ?? "?"} vs {b?.FullName ?? "?"} ({ev.Name})");

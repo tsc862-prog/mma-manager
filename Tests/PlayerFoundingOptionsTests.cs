@@ -295,4 +295,87 @@ public class PlayerFoundingOptionsTests
         Assert.Null(crossed.Title);
         Assert.Equal(WeightClass.Heavyweight, crossed.WeightClass);   // as booked
     }
+
+    // ---- review follow-ups: a founding house's tryouts; the kept bout's size term ----------------
+
+    [Fact]
+    public void AFoundingHouse_HasNoFreeTryout_ButTheRecurringOneWhenShort()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, 1));   // the player runs SFA from day one
+        var sfa = w.Get(w.PlayerPromotion)!;
+        Assert.False(PlayerFounding.FoundedByPlayer(sfa));
+        int roster = w.RosterOf(sfa.Id).Count();
+
+        // A full house: no free founding tryout, and no recurring one (not short of men); no date to wait for.
+        var offer = PlayerFounding.TryoutOptions(w, w.CurrentDate);
+        Assert.False(offer.Available);
+        Assert.False(offer.Free);
+        Assert.Null(offer.NextPossibleOn);
+        Assert.Contains("free founding tryout is for a house you found yourself", offer.Refusal);
+        Assert.Empty(PlayerFounding.HoldTryout(w, w.CurrentDate, out var why));
+        Assert.Equal(offer.Refusal, why);
+        Assert.Equal(roster, w.RosterOf(sfa.Id).Count());
+
+        // Short of men: the AI houses' tryout is his, at once (no tryout on his ledger, so no spacing).
+        foreach (var f in w.RosterOf(sfa.Id).OrderBy(f => f.Id.Value).Skip(3).ToList()) f.Status = FighterStatus.Retired;
+        var date = w.CurrentDate;
+        Assert.True(OriginsFounding.ShortHanded(w, sfa, date, out int before));
+        var shortOffer = PlayerFounding.TryoutOptions(w, date);
+        Assert.True(shortOffer.Available, shortOffer.Refusal);
+        Assert.False(shortOffer.Free);
+        Assert.Null(shortOffer.NextPossibleOn);
+        Assert.Equal(OriginsFounding.TryoutTarget(sfa) - before, shortOffer.Turnout);
+        var men = PlayerFounding.HoldTryout(w, date, out why);
+        Assert.Null(why);
+        Assert.NotEmpty(men);
+        Assert.Equal(OriginsFounding.TryoutTarget(sfa), OriginsFounding.OnTheBooks(w, sfa));
+        Assert.Equal(1, Lines(sfa, OriginsFounding.TryoutLedgerLine));
+        Assert.Equal(0, Lines(sfa, PlayerFounding.TryoutLedgerLine));
+        Assert.Null(PlayerFounding.TryoutHeldOn(sfa));
+
+        // Spaced from that tryout, though no free one was ever on his ledger.
+        var after = PlayerFounding.TryoutOptions(w, date.AddDays(1));
+        Assert.False(after.Available);
+        Assert.False(after.Free);
+        Assert.Equal(date.AddDays(OriginsFounding.TryoutEveryDays), after.NextPossibleOn);
+    }
+
+    [Fact]
+    public void AHouseHeFounded_IsTheOnlyKindWithTheFreeTryout()
+    {
+        var w = Observer(12);
+        var promo = FoundOk(w, new PlayerFoundingSpec("Lantern Street Open", "LSO", FirstOpen(w).Id));
+        Assert.True(PlayerFounding.FoundedByPlayer(promo));
+        var offer = PlayerFounding.TryoutOptions(w, w.CurrentDate);
+        Assert.True(offer.Available);
+        Assert.True(offer.Free);
+        Assert.Equal(PlayerFounding.TryoutTurnout, offer.Turnout);
+    }
+
+    [Fact]
+    public void AKeptOpenWeightBout_IsFoughtWithTheSizeTerm_UnderTheHousesCustomRules()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(5, 1));
+        var sfa = w.Get(w.PlayerPromotion)!;
+        ReadyToSplit(w);
+        foreach (var e in w.Events.Values.Where(e => e.Promotion == sfa.Id).ToList()) w.Events.Remove(e.Id);
+        var date = w.CurrentDate.AddDays(35);
+        var men = w.RosterOf(sfa.Id)
+            .Where(f => f.Sex == Sex.Male && f.IsMatchReady(date) && !Core.Sim.Contracts.DealWindow.OutOfDeal(w, f))
+            .OrderBy(f => f.Id.Value).Take(2).ToList();
+        men[0].WeightClass = WeightClass.Heavyweight;
+        men[1].WeightClass = WeightClass.Middleweight;
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(w, date);
+        Assert.True(booking.AddBout(w, ev, men[0].Id, men[1].Id, 3, false, out var err), err);
+        Assert.True(OriginsReforms.TryAdopt(w, sfa, OriginsReforms.Ladder[0], w.CurrentDate, out var refused), refused);
+
+        var bout = Assert.Single(ev.Card);
+        Assert.True(bout.OpenWeight);                      // kept, as booked
+        var rules = sfa.Rules.Fight!;
+        Assert.False(rules.OpenWeight);                    // the house's own bouts weigh in now...
+        Assert.False(rules.IsModern);                      // ...under its own (custom) rules: the engine's custom path
+        // The engine's size term is custom && (rules.OpenWeight || BandedSizeTerm): on only through the bout's own flag.
+        Assert.True(Core.Sim.Booking.EventService.SizeTermFor(w, sfa, bout));
+    }
 }
