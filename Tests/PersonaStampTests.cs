@@ -27,7 +27,7 @@ public class PersonaStampTests
     // leaves it, and the Modern pin never moves.)
     // (Re-pinned when the AI matchmaker began handing title shots to credible contenders (world/title-shots): today's cards
     // differ inside twelve weeks, so the Modern pin moves whole. The Origins world is identical.)
-    private const string ModernNoCatalog12Weeks = "A40EC998243A55B2";
+    private const string ModernNoCatalog12Weeks = "AB4B9BD5FF73F4D0";
     private const string OriginsNoCatalog12Weeks = "5AF296CA832E8562";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.
