@@ -73,7 +73,7 @@ public class FogPotentialTests
 
         foreach (var k in kids) { k.Record.Wins = 10; k.Record.Losses = 7; }   // 17 bouts: fully known
         var known = kids.Select(k => ScoutingService.PerceivedPotential(w, house, k)).Distinct().ToList();
-        Assert.Single(known);   // 50 + headroom at 20 (14) + the record's word on a 10-7 kid, and nothing else
+        Assert.Single(known);   // 50 + headroom at 20 (11) + the record's word on a 10-7 kid, and nothing else
     }
 
     // ---- the front office: the marketing push and the camp stipend --------------------------------------------
@@ -96,9 +96,9 @@ public class FogPotentialTests
         Assert.False(older.CampStipend);
     }
 
-    // Two of an AI house's own men at one true level: a 25-year-old whose real ceiling is a point HIGHER than a
-    // 19-year-old's. The house reads the kid higher (six more years of headroom outweigh the share of the truth
-    // it sees in its own men).
+    // Two of an AI house's own men at one true level: a 25-year-old on a losing run whose real ceiling is a point
+    // HIGHER than an 18-year-old's who wins and finishes. The house reads the kid higher (seven more years of
+    // headroom and the record's word outweigh the share of the truth it sees in its own men).
     private static (World W, Promotion House, Fighter Older, Fighter Younger) OwnPair()
     {
         var w = FogKit.Modern();
@@ -114,6 +114,8 @@ public class FogPotentialTests
             f.MarketingPush = false;
             f.CampStipend = false;
         }
+        Form(younger, wins: 3, losses: 0, finishes: 3);   // what the public sees: the kid wins and finishes...
+        Form(older, wins: 0, losses: 3, finishes: 0);     // ...the older man has lost three straight
         older.PotentialAbility = 74;
         younger.PotentialAbility = 73;
         int Read(Fighter f) => ScoutingService.PerceivedPotential(w, house, f);
@@ -166,6 +168,8 @@ public class FogPotentialTests
             f.Contract = new Contract { Promotion = player.Id, SignedOn = w.CurrentDate, FightsRemaining = 3 };
             f.CampStipend = false;
         }
+        Form(younger, wins: 3, losses: 0, finishes: 3);   // what the public sees: the kid wins and finishes...
+        Form(older, wins: 0, losses: 3, finishes: 0);     // ...the older man has lost three straight
         older.PotentialAbility = 74;
         younger.PotentialAbility = 73;
         int Read(Fighter f) => ScoutingService.PerceivedPotential(w, player, f);
@@ -198,6 +202,8 @@ public class FogPotentialTests
             FogKit.SetTrue(f, 60);
             f.Camp = camp.Id;
         }
+        Form(younger, wins: 3, losses: 0, finishes: 3);   // what the public sees: the kid wins and finishes...
+        Form(older, wins: 0, losses: 3, finishes: 0);     // ...the older man has lost three straight
         older.PotentialAbility = 74;
         younger.PotentialAbility = 73;
         int Read(Fighter f) => ScoutingService.PerceivedPotential(w, camp, f);
@@ -351,6 +357,12 @@ public class FogPotentialTests
                 return (a, b);
         }
         throw new InvalidOperationException("no pair of those ages");
+    }
+
+    private static void Form(Fighter f, int wins, int losses, int finishes)
+    {
+        f.Record.Wins = wins; f.Record.Losses = losses; f.Record.WinsByKo = finishes; f.Record.WinsByDecision = wins - finishes;
+        f.Record.CurrentStreak = wins > 0 ? wins : -losses;
     }
 
     // A fresh stream whose first draws satisfy the test's need (found by trying seeds in order: deterministic).

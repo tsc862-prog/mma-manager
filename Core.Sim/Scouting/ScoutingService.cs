@@ -290,24 +290,37 @@ public static class ScoutingService
     }
 
     /// <summary>
-    /// The headroom a man of this age usually has left above what he shows: about fourteen points at 21 and
-    /// under, tapering to five at 27 and nothing past 31 (the generator's own gaps by age, smoothed).
+    /// The headroom a man of this age usually has left above what he shows. Calibrated against the truth (day-one
+    /// worlds and worlds three years on, weighted two to one toward the running world, where nearly every decision is
+    /// made): about 12.5 at 19 and under, 11 from 20 to 22, then down to 8.5 at 25 and nothing past 31.
     /// </summary>
-    internal static double Headroom(int age) =>
-        age <= 21 ? 14 : age <= 27 ? 14 - (age - 21) * 1.5 : age <= 31 ? 5 - (age - 27) * 1.25 : 0;
+    internal static double Headroom(int age) => age switch
+    {
+        <= 19 => HeadroomAt19,
+        <= 22 => HeadroomAt22,
+        23 => 10.0,
+        24 => 9.0,
+        25 => 8.5,
+        <= 31 => Math.Max(0, 8.5 - (age - 25) * 1.4),
+        _ => 0,
+    };
+
+    private const double HeadroomAt19 = 12.5;
+    private const double HeadroomAt22 = 11.0;
 
     /// <summary>
-    /// What the record says about upside, for a young man only: winning more than losing, and finishing when he
-    /// wins, reads as more to come (about -4..+5 at 22, fading to nothing by 28). Record counters only.
+    /// What the record says about upside, for a young man only, centred so it adds nothing on average: winning
+    /// more than he loses and finishing more than half his wins read as more to come, the opposite as less
+    /// (about -3..+3 at 22, fading to nothing by 28). Record counters only.
     /// </summary>
     internal static double RecordSignal(Fighter f, int age)
     {
         var r = f.Record;
         if (r.TotalBouts < 2 || age >= 28) return 0;
         double youth = Math.Clamp((28 - age) / 6.0, 0, 1);
-        double margin = 4.0 * (r.Wins - r.Losses) / (r.TotalBouts + 2);
-        double finishes = r.Wins == 0 ? 0 : 2.0 * (r.WinsByKo + r.WinsBySubmission) / r.Wins * Math.Min(r.Wins, 5) / 5.0;
-        return Math.Clamp(margin + finishes, -4, 5) * youth;
+        double margin = 3.0 * (r.Wins - r.Losses) / (r.TotalBouts + 2);
+        double finishes = r.Wins == 0 ? 0 : 2.0 * ((r.WinsByKo + r.WinsBySubmission) / (double)r.Wins - 0.5) * Math.Min(r.Wins, 5) / 5.0;
+        return Math.Clamp(margin + finishes, -3, 3) * youth;
     }
 
     private static int Ceiling(World world, Fighter f, int seen, double familiarity, double competence,
