@@ -77,8 +77,12 @@ public sealed record PlayerFoundingSpec(
 /// is short of men, and at most once every <see cref="OriginsFounding.TryoutEveryDays"/> days.
 /// <see cref="NextPossibleOn"/>: when the spacing has kept him from one, the first day the spacing allows the next
 /// (he must still be short of men then); null when the spacing is not what stops him, or when he can call one today.
+/// <see cref="ShortOfMen"/>: his open house is short of men today by the recurring tryout's own test
+/// (<see cref="OriginsFounding.ShortHanded"/>), whether or not a tryout can be called today, so "short, but the next
+/// tryout waits for the spacing" reads apart from "not short". A derived read, never stored; false with no open house.
 /// </summary>
-public sealed record TryoutOffer(string? Refusal, int Turnout, string Detail, bool Free = true, DateOnly? NextPossibleOn = null)
+public sealed record TryoutOffer(string? Refusal, int Turnout, string Detail, bool Free = true, DateOnly? NextPossibleOn = null,
+    bool ShortOfMen = false)
 {
     public bool Available => Refusal is null;
 }
@@ -580,8 +584,16 @@ public static class PlayerFounding
         if (world.Get(world.PlayerPromotion) is { } mine && world.Mode == WorldMode.Origins && RecurringOnly(mine))
             return RecurringOffer(world, mine, date);
         string detail = $"One free open tryout: about {TryoutTurnout} local men who have trained for this turn up, and every one who fits a division signs on honest minimum terms (the sport's purse floor, three fights). Green, cheap and yours.";
-        return new TryoutOffer(TryoutRefusal(world), TryoutTurnout, detail);
+        return new TryoutOffer(TryoutRefusal(world), TryoutTurnout, detail, ShortOfMen: ShortOfMen(world, date));
     }
+
+    /// <summary>
+    /// Is his open house short of men today, by the test the recurring tryout uses (<see cref="OriginsFounding.ShortHanded"/>)?
+    /// A read only: counts the roster, draws nothing. False outside Origins, with no house, or when the house has closed.
+    /// </summary>
+    private static bool ShortOfMen(World world, DateOnly date) =>
+        world.Mode == WorldMode.Origins && world.Get(world.PlayerPromotion) is { Defunct: false } mine
+        && OriginsFounding.ShortHanded(world, mine, date, out _);
 
     /// <summary>
     /// Was this house founded through <see cref="Found"/> (so it has a free founding tryout of its own)? Every other house
@@ -634,7 +646,8 @@ public static class PlayerFounding
             else if (mine.HomeCity is not { } hc || world.Get(hc) is not { } home || world.Get(home.Country) is null)
                 refusal = "The house has no home town to call local men from.";
         }
-        return new TryoutOffer(refusal, Math.Max(0, target - onBooks), detail, Free: false, NextPossibleOn: next);
+        return new TryoutOffer(refusal, Math.Max(0, target - onBooks), detail, Free: false, NextPossibleOn: next,
+            ShortOfMen: shortHanded && !mine.Defunct);
     }
 
     /// <summary>
