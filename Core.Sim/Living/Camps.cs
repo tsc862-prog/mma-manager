@@ -237,7 +237,10 @@ public static class Camps
         int pop = f.Intangibles.Popularity.Value;
         if (pop < 35) return;   // journeymen just go home
 
-        // What kind of coach they'd make: their peak game plus the pull of a name.
+        // What kind of coach they'd make: their peak game plus the pull of a name. (The real
+        // quality of the coaching he brings, which drives every member's growth: the world's
+        // physics, like development itself, not anyone's judgement of him, so it reads the truth.
+        // Nobody chooses on it: whether he opens a room or joins his old one is rolled.)
         int quality = Math.Clamp(30 + f.PotentialAbility.Value / 2 + pop / 5, 45, 90);
 
         // A star founds a camp where their homeland lacks an elite room.
@@ -298,11 +301,16 @@ public static class Camps
         // FM-style decision lands in the inbox; the button lives on their profile.
         if (rng.Chance(0.05) && world.Get(world.PlayerPromotion) is { } player)
         {
+            // Who asks is who the player's own scouts rate as having the most room above him
+            // (their read of his ceiling, never the hidden one): the mail must not tip the truth.
             var hopeful = world.RosterOf(player.Id)
-                .Where(f => f.Status == FighterStatus.Active && !f.CampStipend
-                            && f.PotentialAbility.Value >= 62 && f.AgeOn(date) <= 27
+                .Where(f => f.Status == FighterStatus.Active && !f.CampStipend && f.AgeOn(date) <= 27
                             && (f.Camp is null || world.Get(f.Camp.Value) is { CoachQuality: < 70 }))
-                .OrderByDescending(f => f.PotentialAbility.Value)
+                .Select(f => (F: f, Ceiling: Scouting.ScoutingService.PerceivedPotential(world, player, f)))
+                .Where(x => x.Ceiling >= 62)
+                .OrderByDescending(x => x.Ceiling)
+                .ThenBy(x => x.F.Id.Value)
+                .Select(x => x.F)
                 .FirstOrDefault();
             if (hopeful is not null)
                 Mail.Post(world, date, MailCategory.FighterRequest, hopeful.FullName,
@@ -319,10 +327,15 @@ public static class Camps
                 && r.A == coachId && world.Get(r.B) is { Status: FighterStatus.Active } p && p.Camp == camp.Id);
             if (hasProtege || !rng.Chance(0.5)) continue;
 
+            // The coach picks on what HE sees of his room's kids (the room's read of their ceilings,
+            // as good as its coaching), never the hidden potential; id as the last word.
             var prospect = world.Fighters.Values
-                .Where(f => f.Camp == camp.Id && f.Status == FighterStatus.Active
-                            && f.AgeOn(date) <= 25 && f.PotentialAbility.Value >= 62)
-                .OrderByDescending(f => f.PotentialAbility.Value)
+                .Where(f => f.Camp == camp.Id && f.Status == FighterStatus.Active && f.AgeOn(date) <= 25)
+                .Select(f => (F: f, Ceiling: Scouting.ScoutingService.PerceivedPotential(world, camp, f)))
+                .Where(x => x.Ceiling >= 62)
+                .OrderByDescending(x => x.Ceiling)
+                .ThenBy(x => x.F.Id.Value)
+                .Select(x => x.F)
                 .FirstOrDefault();
             if (prospect is null) continue;
 

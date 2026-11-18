@@ -194,7 +194,7 @@ public static class WorldEvents
             "a full slate from day one"),
     };
 
-    private static void MaybeNewPromotion(World world, DateOnly date, SimRandom rng)
+    internal static void MaybeNewPromotion(World world, DateOnly date, SimRandom rng)
     {
         int m = Epoch(world, date);
         if (m < FirstNewOrgMonth || (m - FirstNewOrgMonth) % NewOrgEveryMonths != 0) return;
