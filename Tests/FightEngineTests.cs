@@ -234,4 +234,52 @@ public class FightEngineTests
                 Assert.Equal(Print(off, a, b), Print(on, a, b));
             }
     }
+
+    // A later bout of a bracket night carries condition, which puts a bout under today's rules on the custom path.
+    // The size term there is still today's (the relative edge only), applied once.
+
+    [Fact]
+    public void BandedSizeTerm_WithCarriedCondition_OnTodaysRules_IsExactlyNeutralBetweenSameSizeMen()
+    {
+        var engine = new FightEngine();
+        var worn = new BoutCondition(70, 55, 1, 1);
+        foreach (int lbs in new[] { 0, 170, 249 })
+            for (int i = 0; i < 150; i++)
+            {
+                var (a, b) = SizePair(i);
+                a.NaturalWeightLbs = lbs; b.NaturalWeightLbs = lbs;
+                ulong seed = SimRandom.Mix(922, (ulong)i);
+                // Text too below 110 kg; a man of 110 kg+ who gasses gets the size-term wording for it (text only).
+                var p = new FightParams { GeneratePlayByPlay = lbs < 240, TextSeed = (ulong)i, RedStart = worn, BlueStart = BoutCondition.Fresh };
+                var off = engine.Simulate(a, b, p, seed);
+                var on = engine.Simulate(a, b, p with { BandedSizeTerm = true }, seed);
+                Assert.Equal(Print(off, a, b), Print(on, a, b));
+            }
+    }
+
+    [Fact]
+    public void BandedSizeTerm_WithCarriedCondition_OnTodaysRules_MatchesTheFreshBoutsEdge()
+    {
+        // 113 kg against 77 kg, both corners carrying a fresh condition (the custom path) against the same pair
+        // with no carry (the modern path): the bigger man's edge is the same size term, not a second or bigger one.
+        var engine = new FightEngine();
+        int fresh = 0, carried = 0, n = 0;
+        for (int i = 0; i < 300; i++)
+        {
+            var (a, b) = SizePair(i);
+            for (int swap = 0; swap < 2; swap++)
+            {
+                var big = swap == 0 ? a : b; var small = swap == 0 ? b : a;
+                big.NaturalWeightLbs = 249; small.NaturalWeightLbs = 170;
+                ulong seed = SimRandom.Mix(923, (ulong)(2 * i + swap));
+                var p = new FightParams { GeneratePlayByPlay = false, BandedSizeTerm = true };
+                if (engine.Simulate(a, b, p, seed).Winner == big.Id) fresh++;
+                if (engine.Simulate(a, b, p with { RedStart = BoutCondition.Fresh, BlueStart = BoutCondition.Fresh }, seed).Winner == big.Id) carried++;
+                n++;
+            }
+        }
+        double pFresh = 100.0 * fresh / n, pCarried = 100.0 * carried / n;
+        Assert.True(pCarried > 65, $"bigger man's win % with carried condition {pCarried:0.0}");
+        Assert.True(Math.Abs(pCarried - pFresh) < 8, $"fresh path {pFresh:0.0}%, carried path {pCarried:0.0}%");
+    }
 }

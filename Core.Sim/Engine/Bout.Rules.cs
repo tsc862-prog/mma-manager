@@ -55,10 +55,15 @@ internal sealed partial class Bout
             s.WeightKg = SizeTerm.WeightKg(s.F);
             // Open weight: size comes from natural weight ONLY - the weight-class power term is
             // replaced (not stacked) by a power curve on the man's own kg.
-            if (_size) s.Power = SizeTerm.OpenPower(s.F, s.WeightKg);
+            if (_size && !_rules.IsModern) s.Power = SizeTerm.OpenPower(s.F, s.WeightKg);
             s.Power *= Gloves.DamageMul(s.Glove);
         }
-        if (_size)
+        // Today's rules on the custom path only because condition is carried (a later bout of a bracket night at a
+        // house under the code): the size term is the one today's rules get, the relative edge, as the night's first
+        // bout had it on the modern path. Never both: this replaces the full term below, and the constructor calls
+        // ApplyRelativeSize only when the bout is NOT on the custom path.
+        if (_size && _rules.IsModern) ApplyRelativeSize();
+        else if (_size)
         {
             for (int i = 0; i < 2; i++)
             {
