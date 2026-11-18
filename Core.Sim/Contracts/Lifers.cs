@@ -318,10 +318,10 @@ public static class Lifers
             // below and makes the call themselves.
             if (!mine && g.Kind == GrievanceKind.Underpaid && Solvency.Distress(org) == 0)
             {
-                var exp = Valuation.Evaluate(world, f);
-                var offer = Negotiator.AiOpeningOffer(world, org, f, exp, RenewalStretch);
+                var exp = Valuation.Evaluate(world, f, out var market);   // (the market read goes to his table: nothing changes in between)
+                var offer = Negotiator.AiOpeningOffer(world, org, f, exp, RenewalStretch, market);
                 if (offer.PursePerFight.Amount > f.Contract.PursePerFight.Amount
-                    && Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
+                    && Negotiator.Evaluate(world, f, offer, exp, market).Verdict == NegotiationVerdict.Accept)
                 {
                     ContractLifecycle.Sign(world, f, offer, date);
                     continue;

@@ -60,7 +60,8 @@ public sealed class Negotiator
     /// <summary>A live deal can only be torn up for less show money once he's lost this many in a row.</summary>
     public const int RestructureSkid = 3;
 
-    public NegotiationResponse Evaluate(World world, Fighter f, ContractOffer offer, ContractExpectations exp)
+    /// <param name="market">The market read that came with <paramref name="exp"/> (<see cref="FighterValuation.Evaluate(World, Fighter, out OriginsMarket?)"/>), with nothing changed since; null reads it afresh.</param>
+    public NegotiationResponse Evaluate(World world, Fighter f, ContractOffer offer, ContractExpectations exp, OriginsMarket? market = null)
     {
         decimal offered = MoneyValue(world, offer);
         // A non-exclusive deal is cheaper: the fighter keeps their outside earnings
@@ -71,7 +72,7 @@ public sealed class Negotiator
         // a LIFER takes less to stay where he belongs (see Lifers).
         decimal factor = (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                        * LeashFactor(offer)
-                       * TableFactor(world, f, offer.Promotion, exp);
+                       * TableFactor(world, f, offer.Promotion, exp, market);
         decimal asked = AskMoney(world, offer.Promotion, exp) * factor;
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
 
@@ -179,15 +180,16 @@ public sealed class Negotiator
     /// 1 for business as usual; a solvent org renewing a lifer stretches
     /// (<see cref="Lifers.RenewalStretch"/>), the way a bidding war does.
     /// </summary>
-    public ContractOffer AiOpeningOffer(World world, Promotion promo, Fighter f, ContractExpectations exp, decimal capStretch = 1m)
+    /// <param name="market">As for <see cref="Evaluate"/>: the read that came with <paramref name="exp"/>, or null. An AI house's own cap IS its market cap, so the read serves both.</param>
+    public ContractOffer AiOpeningOffer(World world, Promotion promo, Fighter f, ContractExpectations exp, decimal capStretch = 1m, OriginsMarket? market = null)
     {
-        decimal cap = PurseCap(world, promo) * capStretch;
+        decimal cap = (market is not null && promo.Id != world.PlayerPromotion ? market.CapOf(world, promo) : PurseCap(world, promo)) * capStretch;
         // A non-exclusive deal is pitched at the fighter's DISCOUNTED ask — the org
         // is only buying part of their dance card, so it pays part of the price.
         // The org that discovered them pitches at the gratitude rate.
         bool exclusive = WantsExclusivity(promo);
         decimal ask = exp.AskingPurse.Amount * (exclusive ? 1m : NonExclusiveMoneyFactor)
-                                             * TableFactor(world, f, promo.Id, exp);
+                                             * TableFactor(world, f, promo.Id, exp, market);
         // Pitched AT his ask means at least his ask: rounded UP to the $500
         // step (rounding a $1,200 discounted ask down to $1,000 is a lowball he
         // counters, and the AI never makes a second offer). Never past the cap:
@@ -249,8 +251,8 @@ public sealed class Negotiator
     /// opening offer, the fighter's answer (<see cref="Evaluate"/>), the player's room (<see cref="NegotiationSession"/>)
     /// and the quoted ask (<see cref="AskingQuote"/>). In today's mode it is <see cref="TableDiscount"/>.
     /// </summary>
-    public static decimal TableFactor(World world, Fighter f, PromotionId promo, ContractExpectations exp) =>
-        Math.Min(TableDiscount(world, f, promo), world.Get(promo) is { } p ? HouseTier(world, p, exp) : 1m);
+    public static decimal TableFactor(World world, Fighter f, PromotionId promo, ContractExpectations exp, OriginsMarket? market = null) =>
+        Math.Min(TableDiscount(world, f, promo), world.Get(promo) is { } p ? HouseTier(world, p, exp, market) : 1m);
 
     /// <summary>
     /// What he asks of a house of THIS size, as a share of his open-market ask (Origins; 1 in today's mode). His ask is
@@ -267,14 +269,14 @@ public sealed class Negotiator
     /// The tier never enters a comparison of two houses' offers (<see cref="OfferMarket.Score"/>): there he weighs the
     /// money, and the bigger house's bigger purse still wins him.
     /// </summary>
-    public static decimal HouseTier(World world, Promotion promo, ContractExpectations exp)
+    public static decimal HouseTier(World world, Promotion promo, ContractExpectations exp, OriginsMarket? market = null)
     {
         if (world.Mode != WorldMode.Origins) return 1m;
         decimal ask = exp.AskingPurse.Amount;
         if (ask <= OriginsPurseFloor) return 1m;
-        decimal ceiling = FighterValuation.OriginsMarketCeiling(world);
+        decimal ceiling = market?.Ceiling ?? FighterValuation.OriginsMarketCeiling(world);
         if (ceiling <= 0m) return 1m;
-        decimal r = Math.Clamp(MarketPurseCap(world, promo) / ceiling, 0m, 1m);
+        decimal r = Math.Clamp((market?.CapOf(world, promo) ?? MarketPurseCap(world, promo)) / ceiling, 0m, 1m);
         if (r >= 1m) return 1m;
         decimal s = Math.Clamp(ask / ceiling, 0m, 1m);
         return Math.Max(r + s * (1m - r), OriginsPurseFloor / ask);

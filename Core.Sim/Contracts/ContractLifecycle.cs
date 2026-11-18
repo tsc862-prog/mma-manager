@@ -246,7 +246,8 @@ public static class ContractLifecycle
             // exempt — the belt is the gate income).
             if (champion)
             {
-                Sign(world, f, Negotiator.AiOpeningOffer(world, promo, f, Valuation.Evaluate(world, f)), date);
+                var champExp = Valuation.Evaluate(world, f, out var champMarket);
+                Sign(world, f, Negotiator.AiOpeningOffer(world, promo, f, champExp, market: champMarket), date);
             }
             else if (!Org.RosterPolicy.Wants(world, promo, f))
             {
@@ -260,9 +261,9 @@ public static class ContractLifecycle
                 // be holding him at all (being in the red is a grievance), so this
                 // is never the bleeding org overreaching. If even the stretch can't
                 // reach him, he has outgrown the house.
-                var exp = Valuation.Evaluate(world, f);
-                var offer = Negotiator.AiOpeningOffer(world, promo, f, exp, Lifers.RenewalStretch);
-                if (Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
+                var exp = Valuation.Evaluate(world, f, out var market);   // (the market read goes to his table: nothing changes in between)
+                var offer = Negotiator.AiOpeningOffer(world, promo, f, exp, Lifers.RenewalStretch, market);
+                if (Negotiator.Evaluate(world, f, offer, exp, market).Verdict == NegotiationVerdict.Accept)
                     Sign(world, f, offer, date);
                 else
                     Walk(world, f, promo, date, $"his deal ran out and {promo.Abbreviation} couldn't pay what it would take to keep him", hisChoice: true);
@@ -273,7 +274,7 @@ public static class ContractLifecycle
             }
             else
             {
-                var exp = Valuation.Evaluate(world, f);
+                var exp = Valuation.Evaluate(world, f, out var market);   // (pure reads until the table: the read holds)
                 int distress = Org.Solvency.Distress(promo, world);
                 if (distress > 0 && exp.AskingPurse.Amount >
                     Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
@@ -282,8 +283,8 @@ public static class ContractLifecycle
                 }
                 else
                 {
-                    var offer = Negotiator.AiOpeningOffer(world, promo, f, exp);
-                    if (Negotiator.Evaluate(world, f, offer, exp).Verdict == NegotiationVerdict.Accept)
+                    var offer = Negotiator.AiOpeningOffer(world, promo, f, exp, market: market);
+                    if (Negotiator.Evaluate(world, f, offer, exp, market).Verdict == NegotiationVerdict.Accept)
                         Sign(world, f, offer, date);   // renew in place
                     else
                         Walk(world, f, promo, date, $"his deal ran out and he turned down {promo.Abbreviation}'s offer", hisChoice: true);   // to the open market
