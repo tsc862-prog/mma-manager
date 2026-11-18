@@ -18,7 +18,9 @@ namespace MmaManager.Tests;
 /// follow the crowd it has seen, which changes only the three-year worlds and the houses in them; and on
 /// world/perceived-potential, where a head coach picks his protégé on his read of the kids' ceilings, not their hidden
 /// potential: only seed 2's three-year world and the house founded in it move, and with that one site put back on the
-/// truth both come back exactly), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
+/// truth both come back exactly; and on world/origins-asks, where a man asks a smaller house less (Negotiator.HouseTier):
+/// the three three-year worlds and their houses move, the day-one, split and tryout cases do not, and with the tier off
+/// every key matches exactly, the market's read of the player's house moving none), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
 /// prestige, rules, roster), recapture: set FOUNDING_GOLDEN_OUT to a file path and run this class; it writes the
 /// new values instead of asserting.
 /// </summary>
@@ -27,14 +29,14 @@ public class OriginsFoundingGoldenTests
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
         ["s1-day1"] = "C0A6A81BAA1B8B9F71D2",
-        ["s1-years3-world"] = "392D8D467130155C91AB",
-        ["s1-years3-house"] = "B34A2C7E0293DBFB353D",
+        ["s1-years3-world"] = "2911FFC85BB144492458",
+        ["s1-years3-house"] = "71995DA087D2872D23CB",
         ["s2-day1"] = "49A25EE03EE55D5C44EA",
-        ["s2-years3-world"] = "FD7DB61B790B22BC711D",
-        ["s2-years3-house"] = "867291F4EDF89CAEA213",
+        ["s2-years3-world"] = "5CF832FAFD41131A49B1",
+        ["s2-years3-house"] = "63B6387FE5C69D218AA2",
         ["s3-day1"] = "8B18A7BC8DF1DC87464D",
-        ["s3-years3-world"] = "21802CE0ABCFB1243490",
-        ["s3-years3-house"] = "2C2FDFD02FE310303CF9",
+        ["s3-years3-world"] = "1137FF13F00475C21F4A",
+        ["s3-years3-house"] = "80221FA398A26A001279",
         ["s4-split"] = "C7036D9F547460489E28",
         ["s5-split"] = "F5E3833ECBD87E286F81",
         ["s6-tryouts"] = "9AB7EF497F834D5F857C",

@@ -32,6 +32,10 @@ namespace MmaManager.Tests;
 /// they match the pins above exactly); origins-observer-6-y20 moves through the protégé and RosterPolicy.Wants (by 2012
 /// its houses keep and sign on the young-prospect leash), and with both back on the truth it matches exactly. The push,
 /// the stipend and the mail move no Origins pin. Measured by putting each site back on the truth in turn.
+/// Recaptured on world/origins-asks (Origins: a man asks a smaller house less, Negotiator.HouseTier; and the market reads
+/// the player's house as an AI's, Negotiator.MarketPurseCap). All four Origins pins move, every one through the house
+/// tier alone: with the tier off (HouseTier returning 1) and the market read on, all six keys match the pins above
+/// exactly. The modern pins never move (the tier is 1 and the market read is the purse cap in today's mode).
 /// </summary>
 public class TickIdentityTests
 {
@@ -39,10 +43,10 @@ public class TickIdentityTests
     {
         ["modern-ai-11-y2"] = "BC76F19D9CD508595457",   // 2027-12-30, 4632 events, 7545 fighters
         ["modern-player-4-y2"] = "ABDC9C08D426744DC856",   // 2027-12-30, 4570 events, 7586 fighters
-        ["origins-player-3-y4"] = "DD053702786FDAA157BE",   // 1996-12-27, 68 events, 174 fighters
-        ["origins-player-8-y10"] = "8AA1405B2547175CCCBB",   // 2002-12-20, 193 events, 312 fighters
-        ["origins-observer-5-y10"] = "77D71AC75E829BD21E9A",   // 2002-12-20, 306 events, 432 fighters
-        ["origins-observer-6-y20"] = "2D0B01B69114393C0992",   // 2012-12-07, 792 events, 1016 fighters
+        ["origins-player-3-y4"] = "1F7F79E93660ED770AA7",   // 1996-12-27, 68 events, 176 fighters
+        ["origins-player-8-y10"] = "1F549F5BB1DEA0B9F32B",   // 2002-12-20, 193 events, 304 fighters
+        ["origins-observer-5-y10"] = "10EB58C55CDDD08E58A0",   // 2002-12-20, 306 events, 423 fighters
+        ["origins-observer-6-y20"] = "3AC8967C71B2A588EB11",   // 2012-12-07, 827 events, 1046 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });

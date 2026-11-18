@@ -302,13 +302,20 @@ public static class OriginsShows
     /// crowd for the home town (<see cref="Financials.DemandAt"/>). <see cref="Contracts.Negotiator.PurseCap"/> prices
     /// the founder's men off it (one pass over the calendar for both).
     /// </summary>
-    public static Venue? HomeRoom(World world, Promotion promo, out int? seenCrowd)
+    public static Venue? HomeRoom(World world, Promotion promo, out int? seenCrowd) => HomeRoom(world, promo, out seenCrowd, asMarket: false);
+
+    /// <summary>
+    /// <see cref="HomeRoom(World, Promotion, out int?)"/>; with <paramref name="asMarket"/> the player's house is read as
+    /// an AI founder would be (the room it would settle in and the crowd it has seen), which is how the market reads every
+    /// house (<see cref="Contracts.Negotiator.MarketPurseCap"/>). The player's own room and budget never take this path.
+    /// </summary>
+    internal static Venue? HomeRoom(World world, Promotion promo, out int? seenCrowd, bool asMarket)
     {
         seenCrowd = null;
         var spec = Generation.Origins.OriginsPromotions.All.FirstOrDefault(s => s.Abbreviation == promo.Abbreviation);
         if (spec is not null && world.Venues.Values.Where(v => v.Name == spec.HomeVenue && v.City == promo.HomeCity)
                 .OrderBy(v => v.Id.Value).FirstOrDefault() is { } authored)
-            return world.Mode == WorldMode.Origins ? SettledRoom(world, promo, authored, out seenCrowd) : authored;
+            return world.Mode == WorldMode.Origins ? SettledRoom(world, promo, authored, out seenCrowd, asMarket) : authored;
         if (world.Mode == WorldMode.Origins && promo.HomeCity is { } home) return RoomIn(world, promo, home);
         return promo.HomeCity is { } hc ? Geography.WorldMap.PickVenueIn(world, promo, hc) : Geography.WorldMap.PickVenue(world, promo);
     }
@@ -330,12 +337,14 @@ public static class OriginsShows
     /// bigger one (a founder's hall is its ceiling: a house that outdraws it stays, as it always did). The Crucible in
     /// a bad decade drew 1,500-2,300 into 4,000 seats and paid 16,000 a night for the empty rows.
     /// </summary>
-    private static Venue SettledRoom(World world, Promotion promo, Venue authored, out int? seenCrowd)
+    private static Venue SettledRoom(World world, Promotion promo, Venue authored, out int? seenCrowd, bool asMarket)
     {
         seenCrowd = null;
         // The player's house keeps its hall and its budget: where his nights go and what he pays are his calls (a
         // scripted player whose purse budget read the crowd while he kept the hall re-signed fewer men and did worse).
-        if (promo.Id == world.PlayerPromotion) return authored;
+        // The market still reads his house as it reads an AI founder's (asMarket): who sits in the office does not
+        // move what every man in the sport asks.
+        if (promo.Id == world.PlayerPromotion && !asMarket) return authored;
         var recent = LastNights(world, promo.Id, SeenNights);
         if (recent.Count < SeenNights) return authored;
         var rooms = world.Venues.Values.Where(v => v.City == authored.City).OrderBy(v => v.Id.Value).ToList();

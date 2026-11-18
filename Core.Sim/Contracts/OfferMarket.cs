@@ -183,7 +183,7 @@ public static class OfferMarket
             Fights = o.Fights, Exclusive = excl, Round = 0,
         };
         decimal exact = HasMatchingRight(world, o)
-            ? Math.Max(o.Purse.Amount, Negotiator.LivePurseFloor(f, holder.Id) is { } held ? NegotiationSession.UpTo500(held.Amount) : 0m)
+            ? Math.Max(o.Purse.Amount, Negotiator.LivePurseFloor(f, holder.Id) is { } held ? NegotiationSession.UpToStep(world, held.Amount) : 0m)
             : decimal.MaxValue;
 
         var exp = Valuation.Evaluate(world, f);
@@ -193,13 +193,13 @@ public static class OfferMarket
         decimal home = HomeFactor(world, f, holder.Id);
         decimal neededValue = theirs * home * exclF / (1m + (decimal)appeal * 0.25m);
         decimal signingPerFight = o.Fights > 0 ? o.SigningBonus.Amount / o.Fights : o.SigningBonus.Amount;
-        decimal purse = NegotiationSession.UpTo500(neededValue - Negotiator.WinBonusWeight(world, holder.Id) * ours.WinBonus.Amount - signingPerFight);
+        decimal purse = NegotiationSession.UpToStep(world, neededValue - Negotiator.WinBonusWeight(world, holder.Id) * ours.WinBonus.Amount - signingPerFight);
 
         // Never under what he is paid now (unless skidding), nor under where his own
         // table would bottom out: matching is not a back door to a cheap renewal.
-        decimal tableFloor = NegotiationSession.UpTo500(
+        decimal tableFloor = NegotiationSession.UpToStep(world,
             AskingQuote.For(world, holder, f, exp, excl).Purse.Amount * (decimal)(1.0 - appeal * 0.25));
-        decimal liveFloor = Negotiator.LivePurseFloor(f, holder.Id) is { } lf ? NegotiationSession.UpTo500(lf.Amount) : 0m;
+        decimal liveFloor = Negotiator.LivePurseFloor(f, holder.Id) is { } lf ? NegotiationSession.UpToStep(world, lf.Amount) : 0m;
         purse = Math.Max(purse, Math.Max(tableFloor, liveFloor));
         // The right never makes keeping him dearer: when matching by his lights already costs
         // less than the rival's exact money (a non-exclusive deal, his discount), that stands.
