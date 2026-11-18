@@ -36,6 +36,14 @@ namespace MmaManager.Tests;
 /// the player's house as an AI's, Negotiator.MarketPurseCap). All four Origins pins move, every one through the house
 /// tier alone: with the tier off (HouseTier returning 1) and the market read on, all six keys match the pins above
 /// exactly. The modern pins never move (the tier is 1 and the market read is the purse cap in today's mode).
+/// Recaptured on world/origins-tier-reach (the tier reaches every Origins price path). All four Origins pins move; the
+/// modern pins never do (every changed expression is main's in today's mode). Measured site by site, each switched on
+/// alone over main (with all of them off, all six keys match the pins above exactly): the AI's opening offer on the 250
+/// step moves all four; the founding roster priced at the house's tier moves all four (houses founded in those years);
+/// a short-notice stand-in priced at the house moves all four; the distressed free-agency and renewal tests each move
+/// origins-observer-6-y20 only (by 2012 its houses run in the red); a lifer's underpaid bar at the house's tier moves
+/// origins-player-8-y10 only; the room's figures, a rival's paper and walk-away and EffectiveAskingPurse on the 250 step
+/// move none (no rival offers or player talks in these worlds).
 /// </summary>
 public class TickIdentityTests
 {
@@ -43,10 +51,10 @@ public class TickIdentityTests
     {
         ["modern-ai-11-y2"] = "BC76F19D9CD508595457",   // 2027-12-30, 4632 events, 7545 fighters
         ["modern-player-4-y2"] = "ABDC9C08D426744DC856",   // 2027-12-30, 4570 events, 7586 fighters
-        ["origins-player-3-y4"] = "1F7F79E93660ED770AA7",   // 1996-12-27, 68 events, 176 fighters
-        ["origins-player-8-y10"] = "1F549F5BB1DEA0B9F32B",   // 2002-12-20, 193 events, 304 fighters
-        ["origins-observer-5-y10"] = "10EB58C55CDDD08E58A0",   // 2002-12-20, 306 events, 423 fighters
-        ["origins-observer-6-y20"] = "3AC8967C71B2A588EB11",   // 2012-12-07, 827 events, 1046 fighters
+        ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
+        ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
+        ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
+        ["origins-observer-6-y20"] = "08CA2F87BB7D2EE11C52",   // 2012-12-07, 815 events, 1018 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });

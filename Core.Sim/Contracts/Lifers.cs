@@ -260,8 +260,12 @@ public static class Lifers
         // year — the fog-of-war price, the one every promotion's table quotes.
         if (date.DayNumber - c.SignedOn.DayNumber >= UnderpaidAfterDays)
         {
-            var ask = Negotiator.EffectiveAskingPurse(org, f, Valuation.Evaluate(world, f));
-            if (c.PursePerFight.Amount < ask.Amount * UnderpaidFraction)
+            // (In an Origins world the market's price for him at a house THIS size, Negotiator.HouseTier: a small
+            // house's lifer paid his tier price is paid what the market says he is worth there, not "a third of it".
+            // The tier is 1 today.)
+            var exp = Valuation.Evaluate(world, f, out var market);
+            var ask = Negotiator.EffectiveAskingPurse(org, f, exp);
+            if (c.PursePerFight.Amount < ask.Amount * Negotiator.HouseTier(world, org, exp, market) * UnderpaidFraction)
                 return new(GrievanceKind.Underpaid,
                     $"paid {c.PursePerFight}/fight, barely a third of what the market now says he's worth");
         }

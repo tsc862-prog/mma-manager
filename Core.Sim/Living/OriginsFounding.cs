@@ -279,7 +279,8 @@ public static class OriginsFounding
 
     /// <summary>
     /// The founding roster: the free agents its own scouts rate best (home country first) at their asking
-    /// terms while they fit its purse budget, then open tryouts of young local men until it can fill a night.
+    /// terms at this house (<see cref="Negotiator.TableAsk"/>'s price) while they fit its purse budget, then open
+    /// tryouts of young local men (on the Origins floor purse, untouched by the tier) until it can fill a night.
     /// </summary>
     private static int SignFoundingRoster(World world, Promotion promo, string countryCode, DateOnly date, SimRandom rng)
     {
@@ -293,16 +294,27 @@ public static class OriginsFounding
             .OrderBy(x => x.F.OriginCountryCode == countryCode ? 0 : 1)
             .ThenByDescending(x => x.Seen).ThenBy(x => x.F.Id.Value)
             .Select(x => x.F).ToList();
+        bool exclusive = Negotiator.WantsExclusivity(promo);
+        OriginsMarket? read = null;
         foreach (var f in pool)
         {
             if (signed >= target) break;
-            var exp = valuation.Evaluate(world, f);
-            if (exp.AskingPurse.Amount > cap) continue;
+            // His asking terms AT THIS HOUSE: his open-market ask on its terms of exclusivity times the table factor
+            // (Negotiator.TableAsk: the size of the house, HouseTier, or his personal discount), rounded up to the
+            // Origins step, as the AI's opening offer pitches it. Signed at the open-market ask, a newly founded small
+            // house priced its first men off the giant's purse and filled on day one only with men under its cap there.
+            // (One market read while the loop only reads, dropped at every signing: OriginsMarket.)
+            var exp = valuation.EvaluateWith(world, f, ref read);
+            decimal factor = (exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor) * Negotiator.TableFactor(world, f, promo.Id, exp, read);
+            decimal purse = NegotiationSession.UpToStep(world, exp.AskingPurse.Amount * factor);
+            if (purse > cap) continue;
             ContractLifecycle.Sign(world, f, new ContractOffer
             {
-                Fighter = f.Id, Promotion = promo.Id, PursePerFight = exp.AskingPurse,
-                WinBonus = exp.AskingWinBonus, Fights = exp.DesiredFights, Exclusive = Negotiator.WantsExclusivity(promo),
+                Fighter = f.Id, Promotion = promo.Id, PursePerFight = new Money(purse),
+                WinBonus = new Money(NegotiationSession.UpToStep(world, exp.AskingWinBonus.Amount * factor)),
+                Fights = exp.DesiredFights, Exclusive = exclusive,
             }, date);
+            read = null;
             signed++;
         }
 

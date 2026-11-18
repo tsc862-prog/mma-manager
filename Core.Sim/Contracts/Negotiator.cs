@@ -188,21 +188,23 @@ public sealed class Negotiator
         // is only buying part of their dance card, so it pays part of the price.
         // The org that discovered them pitches at the gratitude rate.
         bool exclusive = WantsExclusivity(promo);
-        decimal ask = exp.AskingPurse.Amount * (exclusive ? 1m : NonExclusiveMoneyFactor)
-                                             * TableFactor(world, f, promo.Id, exp, market);
-        // Pitched AT his ask means at least his ask: rounded UP to the $500
+        decimal ask = TableAsk(world, promo, f, exp, exclusive, market);
+        // Pitched AT his ask means at least his ask: rounded UP to the table's
         // step (rounding a $1,200 discounted ask down to $1,000 is a lowball he
         // counters, and the AI never makes a second offer). Never past the cap:
         // when the rounded figure would cross it, the org offers his ask to the
         // dollar (still within budget); when the ask itself is over the cap, the
         // budget line rounds DOWN to the step it can pay.
-        decimal purseAmount = ask > cap ? Math.Floor(cap / 500m) * 500m
-            : Math.Ceiling(ask / 500m) * 500m is var up && up <= cap ? up : ask;
+        // (The step is NegotiationSession.Step: $500 today, the Origins 250 in an Origins world. On a 500 step a mid
+        // house's tiered ask of 1,100 was pitched at 1,500, its whole cap, and the tier never reached its purse bill.)
+        decimal step = NegotiationSession.Step(world);
+        decimal purseAmount = ask > cap ? Math.Floor(cap / step) * step
+            : Math.Ceiling(ask / step) * step is var up && up <= cap ? up : ask;
         var purse = new Money(purseAmount);
-        var winBonus = WinBonusAt(world, promo.Id, new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, 500m))));
+        var winBonus = WinBonusAt(world, promo.Id, new Money(Math.Min(exp.AskingWinBonus.Amount, RoundTo(purse.Amount * 0.75m, step))));
 
         var signing = exp.WantsSigningBonus && promo.Balance.Amount > 250_000m
-            ? new Money(RoundTo(purse.Amount * 0.5m, 500m))
+            ? new Money(RoundTo(purse.Amount * 0.5m, step))
             : Money.Zero;
 
         return new ContractOffer
@@ -253,6 +255,25 @@ public sealed class Negotiator
     /// </summary>
     public static decimal TableFactor(World world, Fighter f, PromotionId promo, ContractExpectations exp, OriginsMarket? market = null) =>
         Math.Min(TableDiscount(world, f, promo), world.Get(promo) is { } p ? HouseTier(world, p, exp, market) : 1m);
+
+    /// <summary>
+    /// The purse he asks THIS house, before any rounding: his open-market ask, on the given terms of exclusivity (a
+    /// non-exclusive deal is <see cref="NonExclusiveMoneyFactor"/> of it), times <see cref="TableFactor"/>. What the AI's
+    /// opening offer pitches (<see cref="AiOpeningOffer"/>), and in an Origins world what a house measures him against
+    /// when it asks whether it can afford him at all (a distressed house's budget, a founding roster, a rival's walk-away).
+    /// </summary>
+    public static decimal TableAsk(World world, Promotion promo, Fighter f, ContractExpectations exp, bool exclusive, OriginsMarket? market = null) =>
+        exp.AskingPurse.Amount * (exclusive ? 1m : NonExclusiveMoneyFactor) * TableFactor(world, f, promo.Id, exp, market);
+
+    /// <summary>
+    /// The price a house holds him to when it asks whether it can afford him at all (a distressed house's purse budget,
+    /// <see cref="Org.Solvency.DistressedPurseFactor"/>): in an Origins world what he would ask THIS house
+    /// (<see cref="TableAsk"/>, on the house's own terms of exclusivity); in today's mode his open-market ask, as before.
+    /// A small house in distress is the one running out of men, and measured against the open-market ask it passed over
+    /// men it could pay at its tier price. Hand <paramref name="market"/> down as for <see cref="TableFactor"/>.
+    /// </summary>
+    public static decimal AffordAsk(World world, Promotion promo, Fighter f, ContractExpectations exp, OriginsMarket? market = null) =>
+        world.Mode == WorldMode.Origins ? TableAsk(world, promo, f, exp, WantsExclusivity(promo), market) : exp.AskingPurse.Amount;
 
     /// <summary>
     /// What he asks of a house of THIS size, as a share of his open-market ask (Origins; 1 in today's mode). His ask is
@@ -307,12 +328,11 @@ public sealed class Negotiator
     /// <see cref="EffectiveAskingPurse(Promotion, Fighter, ContractExpectations)"/>
     /// with the lifer's hometown discount folded in (and in an Origins world the
     /// size of the house, <see cref="TableFactor"/>) — the number his OWN
-    /// promotion will actually be quoted at the table.
+    /// promotion will actually be quoted at the table. Rounded to the table's step
+    /// (<see cref="NegotiationSession.Step"/>: $500 today, 250 in an Origins world).
     /// </summary>
     public static Money EffectiveAskingPurse(World world, Promotion promo, Fighter f, ContractExpectations exp) =>
-        new(RoundTo(exp.AskingPurse.Amount
-            * (WantsExclusivity(promo) ? 1m : NonExclusiveMoneyFactor)
-            * TableFactor(world, f, promo.Id, exp), 500m));
+        new(RoundTo(TableAsk(world, promo, f, exp, WantsExclusivity(promo)), NegotiationSession.Step(world)));
 
     /// <summary>The least an Origins house budgets for one purse (today's floor is 2,000).</summary>
     public const decimal OriginsPurseFloor = 500m;
