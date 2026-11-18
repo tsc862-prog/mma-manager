@@ -202,7 +202,7 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
         // is inside the belt's division. The one exception is the grandfathered card (PR #80: bouts already on an
         // announced card when the house draws new lines are fought as booked): a bout the newest lines put across two
         // divisions may stay, but only without a belt, and only on a night already announced when the lines were drawn
-        // (within the booking horizon of that day). (Before #80 such bouts came off their cards; this test still said so
+        // (within OriginsShows.LeadWeeks of that day, the furthest ahead a house announces a night). (Before #80 such bouts came off their cards; this test still said so
         // and passed on main only because no split there landed inside the last card's horizon.)
         foreach (var p in split)
         {
@@ -215,7 +215,7 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
                     if (p.Divisions.Any(d => d.Matches(a) && d.Matches(b2) && (f.Title is null || d.Title == f.Title))) continue;
                     string what = $"{p.Abbreviation} {e.Name} {e.Date}: {a.WeightClass} vs {b2.WeightClass} filed {f.WeightClass}, title {f.Title}, lines drawn {drawn}";
                     Assert.True(f.Title is null && !f.IsTitleFight, what);                                  // no belt outside its division
-                    Assert.True(drawn != DateOnly.MinValue && e.Date >= drawn && e.Date <= drawn.AddDays(13 * 7), what);   // grandfathered
+                    Assert.True(drawn != DateOnly.MinValue && e.Date >= drawn && e.Date <= drawn.AddDays(7 * OriginsShows.LeadWeeks), what);   // grandfathered
                 }
         }
         _ = cru;
