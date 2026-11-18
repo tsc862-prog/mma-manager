@@ -856,10 +856,19 @@ public static partial class OriginsMode
                     .OrderBy(d => men.Count(d.Matches)).ThenBy(d => d.WeightClass).FirstOrDefault();
                 if (thin is null && men.Count >= floor) break;
                 var cap = Negotiator.PurseCap(w, promo);
+                bool excl = Negotiator.WantsExclusivity(promo);   // as the AI signs: a small house buys a slice
+                // His ask at THIS table, as the AI's opening offer pitches it (Negotiator.AiOpeningOffer): his open-market
+                // ask on the house's terms of exclusivity and his table factor (a personal discount; in Origins what a
+                // house this size pays a man of his standing), on the Origins 250 step. (It read his open-market,
+                // exclusive ask: the player paid a quarter more than the AI for the same man on the same terms.)
+                decimal AskHere(Fighter f, ContractExpectations exp) => Math.Max(Negotiator.OriginsPurseFloor,
+                    Math.Ceiling(exp.AskingPurse.Amount * (excl ? 1m : Negotiator.NonExclusiveMoneyFactor)
+                                 * Negotiator.TableFactor(w, f, promo.Id, exp) / 250m) * 250m);
                 var pick = w.FreeAgents()
                     .Where(f => f.Status == FighterStatus.Active && f.Sex == Sex.Male && (thin is null || thin.Matches(f)))
                     .Select(f => (F: f, Exp: _valuation.Evaluate(w, f)))
-                    .Where(x => x.Exp.AskingPurse.Amount <= cap)
+                    .Select(x => (x.F, x.Exp, Ask: AskHere(x.F, x.Exp)))
+                    .Where(x => x.Ask <= cap)
                     .OrderByDescending(x => ScoutingService.PerceivedAbility(w, promo, x.F))
                     .ThenBy(x => x.F.Id.Value)
                     .FirstOrDefault();
@@ -869,11 +878,12 @@ public static partial class OriginsMode
                     nobodyFits.Add(thin.WeightClass);
                     continue;
                 }
+                decimal scale = pick.Exp.AskingPurse.Amount <= 0m ? 1m : Math.Min(1m, pick.Ask / pick.Exp.AskingPurse.Amount);
                 ContractLifecycle.Sign(w, pick.F, new ContractOffer
                 {
-                    Fighter = pick.F.Id, Promotion = promo.Id, PursePerFight = pick.Exp.AskingPurse,
-                    WinBonus = pick.Exp.AskingWinBonus, Fights = pick.Exp.DesiredFights,
-                    Exclusive = Negotiator.WantsExclusivity(promo),   // as the AI signs: a small house buys a slice
+                    Fighter = pick.F.Id, Promotion = promo.Id, PursePerFight = new Money(pick.Ask),
+                    WinBonus = Negotiator.WinBonusAt(w, promo.Id, new Money(Math.Round(pick.Exp.AskingWinBonus.Amount * scale / 250m) * 250m)),
+                    Fights = pick.Exp.DesiredFights, Exclusive = excl,
                 }, today);
             }
         }
