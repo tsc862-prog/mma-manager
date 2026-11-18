@@ -42,11 +42,11 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
         decimal factor = (excl ? 1m : Negotiator.NonExclusiveMoneyFactor)
                        * (clause ? Negotiator.ChampionsClausePremium : 1m)
                        * table * distrust;
-        decimal discounted = NegotiationSession.UpTo500(exp.AskingPurse.Amount * factor);
+        decimal discounted = NegotiationSession.UpToStep(world, exp.AskingPurse.Amount * factor);
         var floor = Negotiator.LivePurseFloor(f, promo.Id);
         // A leash term costs even when his live deal floors the number (as at the table).
         decimal floorAmt = floor?.Amount ?? 0m;
-        if (clause && floorAmt > 0m) floorAmt = NegotiationSession.UpTo500(floorAmt * Negotiator.ChampionsClausePremium);
+        if (clause && floorAmt > 0m) floorAmt = NegotiationSession.UpToStep(world, floorAmt * Negotiator.ChampionsClausePremium);
         decimal purse = Math.Max(floorAmt, discounted);
 
         var reasons = new List<string>();

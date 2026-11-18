@@ -201,4 +201,94 @@ public class OriginsHouseAskTests
             }
         }
     }
+
+    [Fact]
+    public void TheMarketReadHandedDown_GivesExactlyWhatEachTableCallWouldComputeItself()
+    {
+        var (w, small, _) = LateEra();
+        var val = new FighterValuation();
+        var neg = new Negotiator();
+        foreach (var f in Free(w).Take(40))
+        {
+            var exp = val.Evaluate(w, f, out var market);
+            Assert.NotNull(market);
+            Assert.Equal(FighterValuation.OriginsMarketCeiling(w), market!.Ceiling);
+            Assert.Equal(val.Evaluate(w, f), exp);
+            foreach (var p in w.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value))
+            {
+                Assert.Equal(Negotiator.MarketPurseCap(w, p), market.CapOf(w, p));
+                Assert.Equal(Negotiator.HouseTier(w, p, exp), Negotiator.HouseTier(w, p, exp, market));
+                var a = neg.AiOpeningOffer(w, p, f, exp);
+                var b = neg.AiOpeningOffer(w, p, f, exp, market: market);
+                Assert.Equal(a.PursePerFight, b.PursePerFight);
+                Assert.Equal(a.WinBonus, b.WinBonus);
+                Assert.Equal(neg.Evaluate(w, f, a, exp).Verdict, neg.Evaluate(w, f, a, exp, market).Verdict);
+            }
+        }
+        // Today's mode takes no read at all.
+        var modern = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 3 });
+        val.Evaluate(modern, modern.FreeAgents().OrderBy(f => f.Id.Value).First(), out var none);
+        Assert.Null(none);
+    }
+
+    [Fact]
+    public void TheOriginsTable_QuotesOnThe250Step_SoAManAHouseCanPayIsQuotedWithinItsPurse()
+    {
+        // The player runs a small house whose purse cap is 750, in a late-era market.
+        var (w, small, _) = LateEra();
+        for (int pr = 1; pr <= 60 && Negotiator.PurseCap(w, small) != 750m; pr++) small.Prestige = pr;
+        Assert.Equal(750m, Negotiator.PurseCap(w, small));
+        w.PlayerPromotion = small.Id;
+        small.IsPlayerControlled = true;
+        decimal cap = Negotiator.PurseCap(w, small);
+        bool excl = Negotiator.WantsExclusivity(small);
+        var val = new FighterValuation();
+
+        // A man whose ask at this table works out between the floor and the cap (516, say): find one by his fame.
+        Fighter? who = null; ContractExpectations? exp = null; decimal raw = 0m;
+        foreach (var f in Free(w).Where(f => small.Divisions.Any(d => d.Matches(f))))
+        {
+            for (int pop = 30; pop <= 90 && who is null; pop++)
+            {
+                f.Intangibles.Popularity = pop;
+                var e = val.Evaluate(w, f);
+                decimal r = e.AskingPurse.Amount * (excl ? 1m : Negotiator.NonExclusiveMoneyFactor) * Negotiator.TableFactor(w, f, small.Id, e);
+                if (r > Negotiator.OriginsPurseFloor && r <= cap - 100m) { who = f; exp = e; raw = r; }
+            }
+            if (who is not null) break;
+            f.Intangibles.Popularity = 38;
+        }
+        Assert.NotNull(who);
+        Assert.True(NegotiationSession.UpTo500(raw) > cap, $"his ask here {raw}: the old step quoted {NegotiationSession.UpTo500(raw)}");
+
+        // The quote, the room and the deal: all within the house's purse, and he signs at it.
+        var quote = AskingQuote.For(w, small, who!, exp!);
+        Assert.True(quote.Purse.Amount <= cap, $"quoted {quote.Purse} at a {cap} house (his ask here {raw})");
+        Assert.True(quote.Purse.Amount >= raw);
+        var session = new NegotiationSession(w, who!, small, exp!);
+        Assert.Equal(quote.Purse, session.DemandPurse(excl, clause: false));
+        var offer = session.TheirTermsAsOffer(excl, clause: false);
+        Assert.Equal(quote.Purse, offer.PursePerFight);
+        Assert.Equal(NegotiationVerdict.Accept, new Negotiator().Evaluate(w, who!, offer, exp!).Verdict);
+        ContractLifecycle.Sign(w, who!, offer, w.CurrentDate);
+        Assert.Equal(small.Id, who!.Contract!.Promotion);
+        Assert.Equal(quote.Purse, who.Contract.PursePerFight);
+    }
+
+    [Fact]
+    public void TodaysTable_KeepsThe500Step()
+    {
+        var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 3 });
+        foreach (var v in new[] { 1m, 250m, 499m, 500m, 516m, 750m, 1_001m, 12_345m })
+            Assert.Equal(NegotiationSession.UpTo500(v), NegotiationSession.UpToStep(w, v));
+        var val = new FighterValuation();
+        var promo = w.Get(w.PlayerPromotion)!;
+        foreach (var f in w.FreeAgents().OrderBy(f => f.Id.Value).Take(60))
+        {
+            var exp = val.Evaluate(w, f);
+            var q = AskingQuote.For(w, promo, f, exp);
+            Assert.Equal(0m, q.Purse.Amount % 500m);
+            Assert.Equal(q.Purse, new NegotiationSession(w, f, promo, exp).DemandPurse(Negotiator.WantsExclusivity(promo), clause: false));
+        }
+    }
 }

@@ -327,8 +327,8 @@ public sealed class NegotiationSession
         // deal, a rival's match price — sets his number: the premium goes on top of the floor too.
         decimal leash = (s.Clause ? Negotiator.ChampionsClausePremium : 1m) * (s.Match ? Negotiator.MatchingRightPremium : 1m);
         decimal floor = Math.Max(_liveFloor?.Amount ?? 0m, _rivalFloor?.Amount ?? 0m);
-        if (leash > 1m && floor > 0m) floor = UpTo500(floor * leash);
-        decimal p = Math.Max(floor, UpTo500(_exp.AskingPurse.Amount * Factor(s) * (decimal)_demandFrac));
+        if (leash > 1m && floor > 0m) floor = UpToStep(_world, floor * leash);
+        decimal p = Math.Max(floor, UpToStep(_world, _exp.AskingPurse.Amount * Factor(s) * (decimal)_demandFrac));
         return new(_rivalScore is { } target ? BeatRival(p, target, s) : p);
     }
 
@@ -354,7 +354,7 @@ public sealed class NegotiationSession
         Fighter = _fighter.Id, Promotion = _promo.Id,
         PursePerFight = new Money(purse),
         WinBonus = DemandWinBonus(s),
-        SigningBonus = _exp.WantsSigningBonus ? new Money(UpTo500(purse * 0.5m)) : Money.Zero,
+        SigningBonus = _exp.WantsSigningBonus ? new Money(UpToStep(_world, purse * 0.5m)) : Money.Zero,
         Fights = _exp.DesiredFights, Exclusive = s.Exclusive, ChampionsClause = s.Clause,
         MatchingRight = s.Match, PromiseFights = s.Fights, PromiseHomeShow = s.Home, PromiseTitleShot = s.Title,
     };
@@ -366,7 +366,7 @@ public sealed class NegotiationSession
 
     // (Nothing at a bracket house: it pays no win bonuses, Negotiator.PaysWinBonus.)
     private Money DemandWinBonus(Slip s) => Negotiator.WinBonusAt(_world, _promo.Id,
-        new(UpTo500(_exp.AskingWinBonus.Amount * Factor(s) * (decimal)_demandFrac)));
+        new(UpToStep(_world, _exp.AskingWinBonus.Amount * Factor(s) * (decimal)_demandFrac)));
 
     public Money DemandSigning(bool exclusive, bool clause) => DemandSigning(new Slip(exclusive, clause));
 
@@ -375,7 +375,7 @@ public sealed class NegotiationSession
 
     private Money DemandSigning(Slip s) =>
         _exp.WantsSigningBonus
-            ? new(UpTo500(DemandPurse(s).Amount * 0.5m))
+            ? new(UpToStep(_world, DemandPurse(s).Amount * 0.5m))
             : Money.Zero;
 
     /// <summary>Their current position drawn up as a signable offer ("meet their terms").</summary>
@@ -772,4 +772,14 @@ public sealed class NegotiationSession
     /// figure is always meeting his price.
     /// </summary>
     internal static decimal UpTo500(decimal v) => Math.Ceiling(v / 500m) * 500m;
+
+    /// <summary>
+    /// The table's money step, rounded up: 500 in today's mode, the Origins 250 step in an Origins world (the step every
+    /// other Origins price uses). A 500 step at a 750-cap house quoted a man whose ask there was 516 at 1,000, out of
+    /// its reach.</summary>
+    internal static decimal UpToStep(World world, decimal v) =>
+        world.Mode == WorldMode.Origins ? Math.Ceiling(v / OriginsStep) * OriginsStep : UpTo500(v);
+
+    /// <summary>The Origins table's money step (Origins asks and purses move in 250s).</summary>
+    public const decimal OriginsStep = 250m;
 }
