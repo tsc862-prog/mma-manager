@@ -1286,7 +1286,20 @@ public sealed class BriefingViewModel : ObservableObject
             }
         }
         // An open tryout on offer (Origins): the sim's offer, free or recurring, until he calls it or it lapses.
-        if (w.Mode == WorldMode.Origins && w.HasPlayer && PlayerFounding.TryoutOptions(w, today) is { Available: true } tryout)
+        var tryout = w.Mode == WorldMode.Origins && w.HasPlayer ? PlayerFounding.TryoutOptions(w, today) : null;
+        // Short of men but inside the tryout spacing: say so, and when the next one can be called.
+        if (tryout is { Available: false, ShortOfMen: true, NextPossibleOn: { } nextTryout })
+            Waiting.Add(new BriefingItem
+            {
+                Icon = "People",
+                Text = $"Short of men: the next open tryout can be called from {nextTryout:d MMM}",
+                Detail = tryout.Turnout > 0
+                    ? $"The roster is thin, {tryout.Turnout} {(tryout.Turnout == 1 ? "man" : "men")} short of a full house  ·  the free-agent market is open now"
+                    : "The roster is thin  ·  the free-agent market is open now",
+                Tone = CardTone.Warn,
+                ActionText = "Contracts ▸", Command = Do(() => Navigate?.Invoke(Tab.Contracts)),
+            });
+        if (tryout is { Available: true })
             Waiting.Add(new BriefingItem
             {
                 Icon = "People",
