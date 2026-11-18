@@ -140,14 +140,16 @@ public sealed class FighterValuation
     /// The most any live house in an Origins world can pay a man a fight (its purse cap). Every Origins ask is a share
     /// of it, so it moves every man's price: an AI founder's cap follows its expected home crowd once it has run three
     /// nights (<see cref="Negotiator.PurseCap"/>, <see cref="Living.OriginsShows.HomeRoom"/>), so when the founder with
-    /// the top cap draws thin crowds the ceiling falls and asks fall at every house. The player's house keeps its
-    /// hall-based cap, so a world where he runs the house with the top cap keeps the old ceiling.
+    /// the top cap draws thin crowds the ceiling falls and asks fall at every house. The player's house is read the same
+    /// way (<see cref="Negotiator.MarketPurseCap"/>): his own budget stays his hall's, but the sport's price level does
+    /// not depend on which house he runs (it did: a world where he ran the Crucible kept the hall-based ceiling and every
+    /// man asked more than in the same world with the AI running it).
     /// </summary>
     public static decimal OriginsMarketCeiling(World world)
     {
         decimal best = 0m;
         foreach (var p in world.Promotions.Values)
-            if (!p.Defunct) best = Math.Max(best, Negotiator.PurseCap(world, p));
+            if (!p.Defunct) best = Math.Max(best, Negotiator.MarketPurseCap(world, p));
         return best;
     }
 

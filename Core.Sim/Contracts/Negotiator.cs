@@ -71,7 +71,7 @@ public sealed class Negotiator
         // a LIFER takes less to stay where he belongs (see Lifers).
         decimal factor = (offer.Exclusive ? 1m : NonExclusiveMoneyFactor)
                        * LeashFactor(offer)
-                       * TableDiscount(world, f, offer.Promotion);
+                       * TableFactor(world, f, offer.Promotion, exp);
         decimal asked = AskMoney(world, offer.Promotion, exp) * factor;
         double ratio = asked <= 0 ? 2.0 : (double)(offered / asked);
 
@@ -187,7 +187,7 @@ public sealed class Negotiator
         // The org that discovered them pitches at the gratitude rate.
         bool exclusive = WantsExclusivity(promo);
         decimal ask = exp.AskingPurse.Amount * (exclusive ? 1m : NonExclusiveMoneyFactor)
-                                             * TableDiscount(world, f, promo.Id);
+                                             * TableFactor(world, f, promo.Id, exp);
         // Pitched AT his ask means at least his ask: rounded UP to the $500
         // step (rounding a $1,200 discounted ask down to $1,000 is a lowball he
         // counters, and the AI never makes a second offer). Never past the cap:
@@ -232,13 +232,53 @@ public sealed class Negotiator
     /// whichever is bigger — they do NOT stack. Both say "I owe this place", and
     /// multiplied they reached 0.275 of his ask. So the personal factor is never
     /// below 0.50; with a non-exclusive deal the whole table factor bottoms out
-    /// at 0.40 of his open-market ask. Every table reads this one number: the
-    /// AI's opening offer, the fighter's answer (<see cref="Evaluate"/>), the
-    /// player's room (<see cref="NegotiationSession"/>) and the quoted ask
+    /// at 0.40 of his open-market ask. Every table reads this one number, through
+    /// <see cref="TableFactor"/> (which in an Origins world also weighs the size of
+    /// the house): the AI's opening offer, the fighter's answer (<see cref="Evaluate"/>),
+    /// the player's room (<see cref="NegotiationSession"/>) and the quoted ask
     /// (<see cref="AskingQuote"/>).
     /// </summary>
     public static decimal TableDiscount(World world, Fighter f, PromotionId promo) =>
         Math.Min(GratitudeFactor(f, promo), Lifers.HomeDiscount(world, f, promo));
+
+    /// <summary>
+    /// The one factor every table puts on his open-market ask at THIS house: his personal discount
+    /// (<see cref="TableDiscount"/>) or, in an Origins world, what a house of this size can pay a man of his standing
+    /// (<see cref="HouseTier"/>), whichever is lower. They do not stack, for the reason the personal discounts don't:
+    /// each says why he will take less here, and multiplied they priced men under the sport's floor. Read by the AI's
+    /// opening offer, the fighter's answer (<see cref="Evaluate"/>), the player's room (<see cref="NegotiationSession"/>)
+    /// and the quoted ask (<see cref="AskingQuote"/>). In today's mode it is <see cref="TableDiscount"/>.
+    /// </summary>
+    public static decimal TableFactor(World world, Fighter f, PromotionId promo, ContractExpectations exp) =>
+        Math.Min(TableDiscount(world, f, promo), world.Get(promo) is { } p ? HouseTier(world, p, exp) : 1m);
+
+    /// <summary>
+    /// What he asks of a house of THIS size, as a share of his open-market ask (Origins; 1 in today's mode). His ask is
+    /// a share of the sport's best purse (<see cref="FighterValuation.OriginsMarketCeiling"/>), and that is what he asks
+    /// the house that pays it. A smaller house he asks the same share of a purse between its own cap and that best one,
+    /// nearer the best the more of a name he is: an unknown or a journeyman prices to the room in front of him, a champion
+    /// asks the big money everywhere (he can get it). With r = the house's cap over the ceiling (both as the market reads
+    /// them, <see cref="MarketPurseCap"/>) and s = his ask over the ceiling, he asks r + s(1 - r) of his ask, never under
+    /// the sport's floor purse (<see cref="OriginsPurseFloor"/>). Before this every man priced off the richest house wherever
+    /// he went: the giants' caps grew with their rooms (1,500 in 1993 to about 4,250 by 2012) while a full 1,200-seat
+    /// gym house stayed at 750, and late in a 20-year world the small houses could sign almost nobody off the market
+    /// (longsim origins 40 20). Today's mode has no ceiling: its small halls step down through the non-exclusive deal and
+    /// a skidding free agent's price. Public facts only: his ask and the houses' public numbers, never his ability.
+    /// The tier never enters a comparison of two houses' offers (<see cref="OfferMarket.Score"/>): there he weighs the
+    /// money, and the bigger house's bigger purse still wins him.
+    /// </summary>
+    public static decimal HouseTier(World world, Promotion promo, ContractExpectations exp)
+    {
+        if (world.Mode != WorldMode.Origins) return 1m;
+        decimal ask = exp.AskingPurse.Amount;
+        if (ask <= OriginsPurseFloor) return 1m;
+        decimal ceiling = FighterValuation.OriginsMarketCeiling(world);
+        if (ceiling <= 0m) return 1m;
+        decimal r = Math.Clamp(MarketPurseCap(world, promo) / ceiling, 0m, 1m);
+        if (r >= 1m) return 1m;
+        decimal s = Math.Clamp(ask / ceiling, 0m, 1m);
+        return Math.Max(r + s * (1m - r), OriginsPurseFloor / ask);
+    }
 
     /// <summary>
     /// The discovered local's thank-you: a real discount for the org that gave
@@ -263,13 +303,14 @@ public sealed class Negotiator
 
     /// <summary>
     /// <see cref="EffectiveAskingPurse(Promotion, Fighter, ContractExpectations)"/>
-    /// with the lifer's hometown discount folded in — the number his OWN
+    /// with the lifer's hometown discount folded in (and in an Origins world the
+    /// size of the house, <see cref="TableFactor"/>) — the number his OWN
     /// promotion will actually be quoted at the table.
     /// </summary>
     public static Money EffectiveAskingPurse(World world, Promotion promo, Fighter f, ContractExpectations exp) =>
         new(RoundTo(exp.AskingPurse.Amount
             * (WantsExclusivity(promo) ? 1m : NonExclusiveMoneyFactor)
-            * TableDiscount(world, f, promo.Id), 500m));
+            * TableFactor(world, f, promo.Id, exp), 500m));
 
     /// <summary>The least an Origins house budgets for one purse (today's floor is 2,000).</summary>
     public const decimal OriginsPurseFloor = 500m;
@@ -280,7 +321,19 @@ public sealed class Negotiator
     /// less production, spread across a full card's purses. A small-hall org
     /// pays small-hall money; a fighter who outgrows the budget must move up.
     /// </summary>
-    public static decimal PurseCap(World world, Promotion promo)
+    public static decimal PurseCap(World world, Promotion promo) => PurseCap(world, promo, asMarket: false);
+
+    /// <summary>
+    /// A house's purse cap as the MARKET reads it (Origins): the same rule for every house, whoever runs it, so the
+    /// player's founder house is read off the room it would settle in and the crowd it has seen, as an AI founder's is.
+    /// This is what <see cref="FighterValuation.OriginsMarketCeiling"/> and <see cref="HouseTier"/> read: the sport's
+    /// price level must not depend on which office the player sits in. What the player's house budgets and may offer is
+    /// still <see cref="PurseCap(World, Promotion)"/> (his hall's, his call). Identical to it for every AI house, for
+    /// every house that is not a founder, and in today's mode.
+    /// </summary>
+    public static decimal MarketPurseCap(World world, Promotion promo) => PurseCap(world, promo, asMarket: true);
+
+    private static decimal PurseCap(World world, Promotion promo, bool asMarket)
     {
         int prestige = promo.Prestige.Value;
         int homePop = promo.HomeCity is { } hq
@@ -296,12 +349,14 @@ public sealed class Negotiator
             // left, else the box-office model's DemandAt for its home town). Its hall was history's choice, not its
             // crowd's, and a Crucible drawing 1,600 into 4,000 seats budgeted purses for a full house and slid 60-80k a
             // year (longsim origins 40 20). A founded house's room already follows its crowd (RoomIn), so its capacity
-            // bounds it. The player's house is excluded (its cap is the hall's, as before).
+            // bounds it. The player's house is excluded (its cap is the hall's, as before) except when the MARKET reads it
+            // (asMarket, MarketPurseCap).
             // SIDE EFFECT: in Origins every man's ask is a share of FighterValuation.OriginsMarketCeiling, the highest
-            // PurseCap among live houses. When an AI founder's cap falls with its crowd the ceiling can fall with it and
-            // every man in the world asks less, at every house. A world where the player runs CRU keeps the hall-based
-            // cap in that maximum (asks as before); a world where he runs another house sees asks fall with CRU's crowd.
-            var room = Living.OriginsShows.HomeRoom(world, promo, out int? seen);
+            // MarketPurseCap among live houses. When a founder's cap falls with its crowd the ceiling can fall with it and
+            // every man in the world asks less, at every house. The ceiling reads the player's house on the same basis as
+            // an AI's, so a world where he runs CRU prices its men as the same world with the AI running CRU would (before,
+            // his hall-based cap held the ceiling up and every man in the sport asked more).
+            var room = Living.OriginsShows.HomeRoom(world, promo, out int? seen, asMarket);
             decimal seats = Math.Min(attendance * (decimal)Booking.Financials.OriginsCrowdFactor, room?.Capacity ?? attendance);
             if (seen is { } crowd) seats = Math.Min(seats, crowd);
             decimal take = seats * Booking.Financials.TicketPrice(world, prestige)

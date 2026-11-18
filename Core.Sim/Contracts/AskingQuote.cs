@@ -34,12 +34,14 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
         decimal home = Lifers.HomeDiscount(world, f, promo.Id);
         decimal grateful = Negotiator.GratitudeFactor(f, promo.Id);
         decimal personal = Negotiator.TableDiscount(world, f, promo.Id);
+        // (Origins: what a house this size can pay a man of his standing, when that is lower than any personal discount.)
+        decimal table = Negotiator.TableFactor(world, f, promo.Id, exp);
         // The same factor and rounding as NegotiationSession.DemandPurse at its opening position.
         decimal distrust = Promises.Distrust(world, f.Id, promo.Id, world.CurrentDate)
                          * Promises.Wariness(world, promo.Id, world.CurrentDate);
         decimal factor = (excl ? 1m : Negotiator.NonExclusiveMoneyFactor)
                        * (clause ? Negotiator.ChampionsClausePremium : 1m)
-                       * personal * distrust;
+                       * table * distrust;
         decimal discounted = NegotiationSession.UpTo500(exp.AskingPurse.Amount * factor);
         var floor = Negotiator.LivePurseFloor(f, promo.Id);
         // A leash term costs even when his live deal floors the number (as at the table).
@@ -49,7 +51,8 @@ public sealed record AskingQuote(Money Purse, Money MarketRate, IReadOnlyList<st
 
         var reasons = new List<string>();
         // The one discount that applies (they don't stack): name that one.
-        if (personal < 1m && home <= grateful) reasons.Add(Lifers.Gendered(f, "loyal to you: he asks less to stay"));
+        if (table < personal) reasons.Add(Lifers.Gendered(f, "he asks what a house your size pays"));
+        else if (personal < 1m && home <= grateful) reasons.Add(Lifers.Gendered(f, "loyal to you: he asks less to stay"));
         else if (personal < 1m) reasons.Add(Lifers.Gendered(f, "you discovered him: he asks less from you"));
         if (!excl) reasons.Add("non-exclusive deal");
         if (clause) reasons.Add("the champion's clause adds ~8%");

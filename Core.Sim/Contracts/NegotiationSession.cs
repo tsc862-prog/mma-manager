@@ -82,6 +82,7 @@ public sealed class NegotiationSession
     private readonly double _concessionRate;  // how much of the gap they give per credible round
     private double _demandFrac = 1.0;         // where their number sits now, as a fraction of the ask
     private readonly decimal _home;           // his personal discount at this table: a lifer's hometown rate or a discovered local's gratitude (Negotiator.TableDiscount; else 1)
+    private readonly decimal _table;          // the factor his number carries here: _home, or (Origins) what a house this size pays a man of his standing when lower (Negotiator.TableFactor)
     private readonly Money? _liveFloor;       // a renewal of a live deal never goes under its show money (see Negotiator.LivePurseFloor)
     private Money? _rivalFloor;               // a rival's live offer is his walk-away: the match purse (OfferMarket.MatchTerms; set by Resume)
     private string? _rivalName;
@@ -102,6 +103,7 @@ public sealed class NegotiationSession
         _appeal = Negotiator.Appeal(world, fighter, rep, exp);
         _floorFrac = 1.0 - _appeal * 0.25;    // a dream situation is worth ~25% off the ask
         _home = Negotiator.TableDiscount(world, fighter, promo.Id);
+        _table = Negotiator.TableFactor(world, fighter, promo.Id, exp);
         _liveFloor = Negotiator.LivePurseFloor(fighter, promo.Id);
         _distrust = Promises.Distrust(world, fighter.Id, promo.Id, world.CurrentDate);
         _wary = Promises.Wariness(world, promo.Id, world.CurrentDate);
@@ -298,7 +300,7 @@ public sealed class NegotiationSession
         (s.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor)
         * (s.Clause ? Negotiator.ChampionsClausePremium : 1m)
         * (s.Match ? Negotiator.MatchingRightPremium : 1m)
-        * _home * _distrust * _wary * PromiseFactor(s);
+        * _table * _distrust * _wary * PromiseFactor(s);
 
     // What the promises on the slip take off his number: the same appeal the Negotiator
     // reads (Promises.AppealOf), turned into money the way the floor is (a quarter of it).
@@ -544,7 +546,8 @@ public sealed class NegotiationSession
         };
         reasons.Add($"What he weighs most: {string.Join(" and ", wants.OrderByDescending(x => x.W).ThenBy(x => x.Why, StringComparer.Ordinal).Take(2).Select(x => x.Why))}.");
         reasons.Add($"He wants a {_exp.DesiredFights}-fight deal" + (_exp.WantsSigningBonus ? " and a signing bonus." : "."));
-        if (_home < 1m) reasons.Add("He gives this house a personal discount.");
+        if (_table < _home) reasons.Add("He asks what a house this size pays: he'd ask the biggest house for more.");
+        else if (_home < 1m) reasons.Add("He gives this house a personal discount.");
         if (_liveFloor is { } lf) reasons.Add($"He's signed at {lf} a fight and won't tear that up for less.");
         if (_offer is not null)
             reasons.Add(OfferMarket.HasMatchingRight(_world, _offer)
@@ -561,7 +564,8 @@ public sealed class NegotiationSession
             var why = new List<string>();
             if (!onSlip.Exclusive && paper.Exclusive)
                 why.Add("this deal is non-exclusive — he keeps fighting elsewhere, so each purse here is worth about a fifth more to him");
-            if (_home < 1m) why.Add("he gives this house a personal discount");
+            if (_table < _home) why.Add("he asks a house this size less");
+            else if (_home < 1m) why.Add("he gives this house a personal discount");
             if (mine.WinBonus.Amount > paper.WinBonus.Amount || mine.SigningBonus.Amount > paper.SigningBonus.Amount)
                 why.Add("his terms here carry more in bonuses");
             if (Negotiator.Appeal(_world, _fighter, mine, _exp) >= Negotiator.Appeal(_world, _fighter, OfferMarket.AsContractOffer(paper), _exp))
