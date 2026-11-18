@@ -431,7 +431,7 @@ public class PlayerFoundingOptionsTests
         var rules = sfa.Rules.Fight!;
         Assert.False(rules.OpenWeight);                    // the house's own bouts weigh in now...
         Assert.False(rules.IsModern);                      // ...under its own (custom) rules: the engine's custom path
-        // The engine's size term is custom && (rules.OpenWeight || BandedSizeTerm): on only through the bout's own flag.
+        // The engine's size term is rules.OpenWeight || BandedSizeTerm: on here only through the bout's own flag.
         Assert.True(Core.Sim.Booking.EventService.SizeTermFor(w, sfa, bout));
     }
 }
