@@ -18,7 +18,9 @@ namespace MmaManager.Tests;
 /// follow the crowd it has seen, which changes only the three-year worlds and the houses in them; and on
 /// world/perceived-potential, where a head coach picks his protégé on his read of the kids' ceilings, not their hidden
 /// potential: only seed 2's three-year world and the house founded in it move, and with that one site put back on the
-/// truth both come back exactly), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
+/// truth both come back exactly; and on world/origins-asks, where a man asks a smaller house less (Negotiator.HouseTier):
+/// the three three-year worlds and their houses move, the day-one, split and tryout cases do not, and with the tier off
+/// every key matches exactly, the market's read of the player's house moving none), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
 /// prestige, rules, roster), recapture: set FOUNDING_GOLDEN_OUT to a file path and run this class; it writes the
 /// new values instead of asserting.
 /// </summary>
