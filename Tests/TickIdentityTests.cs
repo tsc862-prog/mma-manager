@@ -44,13 +44,18 @@ namespace MmaManager.Tests;
 /// origins-observer-6-y20 only (by 2012 its houses run in the red); a lifer's underpaid bar at the house's tier moves
 /// origins-player-8-y10 only; the room's figures, a rival's paper and walk-away and EffectiveAskingPurse on the 250 step
 /// move none (no rival offers or player talks in these worlds).
+/// Recaptured on world/title-shots (the AI matchmaker hands title shots to credible contenders: a belt's next pick is
+/// kept off non-title bouts while his champion is free and the defense is announced before that bout, a feud lifts a man
+/// only inside the top 5, a dethroned champion with three defenses gets one rematch, a champion waits for busy contenders
+/// at most 100 days). Both modern pins move: today's houses book different cards from the first weeks. No Origins pin
+/// moves (Origins books through OriginsShows, which none of this touches; measured against the pins above).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "BC76F19D9CD508595457",   // 2027-12-30, 4632 events, 7545 fighters
-        ["modern-player-4-y2"] = "ABDC9C08D426744DC856",   // 2027-12-30, 4570 events, 7586 fighters
+        ["modern-ai-11-y2"] = "FCE9BB204A384D73E52C",   // 2027-12-30, 4634 events, 7506 fighters
+        ["modern-player-4-y2"] = "178F7FF1ABA55D95D7CA",   // 2027-12-30, 4580 events, 7536 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters

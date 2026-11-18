@@ -492,7 +492,8 @@ public static class Storylines
             // A DRAW settles nothing: the closest result there is. A drawn title
             // fight always leaves a grudge hot enough (DrawnTitleHeat) for the
             // champion's matchmaker to book the rematch next (Matchmaker.PickChallenger's
-            // grudge rule); any other draw starts one half the time. Rolled on a
+            // grudge rule, while the challenger is still ranked inside its title-shot
+            // window); any other draw starts one half the time. Rolled on a
             // stream keyed to the bout, never the shared one (a draw drew nothing here before).
             if (o.Method == FightMethod.Draw && existing is null)
             {
@@ -526,7 +527,7 @@ public static class Storylines
         }
     }
 
-    /// <summary>The heat a drawn title fight leaves: past the matchmaker's grudge line (40), so the rematch is next.</summary>
+    /// <summary>The heat a drawn title fight leaves: past the matchmaker's grudge line (<c>Matchmaker.GrudgeHeat</c>, 40), so the rematch is next.</summary>
     internal const int DrawnTitleHeat = 45;
     private const ulong DrawRivalrySalt = 0xD2A3_0B7EUL;
 

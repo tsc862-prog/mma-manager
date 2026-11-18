@@ -25,7 +25,9 @@ public class PersonaStampTests
     // (Re-pinned when the Origins house tier reached every price path (world/origins-tier-reach): the Origins pin moves through the
     // AI's opening offer on the 250 step alone (men are offered, and sign for, the finer step); every other reached path
     // leaves it, and the Modern pin never moves.)
-    private const string ModernNoCatalog12Weeks = "A40EC998243A55B2";
+    // (Re-pinned when the AI matchmaker began handing title shots to credible contenders (world/title-shots): today's cards
+    // differ inside twelve weeks, so the Modern pin moves whole. The Origins world is identical.)
+    private const string ModernNoCatalog12Weeks = "1F25CD36A533737E";
     private const string OriginsNoCatalog12Weeks = "5AF296CA832E8562";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.
