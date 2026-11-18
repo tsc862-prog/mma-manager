@@ -198,16 +198,26 @@ public class OriginsTimelineTests : IClassFixture<OriginsDecadeFixture>
             foreach (var d in lines)
                 if (w.Get(d.Title!.Value)!.CurrentChampion is { } champ) Assert.True(d.Matches(w.Get(champ)!), $"{p.Abbreviation} {d.WeightClass}/{d.Lightest} champion {w.Get(champ)!.FullName} is a {w.Get(champ)!.WeightClass}, title {w.Get(d.Title!.Value)!.Name} lineage {string.Join(",", w.Get(d.Title!.Value)!.Lineage.Select(r => r.WonOn))}");
         }
-        // Every bout on the books at a split house is inside one of its divisions as they stand today (a bout a
-        // new line put across two divisions came off its card), and a belt bout is inside the belt's division.
+        // Every bout on the books at a split house is inside one of its divisions as they stand today, and a belt bout
+        // is inside the belt's division. The one exception is the grandfathered card (PR #80: bouts already on an
+        // announced card when the house draws new lines are fought as booked): a bout the newest lines put across two
+        // divisions may stay, but only without a belt, and only on a night already announced when the lines were drawn
+        // (within the booking horizon of that day). (Before #80 such bouts came off their cards; this test still said so
+        // and passed on main only because no split there landed inside the last card's horizon.)
         foreach (var p in split)
+        {
+            var drawn = w.News.Where(n => n.Promotion == p.Id && n.Headline.StartsWith($"{p.Name} draws ", StringComparison.Ordinal))
+                .Select(n => n.Date).DefaultIfEmpty(DateOnly.MinValue).Max();
             foreach (var e in w.Events.Values.Where(e => e.Promotion == p.Id && e.Status == EventStatus.Scheduled))
                 foreach (var f in e.Card)
                 {
                     var a = w.Get(f.RedCorner)!; var b2 = w.Get(f.BlueCorner)!;
-                    Assert.True(p.Divisions.Any(d => d.Matches(a) && d.Matches(b2) && (f.Title is null || d.Title == f.Title)),
-                        $"{p.Abbreviation} {e.Name} {e.Date}: {a.WeightClass} vs {b2.WeightClass} filed {f.WeightClass}, title {f.Title}");
+                    if (p.Divisions.Any(d => d.Matches(a) && d.Matches(b2) && (f.Title is null || d.Title == f.Title))) continue;
+                    string what = $"{p.Abbreviation} {e.Name} {e.Date}: {a.WeightClass} vs {b2.WeightClass} filed {f.WeightClass}, title {f.Title}, lines drawn {drawn}";
+                    Assert.True(f.Title is null && !f.IsTitleFight, what);                                  // no belt outside its division
+                    Assert.True(drawn != DateOnly.MinValue && e.Date >= drawn && e.Date <= drawn.AddDays(13 * 7), what);   // grandfathered
                 }
+        }
         _ = cru;
     }
 
