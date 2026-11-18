@@ -2,6 +2,7 @@ using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Booking;
 using MmaManager.Core.Sim.Contracts;
 using MmaManager.Core.Sim.Living;
+using MmaManager.Core.Sim.Org;
 
 namespace LongSim;
 
@@ -190,6 +191,74 @@ public sealed class TitleShots
         }
     }
 
+    // --- Small houses: belts by org size tier (City / Regional / National+), sampled each week ---
+    public sealed class TierStats
+    {
+        public int Cards, TitleCards, TitleFights;
+        public long BeltWeeks;
+        public List<int> ChampIdle = new();
+        public int ChampMonths, ChampMonthsIdle120, BenchedChampMonths, LiferChampMonths;
+    }
+    public Dictionary<string, TierStats> Tiers { get; } = new();
+    private readonly HashSet<EventId> _tierCounted = new();
+
+    public static string TierOf(Promotion p) => OrgSizing.SizeOf(p) switch
+    {
+        OrgSize.City => "City",
+        OrgSize.Regional => "Regional",
+        _ => "National+",
+    };
+
+    private TierStats T(string tier) => Tiers.TryGetValue(tier, out var t) ? t : Tiers[tier] = new TierStats();
+
+    private void TierWeek(World world, bool monthBoundary)
+    {
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Status != EventStatus.Completed || e.Card.Count == 0 || !_tierCounted.Add(e.Id)) continue;
+            if (e.Date <= _preDate || world.Get(e.Promotion) is not { } p || p.Id == world.PlayerPromotion) continue;
+            var t = T(TierOf(p));
+            t.Cards++;
+            if (e.Card[^1].IsTitleFight || e.Card[^1].Title is not null) t.TitleCards++;
+            t.TitleFights += e.Card.Count(f => f.IsTitleFight && f.Outcome is not null);
+        }
+        foreach (var title in world.Titles.Values)
+        {
+            if (world.Get(title.Promotion) is not { Defunct: false } p || p.Id == world.PlayerPromotion) continue;
+            var t = T(TierOf(p));
+            t.BeltWeeks++;
+            if (title.CurrentChampion is not { } cid || world.Get(cid) is not { } champ) continue;
+            int idle = _preLast.TryGetValue(cid, out var lb) && lb.Date != default ? world.CurrentDate.DayNumber - lb.Date.DayNumber : -1;
+            if (idle >= 0) t.ChampIdle.Add(idle);
+            if (!monthBoundary) continue;
+            t.ChampMonths++;
+            if (idle >= 120) t.ChampMonthsIdle120++;
+            if (champ.Status == FighterStatus.Active && champ.Contract is not null && Lifers.IsLifer(world, champ))
+            {
+                t.LiferChampMonths++;
+                if (Lifers.GrievanceOf(world, champ, world.CurrentDate) is { Kind: Lifers.GrievanceKind.Benched }) t.BenchedChampMonths++;
+            }
+        }
+    }
+
+    public static void PrintTiers(IReadOnlyList<TitleShots> runs)
+    {
+        Console.WriteLine("  --- BELTS BY ORG SIZE (AI houses; tier at the time: card completed / weekly sample / monthly sample) ---");
+        foreach (var tier in new[] { "City", "Regional", "National+" })
+        {
+            var ts = runs.Select(r => r.Tiers.GetValueOrDefault(tier)).Where(t => t is not null).Select(t => t!).ToList();
+            if (ts.Count == 0) { Console.WriteLine($"  {tier,-10} none"); continue; }
+            int cards = ts.Sum(t => t.Cards), tc = ts.Sum(t => t.TitleCards), tf = ts.Sum(t => t.TitleFights);
+            double by = ts.Sum(t => t.BeltWeeks) / 52.0;
+            var idle = ts.SelectMany(t => t.ChampIdle).OrderBy(x => x).ToList();
+            int Q(double q) => idle.Count == 0 ? 0 : idle[Math.Clamp((int)Math.Round(q * (idle.Count - 1)), 0, idle.Count - 1)];
+            int cm = ts.Sum(t => t.ChampMonths), lm = ts.Sum(t => t.LiferChampMonths);
+            Console.WriteLine($"  {tier,-10} cards {cards,6} · title fight on top {100.0 * tc / Math.Max(1, cards),5:0.0}% · title fights/belt-year {tf / Math.Max(1, by):0.000} ({by:0} belt-years)"
+                + $" · champion idle days median {Q(0.5)} p90 {Q(0.9)} · over 120 {100.0 * idle.Count(x => x > 120) / Math.Max(1, idle.Count):0.0}% · over 180 {100.0 * idle.Count(x => x > 180) / Math.Max(1, idle.Count):0.0}%"
+                + $" · champion-months idle 120+ {ts.Sum(t => t.ChampMonthsIdle120)} of {cm} · Benched grievance champion-months {ts.Sum(t => t.BenchedChampMonths)} (of {lm} lifer champion-months)");
+        }
+    }
+
     private void MarkShot(TitleId tid, FighterId challenger)
     {
         if (_spells.TryGetValue(tid, out var sp) && sp.Man == challenger) sp.Shot = true;
@@ -212,6 +281,7 @@ public sealed class TitleShots
                 foreach (var fi in e.Card) _eventOf.TryAdd(fi.Id, e.Date);
 
         ClassifyNewBookings(world);
+        TierWeek(world, monthBoundary);
 
         foreach (var (id, shot) in _pending.ToList())
         {

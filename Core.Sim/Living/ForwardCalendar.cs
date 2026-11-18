@@ -472,7 +472,7 @@ public static class ForwardCalendar
     /// <see cref="Matchmaker.TitleShotWindow"/>, else no bout); a champion of some other belt only
     /// fights for his own.
     /// </summary>
-    private static Matchup? Bookable(World world, Promotion promo, Fighter a, Fighter b, DateOnly when,
+    internal static Matchup? Bookable(World world, Promotion promo, Fighter a, Fighter b, DateOnly when,
         IReadOnlySet<FighterId> committed, bool requireWorthy)
     {
         if (a.Id == b.Id) return null;

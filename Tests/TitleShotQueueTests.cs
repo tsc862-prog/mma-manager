@@ -42,6 +42,8 @@ public class TitleShotQueueTests
                 div.Rankings.AddRange(ranked.Select(f => f.Id));
                 title.Lineage.Clear();
                 title.Lineage.Add(new TitleReign { Champion = cid, WonOn = w.CurrentDate.AddDays(-400), Defenses = 2 });
+                foreach (var other in promo.Divisions)
+                    if (other != div && other.Title is { } ot && w.Get(ot)?.CurrentChampion is null) other.Rankings.Clear();   // no vacant belt queues ahead
                 var s = new Scene(w, promo, div, title, champ, ranked, men[9]);
                 Bout(s, champ, men[9], daysAgo: 30);
                 return s;
@@ -176,9 +178,9 @@ public class TitleShotQueueTests
         var busy = s.Ranked.Take(Matchmaker.TitleShotWindow).ToArray();   // #1-#5 all booked elsewhere
         Assert.Null(TitleBout(s, busy));
 
-        // A champion out past the wait is booked against the best man free on the date (#6): no belt stalls.
+        // A champion out past the wait (under the 120-day neglect line) is booked against the best man free on the date (#6).
         s.W.Events.Remove(s.W.Events.Values.Single(e => e.Name == "Test night 30").Id);
-        Bout(s, s.Champ, s.Spare, daysAgo: Matchmaker.ChampionWaitDays + 10);
+        Bout(s, s.Champ, s.Spare, daysAgo: Matchmaker.ChampionWaitMaxDays + 10);
         var bout = TitleBout(s, busy);
         Assert.NotNull(bout);
         Assert.Equal(s.Ranked[Matchmaker.TitleShotWindow].Id, Challenger(bout!.Value, s));
@@ -218,7 +220,9 @@ public class TitleShotQueueTests
         // two years ago; this champion fought 30 days ago), so this belt queues behind all of them.
         var others = s.P.Divisions.Where(d => d != s.D && d.Title is { } t && s.W.Get(t)?.CurrentChampion is not null && d.Rankings.Count > 0)
             .Select(d => s.W.Get(s.W.Get(d.Title!.Value)!.CurrentChampion!.Value)!).ToList();
-        int capacity = Matchmaker.HoldWindowDays / (7 * MmaManager.Core.Sim.Living.ForwardCalendar.CadenceWeeks(s.P)) * 2;
+        // The undercard is 21 days out; one belt per card, one card per cadence: the belts announced before then.
+        int cadence = 7 * MmaManager.Core.Sim.Living.ForwardCalendar.CadenceWeeks(s.P);
+        int capacity = (21 + cadence - 1) / cadence;
         Assert.True(others.Count >= capacity, $"the scene's house needs {capacity} other belts with champions to fill the window, has {others.Count}");
         foreach (var c in others) { c.Status = FighterStatus.Active; c.CurrentInjury = null; c.ReadyToFightOn = null; c.SuspendedUntil = null; }
         foreach (var f in s.Ranked.Append(s.Spare)) f.Camp = null;
@@ -227,6 +231,91 @@ public class TitleShotQueueTests
         var exclude = s.W.Fighters.Keys.Where(id => !keep.Contains(id)).ToHashSet();
         var card = new Matchmaker().BuildUndercard(s.W, s.P.Id, 10, s.W.CurrentDate.AddDays(21), exclude);
         Assert.Contains(card, m => m.Red == s.Ranked[0].Id || m.Blue == s.Ranked[0].Id);
+    }
+
+    [Fact]
+    public void AWeakDivision_DoesNotStallTheBelt()
+    {
+        // #1-#5 free but none in form, #6 the only man in form: nobody busy to wait for, so the belt goes at once
+        // (main's fallbacks), even with the champion fresh off a fight.
+        var s = Build();
+        foreach (var f in s.Ranked.Take(Matchmaker.TitleShotWindow)) { f.Record.Wins = 2; f.Record.Losses = 6; f.Record.CurrentStreak = -2; }
+        var bout = TitleBout(s);
+        Assert.NotNull(bout);
+        Assert.Equal(s.Ranked[Matchmaker.TitleShotWindow].Id, Challenger(bout!.Value, s));
+    }
+
+    [Fact]
+    public void TheOnlyContender_TheManTheChampionJustBeat_GetsTheBeltDefendedAtOnce()
+    {
+        var s = Build();
+        var a = s.Ranked[0];
+        Bout(s, s.Champ, a, daysAgo: 10);   // the champion just beat A
+        s.D.Rankings.Clear();
+        s.D.Rankings.Add(a.Id);             // a thin division: A is the only ranked man
+        var bout = TitleBout(s);
+        Assert.NotNull(bout);
+        Assert.Equal(a.Id, Challenger(bout!.Value, s));
+    }
+
+    [Fact]
+    public void OneBusyContender_IsNoReasonToWait()
+    {
+        // #1 busy, #2-#5 free but out of form, #6 in form: one busy man is not enough to keep the champion waiting.
+        var s = Build();
+        foreach (var f in s.Ranked.Skip(1).Take(Matchmaker.TitleShotWindow - 1)) { f.Record.Wins = 2; f.Record.Losses = 6; f.Record.CurrentStreak = -2; }
+        var bout = TitleBout(s, s.Ranked[0]);
+        Assert.NotNull(bout);
+        Assert.Equal(s.Ranked[Matchmaker.TitleShotWindow].Id, Challenger(bout!.Value, s));
+    }
+
+    [Fact]
+    public void TheManTheChampionJustBeat_IsNotHeld_AndTheBeltIsDefendedWithoutAStall()
+    {
+        // The reviewer's stranding scene: the champion beat A, A stays #1, #2-#5 are out of form. On the old hold A was
+        // kept off every card for a belt that would never pick him.
+        var s = Build();
+        var a = s.Ranked[0];
+        Bout(s, s.Champ, a, daysAgo: 10);
+        foreach (var f in s.Ranked.Skip(1).Take(Matchmaker.TitleShotWindow - 1)) { f.Record.Wins = 2; f.Record.Losses = 6; f.Record.CurrentStreak = -2; }
+
+        var card = Undercard(s);
+        Assert.Contains(card, m => m.Red == a.Id || m.Blue == a.Id);   // A fights on
+
+        var bout = TitleBout(s);
+        Assert.NotNull(bout);   // and the belt goes now, to the best fresh man in form (#6)
+        Assert.Equal(s.Ranked[Matchmaker.TitleShotWindow].Id, Challenger(bout!.Value, s));
+    }
+
+    [Fact]
+    public void TheHold_IsForTheManTheBeltWillPick_NotForWhoeverIsFirst()
+    {
+        // #1 out of form, #2 in form: the belt goes to #2, so #2 is held and #1 fights.
+        var s = Build();
+        var (first, second) = (s.Ranked[0], s.Ranked[1]);
+        first.Record.Wins = 2; first.Record.Losses = 6; first.Record.CurrentStreak = -2;
+        var card = Undercard(s);
+        Assert.DoesNotContain(card, m => m.Red == second.Id || m.Blue == second.Id);
+        Assert.Contains(card, m => m.Red == first.Id || m.Blue == first.Id);
+    }
+
+    [Fact]
+    public void AFeudTitleHeadliner_NeedsTheRivalInsideTheTopFive()
+    {
+        var s = Build();
+        var date = s.W.CurrentDate.AddDays(35);
+        var none = new HashSet<FighterId>();
+        foreach (var f in s.Ranked.Append(s.Champ)) f.Camp = null;
+        s.W.Relationships.Clear();
+
+        var seventh = s.Ranked[6];
+        Assert.Null(MmaManager.Core.Sim.Living.ForwardCalendar.Bookable(s.W, s.P, s.Champ, seventh, date, none, requireWorthy: true));
+
+        var fourth = s.Ranked[3];
+        var bout = MmaManager.Core.Sim.Living.ForwardCalendar.Bookable(s.W, s.P, s.Champ, fourth, date, none, requireWorthy: true);
+        Assert.NotNull(bout);
+        Assert.True(bout!.Value.IsTitle);
+        Assert.Equal(s.T.Id, bout.Value.Title);
     }
 
     [Fact]

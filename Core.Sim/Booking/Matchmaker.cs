@@ -210,7 +210,7 @@ public sealed class Matchmaker
             var champ = title.CurrentChampion is { } cid ? world.Get(cid) : null;
             if (champ is not null && Free(champ))
             {
-                if (PickChallenger(world, champ, title, division.Rankings, contenders, recent, contenders.Count == 0 ? null : feuds ??= Living.Storylines.RivalriesByPair(world)) is { } challenger)
+                if (PickChallenger(world, promo, champ, title, division.Rankings, contenders, recent, contenders.Count == 0 ? null : feuds ??= Living.Storylines.RivalriesByPair(world)) is { } challenger)
                     titleBouts.Add((title, division.WeightClass, champ, challenger, DaysIdle(world, recent, champ.Id)));
             }
             else if (champ is null && contenders.Count >= 2)
@@ -244,7 +244,8 @@ public sealed class Matchmaker
         // divisions then split it), ordered strongest first BY THE HOUSE'S OWN
         // READ (the fog: a matchmaker pairs the fighters he thinks are close, not
         // the ones who truly are), id as the last word.
-        var nextInLine = NextInLine(world, promo, fightDate, exclude, sameCard, recent);
+        var feuds = Living.Storylines.RivalriesByPair(world);
+        var nextInLine = NextInLine(world, promo, fightDate, exclude, sameCard, recent, feuds);
         var free = world.RosterOf(promo.Id)
             .Where(f => f.IsMatchReady(fightDate) && !champions.Contains(f.Id) && !nextInLine.Contains(f.Id)
                         && (exclude is null || !exclude.Contains(f.Id)))
@@ -255,7 +256,6 @@ public sealed class Matchmaker
         // Every pair below asks after a bond and a feud: look them up by pair, not by walking both lists for each
         // (they grow with the world). Nothing here adds or removes either.
         var bonds = Living.Bonds.ByPair(world);
-        var feuds = Living.Storylines.RivalriesByPair(world);
 
         var candidates = new List<Candidate>();
         foreach (var division in promo.Divisions)
@@ -295,71 +295,84 @@ public sealed class Matchmaker
     }
 
     /// <summary>
-    /// How long a #1 contender is held off other bouts for a defense that is coming: the hold covers only a belt
-    /// whose champion's next defense should be made inside this many days, by the house's own card cadence.
-    /// </summary>
-    internal const int HoldWindowDays = 56;
-
-    /// <summary>Belts a card can put on the line from the matchmaker's queue (the main event and, at most, the co-main).</summary>
-    private const int BeltsPerCard = 2;
-
-    /// <summary>
     /// The men a house keeps OFF its non-title bouts on <paramref name="fightDate"/>
-    /// because the belt is next for them: a titled division's #1 contender (the
-    /// house's own ranking), while that division's champion is free (fit on the
-    /// date, not booked anywhere) AND his defense should come inside
-    /// <see cref="HoldWindowDays"/>. The belts with free champions queue as the
-    /// matchmaker books them (longest idle first, then weight class, id last); the
-    /// belt at place k is expected after k / <see cref="BeltsPerCard"/> + 1 of the
-    /// house's cards, each <c>ForwardCalendar.CadenceWeeks</c> apart. A belt further
-    /// back than the window does not hold its #1: he fights, and the shot goes to
-    /// the best free man when it comes, as before.
-    /// A #1 booked into an eliminator was the commonest reason a title shot went
-    /// down the rankings (58% of the shots that did not go to #1, longsim at 40
-    /// seeds); the window bounds what the wait costs him. The player's house is
-    /// never asked (its bookings are the player's). Draws nothing.
+    /// because a belt is coming for them: for each belt whose champion is free (fit
+    /// on the date, not booked anywhere), the man the title picker
+    /// (<see cref="ChooseChallenger"/>) would hand its next defense to, read for
+    /// the date that defense would be announced for, and only when he is the
+    /// QUEUE's pick: never a feud or rematch pick, never when the picker would
+    /// wait or fall back. So a held man is always the one the belt is waiting for,
+    /// and never the man the champion just beat, an unworthy, hurt or unsigned man.
+    /// <para>The belts queue as the matchmaker books them, one per card (a vacant
+    /// belt first, then the longest-idle champion, weight class, sex, title id);
+    /// the belt in place k is announced about k of the house's cadences from today
+    /// (<c>ForwardCalendar.CadenceWeeks</c>) for a card <c>LeadWeeks</c> after that.
+    /// A bout on <paramref name="fightDate"/> keeps a man committed until then, so
+    /// he is held only for a belt announced BEFORE that date; a later belt finds
+    /// him free again. A #1 booked into an eliminator was the commonest reason a
+    /// title shot went down the rankings (58% of the shots that did not go to #1,
+    /// longsim at 40 seeds).</para>
+    /// The player's house is never asked (its bookings are the player's). Draws nothing.
     /// </summary>
     private static HashSet<FighterId> NextInLine(World world, Promotion promo, DateOnly fightDate,
         IReadOnlySet<FighterId>? exclude, IReadOnlySet<FighterId>? sameCard,
-        Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
+        Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent,
+        Dictionary<(int, int), Rivalry> feuds)
     {
         var held = new HashSet<FighterId>();
         if (promo.Id == world.PlayerPromotion) return held;
-        var queue = new List<(Division D, int Idle)>();
+        int horizon = fightDate.DayNumber - world.CurrentDate.DayNumber;
+        if (horizon <= 0) return held;
+        bool Taken(FighterId id) => (exclude is not null && exclude.Contains(id)) || (sameCard is not null && sameCard.Contains(id));
+
+        // The belts the matchmaker will book, in its order (vacant first).
+        var queue = new List<(Division D, Title T, Fighter? Champ, long Priority)>();
         foreach (var d in promo.Divisions)
         {
-            if (d.Rankings.Count == 0 || d.Title is not { } tid || world.Get(tid)?.CurrentChampion is not { } cid) continue;
-            if (world.Get(cid) is not { } champ || !champ.IsMatchReady(fightDate)) continue;
-            if (sameCard is not null && sameCard.Contains(cid)) continue;   // defending on this very card
-            if (exclude is not null && exclude.Contains(cid)) continue;     // booked already (or spoken for, or out of deal)
-            queue.Add((d, DaysIdle(world, recent, cid)));
+            if (d.Rankings.Count == 0 || d.Title is not { } tid || world.Get(tid) is not { } title) continue;
+            if (title.CurrentChampion is not { } cid) { queue.Add((d, title, null, VacantBeltPriority)); continue; }
+            if (world.Get(cid) is not { } champ || !champ.IsMatchReady(fightDate) || Taken(cid)) continue;
+            queue.Add((d, title, champ, DaysIdle(world, recent, cid)));
         }
-        int cadenceDays = 7 * Living.ForwardCalendar.CadenceWeeks(promo);
+        int cadence = 7 * Living.ForwardCalendar.CadenceWeeks(promo);
+        int lead = 7 * Living.ForwardCalendar.LeadWeeks(Org.OrgSizing.SizeOf(promo));
         int place = 0;
-        foreach (var (d, _) in queue.OrderByDescending(q => q.Idle).ThenBy(q => (int)q.D.WeightClass).ThenBy(q => (int)q.D.Sex)
-                     .ThenBy(q => q.D.Title!.Value.Value))
+        foreach (var (d, title, champ, _) in queue.OrderByDescending(q => q.Priority).ThenBy(q => (int)q.D.WeightClass)
+                     .ThenBy(q => (int)q.D.Sex).ThenBy(q => q.T.Id.Value))
         {
-            if ((place / BeltsPerCard + 1) * cadenceDays > HoldWindowDays) break;
-            held.Add(d.Rankings[0]);
+            int announced = place * cadence;           // days from today until this belt's defense is announced
+            if (announced >= horizon) break;           // announced after his bout: he is free again by then
             place++;
+            if (champ is null) continue;               // a vacant belt is crowned from whoever is free (holds nobody)
+            var defense = world.CurrentDate.AddDays(announced + lead);
+            var contenders = d.Rankings.Select(world.Get)
+                .Where(f => f is not null && f.Contract?.Promotion == promo.Id && f.IsMatchReady(defense) && !Taken(f.Id))
+                .Cast<Fighter>().ToList();
+            var (man, kind) = ChooseChallenger(world, promo, champ, title, d.Rankings, contenders, recent, feuds);
+            if (man is not null && kind == ChallengerKind.Queue) held.Add(man.Id);
         }
         return held;
     }
 
     /// <summary>
-    /// How deep in the house's rankings a title shot may come from while the
-    /// champion can afford to wait. Bad blood lifts a man over the others inside
-    /// this window and never reaches past it; the queue itself reaches no deeper
-    /// while the champion has been out less than <see cref="ChampionWaitDays"/>.
+    /// How deep in the house's rankings a title shot may come from. Bad blood
+    /// lifts a man over the others inside this window and never reaches past it;
+    /// the queue itself reaches no deeper while the champion waits (see
+    /// <see cref="ChampionWaitMaxDays"/>).
     /// </summary>
     internal const int TitleShotWindow = 5;
 
     /// <summary>
-    /// A champion out this long (days since his last bout) is booked against the
-    /// best man free on the date, wherever he ranks: the belt is never frozen
-    /// waiting for the top of the queue to come free.
+    /// The longest a champion is kept waiting for a credible challenger to come
+    /// free: under the 120 days after which an idle man's loyalty starts to wear
+    /// (<c>WorldTick.LoyaltyNeglectDays</c>), and far under the 180 that opens a
+    /// lifer's Benched grievance. Past it the best man free on the date gets the
+    /// shot, wherever he ranks.
     /// </summary>
-    internal const int ChampionWaitDays = 240;
+    internal const int ChampionWaitMaxDays = 100;
+
+    /// <summary>The champion waits only while at least this many credible men inside the window are merely busy.</summary>
+    internal const int BusyContendersToWait = 2;
 
     /// <summary>
     /// A dethroned champion is owed his one immediate rematch only if his reign had this many defenses: an
@@ -369,6 +382,15 @@ public sealed class Matchmaker
 
     /// <summary>Bad blood at least this hot is a grudge the matchmaker books (a drawn title fight leaves <c>Storylines.DrawnTitleHeat</c>).</summary>
     internal const int GrudgeHeat = 40;
+
+    /// <summary>How the title picker arrived at its man (or at none).</summary>
+    internal enum ChallengerKind { None, Wait, Rematch, Grudge, Queue, Fallback }
+
+    private static Fighter? PickChallenger(World world, Promotion promo, Fighter champ, Title title, IReadOnlyList<FighterId> rankings,
+        List<Fighter> contenders,
+        IReadOnlyDictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent,
+        Dictionary<(int, int), Rivalry>? feuds) =>
+        feuds is null ? null : ChooseChallenger(world, promo, champ, title, rankings, contenders, recent, feuds).Man;
 
     /// <summary>
     /// The champion's next challenger, read off the house's rankings (public
@@ -383,29 +405,34 @@ public sealed class Matchmaker
     /// <see cref="TitleShotWindow"/> — bad blood is a tie-breaker among credible
     /// contenders, not a pass from anywhere in the division (at trilogy heat, 70+,
     /// even the man the champion just beat);</item>
-    /// <item>the best-ranked contender free on the date, in form, and not the man
-    /// the champion just beat — from inside the window. When nobody inside it is
-    /// free the champion WAITS for a later card (null: the belt sits this one
-    /// out) rather than reach far down, until he has been out
-    /// <see cref="ChampionWaitDays"/>; then the old fallbacks apply, so no belt
-    /// stalls.</item>
+    /// <item>the queue: the best-ranked contender free on the date, in form, and
+    /// not the man the champion just beat — from inside the window;</item>
+    /// <item>nobody credible inside the window is free: the champion WAITS for a
+    /// later card (no bout) only while waiting can help — at least
+    /// <see cref="BusyContendersToWait"/> ranked, in-form, fresh men inside the
+    /// window are signed here and merely busy (booked, recovering, or hurt but back
+    /// inside the wait) — and only until he has been out
+    /// <see cref="ChampionWaitMaxDays"/>. Otherwise, at once, the old fallbacks: the
+    /// best man in form and fresh wherever he ranks, else anyone fresh, else the
+    /// top contender free (a thin or weak division never stalls its belt).</item>
     /// </list>
     /// <paramref name="contenders"/> is the free, signed part of
     /// <paramref name="rankings"/>, in ranking order. Draws nothing; every
-    /// ordering ends on id.
+    /// ordering ends on id. Shared by the booking (<see cref="TitleBouts"/>) and the
+    /// hold (<see cref="NextInLine"/>), so the man held is the man who would be picked.
     /// </summary>
-    private static Fighter? PickChallenger(World world, Fighter champ, Title title, IReadOnlyList<FighterId> rankings,
-        List<Fighter> contenders,
+    internal static (Fighter? Man, ChallengerKind Kind) ChooseChallenger(World world, Promotion promo, Fighter champ, Title title,
+        IReadOnlyList<FighterId> rankings, List<Fighter> contenders,
         IReadOnlyDictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent,
-        Dictionary<(int, int), Rivalry>? feuds)
+        Dictionary<(int, int), Rivalry> feuds)
     {
-        if (contenders.Count == 0 || feuds is null) return null;
+        if (contenders.Count == 0) return (null, ChallengerKind.None);
 
         // 1) The dethroned champion's one rematch.
         // (He lost the belt in the cage, to this man, in his last bout: a belt handed down on a vacancy owes nothing.)
         if (OwedRematch(title, champ.Id) is { } owed && contenders.FirstOrDefault(c => c.Id == owed) is { } former
             && recent.TryGetValue(owed, out var lost) && lost.Opponent == champ.Id && !lost.Won)
-            return former;
+            return (former, ChallengerKind.Rematch);
 
         // Whoever the champ most recently beat isn't owed an instant rematch.
         FighterId? staleRematch =
@@ -420,19 +447,34 @@ public sealed class Matchmaker
             .Where(c => InWindow(c) && Worthy(c) && HeatWith(c) >= GrudgeHeat && (c.Id != staleRematch || HeatWith(c) >= 70))
             .OrderByDescending(HeatWith).ThenBy(RankOf).ThenBy(c => c.Id.Value)
             .FirstOrDefault();
-        if (grudge is not null) return grudge;                                     // the fight that sells itself
+        if (grudge is not null) return (grudge, ChallengerKind.Grudge);            // the fight that sells itself
 
         // 3) The queue: the best-ranked man free on the date, in form, fresh.
         var next = contenders.FirstOrDefault(c => c.Id != staleRematch && Worthy(c));
-        if (next is not null && InWindow(next)) return next;
+        if (next is not null && InWindow(next)) return (next, ChallengerKind.Queue);
 
-        // Nobody credible inside the window is free: the champion waits for a later card while he can.
+        // 4) Wait, only while it can help and never past the neglect line.
         int idle = recent.TryGetValue(champ.Id, out var last) ? world.CurrentDate.DayNumber - last.Date.DayNumber : 3650;
-        if (idle < ChampionWaitDays) return null;
+        if (idle < ChampionWaitMaxDays)
+        {
+            var until = world.CurrentDate.AddDays(ChampionWaitMaxDays - idle);   // the wait ends here at the latest
+            int busy = 0;
+            for (int i = 0; i < rankings.Count && i < TitleShotWindow; i++)
+            {
+                if (world.Get(rankings[i]) is not { } m || m.Id == staleRematch || m.Id == champ.Id) continue;
+                if (contenders.Contains(m)) continue;                              // free on the date: not busy
+                if (m.Contract is not { } c || c.Promotion != promo.Id || c.FightsRemaining <= 0) continue;
+                if (m.Status is not (FighterStatus.Active or FighterStatus.Injured) || !Worthy(m)) continue;
+                if (m.CurrentInjury is { } inj && inj.ExpectedReturn > until) continue;
+                busy++;
+            }
+            if (busy >= BusyContendersToWait) return (null, ChallengerKind.Wait);
+        }
 
-        return next                                                                 // in form, fresh, wherever he ranks
-            ?? contenders.FirstOrDefault(c => c.Id != staleRematch)                 // at least not a rematch
-            ?? contenders[0];                                                       // last resort
+        var pick = next                                                            // in form, fresh, wherever he ranks
+            ?? contenders.FirstOrDefault(c => c.Id != staleRematch)                // at least not a rematch
+            ?? contenders[0];                                                      // last resort
+        return (pick, ChallengerKind.Fallback);
     }
 
     private static int IndexOf(IReadOnlyList<FighterId> list, FighterId id)
