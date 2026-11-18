@@ -175,6 +175,7 @@ public class TitleShotQueueTests
     public void AChampionFreshOffAFight_WaitsRatherThanReachPastTheWindow_ThenTakesTheBestFreeMan()
     {
         var s = Build();
+        Assert.True(MmaManager.Core.Sim.Org.OrgSizing.SizeOf(s.P) >= OrgSize.National, "the scene's house is big enough to wait");
         var busy = s.Ranked.Take(Matchmaker.TitleShotWindow).ToArray();   // #1-#5 all booked elsewhere
         Assert.Null(TitleBout(s, busy));
 
@@ -231,6 +232,18 @@ public class TitleShotQueueTests
         var exclude = s.W.Fighters.Keys.Where(id => !keep.Contains(id)).ToHashSet();
         var card = new Matchmaker().BuildUndercard(s.W, s.P.Id, 10, s.W.CurrentDate.AddDays(21), exclude);
         Assert.Contains(card, m => m.Red == s.Ranked[0].Id || m.Blue == s.Ranked[0].Id);
+    }
+
+    [Fact]
+    public void ASmallHouse_NeverSitsABeltOut()
+    {
+        // A Regional house runs one card a month: with #1-#5 all busy its champion is booked at once (#6), not kept waiting.
+        var s = Build();
+        s.P.Prestige = 25;
+        Assert.Equal(OrgSize.Regional, MmaManager.Core.Sim.Org.OrgSizing.SizeOf(s.P));
+        var bout = TitleBout(s, s.Ranked.Take(Matchmaker.TitleShotWindow).ToArray());
+        Assert.NotNull(bout);
+        Assert.Equal(s.Ranked[Matchmaker.TitleShotWindow].Id, Challenger(bout!.Value, s));
     }
 
     [Fact]

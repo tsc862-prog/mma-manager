@@ -407,8 +407,9 @@ public sealed class Matchmaker
     /// even the man the champion just beat);</item>
     /// <item>the queue: the best-ranked contender free on the date, in form, and
     /// not the man the champion just beat — from inside the window;</item>
-    /// <item>nobody credible inside the window is free: the champion WAITS for a
-    /// later card (no bout) only while waiting can help — at least
+    /// <item>nobody credible inside the window is free: at a National house or
+    /// bigger the champion WAITS for a later card (no bout) only while waiting can
+    /// help — at least
     /// <see cref="BusyContendersToWait"/> ranked, in-form, fresh men inside the
     /// window are signed here and merely busy (booked, recovering, or hurt but back
     /// inside the wait) — and only until he has been out
@@ -454,8 +455,9 @@ public sealed class Matchmaker
         if (next is not null && InWindow(next)) return (next, ChallengerKind.Queue);
 
         // 4) Wait, only while it can help and never past the neglect line.
+        // (A City or Regional house runs one card a month: a belt that sits a card out sits a month, so it never waits.)
         int idle = recent.TryGetValue(champ.Id, out var last) ? world.CurrentDate.DayNumber - last.Date.DayNumber : 3650;
-        if (idle < ChampionWaitMaxDays)
+        if (idle < ChampionWaitMaxDays && Org.OrgSizing.SizeOf(promo) >= OrgSize.National)
         {
             var until = world.CurrentDate.AddDays(ChampionWaitMaxDays - idle);   // the wait ends here at the latest
             int busy = 0;
