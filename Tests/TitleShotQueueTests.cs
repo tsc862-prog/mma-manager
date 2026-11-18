@@ -211,6 +211,25 @@ public class TitleShotQueueTests
     }
 
     [Fact]
+    public void ABeltFarBackInTheHousesQueue_DoesNotHoldItsNumberOne()
+    {
+        var s = Build();
+        // Every other belt of the house has a free champion who has waited longer than this one (his last bout was
+        // two years ago; this champion fought 30 days ago), so this belt queues behind all of them.
+        var others = s.P.Divisions.Where(d => d != s.D && d.Title is { } t && s.W.Get(t)?.CurrentChampion is not null && d.Rankings.Count > 0)
+            .Select(d => s.W.Get(s.W.Get(d.Title!.Value)!.CurrentChampion!.Value)!).ToList();
+        int capacity = Matchmaker.HoldWindowDays / (7 * MmaManager.Core.Sim.Living.ForwardCalendar.CadenceWeeks(s.P)) * 2;
+        Assert.True(others.Count >= capacity, $"the scene's house needs {capacity} other belts with champions to fill the window, has {others.Count}");
+        foreach (var c in others) { c.Status = FighterStatus.Active; c.CurrentInjury = null; c.ReadyToFightOn = null; c.SuspendedUntil = null; }
+        foreach (var f in s.Ranked.Append(s.Spare)) f.Camp = null;
+        s.W.Relationships.Clear();
+        var keep = s.Ranked.Append(s.Spare).Append(s.Champ).Concat(others).Select(f => f.Id).ToHashSet();
+        var exclude = s.W.Fighters.Keys.Where(id => !keep.Contains(id)).ToHashSet();
+        var card = new Matchmaker().BuildUndercard(s.W, s.P.Id, 10, s.W.CurrentDate.AddDays(21), exclude);
+        Assert.Contains(card, m => m.Red == s.Ranked[0].Id || m.Blue == s.Ranked[0].Id);
+    }
+
+    [Fact]
     public void AVacantBelt_GoesToTheTwoBestRankedAvailableMen()
     {
         var s = Build();

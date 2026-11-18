@@ -244,7 +244,7 @@ public sealed class Matchmaker
         // divisions then split it), ordered strongest first BY THE HOUSE'S OWN
         // READ (the fog: a matchmaker pairs the fighters he thinks are close, not
         // the ones who truly are), id as the last word.
-        var nextInLine = NextInLine(world, promo, fightDate, exclude, sameCard);
+        var nextInLine = NextInLine(world, promo, fightDate, exclude, sameCard, recent);
         var free = world.RosterOf(promo.Id)
             .Where(f => f.IsMatchReady(fightDate) && !champions.Contains(f.Id) && !nextInLine.Contains(f.Id)
                         && (exclude is null || !exclude.Contains(f.Id)))
@@ -295,33 +295,53 @@ public sealed class Matchmaker
     }
 
     /// <summary>
+    /// How long a #1 contender is held off other bouts for a defense that is coming: the hold covers only a belt
+    /// whose champion's next defense should be made inside this many days, by the house's own card cadence.
+    /// </summary>
+    internal const int HoldWindowDays = 56;
+
+    /// <summary>Belts a card can put on the line from the matchmaker's queue (the main event and, at most, the co-main).</summary>
+    private const int BeltsPerCard = 2;
+
+    /// <summary>
     /// The men a house keeps OFF its non-title bouts on <paramref name="fightDate"/>
-    /// because the belt is next for them: each titled division's #1 contender (the
-    /// house's own ranking), while that division's champion will be fit on the date
-    /// and has no defense booked on this card or a later one. A #1 booked into an
-    /// eliminator was the commonest reason a title shot went down the rankings (he
-    /// was on another card when the champion's next defense was made: 58% of the
-    /// shots that did not go to #1, longsim at 40 seeds). He still fights while the
-    /// champion is hurt, or is already booked to defend on or after the date. The
-    /// player's house is never asked (its bookings are the player's). Draws nothing.
+    /// because the belt is next for them: a titled division's #1 contender (the
+    /// house's own ranking), while that division's champion is free (fit on the
+    /// date, not booked anywhere) AND his defense should come inside
+    /// <see cref="HoldWindowDays"/>. The belts with free champions queue as the
+    /// matchmaker books them (longest idle first, then weight class, id last); the
+    /// belt at place k is expected after k / <see cref="BeltsPerCard"/> + 1 of the
+    /// house's cards, each <c>ForwardCalendar.CadenceWeeks</c> apart. A belt further
+    /// back than the window does not hold its #1: he fights, and the shot goes to
+    /// the best free man when it comes, as before.
+    /// A #1 booked into an eliminator was the commonest reason a title shot went
+    /// down the rankings (58% of the shots that did not go to #1, longsim at 40
+    /// seeds); the window bounds what the wait costs him. The player's house is
+    /// never asked (its bookings are the player's). Draws nothing.
     /// </summary>
     private static HashSet<FighterId> NextInLine(World world, Promotion promo, DateOnly fightDate,
-        IReadOnlySet<FighterId>? exclude, IReadOnlySet<FighterId>? sameCard)
+        IReadOnlySet<FighterId>? exclude, IReadOnlySet<FighterId>? sameCard,
+        Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
     {
         var held = new HashSet<FighterId>();
         if (promo.Id == world.PlayerPromotion) return held;
+        var queue = new List<(Division D, int Idle)>();
         foreach (var d in promo.Divisions)
         {
             if (d.Rankings.Count == 0 || d.Title is not { } tid || world.Get(tid)?.CurrentChampion is not { } cid) continue;
             if (world.Get(cid) is not { } champ || !champ.IsMatchReady(fightDate)) continue;
             if (sameCard is not null && sameCard.Contains(cid)) continue;   // defending on this very card
-            if (exclude is not null && exclude.Contains(cid))
-            {
-                // Taken: booked on an announced card (the #1 waits only if that defense comes BEFORE this date),
-                // or spoken for on the card being built (no announced card yet), or out of deal.
-                if (Living.ForwardCalendar.CommittedTo(world, cid) is not { } card || card.Date >= fightDate) continue;
-            }
+            if (exclude is not null && exclude.Contains(cid)) continue;     // booked already (or spoken for, or out of deal)
+            queue.Add((d, DaysIdle(world, recent, cid)));
+        }
+        int cadenceDays = 7 * Living.ForwardCalendar.CadenceWeeks(promo);
+        int place = 0;
+        foreach (var (d, _) in queue.OrderByDescending(q => q.Idle).ThenBy(q => (int)q.D.WeightClass).ThenBy(q => (int)q.D.Sex)
+                     .ThenBy(q => q.D.Title!.Value.Value))
+        {
+            if ((place / BeltsPerCard + 1) * cadenceDays > HoldWindowDays) break;
             held.Add(d.Rankings[0]);
+            place++;
         }
         return held;
     }
