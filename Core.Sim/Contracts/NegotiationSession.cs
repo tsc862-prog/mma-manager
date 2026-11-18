@@ -334,17 +334,18 @@ public sealed class NegotiationSession
 
     // With a rival's paper in his pocket, his number on his own terms (his win bonus,
     // his signing bonus, his length) must be worth more to him than the rival's whole
-    // deal: raise the purse, on the $500 step, until it is. (Score is linear in the
-    // purse: one closed-form step, then the rounding is checked.)
+    // deal: raise the purse, on the table's step (Step: $500 today, 250 in Origins), until
+    // it is. (Score is linear in the purse: one closed-form step, then the rounding is checked.)
     private decimal BeatRival(decimal purse, decimal target, Slip terms)
     {
         // Weighed as a deal he'd sign against the rival: less the price of any leash on it (FinalScore).
         decimal ScoreAt(decimal p) => OfferMarket.FinalScore(_world, _fighter, AtPurse(p, terms), _exp);
+        decimal step = Step(_world);
         decimal s = ScoreAt(purse);
         if (s >= target) return purse;
-        decimal per500 = ScoreAt(purse + 500m) - s;
-        if (per500 > 0) purse += Math.Max(0m, Math.Floor((target - s) / per500) * 500m);
-        for (int i = 0; i < 40 && ScoreAt(purse) < target; i++) purse += 500m;
+        decimal perStep = ScoreAt(purse + step) - s;
+        if (perStep > 0) purse += Math.Max(0m, Math.Floor((target - s) / perStep) * step);
+        for (int i = 0; i < 40 && ScoreAt(purse) < target; i++) purse += step;
         return purse;
     }
 
@@ -635,8 +636,8 @@ public sealed class NegotiationSession
 
     private bool GuaranteedOk(ContractOffer o) => Negotiator.GuaranteedPerFight(o) >= GuaranteedFloor(o);
 
-    // The floor as the room says it: rounded up to the next $500.
-    private Money GuaranteedNeeded(ContractOffer o) => new(Math.Ceiling(GuaranteedFloor(o) / 500m) * 500m);
+    // The floor as the room says it: rounded up to the table's next step (UpToStep: $500 today, 250 in Origins).
+    private Money GuaranteedNeeded(ContractOffer o) => new(UpToStep(_world, GuaranteedFloor(o)));
 
     // "Wants a signing bonus" means a real one: at least a quarter of the bonus he quoted.
     private bool SigningOk(ContractOffer o) =>
@@ -779,6 +780,12 @@ public sealed class NegotiationSession
     /// its reach.</summary>
     internal static decimal UpToStep(World world, decimal v) =>
         world.Mode == WorldMode.Origins ? Math.Ceiling(v / OriginsStep) * OriginsStep : UpTo500(v);
+
+    /// <summary>The table's money step for this world (<see cref="UpToStep"/>): $500 in today's mode, <see cref="OriginsStep"/> in an Origins world.</summary>
+    public static decimal Step(World world) => world.Mode == WorldMode.Origins ? OriginsStep : 500m;
+
+    /// <summary>The money step of this table (<see cref="Step(World)"/>): what the negotiating window rounds its own figures to.</summary>
+    public decimal TableStep => Step(_world);
 
     /// <summary>The Origins table's money step (Origins asks and purses move in 250s).</summary>
     public const decimal OriginsStep = 250m;

@@ -276,7 +276,8 @@ public static class ContractLifecycle
             {
                 var exp = Valuation.Evaluate(world, f, out var market);   // (pure reads until the table: the read holds)
                 int distress = Org.Solvency.Distress(promo, world);
-                if (distress > 0 && exp.AskingPurse.Amount >
+                // (Measured against what he would ask THIS house, Negotiator.AffordAsk: his tier price in an Origins world.)
+                if (distress > 0 && Negotiator.AffordAsk(world, promo, f, exp, market) >
                     Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
                 {
                     Walk(world, f, promo, date, $"{promo.Abbreviation} couldn't afford to keep him");   // too rich for a bleeding org — let them walk

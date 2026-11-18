@@ -144,11 +144,14 @@ public static class Storylines
         {
             // A free agent takes the short-notice call at a premium — the
             // phone call that makes careers.
-            var ask = new FighterValuation().Evaluate(world, sub).AskingPurse;
+            Contracts.OriginsMarket? read = null;
+            decimal price = world.Get(ev.Promotion) is { } host
+                ? StandInPrice(world, host, sub, new FighterValuation(), ref read)
+                : new FighterValuation().Evaluate(world, sub).AskingPurse.Amount * 1.25m;
             ContractLifecycle.Sign(world, sub, new ContractOffer
             {
                 Fighter = sub.Id, Promotion = ev.Promotion,
-                PursePerFight = new Money(Math.Round(ask.Amount * 1.25m / 100m) * 100m),
+                PursePerFight = new Money(Math.Round(price / 100m) * 100m),
                 Fights = 1, Exclusive = false,
             }, date);
         }
@@ -237,6 +240,20 @@ public static class Storylines
             .ToList();
     }
 
+    /// <summary>
+    /// What a free agent's short-notice call costs this house, before rounding: 1.25x his ask. In an Origins world his
+    /// ask AT THIS HOUSE (<see cref="Contracts.Negotiator.TableFactor"/>: a small house is asked a small house's price,
+    /// as at every other Origins table); today his open-market ask, as before. <paramref name="market"/> is the read to
+    /// reuse (null takes one in Origins); nothing in the world may change while it is held.
+    /// </summary>
+    internal static decimal StandInPrice(World world, Promotion promo, Fighter c, FighterValuation valuation, ref Contracts.OriginsMarket? market)
+    {
+        var exp = valuation.EvaluateWith(world, c, ref market);
+        return world.Mode == WorldMode.Origins
+            ? exp.AskingPurse.Amount * 1.25m * Contracts.Negotiator.TableFactor(world, c, promo.Id, exp, market)
+            : exp.AskingPurse.Amount * 1.25m;
+    }
+
     // Who could plausibly save the bout: roster bodies first (free, familiar),
     // then free agents hungry for the call — same division, healthy, unbooked.
     // (Nobody on a spent deal: an AI deal ends before the bout, and the player's
@@ -275,7 +292,9 @@ public static class Storylines
         // pool's order among equals, so the filtered sorted sequence is the sorted filtered one, and the save
         // (FirstOrDefault) prices only the men ahead of its pick instead of the whole market. (Pricing reads,
         // never writes.)
-        bool Affordable((Fighter C, bool Market) x) => !x.Market || !ai || valuation.Evaluate(world, x.C).AskingPurse.Amount * 1.25m <= cap;
+        // (Origins: one market read for the whole filter, which only reads; StandInPrice prices him at this house.)
+        Contracts.OriginsMarket? read = null;
+        bool Affordable((Fighter C, bool Market) x) => !x.Market || !ai || StandInPrice(world, promo, x.C, valuation, ref read) <= cap;
         var pool = roster.Select(c => (C: c, Market: false)).Concat(market.Select(c => (C: c, Market: true)));
         // Both modes order by what the house's scouts think, id as the last word (the fog). The read is a pure hash,
         // computed once per man by the sort. Today's mode keeps the lazy pricing (sort, then filter); with id as the

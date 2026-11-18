@@ -20,7 +20,11 @@ namespace MmaManager.Tests;
 /// potential: only seed 2's three-year world and the house founded in it move, and with that one site put back on the
 /// truth both come back exactly; and on world/origins-asks, where a man asks a smaller house less (Negotiator.HouseTier):
 /// the three three-year worlds and their houses move, the day-one, split and tryout cases do not, and with the tier off
-/// every key matches exactly, the market's read of the player's house moving none), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
+/// every key matches exactly, the market's read of the player's house moving none; and on world/origins-tier-reach,
+/// where the founding roster signs at the house's tier price on the 250 step: s2-day1 and s4-split move through that
+/// alone, s1-day1 and s3-day1 do not, the tryout cases cannot (tryout men sign on the floor purse), and the three-year
+/// worlds and houses move through the founding price, the AI's 250-step opening offer and (seed 2) the stand-in's price;
+/// with every reached path off, every key matches exactly), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
 /// prestige, rules, roster), recapture: set FOUNDING_GOLDEN_OUT to a file path and run this class; it writes the
 /// new values instead of asserting.
 /// </summary>
@@ -29,15 +33,15 @@ public class OriginsFoundingGoldenTests
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
         ["s1-day1"] = "C0A6A81BAA1B8B9F71D2",
-        ["s1-years3-world"] = "2911FFC85BB144492458",
-        ["s1-years3-house"] = "71995DA087D2872D23CB",
-        ["s2-day1"] = "49A25EE03EE55D5C44EA",
-        ["s2-years3-world"] = "5CF832FAFD41131A49B1",
-        ["s2-years3-house"] = "63B6387FE5C69D218AA2",
+        ["s1-years3-world"] = "2220E362D0780BD218B5",
+        ["s1-years3-house"] = "DBC44A3F507CADF4CE76",
+        ["s2-day1"] = "1C4C138D05D3D7258B14",
+        ["s2-years3-world"] = "4297DBD2828D15A59383",
+        ["s2-years3-house"] = "C34AF59527BB4A2D5CE7",
         ["s3-day1"] = "8B18A7BC8DF1DC87464D",
-        ["s3-years3-world"] = "1137FF13F00475C21F4A",
-        ["s3-years3-house"] = "80221FA398A26A001279",
-        ["s4-split"] = "C7036D9F547460489E28",
+        ["s3-years3-world"] = "9142C62C2F79D9AFD8B0",
+        ["s3-years3-house"] = "646DF75C97B1967C3331",
+        ["s4-split"] = "A81C21B23FC29399BFB3",
         ["s5-split"] = "F5E3833ECBD87E286F81",
         ["s6-tryouts"] = "9AB7EF497F834D5F857C",
         ["s7-tryouts"] = "04C06E974B508EC04CD2",

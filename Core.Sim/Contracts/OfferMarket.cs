@@ -348,7 +348,7 @@ public static class OfferMarket
     /// (<see cref="FighterValuation"/>) through <see cref="Negotiator.PoachOffer"/> (the
     /// loyalty premium, the bigger stage's pull, the rival's purse cap), times the
     /// rival's appetite for him (0.94-1.08, a hash of the world, rival and fighter),
-    /// on the $500 step and never past the cap. Null when the rival can't reach him.
+    /// on the table's step (<see cref="NegotiationSession.Step"/>) and never past the cap. Null when the rival can't reach him.
     /// True ability never enters: the rival's read only decided whether it called.
     /// </summary>
     internal static ContractOffer? Bid(World world, Promotion suitor, Fighter f)
@@ -358,10 +358,11 @@ public static class OfferMarket
         double appetite = 0.94 + 0.14 * new SimRandom(SimRandom.Mix(world.RngSeed,
             ((ulong)suitor.Id.Value << 32) ^ (ulong)f.Id.Value ^ AppetiteSalt)).NextDouble();
         decimal cap = Negotiator.PurseCap(world, suitor);
-        decimal purse = Math.Min(Math.Round(offer.PursePerFight.Amount * (decimal)appetite / 500m) * 500m, Math.Max(cap, offer.PursePerFight.Amount));
+        decimal step = NegotiationSession.Step(world);   // ($500 today, the Origins 250 in an Origins world)
+        decimal purse = Math.Min(Math.Round(offer.PursePerFight.Amount * (decimal)appetite / step) * step, Math.Max(cap, offer.PursePerFight.Amount));
         offer.PursePerFight = new Money(Math.Max(500m, purse));
-        offer.WinBonus = new Money(Math.Min(offer.WinBonus.Amount, Math.Round(purse * 0.75m / 500m) * 500m));
-        if (offer.SigningBonus.Amount > 0) offer.SigningBonus = new Money(Math.Round(purse * 0.5m / 500m) * 500m);
+        offer.WinBonus = new Money(Math.Min(offer.WinBonus.Amount, Math.Round(purse * 0.75m / step) * step));
+        if (offer.SigningBonus.Amount > 0) offer.SigningBonus = new Money(Math.Round(purse * 0.5m / step) * step);
         return offer;
     }
 
@@ -643,12 +644,17 @@ public static class OfferMarket
     /// <summary>
     /// The rival's walk-away purse for a courted free agent: the smaller of its purse cap
     /// and his ask (never past its own budget), never under what it already offered. Public
-    /// facts only. Sim-only: never shown.
+    /// facts only. Sim-only: never shown. His ask here is his OPEN-MARKET ask (on the offer's
+    /// exclusivity), never the house tier: the tier is what he asks a house, this is how far a house
+    /// will stretch to win him. (Priced at the tier, the walk-away equalled the rival's opening purse
+    /// and an Origins rival could never raise its purse, only add a signing bonus.) On the table's
+    /// step (<see cref="NegotiationSession.Step"/>: $500 today, 250 in an Origins world).
     /// </summary>
     internal static decimal CeilingPurse(World world, Promotion rival, RivalOffer o, ContractExpectations exp)
     {
         decimal ask = exp.AskingPurse.Amount * (o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor);
-        decimal top = Math.Floor(Math.Min(Negotiator.PurseCap(world, rival), ask) / 500m) * 500m;
+        decimal step = NegotiationSession.Step(world);
+        decimal top = Math.Floor(Math.Min(Negotiator.PurseCap(world, rival), ask) / step) * step;
         return Math.Max(o.Purse.Amount, top);
     }
 
@@ -829,21 +835,22 @@ public static class OfferMarket
     }
 
     // Raise the rival's paper until it scores at least <paramref name="target"/>: the purse on
-    // the $500 step up to its walk-away purse (CeilingPurse: never past its own purse cap),
+    // the table's step (NegotiationSession.Step) up to its walk-away purse (CeilingPurse: never past its own purse cap),
     // then a signing bonus up to half that purse (how AI offers price one). False when that
     // isn't enough, or the bank can't cover the bonus.
     internal static bool Improve(World world, RivalOffer o, Fighter f, Promotion rival, decimal target, ContractExpectations exp)
     {
         decimal ceiling = CeilingPurse(world, rival, o, exp);
-        decimal maxSigning = Math.Max(o.SigningBonus.Amount, Math.Floor(ceiling * 0.5m / 500m) * 500m);
+        decimal step = NegotiationSession.Step(world);   // ($500 today, the Origins 250 in an Origins world)
+        decimal maxSigning = Math.Max(o.SigningBonus.Amount, Math.Floor(ceiling * 0.5m / step) * step);
         ContractOffer At(decimal p, decimal sb) => new()
         {
             Fighter = o.Fighter, Promotion = o.From, PursePerFight = new Money(p), WinBonus = o.WinBonus,
             SigningBonus = new Money(sb), Fights = o.Fights, Exclusive = o.Exclusive,
         };
         decimal purse = o.Purse.Amount, signing = o.SigningBonus.Amount;
-        while (purse + 500m <= ceiling && Score(world, f, At(purse, signing), exp) < target) purse += 500m;
-        while (signing + 500m <= maxSigning && Score(world, f, At(purse, signing), exp) < target) signing += 500m;
+        while (purse + step <= ceiling && Score(world, f, At(purse, signing), exp) < target) purse += step;
+        while (signing + step <= maxSigning && Score(world, f, At(purse, signing), exp) < target) signing += step;
         if (Score(world, f, At(purse, signing), exp) < target || rival.Balance.Amount < signing) return false;
         o.Purse = new Money(purse);
         o.SigningBonus = new Money(signing);
