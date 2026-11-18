@@ -67,6 +67,9 @@ public static class FreeAgencyService
         // enters it mid-pass, so filtering this list with today's test again is the world's FreeAgents() at that
         // moment, without walking every fighter (retired ones included) for every division of every promotion.
         var market = world.FreeAgents().ToList();
+        // One Origins market read for as long as the pass only reads (OriginsMarket): dropped at every signing and every
+        // lodged offer, the only things the pass changes, so each man is priced off exactly the numbers he would be alone.
+        OriginsMarket? read = null;
         foreach (var promo in world.Promotions.Values
                      .Where(p => p.Id != world.PlayerPromotion && p.Id != HarnessHandsOff && !p.Defunct)
                      .OrderByDescending(p => p.Prestige.Value)
@@ -140,13 +143,13 @@ public static class FreeAgencyService
                     if (Have() >= minBodies && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
 
                     var evalPhase = Living.TickProbe.Phase("fa/evaluate");
-                    var exp = Valuation.Evaluate(world, fa);
+                    var exp = Valuation.EvaluateWith(world, fa, ref read);   // (and the read goes to his table: nothing changes in between)
                     evalPhase.Dispose();
                     if (exp.AskingPurse.Amount > purseCeiling) continue;   // out of a distressed budget
 
                     var negPhase = Living.TickProbe.Phase("fa/negotiate");
-                    var offer = Negotiator.AiOpeningOffer(world, promo, fa, exp);
-                    var verdict = Negotiator.Evaluate(world, fa, offer, exp).Verdict;
+                    var offer = Negotiator.AiOpeningOffer(world, promo, fa, exp, market: read);
+                    var verdict = Negotiator.Evaluate(world, fa, offer, exp, read).Verdict;
                     negPhase.Dispose();
                     if (verdict != NegotiationVerdict.Accept) continue;
 
@@ -154,10 +157,11 @@ public static class FreeAgencyService
                     // this same deal in front of him with a deadline instead of signing
                     // him on the spot — the player gets his chance to beat it. Nobody
                     // else's free agents are touched (no talks, no offer: today's signing).
-                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) { have = -1; continue; }
+                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) { have = -1; read = null; continue; }
 
                     ContractLifecycle.Sign(world, fa, offer, date);
                     have = -1;
+                    read = null;
                     signings++;
                 }
             }

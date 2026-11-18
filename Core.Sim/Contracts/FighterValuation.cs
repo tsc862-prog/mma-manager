@@ -20,8 +20,29 @@ namespace MmaManager.Core.Sim.Contracts;
 /// </summary>
 public sealed class FighterValuation
 {
-    public ContractExpectations Evaluate(World world, Fighter f)
+    public ContractExpectations Evaluate(World world, Fighter f) => Evaluate(world, f, out _);
+
+    /// <summary>
+    /// <see cref="Evaluate(World, Fighter)"/>, with the market read it priced him off (Origins; null in today's mode):
+    /// hand it to the table calls made for him straight after, with nothing changed in between
+    /// (<see cref="OriginsMarket"/>), so they don't walk the calendar again.
+    /// </summary>
+    public ContractExpectations Evaluate(World world, Fighter f, out OriginsMarket? market)
     {
+        market = null;
+        return EvaluateWith(world, f, ref market);
+    }
+
+    /// <summary>
+    /// <see cref="Evaluate(World, Fighter, out OriginsMarket?)"/> that reuses a market read the caller already holds
+    /// (taking one when <paramref name="market"/> is null, in an Origins world). The caller must drop the read (set it
+    /// null) whenever it changes the world, so the read is always the one this call would have taken (a pass that only
+    /// reads between two signings prices every man off the same numbers it would have computed for each).
+    /// </summary>
+    public ContractExpectations EvaluateWith(World world, Fighter f, ref OriginsMarket? market)
+    {
+        if (world.Mode == WorldMode.Origins) market ??= OriginsMarket.Read(world);
+        else market = null;
         var standing = PublicStanding.Read(world, f);
         double reputation = standing.Reputation;
         int level = (int)Math.Round(reputation);
@@ -99,8 +120,8 @@ public sealed class FighterValuation
         // 15%) rose with the giants, and once the best purse passed ~4,200 every unknown asked 750 against the 500
         // a small hall can budget, so the small houses of the Boom signed nobody and ran out of men (longsim
         // origins 40 20: 27 of 40 seeds). Below that ceiling the two read the same.
-        if (world.Mode == WorldMode.Origins)
-            purse = OriginsMarketCeiling(world) * Math.Clamp(purse / OriginsFullAsk, 0m, 1m);
+        if (market is not null)
+            purse = market.Ceiling * Math.Clamp(purse / OriginsFullAsk, 0m, 1m);
         purse = world.Mode == WorldMode.Origins
             ? Math.Max(Negotiator.OriginsPurseFloor, RoundTo(purse, 250m))   // a 1993 purse can be a few hundred dollars
             : Math.Max(1_500m, RoundTo(purse, 500m));
@@ -140,14 +161,16 @@ public sealed class FighterValuation
     /// The most any live house in an Origins world can pay a man a fight (its purse cap). Every Origins ask is a share
     /// of it, so it moves every man's price: an AI founder's cap follows its expected home crowd once it has run three
     /// nights (<see cref="Negotiator.PurseCap"/>, <see cref="Living.OriginsShows.HomeRoom"/>), so when the founder with
-    /// the top cap draws thin crowds the ceiling falls and asks fall at every house. The player's house keeps its
-    /// hall-based cap, so a world where he runs the house with the top cap keeps the old ceiling.
+    /// the top cap draws thin crowds the ceiling falls and asks fall at every house. The player's house is read the same
+    /// way (<see cref="Negotiator.MarketPurseCap"/>): his own budget stays his hall's, but the sport's price level does
+    /// not depend on which house he runs (it did: a world where he ran the Crucible kept the hall-based ceiling and every
+    /// man asked more than in the same world with the AI running it).
     /// </summary>
     public static decimal OriginsMarketCeiling(World world)
     {
         decimal best = 0m;
         foreach (var p in world.Promotions.Values)
-            if (!p.Defunct) best = Math.Max(best, Negotiator.PurseCap(world, p));
+            if (!p.Defunct) best = Math.Max(best, Negotiator.MarketPurseCap(world, p));
         return best;
     }
 
