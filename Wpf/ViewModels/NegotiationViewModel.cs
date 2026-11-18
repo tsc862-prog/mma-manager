@@ -870,5 +870,6 @@ public sealed class NegotiationViewModel : ObservableObject
                         + (upside.Amount > 0 ? $", and up to {upside} more if he wins every fight and takes every performance bonus." : ".");
     }
 
-    private static decimal RoundTo(decimal v) => Math.Round(v / 500m) * 500m;
+    // The table's step ($500 today, 250 in an Origins world): splitting 500 and 750 must not land back on 500.
+    private decimal RoundTo(decimal v) => Math.Round(v / _session.TableStep) * _session.TableStep;
 }

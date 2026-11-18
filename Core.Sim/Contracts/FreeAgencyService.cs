@@ -145,7 +145,9 @@ public static class FreeAgencyService
                     var evalPhase = Living.TickProbe.Phase("fa/evaluate");
                     var exp = Valuation.EvaluateWith(world, fa, ref read);   // (and the read goes to his table: nothing changes in between)
                     evalPhase.Dispose();
-                    if (exp.AskingPurse.Amount > purseCeiling) continue;   // out of a distressed budget
+                    // Out of a distressed budget: measured against what he would ask THIS house (Negotiator.AffordAsk:
+                    // his tier price in an Origins world, his open-market ask today).
+                    if (distress > 0 && Negotiator.AffordAsk(world, promo, fa, exp, read) > purseCeiling) continue;
 
                     var negPhase = Living.TickProbe.Phase("fa/negotiate");
                     var offer = Negotiator.AiOpeningOffer(world, promo, fa, exp, market: read);
