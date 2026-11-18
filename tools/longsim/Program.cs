@@ -386,6 +386,7 @@ static void RunCompare(int seeds, int years)
             o.YearsAlive = Math.Max(1.0 / 52, (until.DayNumber - born.DayNumber) / 365.25);
             res.Orgs.Add(o);
         }
+        res.Reigns = LongSim.TitleShots.Reigns(world, startDate);
         res.Superfights = doneEvents.Count(e => e.Name.StartsWith("CHAMP VS CHAMP"));
         res.WeightMisses = doneEvents.Sum(e => e.Card.Count(f => f.WeightMissBy is not null));
         res.CancelledEvents = simEvents.Count(e => e.Status == EventStatus.Cancelled);
@@ -510,6 +511,13 @@ static void RunCompare(int seeds, int years)
     LongSim.MoneyFlows.Print(all.Select(r => r.Flows).Where(f => f is not null).Select(f => f!).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     LongSim.TitleShots.Print(results.Values.Select(r => (r.TitleShots!, r.Years)).ToList());
+    {
+        int ended = all.Sum(r => r.Reigns.Ended), ongoing = all.Sum(r => r.Reigns.Ongoing);
+        double days = ended == 0 ? 0 : all.Sum(r => r.Reigns.Days * r.Reigns.Ended) / ended;
+        double defs = ended == 0 ? 0 : all.Sum(r => r.Reigns.Defenses * r.Reigns.Ended) / ended;
+        double odefs = ongoing == 0 ? 0 : all.Sum(r => r.Reigns.OngoingDefenses * r.Reigns.Ongoing) / ongoing;
+        Console.WriteLine($"  REIGNS begun in the run (DURABLE: lineages, AI orgs): ended {ended} · mean length {days:0} days · mean defenses {defs:0.00} | still running at the end {ongoing} · their defenses so far {odefs:0.00}");
+    }
     // Every org's completed cards over the run, pooled by its tier at the end (or when it died): what each tier pays a card.
     Console.WriteLine();
     Console.WriteLine("  --- ALL ORGS by end tier (DURABLE: completed cards over the run; day-one orgs and startups) ---");
@@ -671,6 +679,7 @@ sealed class SeedResult
 {
     public ulong Seed;
     public LongSim.TitleShots? TitleShots;
+    public (int Ended, double Days, double Defenses, int Ongoing, double OngoingDefenses) Reigns;
     public List<OrgAutopsy> Orgs = new();
     public List<string> Folds = new();
     /// <summary>Defunct orgs that were NOT bought — the ones that actually went broke.</summary>
