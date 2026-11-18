@@ -103,6 +103,62 @@ public class PlayerFoundingOptionsTests
     }
 
     [Fact]
+    public void TryoutOffer_ShortOfMen_ReadsApartFromTheSpacing()
+    {
+        var w = Observer(9);
+        var promo = FoundOk(w, new PlayerFoundingSpec("Lantern Street Open", "LSO", FirstOpen(w).Id));
+        var freeOn = w.CurrentDate;
+
+        // The free founding tryout reflects the same test: an empty new house is short of men.
+        var free = PlayerFounding.TryoutOptions(w, freeOn);
+        Assert.True(free.Free);
+        Assert.Equal(OriginsFounding.ShortHanded(w, promo, freeOn, out _), free.ShortOfMen);
+        Assert.True(free.ShortOfMen);
+        PlayerFounding.HoldTryout(w, freeOn, out var why);
+        Assert.Null(why);
+
+        // Short and blocked by the spacing: still short, not on offer, and the date he can next call one.
+        var soonOn = freeOn.AddDays(7);
+        Assert.True(OriginsFounding.ShortHanded(w, promo, soonOn, out _));
+        var soon = PlayerFounding.TryoutOptions(w, soonOn);
+        Assert.True(soon.ShortOfMen);
+        Assert.False(soon.Available);
+        Assert.Equal(freeOn.AddDays(OriginsFounding.TryoutEveryDays), soon.NextPossibleOn);
+        Assert.True(soon.Turnout > 0);
+
+        // Short and allowed: on offer, and still short.
+        new WorldTick().AdvanceWeeks(w, 26);
+        var on = w.CurrentDate;
+        Assert.True(OriginsFounding.ShortHanded(w, promo, on, out _));
+        var offer = PlayerFounding.TryoutOptions(w, on);
+        Assert.True(offer.Available, offer.Refusal);
+        Assert.True(offer.ShortOfMen);
+        Assert.Null(offer.NextPossibleOn);
+
+        // Filled to the target and past the spacing: not short.
+        PlayerFounding.HoldTryout(w, on, out why);
+        Assert.Null(why);
+        var later = on.AddDays(OriginsFounding.TryoutEveryDays);
+        Assert.False(OriginsFounding.ShortHanded(w, promo, later, out _));
+        var full = PlayerFounding.TryoutOptions(w, later);
+        Assert.False(full.ShortOfMen);
+        Assert.False(full.Available);
+        Assert.Null(full.NextPossibleOn);
+        // Inside the spacing with a full house: blocked by the date, but not short either.
+        var fullSoon = PlayerFounding.TryoutOptions(w, on.AddDays(1));
+        Assert.Equal(OriginsFounding.ShortHanded(w, promo, on.AddDays(1), out _), fullSoon.ShortOfMen);
+        Assert.False(fullSoon.ShortOfMen);
+        Assert.NotNull(fullSoon.NextPossibleOn);
+    }
+
+    [Fact]
+    public void TryoutOffer_ShortOfMen_FalseWithNoHouse()
+    {
+        var w = Observer(9);
+        Assert.False(PlayerFounding.TryoutOptions(w, w.CurrentDate).ShortOfMen);
+    }
+
+    [Fact]
     public void RecurringTryout_IsNeverHeldForHim()
     {
         var w = Observer(10);
