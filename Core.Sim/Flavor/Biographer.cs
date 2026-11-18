@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Org;
 using MmaManager.Core.Sim.Scouting;
 
@@ -359,11 +358,17 @@ public static partial class Biographer
         }
 
         // Flagship champion.
+        // Public facts only: the belt's standing, then the champion's popularity, his defenses on it, his wins, id last.
         var champ = promo.Divisions
             .Where(d => d.Title is { } tid && world.Get(tid)?.CurrentChampion is not null)
-            .Select(d => world.Get(world.Get(d.Title!.Value)!.CurrentChampion!.Value))
-            .Where(f => f is not null)
-            .OrderByDescending(f => FighterAbility.CurrentAbility(f!))
+            .Select(d => (Belt: world.Get(d.Title!.Value)!, Man: world.Get(world.Get(d.Title!.Value)!.CurrentChampion!.Value)))
+            .Where(x => x.Man is not null)
+            .OrderByDescending(x => x.Belt.Prestige.Value)
+            .ThenByDescending(x => x.Man!.Intangibles.Popularity.Value)
+            .ThenByDescending(x => x.Belt.Lineage.LastOrDefault(r => r.LostOn is null && r.Champion == x.Man!.Id)?.Defenses ?? 0)
+            .ThenByDescending(x => x.Man!.Record.Wins)
+            .ThenBy(x => x.Man!.Id.Value)
+            .Select(x => x.Man)
             .FirstOrDefault();
         // The face of the company, when the house has one, IS its marquee attraction.
         var marquee = Franchise.FaceOf(world, promo) ?? champ;

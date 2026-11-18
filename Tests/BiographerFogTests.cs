@@ -116,4 +116,28 @@ public class BiographerFogTests
         Assert.StartsWith("The face of the sport", blind);
         Assert.Equal(blind, seen);
     }
+
+    [Fact]
+    public void Promotion_MarqueeIsPickedOnPublicFacts_NotTrueAbility()
+    {
+        var w = FogKit.Modern();
+        var house = w.Promotions.Values.OrderBy(p => p.Id.Value).First(p =>
+            p.Divisions.Count(d => d.Title is { } t && w.Get(t)?.CurrentChampion is not null) >= 2);
+        house.FaceOfCompany = null;
+        var held = house.Divisions.Where(d => d.Title is { } t && w.Get(t)?.CurrentChampion is not null)
+            .Select(d => w.Get(d.Title!.Value)!).ToList();
+        foreach (var t in held.Skip(2)) t.Prestige = 0;          // any other belt of the house is out of the running
+        held = held.Take(2).ToList();
+        var better = w.Get(held[0].CurrentChampion!.Value)!;     // truly the better man, on the lesser belt, less popular
+        var known = w.Get(held[1].CurrentChampion!.Value)!;      // the public marquee
+        FogKit.SetTrue(better, 95); FogKit.SetTrue(known, 40);
+        better.Intangibles.Popularity = 20; known.Intangibles.Popularity = 80;
+        held[0].Prestige = 40; held[1].Prestige = 40;            // equal belts: popularity decides
+
+        var text = Biographer.Promotion(w, house);
+        Assert.Contains($"Its marquee attraction is {known.FullName}.", text);
+
+        held[0].Prestige = 70;                                   // a clearly bigger belt outranks popularity
+        Assert.Contains($"Its marquee attraction is {better.FullName}.", Biographer.Promotion(w, house));
+    }
 }
