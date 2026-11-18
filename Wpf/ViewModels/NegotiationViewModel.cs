@@ -192,8 +192,8 @@ public sealed class NegotiationViewModel : ObservableObject
         (ActivityPromise.Picks.FirstOrDefault(p => p.Fights == 3) ?? ActivityPromise.Picks[0]).SetQuietly(true);
         var his = _view.Position;
         _offerFights = his.Fights;
-        _offerPurse = RoundTo(his.PursePerFight.Amount * 0.85m);
-        _offerWinBonus = PaysWinBonus ? RoundTo(his.WinBonus.Amount * 0.85m) : 0m;
+        _offerPurse = FloorTo(his.PursePerFight.Amount * 0.85m);
+        _offerWinBonus = PaysWinBonus ? FloorTo(his.WinBonus.Amount * 0.85m) : 0m;
         _offerSigningBonus = his.SigningBonus.Amount;
 
         Transcript.Add(new(FirstName, _view.OpeningLine, "Him"));
@@ -870,6 +870,11 @@ public sealed class NegotiationViewModel : ObservableObject
                         + (upside.Amount > 0 ? $", and up to {upside} more if he wins every fight and takes every performance bonus." : ".");
     }
 
-    // The table's step ($500 today, 250 in an Origins world): splitting 500 and 750 must not land back on 500.
-    private decimal RoundTo(decimal v) => Math.Round(v / _session.TableStep) * _session.TableStep;
+    // The table's step ($500 today, 250 in an Origins world). A split rounds a half step UP (to his number):
+    // splitting 500 and 750 lands on 750, not back on 500 (banker's rounding took 625 to 500 and the button did nothing).
+    private decimal RoundTo(decimal v) => Math.Round(v / _session.TableStep, MidpointRounding.AwayFromZero) * _session.TableStep;
+
+    // The opening bid rounds DOWN to the step: a notch under his number, never his number itself
+    // (0.85 x a 750 demand is 637.5, which rounds to 750 at the nearest 250).
+    private decimal FloorTo(decimal v) => Math.Floor(v / _session.TableStep) * _session.TableStep;
 }

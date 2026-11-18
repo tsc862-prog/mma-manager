@@ -246,7 +246,7 @@ public static class Storylines
     /// as at every other Origins table); today his open-market ask, as before. <paramref name="market"/> is the read to
     /// reuse (null takes one in Origins); nothing in the world may change while it is held.
     /// </summary>
-    private static decimal StandInPrice(World world, Promotion promo, Fighter c, FighterValuation valuation, ref Contracts.OriginsMarket? market)
+    internal static decimal StandInPrice(World world, Promotion promo, Fighter c, FighterValuation valuation, ref Contracts.OriginsMarket? market)
     {
         var exp = valuation.EvaluateWith(world, c, ref market);
         return world.Mode == WorldMode.Origins

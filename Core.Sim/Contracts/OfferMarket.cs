@@ -644,16 +644,15 @@ public static class OfferMarket
     /// <summary>
     /// The rival's walk-away purse for a courted free agent: the smaller of its purse cap
     /// and his ask (never past its own budget), never under what it already offered. Public
-    /// facts only. Sim-only: never shown. In an Origins world his ask is what he asks the RIVAL
-    /// (<see cref="Negotiator.TableAsk"/>: its size and his discount there, as its lodged paper was
-    /// priced by <see cref="Negotiator.AiOpeningOffer"/>), on the Origins step; today it is his
-    /// open-market ask on the $500 step, as before.
+    /// facts only. Sim-only: never shown. His ask here is his OPEN-MARKET ask (on the offer's
+    /// exclusivity), never the house tier: the tier is what he asks a house, this is how far a house
+    /// will stretch to win him. (Priced at the tier, the walk-away equalled the rival's opening purse
+    /// and an Origins rival could never raise its purse, only add a signing bonus.) On the table's
+    /// step (<see cref="NegotiationSession.Step"/>: $500 today, 250 in an Origins world).
     /// </summary>
     internal static decimal CeilingPurse(World world, Promotion rival, RivalOffer o, ContractExpectations exp)
     {
-        decimal ask = world.Mode == WorldMode.Origins
-            ? Negotiator.TableAsk(world, rival, world.Get(o.Fighter)!, exp, o.Exclusive)
-            : exp.AskingPurse.Amount * (o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor);
+        decimal ask = exp.AskingPurse.Amount * (o.Exclusive ? 1m : Negotiator.NonExclusiveMoneyFactor);
         decimal step = NegotiationSession.Step(world);
         decimal top = Math.Floor(Math.Min(Negotiator.PurseCap(world, rival), ask) / step) * step;
         return Math.Max(o.Purse.Amount, top);
