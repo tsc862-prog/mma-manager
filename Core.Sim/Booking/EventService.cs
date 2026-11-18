@@ -115,7 +115,8 @@ public sealed class EventService
     /// drew its lines (fought as booked: OriginsReforms.DrawLines). The engine honours it under any rule set: on a
     /// custom rule set the full size term runs; on today's rules (a cage house under the commissions' code that has
     /// split its divisions) the bout stays on the modern path and only the size term's relative edge between the two
-    /// men is added (Bout.ApplyRelativeSize), so the bigger man still gets his edge.
+    /// men is added (Bout.ApplyRelativeSize), so the bigger man still gets his edge. A one-night bracket's bouts ask
+    /// the same question (TournamentService.Run): an open-field bracket is an open-weight bout under this rule.
     /// </summary>
     internal static bool SizeTermFor(World world, Promotion? house, Fight fight) =>
         world.Mode == WorldMode.Origins && house is not null

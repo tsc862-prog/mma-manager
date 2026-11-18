@@ -159,6 +159,9 @@ public sealed class TournamentService
                     ScheduledRounds = p.ScheduledRounds,
                 };
                 LocalCircuit.YieldTo(world, new[] { fight.RedCorner, fight.BlueCorner });
+                // The size term on the card bout's rule (Origins only: an open-field bracket, or a class inside a banded
+                // division), so a bracket night after a weight split still gives the bigger man his edge.
+                p = p with { BandedSizeTerm = EventService.SizeTermFor(world, promo, fight) };
                 var o = _engine.Simulate(fight, world, p, out var redEnd, out var blueEnd);   // no screen shows these bouts' text
                 ResultsProcessor.Apply(world, ev, fight);
                 ev.Card.Add(fight);
