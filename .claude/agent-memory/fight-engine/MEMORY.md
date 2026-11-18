@@ -1,2 +1,3 @@
 - [Engine baseline numbers](engine-baseline-numbers.md) — step 3 (2026-11-11) lab + in-world mix, tuned constants, golden hashes; lab under-predicts world finishes
 - [Stored card reshuffles the world](stored-card-reshuffles-world.md) — RoundScores feeds the robbery roll; exposed world-sim Fighters.Values order bug in a persistence hole test
+- [Bracket size term](bracket-size-term.md) — PR #86: bracket bouts ask SizeTermFor; split-house brackets ~1 in 77 nights; custom+modern rules = relative edge only; no pins moved
