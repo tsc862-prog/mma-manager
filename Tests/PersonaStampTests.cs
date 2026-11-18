@@ -23,9 +23,10 @@ public class PersonaStampTests
     // (world/perceived-potential): the front office's promo push and camp stipend, who a house keeps on a leash, and a head coach's
     // protégé all move in today's world inside twelve weeks, so the Modern pin moves whole. The Origins world is identical.)
     // (Re-pinned when the AI matchmaker began handing title shots to credible contenders (world/title-shots: the #1 waits for
-    // the belt, feuds lift only inside the top 5, one rematch for a dethroned champion): today's cards differ inside twelve
+    // the belt while his defense is due inside eight weeks, feuds lift only inside the top 5, one rematch for a dethroned champion
+    // with three defenses): today's cards differ inside twelve
     // weeks, so the Modern pin moves whole. The Origins world is identical.)
-    private const string ModernNoCatalog12Weeks = "3D082FE2DC2BC466";
+    private const string ModernNoCatalog12Weeks = "6A21C5DB5BBEF335";
     private const string OriginsNoCatalog12Weeks = "30D0D2E6C36F66AE";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.
