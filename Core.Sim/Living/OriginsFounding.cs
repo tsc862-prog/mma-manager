@@ -26,7 +26,8 @@ namespace MmaManager.Core.Sim.Living;
 /// </summary>
 public static class OriginsFounding
 {
-    private const ulong FoundSalt = 0x0219_F0D0_0004UL, ArrivalSalt = 0x0219_A441_0005UL;
+    private const ulong FoundSalt = 0x0219_F0D0_0004UL;
+    internal const ulong ArrivalSalt = 0x0219_A441_0005UL;
 
     /// <summary>A new house's monthly chance while the first rival is still to come.</summary>
     public const double FirstRivalChance = 0.06;
@@ -480,7 +481,7 @@ public static class OriginsFounding
         _ => a.Pioneer is { } row && world.Fighters.Values.Any(f => f.Designed && f.FirstName == row.Fighter.First && f.LastName == row.Fighter.Last),
     };
 
-    private static void Arrive(World world, OriginsArrival a, DateOnly date)
+    internal static void Arrive(World world, OriginsArrival a, DateOnly date)
     {
         var city = world.Cities.Values.Where(c => c.Name == a.City).OrderBy(c => c.Id.Value).FirstOrDefault();
         if (city is null) return;

@@ -237,6 +237,103 @@ public static class ScoutingService
     private const int PublicEvaluator = 0;
     private const int PublicSalt = 0x0B5E;
 
+    // === The CEILING as a house sees it =======================================
+    // Nobody in the world sees a man's potential. What a house's scouts carry is a projection: what he shows now
+    // (its own fogged read of his ability), the headroom a man of his age usually has left, what his record says
+    // about how he has been winning, and the room he trains in, all public. On top of that sits an error that is a
+    // keyed hash of (house, fighter), wider than the ability read's for an unknown kid and narrowing as his record
+    // grows or a famous room puts him on tape. A stranger's read carries NO share of the truth at all, so no
+    // caller can back the true ceiling out of it; only a house's own men (it sees them train every week) and a
+    // room's own members (its head coach sees them every day) blend in a part of the real ceiling, and even then
+    // under the hash error. Pure: no RNG stream, no events or bout history walked, nothing saved.
+
+    /// <summary>Worst-case misjudgement of an unknown kid's ceiling (the ability read's is <see cref="MaxError"/>).</summary>
+    internal const int MaxPotentialError = 14;
+    private const int PotentialSalt = 0x0C31;        // the house's ceiling read: its own slot, apart from the ability read's
+    private const int CampAbilitySalt = 0x0CA4;      // a room's own read of a member's ability
+    private const int CampPotentialSalt = 0x0CA7;    // a room's read of a member's ceiling
+    private const int CampHashOffset = 1 << 20;      // camp ids live in their own range of the (viewer, fighter) hash
+    private const double RoomKnowledgeFloor = 0.9;   // a head coach sees his room every day
+
+    /// <summary>
+    /// What <paramref name="viewer"/>'s scouts think this fighter's CEILING is (0-100): a projection from public
+    /// facts and the house's own read of his ability, never the hidden potential, except for a share of it on the
+    /// house's own men. Never below what the house already sees him do. A pure hash, no draw.
+    /// </summary>
+    public static int PerceivedPotential(World world, Promotion viewer, Fighter f)
+    {
+        int seen = PerceivedAbility(world, viewer, f);
+        bool own = f.Contract?.Promotion == viewer.Id;
+        double familiarity = Math.Max(RecordFamiliarity(f), Living.Camps.PublicExposure(world, f));
+        if (own) familiarity = Math.Max(familiarity, OwnKnowledgeFloor);
+        double competence = Competence(viewer);
+        // His own house sees him train: a part of the real ceiling shows through (more for a real department).
+        double truthShare = own ? 0.35 + 0.35 * competence : 0;
+        return Ceiling(world, f, seen, familiarity, competence, truthShare, viewer.Id.Value, PotentialSalt);
+    }
+
+    /// <summary>
+    /// What a ROOM thinks a man's ceiling is: its head coach's eye, which is as good as its coaching. A member is
+    /// seen every day (a share of the real ceiling shows through); anyone else is a stranger to it, read off his
+    /// record and his age like anybody would. A camp is not a promotion: it has its own slot in the hash.
+    /// </summary>
+    public static int PerceivedPotential(World world, Camp viewer, Fighter f)
+    {
+        bool member = f.Camp == viewer.Id;
+        double familiarity = Math.Max(RecordFamiliarity(f), Living.Camps.PublicExposure(world, f));
+        if (member) familiarity = Math.Max(familiarity, RoomKnowledgeFloor);
+        double competence = Math.Clamp((viewer.CoachQuality - 40) / 50.0, 0, 1);
+        int who = CampHashOffset + viewer.Id.Value;
+        int seen = Read(FighterAbility.CurrentAbility(f), familiarity, competence, who, f.Id.Value, CampAbilitySalt);
+        double truthShare = member ? 0.4 + 0.4 * competence : 0;
+        return Ceiling(world, f, seen, familiarity, competence, truthShare, who, CampPotentialSalt);
+    }
+
+    /// <summary>
+    /// The headroom a man of this age usually has left above what he shows: about fourteen points at 21 and
+    /// under, tapering to five at 27 and nothing past 31 (the generator's own gaps by age, smoothed).
+    /// </summary>
+    internal static double Headroom(int age) =>
+        age <= 21 ? 14 : age <= 27 ? 14 - (age - 21) * 1.5 : age <= 31 ? 5 - (age - 27) * 1.25 : 0;
+
+    /// <summary>
+    /// What the record says about upside, for a young man only: winning more than losing, and finishing when he
+    /// wins, reads as more to come (about -4..+5 at 22, fading to nothing by 28). Record counters only.
+    /// </summary>
+    internal static double RecordSignal(Fighter f, int age)
+    {
+        var r = f.Record;
+        if (r.TotalBouts < 2 || age >= 28) return 0;
+        double youth = Math.Clamp((28 - age) / 6.0, 0, 1);
+        double margin = 4.0 * (r.Wins - r.Losses) / (r.TotalBouts + 2);
+        double finishes = r.Wins == 0 ? 0 : 2.0 * (r.WinsByKo + r.WinsBySubmission) / r.Wins * Math.Min(r.Wins, 5) / 5.0;
+        return Math.Clamp(margin + finishes, -4, 5) * youth;
+    }
+
+    private static int Ceiling(World world, Fighter f, int seen, double familiarity, double competence,
+        double truthShare, int who, int salt)
+    {
+        int age = f.AgeOn(world.CurrentDate);
+        double room = age <= 25 && f.Camp is { } cid && world.Get(cid) is { } camp ? Math.Min(2.0, camp.Reputation / 40.0) : 0;
+        double prior = seen + Headroom(age) + RecordSignal(f, age) + room;
+        double estimate = (1 - truthShare) * prior + truthShare * f.PotentialAbility.Value;
+        double error = MaxPotentialError * (1 - familiarity) * (1 - 0.5 * competence);
+        double dir = SignedNoise(who, f.Id.Value, salt);
+        // A ceiling below what he already shows is no read at all.
+        return Math.Clamp((int)Math.Round(estimate + dir * error), seen, 100);
+    }
+
+    private static int Read(int truth, double familiarity, double competence, int who, int fighter, int salt)
+    {
+        if (familiarity >= 0.999) return truth;
+        double error = MaxError * (1 - familiarity) * (1 - competence * 0.6);
+        return Math.Clamp((int)Math.Round(truth + SignedNoise(who, fighter, salt) * error), 1, 100);
+    }
+
+    private static double Competence(Promotion org) => Math.Clamp((org.Prestige.Value - 20) / 60.0, 0, 1);
+
+    private static double RecordFamiliarity(Fighter f) => Math.Min(f.Record.TotalBouts / (double)FullyKnownFights, 1.0);
+
     private static double Familiarity(Promotion org, Fighter f)
     {
         double fam = Math.Min(f.Record.TotalBouts / (double)FullyKnownFights, 1.0);

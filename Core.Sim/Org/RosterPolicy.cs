@@ -23,10 +23,10 @@ public static class RosterPolicy
         if (div is not null && div.Rankings.Take(3).Contains(f.Id)) return true;
 
         // Young, high-ceiling projects and fighters too green to judge get a leash.
-        // (Retention leans on the PUBLIC record — a proven loser is cut regardless of
-        // fog; Fog of War bites when ACQUIRING unproven talent, not when shedding
-        // known ones — so this stays on the true ceiling.)
-        if (f.AgeOn(world.CurrentDate) <= 25 && f.PotentialAbility.Value >= 70) return true;
+        // "High-ceiling" is what the house's scouts THINK his ceiling is
+        // (ScoutingService.PerceivedPotential), never the hidden one: its own men it
+        // sees train, a free agent it reads off his age and record like anyone would.
+        if (f.AgeOn(world.CurrentDate) <= 25 && Scouting.ScoutingService.PerceivedPotential(world, promo, f) >= 70) return true;
         if (f.Record.TotalBouts < EnoughBoutsToJudge) return true;
 
         // A genuine draw earns their spot — promotions keep (and chase) the names
