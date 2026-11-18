@@ -15,7 +15,10 @@ namespace MmaManager.Tests;
 /// for the Origins money tuning, PR #64: the newcomer bank's base fell 150k -> 50k, which changes every house's
 /// balance and nothing else on the fixed-date cases (with a 150k base they reproduce the old values exactly), and
 /// the young sport's money changes the three-year worlds; and for Origins tuning 2, where a founder's room and purses
-/// follow the crowd it has seen, which changes only the three-year worlds and the houses in them), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
+/// follow the crowd it has seen, which changes only the three-year worlds and the houses in them; and on
+/// world/perceived-potential, where a head coach picks his protégé on his read of the kids' ceilings, not their hidden
+/// potential: only seed 2's three-year world and the house founded in it move, and with that one site put back on the
+/// truth both come back exactly), so a reordered or added draw on the AI path turns this red. When founding is retuned ON PURPOSE (bank,
 /// prestige, rules, roster), recapture: set FOUNDING_GOLDEN_OUT to a file path and run this class; it writes the
 /// new values instead of asserting.
 /// </summary>
@@ -27,8 +30,8 @@ public class OriginsFoundingGoldenTests
         ["s1-years3-world"] = "392D8D467130155C91AB",
         ["s1-years3-house"] = "B34A2C7E0293DBFB353D",
         ["s2-day1"] = "49A25EE03EE55D5C44EA",
-        ["s2-years3-world"] = "C6315A4A7866A156850D",
-        ["s2-years3-house"] = "DE7969B6F726E59A46BC",
+        ["s2-years3-world"] = "FD7DB61B790B22BC711D",
+        ["s2-years3-house"] = "867291F4EDF89CAEA213",
         ["s3-day1"] = "8B18A7BC8DF1DC87464D",
         ["s3-years3-world"] = "21802CE0ABCFB1243490",
         ["s3-years3-house"] = "2C2FDFD02FE310303CF9",

@@ -79,7 +79,7 @@ public static class AiFrontOffice
 
             SetBrandBudget(promo, surplus);
             RetainAFlightRisk(world, promo, roster, surplus);
-            BuildAProspect(promo, roster, surplus);
+            BuildAProspect(world, promo, roster, surplus);
             SendAProspectToCamp(world, promo, roster, surplus);
         }
     }
@@ -172,26 +172,36 @@ public static class AiFrontOffice
 
     // Bankroll a couple of promo campaigns at a time on young, high-ceiling fighters
     // who aren't draws yet — building the next name in-house (only with real surplus).
-    private static void BuildAProspect(Promotion promo, List<Fighter> roster, decimal surplus)
+    // "High-ceiling" is the house's own read of the ceiling, never the hidden one; id as the last word.
+    internal static void BuildAProspect(World world, Promotion promo, List<Fighter> roster, decimal surplus)
     {
         if (surplus < 1_500_000m || roster.Count(f => f.MarketingPush) >= 2) return;
         var target = roster
-            .Where(f => !f.MarketingPush && f.Intangibles.Popularity.Value < 65 && f.PotentialAbility.Value >= 62)
-            .OrderByDescending(f => f.PotentialAbility.Value)
+            .Where(f => !f.MarketingPush && f.Intangibles.Popularity.Value < 65)
+            .Select(f => (F: f, Ceiling: Scouting.ScoutingService.PerceivedPotential(world, promo, f)))
+            .Where(x => x.Ceiling >= 62)
+            .OrderByDescending(x => x.Ceiling)
+            .ThenBy(x => x.F.Id.Value)
+            .Select(x => x.F)
             .FirstOrDefault();
         if (target is not null) target.MarketingPush = true;
     }
 
     // Pay a high-ceiling kid's way into a better room — the same camp-stipend sink
     // the player uses. Cheap ($3-9k/mo), compounds through development, and the
-    // fighter's loyalty grows with every month the org invests in them.
-    private static void SendAProspectToCamp(World world, Promotion promo, List<Fighter> roster, decimal surplus)
+    // fighter's loyalty grows with every month the org invests in them. Ceiling and
+    // room to grow are both the house's reads (its ceiling read less its ability read).
+    internal static void SendAProspectToCamp(World world, Promotion promo, List<Fighter> roster, decimal surplus)
     {
         if (surplus < 600_000m || roster.Count(f => f.CampStipend) >= 3) return;
         var target = roster
-            .Where(f => !f.CampStipend && f.PotentialAbility.Value >= 62
-                        && f.PotentialAbility.Value - Ability.FighterAbility.CurrentAbility(f) >= 8)
-            .OrderByDescending(f => f.PotentialAbility.Value)
+            .Where(f => !f.CampStipend)
+            .Select(f => (F: f, Ceiling: Scouting.ScoutingService.PerceivedPotential(world, promo, f),
+                          Seen: Scouting.ScoutingService.PerceivedAbility(world, promo, f)))
+            .Where(x => x.Ceiling >= 62 && x.Ceiling - x.Seen >= 8)
+            .OrderByDescending(x => x.Ceiling)
+            .ThenBy(x => x.F.Id.Value)
+            .Select(x => x.F)
             .FirstOrDefault();
         if (target is not null) Living.Camps.PayStipend(world, promo, target);
     }

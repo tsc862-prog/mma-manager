@@ -19,7 +19,10 @@ public class PersonaStampTests
     // (Re-pinned again when houses began deciding on their scouted read instead of true ability (world/matchmaker-fog): today's
     // world books, pads and signs differently from week one, so the Modern pin moves whole. The Origins world is identical but for
     // News.Count, the last thing mixed: +4 signings/retirements the press now reads as names (...66AA + 4 = ...66AE).)
-    private const string ModernNoCatalog12Weeks = "690D3858A1FBC78A";
+    // (Re-pinned when houses and rooms began deciding on their scouted read of a man's CEILING instead of his hidden potential
+    // (world/perceived-potential): the front office's promo push and camp stipend, who a house keeps on a leash, and a head coach's
+    // protégé all move in today's world inside twelve weeks, so the Modern pin moves whole. The Origins world is identical.)
+    private const string ModernNoCatalog12Weeks = "A40EC998243A55B2";
     private const string OriginsNoCatalog12Weeks = "30D0D2E6C36F66AE";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.

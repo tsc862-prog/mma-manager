@@ -21,6 +21,8 @@ public sealed class MoneyFlows
     public readonly List<decimal> AfcBankByYear = new();
     public int Years;
     public int AfcTvLost, TvLost;
+    /// <summary>AFC's ledger over the run (DURABLE), summed by category: what moved its bank.</summary>
+    public readonly Dictionary<FinanceCategory, decimal> AfcLedger = new();
 
     private readonly Dictionary<PromotionId, HashSet<string>> _deals = new();
 
@@ -81,6 +83,9 @@ public sealed class MoneyFlows
             foreach (var e in p.Ledger)
                 if (e.Category == FinanceCategory.Acquisition && e.Amount.Amount < 0 && e.Date > start)
                     Acquisitions.Add((p.Abbreviation, p.Defunct ? OrgSize.City : OrgSizing.SizeOf(p), e.Description, -e.Amount.Amount));
+        if (world.Promotions.Values.FirstOrDefault(p => p.Abbreviation == "AFC") is { } afc)
+            foreach (var e in afc.Ledger)
+                if (e.Date > start) AfcLedger[e.Category] = AfcLedger.GetValueOrDefault(e.Category) + e.Amount.Amount;
         foreach (var p in world.Promotions.Values.Where(p => !p.Defunct && OrgSizing.SizeOf(p) == OrgSize.International))
             foreach (var f in world.RosterOf(p.Id))
                 if (f.Contract is { } c) InternationalPurses.Add(c.PursePerFight.Amount);
@@ -116,6 +121,13 @@ public sealed class MoneyFlows
         int ys = seeds.Max(s => s.AfcBankByYear.Count);
         Console.WriteLine("  AFC bank at year end (median over seeds, $M): " + string.Join(" ", Enumerable.Range(0, ys)
             .Select(y => $"Y{y + 1} {Median(seeds.Where(s => s.AfcBankByYear.Count > y).Select(s => s.AfcBankByYear[y])) / 1_000_000m:0.0}")));
+        Console.WriteLine("  AFC bank at year end (MEAN over seeds, $M): " + string.Join(" ", Enumerable.Range(0, ys)
+            .Select(y => $"Y{y + 1} {seeds.Where(s => s.AfcBankByYear.Count > y).Average(s => s.AfcBankByYear[y]) / 1_000_000m:0.0}")));
+        var cats = seeds.SelectMany(s => s.AfcLedger.Keys).Distinct()
+            .Select(c => (C: c, PerYear: seeds.Sum(s => s.AfcLedger.GetValueOrDefault(c)) / (decimal)years))
+            .OrderByDescending(x => Math.Abs(x.PerYear)).ThenBy(x => x.C.ToString(), StringComparer.Ordinal).ToList();
+        Console.WriteLine($"  AFC ledger by category (DURABLE, mean per seed-year, $M; net {cats.Sum(x => x.PerYear) / 1_000_000m:+0.00;-0.00}): "
+            + string.Join(", ", cats.Select(x => $"{x.C} {x.PerYear / 1_000_000m:+0.00;-0.00}")));
     }
 
     private static decimal Median(IEnumerable<decimal> xs) => Pct(xs.ToList(), 0.5);
