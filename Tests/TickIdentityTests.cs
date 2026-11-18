@@ -24,17 +24,25 @@ namespace MmaManager.Tests;
 /// Recaptured on engine/unified-size-term: origins-observer-6-y20 only. A banded or kept open-weight bout now gets its
 /// size term under today's rules too (a cage house under the commissions' code that has split); by 2012 such bouts are
 /// fought in that world, so their results move. No other key changed: the modern worlds never set the flag.
+/// Recaptured on world/perceived-potential (houses and rooms decide on their scouted read of a man's CEILING,
+/// ScoutingService.PerceivedPotential, never his hidden potential). Both modern pins move: the promo push, the camp
+/// stipend, RosterPolicy.Wants and the protégé each move them alone, and the player's bigger-camp mail moves the player
+/// world alone (the mail is in the digest). Of the Origins pins, origins-player-3-y4 never moves; origins-player-8-y10
+/// and origins-observer-5-y10 move only through the head coach's protégé choice (with that one site back on the truth
+/// they match the pins above exactly); origins-observer-6-y20 moves through the protégé and RosterPolicy.Wants (by 2012
+/// its houses keep and sign on the young-prospect leash), and with both back on the truth it matches exactly. The push,
+/// the stipend and the mail move no Origins pin. Measured by putting each site back on the truth in turn.
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "8A93F7EB82393D131178",   // 2027-12-30, 4635 events, 7552 fighters
-        ["modern-player-4-y2"] = "488B7079B07FBFEEEEAF",   // 2027-12-30, 4583 events, 7554 fighters
+        ["modern-ai-11-y2"] = "BC76F19D9CD508595457",   // 2027-12-30, 4632 events, 7545 fighters
+        ["modern-player-4-y2"] = "ABDC9C08D426744DC856",   // 2027-12-30, 4570 events, 7586 fighters
         ["origins-player-3-y4"] = "DD053702786FDAA157BE",   // 1996-12-27, 68 events, 174 fighters
-        ["origins-player-8-y10"] = "40A3DF3D684C222C947A",   // 2002-12-20, 193 events, 316 fighters
-        ["origins-observer-5-y10"] = "495D373A7013769D8021",   // 2002-12-20, 306 events, 432 fighters
-        ["origins-observer-6-y20"] = "EB5BC22F673C0A9D578F",   // 2012-12-07, 839 events, 1082 fighters
+        ["origins-player-8-y10"] = "8AA1405B2547175CCCBB",   // 2002-12-20, 193 events, 312 fighters
+        ["origins-observer-5-y10"] = "77D71AC75E829BD21E9A",   // 2002-12-20, 306 events, 432 fighters
+        ["origins-observer-6-y20"] = "2D0B01B69114393C0992",   // 2012-12-07, 792 events, 1016 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });
