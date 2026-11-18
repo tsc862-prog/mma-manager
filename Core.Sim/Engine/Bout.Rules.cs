@@ -9,7 +9,9 @@ namespace MmaManager.Core.Sim.Engine;
 /// from an earlier bout on the same night.
 ///
 /// THE RULE: every line here runs only when <see cref="_custom"/> is set (a non-modern
-/// <see cref="FightRules"/> or a carried <see cref="BoutCondition"/>). On today's rules each hook
+/// <see cref="FightRules"/> or a carried <see cref="BoutCondition"/>), with one exception: the size
+/// term's relative edge also runs on today's rules when the booker flags the bout
+/// (<see cref="FightParams.BandedSizeTerm"/>; Origins only). On today's rules without that flag each hook
 /// in Bout.cs is skipped or adds exactly 0.0, so a modern bout is byte-identical to before
 /// (pinned by the golden master and the text golden). New rolls draw from <see cref="_rs"/>,
 /// a keyed stream derived from the SAME opening draw that seeds the stoppage stream: no rule here
@@ -29,7 +31,8 @@ internal sealed partial class Bout
     private readonly FightRules _rules;
     /// <summary>A non-modern rule set or carried condition: the Origins paths are live.</summary>
     private readonly bool _custom;
-    /// <summary>Open weight: the size term is on.</summary>
+    /// <summary>The size term is on: open-weight rules, or the booker's <see cref="FightParams.BandedSizeTerm"/>.
+    /// Independent of <see cref="_custom"/>: on today's rules only the relative edge runs (<see cref="ApplyRelativeSize"/>).</summary>
     private readonly bool _size;
     /// <summary>The rules stream: every new roll on the custom path (hand injuries, rope reach, mid-round checks).</summary>
     private readonly SimRandom? _rs;
@@ -67,6 +70,26 @@ internal sealed partial class Bout
         }
         Carry(0, p.RedStart);
         Carry(1, p.BlueStart);
+    }
+
+    /// <summary>
+    /// The size term on TODAY's rules (a banded division, or an open-weight bout kept after the house took
+    /// the unified code): the bout stays on the modern path - modern round lengths, no overtime, no
+    /// gloves, no _rs, no rules text - and only the RELATIVE edge between the two men is added. The
+    /// absolute part stays today's: power from the division table (not <see cref="SizeTerm.OpenPower"/>)
+    /// and no <see cref="SizeTerm.HeavyGas"/>. So between two men of the same natural weight every term is
+    /// exactly neutral (x1.0, +0.0) and the bout is byte-identical to the unflagged one. No roll here.
+    /// </summary>
+    private void ApplyRelativeSize()
+    {
+        for (int i = 0; i < 2; i++) _s[i].WeightKg = SizeTerm.WeightKg(_s[i].F);
+        for (int i = 0; i < 2; i++)
+        {
+            var me = _s[i];
+            me.SizeEdge = SizeTerm.Edge(me.WeightKg, _s[1 - i].WeightKg);
+            me.Power *= Math.Exp(SizeTerm.PowerRelK * me.SizeEdge);
+            me.DrainMul = Math.Exp(SizeTerm.GasRelK * me.SizeEdge);
+        }
     }
 
     private void Carry(int i, BoutCondition? c)
@@ -320,7 +343,8 @@ internal sealed partial class Bout
 
 /// <summary>
 /// The size term for open-weight fights: every tunable in one place. Off (and exactly neutral) unless
-/// the rule set says <see cref="FightRules.OpenWeight"/>. The input is each man's natural weight
+/// the rule set says <see cref="FightRules.OpenWeight"/> or the bout carries <see cref="FightParams.BandedSizeTerm"/>
+/// (on today's rules, only the relative terms: Bout.ApplyRelativeSize). The input is each man's natural weight
 /// (<see cref="Fighter.NaturalWeightLbs"/>), falling back to the middle of his weight class.
 ///
 /// The relative edge is s = ln(my weight / his weight), capped at +-<see cref="MaxEdge"/>; at equal

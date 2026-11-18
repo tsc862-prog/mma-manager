@@ -287,7 +287,7 @@ public sealed class FighterRow
     };
 
     /// <summary>A generated scouting-report paragraph.</summary>
-    public string Story => Biographer.Fighter(_w, _f);
+    public string Story => Biographer.Fighter(_w, _f, Scout);   // generated prose names only what the scout's read has revealed
 
     private string? _people;
     /// <summary>The people in their life as a passage (<see cref="Biographer.PeopleText"/>): mentor, family, friends, feuds, camp.</summary>

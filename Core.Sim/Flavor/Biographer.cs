@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using MmaManager.Core.Model;
-using MmaManager.Core.Sim.Ability;
 using MmaManager.Core.Sim.Org;
+using MmaManager.Core.Sim.Scouting;
 
 namespace MmaManager.Core.Sim.Flavor;
 
@@ -16,11 +16,18 @@ namespace MmaManager.Core.Sim.Flavor;
 public static partial class Biographer
 {
     // --- Fighters -----------------------------------------------------------
-    public static string Fighter(World world, Fighter f)
+    /// <summary>
+    /// The profile paragraph. Generated prose may only say what the player has SEEN: a strength or
+    /// weakness is named only when <paramref name="scout"/> (the player's scouted read of this man)
+    /// shows that stat at least Approximate, in the band the profile bar shows; with no report (null)
+    /// nothing is revealed and the prose runs on public facts alone (record, how the wins came, style,
+    /// camp, age, streak). Authored <see cref="Fighter.Bio"/> text is the writer's voice and is untouched.
+    /// Text only: no RNG; word choice is keyed by hash of the fighter's id.
+    /// </summary>
+    public static string Fighter(World world, Fighter f, ScoutReport? scout = null)
     {
         var sb = new StringBuilder();
         int age = f.AgeOn(world.CurrentDate);
-        int ability = FighterAbility.CurrentAbility(f);
 
         if (f.Bio is { Length: > 0 } authored)
         {
@@ -37,16 +44,19 @@ public static partial class Biographer
             sb.Append($"{f.FullName} is a {age}-year-old {WeightClassPhrase(f.WeightClass)} out of {from}, ")
               .Append($"{StylePhrase(f.PrimaryStyle, f)}. ");
 
-            // Where they do damage + standout tools.
-            var strengths = Strengths(f);
+            // How he fights: public style first, then only what the scout's read has revealed.
+            var strengths = Strengths(f, scout);
             string arena = ArenaPhrase(f);
             sb.Append(strengths.Count > 0
                 ? $"They shine {arena}, with {Join(strengths)}. "
-                : $"They operate best {arena}. ");
+                : $"They look most at home {arena}. ");
 
-            // A weakness, if there's a glaring one.
-            var flaw = Weakness(f);
+            // A weakness, only if it has been seen.
+            var flaw = Weakness(f, scout);
             if (flaw is not null) sb.Append($"The knock is {flaw}. ");
+
+            // What the record shows: how the wins and losses have come (public).
+            if (PublicRead(f) is { Length: > 0 } read) sb.Append(read).Append(' ');
         }
 
         // Who they are away from the cage — the part a matchmaker asks about
@@ -59,7 +69,7 @@ public static partial class Biographer
             sb.Append($"They didn't come up through MMA at all — {origin} before crossing over to the cage, they arrived with a mainstream spotlight most fighters never see. ");
 
         // Career arc / form.
-        sb.Append(CareerLine(world, f, age, ability));
+        sb.Append(CareerLine(world, f, age));
 
         // Star power.
         if (f.Bio is null && (f.Intangibles.Popularity.Value >= 70 || f.Intangibles.Charisma.Value >= 78))
@@ -83,45 +93,131 @@ public static partial class Biographer
         _ => "a well-rounded mixed martial artist",
     };
 
-    private static string ArenaPhrase(Fighter f)
+    // The arena is the publicly known style, never the hidden striking/grappling split.
+    private static string ArenaPhrase(Fighter f) => f.PrimaryStyle switch
     {
-        int striking = Avg(f.Striking.PunchPower, f.Striking.PunchTechnique, f.Striking.StrikingDefense, f.Striking.Footwork, f.Striking.KickTechnique);
-        int grappling = Avg(f.Grappling.TakedownOffense, f.Grappling.TakedownDefense, f.Grappling.TopControl, f.Grappling.SubmissionOffense, f.Grappling.Scrambling);
-        if (striking >= grappling + 6) return "on the feet";
-        if (grappling >= striking + 6) return "once the fight hits the mat";
-        return "wherever the fight goes";
+        PrimaryStyle.Striker or PrimaryStyle.Kickboxer or PrimaryStyle.Brawler => "on the feet",
+        PrimaryStyle.Wrestler or PrimaryStyle.BrazilianJiuJitsu or PrimaryStyle.Grappler => "once the fight hits the mat",
+        PrimaryStyle.ClinchFighter => "up against the fence",
+        _ => "wherever the fight goes",
+    };
+
+    /// <summary>
+    /// Reveal threshold: a stat may be named once its channel reads Approximate or better, i.e. the same
+    /// point at which the profile bar shows its band. Words come from that band (Elite = 80+, Weak = under 45),
+    /// the value the bar displays; a Hidden channel names nothing.
+    /// </summary>
+    private static StatBand? Seen(ScoutReport? scout, StatChannel ch, int v) =>
+        scout is not null && scout.Precision(ch) != StatReveal.Hidden ? ScoutReport.Band(v) : null;
+
+    private static List<string> Strengths(Fighter f, ScoutReport? scout)
+    {
+        var pool = new List<(StatChannel ch, int v, string phrase)>
+        {
+            (StatChannel.Power, f.Striking.PunchPower, "one-punch knockout power"),
+            (StatChannel.Chin, f.Physical.Chin, "a granite chin"),
+            (StatChannel.Cardio, f.Physical.Cardio, "a bottomless gas tank"),
+            (StatChannel.Athletic, f.Physical.Speed, "blinding hand speed"),
+            (StatChannel.Submission, f.Grappling.SubmissionOffense, "a dangerous submission game"),
+            (StatChannel.Wrestling, f.Grappling.TakedownOffense, "a bruising takedown game"),
+            (StatChannel.WrestlingDef, f.Grappling.TakedownDefense, "takedown defense that's tough to crack"),
+            (StatChannel.StrikingDef, f.Striking.StrikingDefense, "slippery, hard-to-hit defense"),
+            (StatChannel.Mind, f.Mental.FightIQ, "a razor-sharp fight IQ"),
+            (StatChannel.Chin, f.Mental.Heart, "a bottomless well of heart"),   // the profile reads Heart off the Chin channel
+        };
+        return pool.Where(p => Seen(scout, p.ch, p.v) == StatBand.Elite)
+            .OrderByDescending(p => p.v).Take(2).Select(p => p.phrase).ToList();
     }
 
-    private static List<string> Strengths(Fighter f)
+    private static string? Weakness(Fighter f, ScoutReport? scout)
     {
-        var pool = new List<(int v, string phrase)>
+        var pool = new List<(StatChannel ch, int v, string phrase)>
         {
-            (f.Striking.PunchPower, "one-punch knockout power"),
-            (f.Physical.Chin, "a granite chin"),
-            (f.Physical.Cardio, "a bottomless gas tank"),
-            (f.Physical.Speed, "blinding hand speed"),
-            (f.Grappling.SubmissionOffense, "a dangerous submission game"),
-            (f.Grappling.TakedownOffense, "a bruising takedown game"),
-            (f.Grappling.TakedownDefense, "takedown defense that's tough to crack"),
-            (f.Striking.StrikingDefense, "slippery, hard-to-hit defense"),
-            (f.Mental.FightIQ, "a razor-sharp fight IQ"),
-            (f.Mental.Heart, "a bottomless well of heart"),
+            (StatChannel.Chin, f.Physical.Chin, "a suspect chin"),
+            (StatChannel.Cardio, f.Physical.Cardio, "cardio that fades in the championship rounds"),
+            (StatChannel.StrikingDef, f.Striking.StrikingDefense, "a leaky guard on the feet"),
+            (StatChannel.WrestlingDef, f.Grappling.TakedownDefense, "a real vulnerability to the takedown"),
+            (StatChannel.SubmissionDef, f.Grappling.SubmissionDefense, "a shaky submission defense"),
         };
-        return pool.Where(p => p.v >= 80).OrderByDescending(p => p.v).Take(2).Select(p => p.phrase).ToList();
+        return pool.Where(p => Seen(scout, p.ch, p.v) == StatBand.Weak)
+            .OrderBy(p => p.v).Select(p => p.phrase).FirstOrDefault();
     }
 
-    private static string? Weakness(Fighter f)
+    /// <summary>
+    /// What anyone can read off the card: bouts, how the wins came, the shape of the record.
+    /// Wording varies by a hash of the fighter's id (stable, no RNG).
+    /// </summary>
+    private static string PublicRead(Fighter f)
     {
-        var pool = new List<(int v, string phrase)>
+        var r = f.Record;
+        int total = r.TotalBouts, wins = r.Wins;
+        uint h = Hash(f.Id.Value, 0x51EE);
+        if (total == 0)
+            return Variant(h, new[]
+            {
+                "There is nothing on tape yet: no pro bouts, so the style is all anyone has to go on.",
+                "Still waiting on a first pro night, so all that is known is the label and the gym.",
+                "Unproven as a pro, a name on a roster sheet until the first bell.",
+            });
+
+        string method;
+        if (wins < 3)
+            method = Variant(h, new[]
+            {
+                $"At {r} the book is still thin, too few bouts to say much about how they win.",
+                $"Only {total} pro {(total == 1 ? "bout" : "bouts")} so far, not enough to pin a pattern on.",
+                $"A {r} record is early days, and the way they win is still an open question.",
+            });
+        else if (r.WinsByKo * 2 >= wins)
+            method = Variant(h, new[]
+            {
+                $"{r.WinsByKo} of their {wins} wins have ended in a knockout, so a night with them rarely goes the distance.",
+                $"They finish on the feet: {r.WinsByKo} {Plural(r.WinsByKo, "knockout")} in {wins} wins.",
+                $"{r.WinsByKo} {Plural(r.WinsByKo, "knockout")} in {wins} wins tells the room how most of their nights end.",
+            });
+        else if (r.WinsBySubmission * 2 >= wins)
+            method = Variant(h, new[]
+            {
+                $"{r.WinsBySubmission} of their {wins} wins have come by submission, and opponents know where it is headed.",
+                $"They hunt the tap: {r.WinsBySubmission} {Plural(r.WinsBySubmission, "submission")} in {wins} wins.",
+                $"{r.WinsBySubmission} submission finishes in {wins} wins makes the ground their office.",
+            });
+        else if (r.WinsByDecision * 5 >= wins * 3)
+            method = Variant(h, new[]
+            {
+                $"{r.WinsByDecision} of their {wins} wins went to the scorecards: they win the long way round.",
+                $"A points fighter by record, with {r.WinsByDecision} {Plural(r.WinsByDecision, "decision")} in {wins} wins.",
+                $"{r.WinsByDecision} of {wins} wins came on the judges' cards, a patient streak that shows in the book.",
+            });
+        else
+            method = Variant(h, new[]
+            {
+                $"The wins come every way: {r.WinsByKo} by knockout, {r.WinsBySubmission} by submission, {r.WinsByDecision} on the cards.",
+                $"No single pattern in the {wins} wins, with {r.WinsByKo} {Plural(r.WinsByKo, "knockout")}, {r.WinsBySubmission} {Plural(r.WinsBySubmission, "submission")} and {r.WinsByDecision} {Plural(r.WinsByDecision, "decision")}.",
+                $"A mixed book: {r.WinsByKo} {Plural(r.WinsByKo, "knockout")}, {r.WinsBySubmission} {Plural(r.WinsBySubmission, "submission")}, {r.WinsByDecision} {Plural(r.WinsByDecision, "decision")}.",
+            });
+
+        string shape = "";
+        if (r.Losses == 0 && wins >= 4)
+            shape = Variant(h >> 3, new[] { "Nobody has beaten them as a pro.", "They have yet to taste a loss.", "The loss column is still empty." });
+        else if (r.Losses >= 4 && r.Losses * 2 >= wins)
+            shape = Variant(h >> 3, new[] { "They have been in with plenty of tough opposition, and the losses show it.", "The record has taken its share of hits." });
+        return $"{method} {shape}".Trim();
+    }
+
+    private static string Plural(int n, string noun) => n == 1 ? noun : noun + "s";
+
+    private static string Variant(uint h, string[] lines) => lines[(int)(h % (uint)lines.Length)];
+
+    private static uint Hash(int id, uint salt)
+    {
+        unchecked
         {
-            (f.Physical.Chin, "a suspect chin"),
-            (f.Physical.Cardio, "cardio that fades in the championship rounds"),
-            (f.Striking.StrikingDefense, "a leaky guard on the feet"),
-            (f.Grappling.TakedownDefense, "a real vulnerability to the takedown"),
-            (f.Grappling.SubmissionDefense, "a shaky submission defense"),
-        };
-        var worst = pool.Where(p => p.v <= 45).OrderBy(p => p.v).FirstOrDefault();
-        return worst.phrase is { } ph && worst.v <= 45 ? ph : null;
+            uint h = (uint)id * 2246822519u ^ (salt * 0x85EBCA6Bu);
+            h ^= h >> 13; h *= 0x27D4EB2Fu;
+            h ^= h >> 16;
+            return h;
+        }
     }
 
     /// <summary>
@@ -179,7 +275,7 @@ public static partial class Biographer
         return sb.ToString();
     }
 
-    private static string CareerLine(World world, Fighter f, int age, int ability)
+    private static string CareerLine(World world, Fighter f, int age)
     {
         if (f.Status == FighterStatus.Retired) return RetiredLine(world, f);
 
@@ -196,7 +292,7 @@ public static partial class Biographer
         }
         else if (promo is null)
             sb.Append("They are a free agent, available to the highest bidder");
-        else if (age <= 24 && f.Record.Losses <= 2 && ability >= 60)
+        else if (age <= 24 && f.Record.Wins >= 3 && f.Record.Losses <= 1)
             sb.Append($"A blue-chip prospect on the rise inside {promo.Abbreviation}");
         else if (age >= 35)
             sb.Append($"A battle-tested veteran of {Math.Max(total, 1)} pro bouts fighting under the {promo.Abbreviation} banner");
@@ -262,11 +358,17 @@ public static partial class Biographer
         }
 
         // Flagship champion.
+        // Public facts only: the belt's standing, then the champion's popularity, his defenses on it, his wins, id last.
         var champ = promo.Divisions
             .Where(d => d.Title is { } tid && world.Get(tid)?.CurrentChampion is not null)
-            .Select(d => world.Get(world.Get(d.Title!.Value)!.CurrentChampion!.Value))
-            .Where(f => f is not null)
-            .OrderByDescending(f => FighterAbility.CurrentAbility(f!))
+            .Select(d => (Belt: world.Get(d.Title!.Value)!, Man: world.Get(world.Get(d.Title!.Value)!.CurrentChampion!.Value)))
+            .Where(x => x.Man is not null)
+            .OrderByDescending(x => x.Belt.Prestige.Value)
+            .ThenByDescending(x => x.Man!.Intangibles.Popularity.Value)
+            .ThenByDescending(x => x.Belt.Lineage.LastOrDefault(r => r.LostOn is null && r.Champion == x.Man!.Id)?.Defenses ?? 0)
+            .ThenByDescending(x => x.Man!.Record.Wins)
+            .ThenBy(x => x.Man!.Id.Value)
+            .Select(x => x.Man)
             .FirstOrDefault();
         // The face of the company, when the house has one, IS its marquee attraction.
         var marquee = Franchise.FaceOf(world, promo) ?? champ;

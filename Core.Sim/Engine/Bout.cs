@@ -96,7 +96,9 @@ internal sealed partial class Bout
         _ss = new SimRandom(SimRandom.Mix(subSeed, 0x5709_9A6E_0003UL));
         _rules = p.Rules ?? FightRules.Modern;
         _custom = !_rules.IsModern || p.RedStart is not null || p.BlueStart is not null;
-        _size = _custom && (_rules.OpenWeight || p.BandedSizeTerm);
+        // The size term follows the BOUT (open weight, or a banded division the booker flagged), whatever
+        // rule set it is fought under. On today's rules it runs WITHOUT the custom path: see ApplyRelativeSize.
+        _size = _rules.OpenWeight || p.BandedSizeTerm;
         _rounds = Math.Max(1, _rules.Rounds ?? p.ScheduledRounds);
         RoundSeconds = !_custom ? Math.Clamp(p.RoundSeconds, 60, 600)
                      : Math.Clamp(_rules.RoundMinutes is int m ? m * 60 : p.RoundSeconds, 60, MaxRoundSeconds);
@@ -112,6 +114,7 @@ internal sealed partial class Bout
             _rs = new SimRandom(SimRandom.Mix(subSeed, 0x5709_9A6E_0004UL));
             ApplyRules(p);
         }
+        else if (_size) ApplyRelativeSize();   // today's rules, banded or kept open-weight bout: no draw, no _rs
     }
 
     // --- Entry point --------------------------------------------------------
@@ -119,7 +122,7 @@ internal sealed partial class Bout
     public FightOutcome Run()
     {
         if (Logging) Header(_custom ? CustomIntro() : $"{_s[0].F.FullName} vs {_s[1].F.FullName} — {_rounds} rounds.");
-        if (Logging && _custom) TaleOfTheTape();
+        if (Logging && (_custom || _size)) TaleOfTheTape();
 
         for (_round = 1; _round <= _rounds && _finish is null; _round++)
         {
@@ -1047,7 +1050,7 @@ internal sealed partial class Bout
     private void Drain(int i, double amount)
     {
         var f = _s[i].F;
-        if (_custom) amount *= _s[i].DrainMul;   // open weight: big men gas (exactly 1 otherwise)
+        if (_custom || _size) amount *= _s[i].DrainMul;   // size term: big men gas (exactly 1 otherwise)
         // Low cardio and a reckless pace burn the tank faster.
         double resist = 0.6 + 0.5 * (f.Physical.Cardio / 100.0);
         double paceMod = 1.2 - 0.4 * (f.Tendencies.Pace / 100.0);
