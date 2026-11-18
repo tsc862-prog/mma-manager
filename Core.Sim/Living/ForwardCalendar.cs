@@ -468,7 +468,8 @@ public static class ForwardCalendar
     /// they can't be: both signed here and active, sharing one of its divisions,
     /// fit on the night and uncommitted, not refusing each other. If one holds
     /// that division's belt it's a title fight (against a WORTHY challenger when
-    /// <paramref name="requireWorthy"/>); a champion of some other belt only
+    /// <paramref name="requireWorthy"/>, ranked inside the house's top
+    /// <see cref="Matchmaker.TitleShotWindow"/>, else no bout); a champion of some other belt only
     /// fights for his own.
     /// </summary>
     private static Matchup? Bookable(World world, Promotion promo, Fighter a, Fighter b, DateOnly when,
@@ -493,6 +494,10 @@ public static class ForwardCalendar
         {
             var challenger = aChamp ? b : a;
             if (requireWorthy && !Matchmaker.Worthy(challenger)) return null;
+            // Bad blood sells a title fight only to a credible contender: a feud lifts a man over the others
+            // inside the house's top TitleShotWindow, never from further down (the matchmaker's grudge rule).
+            int rank = division.Rankings.IndexOf(challenger.Id);
+            if (rank < 0 || rank >= Matchmaker.TitleShotWindow) return null;
             return aChamp
                 ? new Matchup(a.Id, b.Id, division.WeightClass, promo.Rules.TitleRounds, true, belt!.Id)
                 : new Matchup(b.Id, a.Id, division.WeightClass, promo.Rules.TitleRounds, true, belt!.Id);
