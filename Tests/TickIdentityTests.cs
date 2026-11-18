@@ -32,13 +32,18 @@ namespace MmaManager.Tests;
 /// they match the pins above exactly); origins-observer-6-y20 moves through the protégé and RosterPolicy.Wants (by 2012
 /// its houses keep and sign on the young-prospect leash), and with both back on the truth it matches exactly. The push,
 /// the stipend and the mail move no Origins pin. Measured by putting each site back on the truth in turn.
+/// Recaptured on world/title-shots (the AI matchmaker hands title shots to credible contenders: the #1 contender is kept
+/// off non-title bouts while his champion is free to defend, a feud lifts a man only inside the top 5, a dethroned
+/// champion with a defense gets one rematch, a fresh champion waits rather than reach past the top 5). Both modern pins
+/// move: today's houses book different cards from the first weeks. No Origins pin moves (Origins books through
+/// OriginsShows, which none of this touches; measured: all four Origins keys match the pins above unchanged).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "BC76F19D9CD508595457",   // 2027-12-30, 4632 events, 7545 fighters
-        ["modern-player-4-y2"] = "ABDC9C08D426744DC856",   // 2027-12-30, 4570 events, 7586 fighters
+        ["modern-ai-11-y2"] = "E37E016073E82D40159E",   // 2027-12-30, 4626 events, 7479 fighters
+        ["modern-player-4-y2"] = "C84A02A8EB285676AD84",   // 2027-12-30, 4571 events, 7641 fighters
         ["origins-player-3-y4"] = "DD053702786FDAA157BE",   // 1996-12-27, 68 events, 174 fighters
         ["origins-player-8-y10"] = "8AA1405B2547175CCCBB",   // 2002-12-20, 193 events, 312 fighters
         ["origins-observer-5-y10"] = "77D71AC75E829BD21E9A",   // 2002-12-20, 306 events, 432 fighters
