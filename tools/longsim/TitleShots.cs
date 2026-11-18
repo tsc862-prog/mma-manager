@@ -72,7 +72,7 @@ public sealed class TitleShots
         foreach (var e in world.Events.Values)
         {
             if (e.Status != EventStatus.Completed || !_indexed.Add(e.Id)) continue;
-            foreach (var fi in e.Card) _fights[fi.Id] = fi;
+            foreach (var fi in e.Card) { _fights[fi.Id] = fi; _eventOf.TryAdd(fi.Id, e.Date); }
         }
         var horizon = world.CurrentDate.AddDays(7);
         HashSet<FighterId>? rankedNow = null;
@@ -112,6 +112,7 @@ public sealed class TitleShots
                     watch.UnionWith(d.Rankings);
                     if (world.Get(tid)?.CurrentChampion is { } c) watch.Add(c);
                 }
+        foreach (var sp in _spells.Values) watch.Add(sp.Man);   // a man who fell out of the rankings is still followed to the end of his spell
         _preCommitted = ForwardCalendar.Committed(world);
         _preHeat = new();
         foreach (var r in world.Rivalries) _preHeat.TryAdd(Key(r.A, r.B), r.Intensity);
@@ -141,9 +142,66 @@ public sealed class TitleShots
                 break;
             }
         }
+        TrackNumberOnes(world);
     }
 
     private readonly Dictionary<FightId, DateOnly> _eventOf = new();
+
+    // --- What waiting costs the #1 contender: spells at #1 of a division with a reigning champion (AI houses) ---
+    private sealed class Spell
+    {
+        public FighterId Man; public DateOnly Start; public DateOnly LastBout; public int MaxIdle; public int Bouts; public bool Shot;
+    }
+    private readonly Dictionary<TitleId, Spell> _spells = new();
+    /// <summary>Closed spells: max days idle inside the spell, bouts fought while #1, and how it ended.</summary>
+    public List<(int MaxIdle, int Bouts, string End, int Days)> Spells { get; } = new();
+    /// <summary>Days between a #1 contender's bouts: each bout he fought while ranked #1 the week before, from his previous one.</summary>
+    public List<int> NumberOneGaps { get; } = new();
+
+    private void TrackNumberOnes(World world)
+    {
+        var today = world.CurrentDate;
+        foreach (var t in world.Titles.Values.OrderBy(t => t.Id.Value))
+        {
+            var promo = world.Get(t.Promotion);
+            bool live = promo is { Defunct: false } && promo.Id != world.PlayerPromotion && t.CurrentChampion is not null;
+            var ranks = _preRank.GetValueOrDefault(t.Id);
+            FighterId? top = live && ranks is { Count: > 0 } ? ranks[0] : null;
+            if (_spells.TryGetValue(t.Id, out var sp))
+            {
+                // A bout since the last look?
+                if (_preLast.TryGetValue(sp.Man, out var lb) && lb.Date > sp.LastBout && lb.Date != default)
+                {
+                    NumberOneGaps.Add(lb.Date.DayNumber - sp.LastBout.DayNumber);
+                    sp.LastBout = lb.Date; sp.Bouts++;
+                }
+                if (top == sp.Man) { sp.MaxIdle = Math.Max(sp.MaxIdle, today.DayNumber - sp.LastBout.DayNumber); continue; }
+                string end = sp.Shot ? "got the shot"
+                    : t.CurrentChampion == sp.Man ? "champion (vacancy/other)"
+                    : !live ? "belt vacant / house gone"
+                    : !_preState.TryGetValue(sp.Man, out var st) || st.Org != t.Promotion || st.Status == FighterStatus.Retired ? "left the house / retired"
+                    : sp.Bouts == 0 ? "lost #1 without fighting (idle)"
+                    : "lost #1 after a non-title bout";
+                Spells.Add((sp.MaxIdle, sp.Bouts, end, today.DayNumber - sp.Start.DayNumber));
+                _spells.Remove(t.Id);
+            }
+            if (top is { } man && _preLast.TryGetValue(man, out var last) && last.Date != default)
+                _spells[t.Id] = new Spell { Man = man, Start = today, LastBout = last.Date, MaxIdle = today.DayNumber - last.Date.DayNumber };
+        }
+    }
+
+    private void MarkShot(TitleId tid, FighterId challenger)
+    {
+        if (_spells.TryGetValue(tid, out var sp) && sp.Man == challenger) sp.Shot = true;
+    }
+
+    /// <summary>Spells still open at the end of the run (censored): their idle so far.</summary>
+    public void Close(World world)
+    {
+        foreach (var sp in _spells.Values)
+            Spells.Add((Math.Max(sp.MaxIdle, world.CurrentDate.DayNumber - sp.LastBout.DayNumber), sp.Bouts, sp.Shot ? "got the shot" : "still #1 at the end", world.CurrentDate.DayNumber - sp.Start.DayNumber));
+        _spells.Clear();
+    }
 
     private static (int, int) Key(FighterId a, FighterId b) => a.Value < b.Value ? (a.Value, b.Value) : (b.Value, a.Value);
 
@@ -231,6 +289,7 @@ public sealed class TitleShots
                     continue;
                 }
                 var chId = fi.RedCorner == champ ? fi.BlueCorner : fi.RedCorner;
+                MarkShot(tid, chId);
                 int rank = RankOf(chId);
                 int heat = _preHeat.GetValueOrDefault(Key(champ!.Value, chId));
 
@@ -343,6 +402,26 @@ public sealed class TitleShots
             var vac = all.Where(x => x.Vacant && x.At is { DayOne: 0 }).ToList();
             if (vac.Count > 0)
                 Console.WriteLine($"    vacant crownings booked in-run: {vac.Count} · both men top-2 {100.0 * vac.Count(x => x.At!.RankAtBooking == 1 && x.At.OtherRank == 2) / vac.Count:0.0}% · both top-3 {100.0 * vac.Count(x => x.At!.OtherRank <= 3) / vac.Count:0.0}% · a man outside the top 5 {100.0 * vac.Count(x => x.At!.OtherRank > 5) / vac.Count:0.0}%");
+        }
+    }
+
+    public static void PrintWaiting(IReadOnlyList<TitleShots> runs)
+    {
+        var gaps = runs.SelectMany(r => r.NumberOneGaps).OrderBy(x => x).ToList();
+        var spells = runs.SelectMany(r => r.Spells).ToList();
+        Console.WriteLine("  --- THE #1 CONTENDER'S WAIT (AI houses, divisions with a reigning champion; #1 = house ranking before each tick) ---");
+        if (gaps.Count > 0)
+        {
+            int Q(double q) => gaps[Math.Clamp((int)Math.Round(q * (gaps.Count - 1)), 0, gaps.Count - 1)];
+            Console.WriteLine($"  days between bouts for a man ranked #1 going in: n={gaps.Count} median {Q(0.5)} p75 {Q(0.75)} p90 {Q(0.9)} p99 {Q(0.99)} max {gaps[^1]} · over 180 {100.0 * gaps.Count(g => g > 180) / gaps.Count:0.0}% · over 270 {100.0 * gaps.Count(g => g > 270) / gaps.Count:0.0}%");
+        }
+        if (spells.Count > 0)
+        {
+            var idle = spells.Select(s => s.MaxIdle).OrderBy(x => x).ToList();
+            int Q(double q) => idle[Math.Clamp((int)Math.Round(q * (idle.Count - 1)), 0, idle.Count - 1)];
+            Console.WriteLine($"  spells at #1: {spells.Count} · longest idle inside a spell median {Q(0.5)} p90 {Q(0.9)} max {idle[^1]} · spells idle past 180 days {spells.Count(s => s.MaxIdle > 180)} ({100.0 * spells.Count(s => s.MaxIdle > 180) / spells.Count:0.0}%) · past 270 {spells.Count(s => s.MaxIdle > 270)} ({100.0 * spells.Count(s => s.MaxIdle > 270) / spells.Count:0.0}%) · mean spell {spells.Average(s => s.Days):0} days");
+            foreach (var g in spells.GroupBy(s => s.End).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal))
+                Console.WriteLine($"    {g.Key,-34} {g.Count(),6} {100.0 * g.Count() / spells.Count,5:0.0}% · idle past 180 {g.Count(s => s.MaxIdle > 180),5} · past 270 {g.Count(s => s.MaxIdle > 270),5} · mean longest idle {g.Average(s => s.MaxIdle):0}");
         }
     }
 

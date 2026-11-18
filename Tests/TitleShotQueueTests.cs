@@ -110,15 +110,33 @@ public class TitleShotQueueTests
         Assert.Equal(s.Ranked[0].Id, Challenger(bout!.Value, s));
     }
 
+    // The belt changed hands 20 days ago: the scene's champion took it from a man ranked #7 now, whose reign had these defenses.
+    private static Fighter Dethroned(Scene s, int defenses)
+    {
+        var former = s.Ranked[6];
+        s.T.Lineage.Clear();
+        s.T.Lineage.Add(new TitleReign { Champion = former.Id, WonOn = s.W.CurrentDate.AddDays(-900), LostOn = s.W.CurrentDate.AddDays(-20), Defenses = defenses });
+        s.T.Lineage.Add(new TitleReign { Champion = s.Champ.Id, WonOn = s.W.CurrentDate.AddDays(-20) });
+        Bout(s, s.Champ, former, daysAgo: 20);
+        return former;
+    }
+
+    [Fact]
+    public void ADethronedChampionWithoutAnEstablishedReign_IsOwedNoRematch()
+    {
+        var s = Build();
+        Dethroned(s, Matchmaker.RematchClauseDefenses - 1);
+        var bout = TitleBout(s);
+        Assert.NotNull(bout);
+        Assert.Equal(s.Ranked[0].Id, Challenger(bout!.Value, s));   // the queue, not the man the champion just beat
+        Assert.Null(Matchmaker.OwedRematch(s.T, s.Champ.Id));
+    }
+
     [Fact]
     public void ADethronedChampionWithDefenses_GetsOneRematch_NotTwo()
     {
         var s = Build();
-        var former = s.Ranked[6];   // ranked #7 after the loss: the convention, not the queue, gives him the shot
-        s.T.Lineage.Clear();
-        s.T.Lineage.Add(new TitleReign { Champion = former.Id, WonOn = s.W.CurrentDate.AddDays(-500), LostOn = s.W.CurrentDate.AddDays(-20), Defenses = 2 });
-        s.T.Lineage.Add(new TitleReign { Champion = s.Champ.Id, WonOn = s.W.CurrentDate.AddDays(-20) });
-        Bout(s, s.Champ, former, daysAgo: 20);
+        var former = Dethroned(s, Matchmaker.RematchClauseDefenses);   // ranked #7 after the loss: the convention, not the queue, gives him the shot
 
         var first = TitleBout(s);
         Assert.NotNull(first);
@@ -140,7 +158,7 @@ public class TitleShotQueueTests
         var (a, b) = (s.Ranked[2], s.Champ);
         var t0 = s.W.CurrentDate;
         s.T.Lineage.Clear();
-        s.T.Lineage.Add(new TitleReign { Champion = a.Id, WonOn = t0.AddDays(-600), LostOn = t0.AddDays(-200), Defenses = 3 });
+        s.T.Lineage.Add(new TitleReign { Champion = a.Id, WonOn = t0.AddDays(-600), LostOn = t0.AddDays(-200), Defenses = Matchmaker.RematchClauseDefenses });
         s.T.Lineage.Add(new TitleReign { Champion = b.Id, WonOn = t0.AddDays(-200), LostOn = t0.AddDays(-60) });
         s.T.Lineage.Add(new TitleReign { Champion = a.Id, WonOn = t0.AddDays(-60) });
         // a won the rematch: b's reign had no defense, so b is owed nothing.

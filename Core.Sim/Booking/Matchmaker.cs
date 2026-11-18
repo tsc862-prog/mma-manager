@@ -341,8 +341,11 @@ public sealed class Matchmaker
     /// </summary>
     internal const int ChampionWaitDays = 240;
 
-    /// <summary>A dethroned champion is owed his one immediate rematch only if his reign had this many defenses.</summary>
-    internal const int RematchClauseDefenses = 1;
+    /// <summary>
+    /// A dethroned champion is owed his one immediate rematch only if his reign had this many defenses: an
+    /// ESTABLISHED champion, so the rematch stays an occasion (at 1 defense it was 6% of every title shot).
+    /// </summary>
+    internal const int RematchClauseDefenses = 3;
 
     /// <summary>Bad blood at least this hot is a grudge the matchmaker books (a drawn title fight leaves <c>Storylines.DrawnTitleHeat</c>).</summary>
     internal const int GrudgeHeat = 40;
@@ -352,7 +355,7 @@ public sealed class Matchmaker
     /// facts: résumés, not ratings):
     /// <list type="number">
     /// <item>the champion he just dethroned, if that man had a real reign (at least
-    /// <see cref="RematchClauseDefenses"/> defense) — the immediate rematch is a
+    /// <see cref="RematchClauseDefenses"/> defenses) — the immediate rematch is a
     /// convention, owed ONCE: it is only owed while the new reign has no defense,
     /// so a rematch the new champion wins is settled, and one he loses leaves a
     /// defenseless reign that is owed nothing;</item>
