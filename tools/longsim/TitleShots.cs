@@ -27,7 +27,7 @@ namespace LongSim;
 /// (the best ranked man free on the date), and for a queue shot that is not
 /// #1, why each man above him was passed over. Read-only.</para>
 /// </summary>
-public sealed class TitleShots
+public sealed partial class TitleShots
 {
     public sealed record Shot(int Rank, int Wins, int Losses, int Streak, int WinsOverRanked)
     {
@@ -97,6 +97,7 @@ public sealed class TitleShots
                 _pending[fi.Id] = new Shot(rank, challenger.Record.Wins, challenger.Record.Losses, challenger.Record.CurrentStreak, overRanked);
             }
         }
+        VacantNightRanks(world);
         Snapshot(world);
     }
 
@@ -267,6 +268,7 @@ public sealed class TitleShots
     /// <summary>Spells still open at the end of the run (censored): their idle so far.</summary>
     public void Close(World world)
     {
+        CloseVacant(world);
         foreach (var sp in _spells.Values)
             Spells.Add((Math.Max(sp.MaxIdle, world.CurrentDate.DayNumber - sp.LastBout.DayNumber), sp.Bouts, sp.Shot ? "got the shot" : "still #1 at the end", world.CurrentDate.DayNumber - sp.Start.DayNumber));
         _spells.Clear();
@@ -282,6 +284,7 @@ public sealed class TitleShots
 
         ClassifyNewBookings(world);
         TierWeek(world, monthBoundary);
+        VacantWeek(world);
 
         foreach (var (id, shot) in _pending.ToList())
         {
@@ -356,6 +359,7 @@ public sealed class TitleShots
                     int a = RankOf(fi.RedCorner), b = RankOf(fi.BlueCorner);
                     _booked[fi.Id] = new Booking(dayOne ? "day-one calendar" : "vacant", Math.Min(a == 0 ? 99 : a, b == 0 ? 99 : b),
                         ranks.Count, 0, true, null, Math.Max(a == 0 ? 99 : a, b == 0 ? 99 : b), true, dayOne ? 1 : 0);
+                    RecordVacantBooking(world, e, fi, promo, tid, ranks, newEvents, dayOne);
                     continue;
                 }
                 var chId = fi.RedCorner == champ ? fi.BlueCorner : fi.RedCorner;

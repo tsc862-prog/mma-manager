@@ -519,6 +519,7 @@ static void RunCompare(int seeds, int years)
         double odefs = ongoing == 0 ? 0 : all.Sum(r => r.Reigns.OngoingDefenses * r.Reigns.Ongoing) / ongoing;
         LongSim.TitleShots.PrintWaiting(results.Values.Select(r => r.TitleShots!).ToList());
         LongSim.TitleShots.PrintTiers(results.Values.Select(r => r.TitleShots!).ToList());
+        LongSim.TitleShots.PrintVacant(results.Values.Select(r => r.TitleShots!).ToList());
         Console.WriteLine($"  REIGNS begun in the run (DURABLE: lineages, AI orgs): ended {ended} · mean length {days:0} days · mean defenses {defs:0.00} | still running at the end {ongoing} · their defenses so far {odefs:0.00}");
     }
     // Every org's completed cards over the run, pooled by its tier at the end (or when it died): what each tier pays a card.
