@@ -155,15 +155,20 @@ public class BookingTests
 
         // Only this division can produce a title bout, so it must headline.
         IsolateBeltInDivision(world, promo, d => d == div);
-        var top = div.Rankings.Take(2).ToList();
+        // The two most credible contenders: the best-ranked in-form men on live deals inside the top five (in this
+        // league one of the top two is out of form, so the next credible man steps up; see VacantBeltTests).
+        var top = div.Rankings.Take(Matchmaker.TitleShotWindow).Select(world.Get)
+            .Where(f => f is not null && f.IsMatchReady(world.CurrentDate) && f.Contract is { FightsRemaining: > 0 } && Matchmaker.Worthy(f))
+            .Take(2).Select(f => f!.Id).ToList();
+        Assert.Equal(2, top.Count);
 
         var card = new Matchmaker().BuildCard(world, promo.Id, targetFights: 8);
 
         var main = card[^1];
         Assert.True(main.IsTitle, "a vacant belt should be contested as the main event");
         Assert.Equal(title.Id, main.Title);
-        Assert.Contains(main.Red, top);
-        Assert.Contains(main.Blue, top);                     // top two contenders fight for it
+        Assert.Equal(top[0], main.Red);
+        Assert.Equal(top[1], main.Blue);                     // the two most credible contenders fight for it
     }
 
     [Fact]
