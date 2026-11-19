@@ -315,7 +315,8 @@ public sealed class Matchmaker
     /// longsim at 40 seeds).</para>
     /// <para>A VACANT belt holds the two men <see cref="ChooseVacantPair"/> would crown it between, read
     /// the same way (signed on a live deal, fit for the date it would be announced for, not committed), and only
-    /// when they are a credible pair: never on a fallback, never once the crowning is on this card or on the books.
+    /// when they are a credible pair: never on a fallback. A belt whose crowning is on this card or on the books takes
+    /// no place in the queue (like a champion committed to his defense), so the belts behind it move up.
     /// Before this the #1 and #2 were the house's busiest men when a belt fell vacant, and a crowning was between
     /// both of them only about a quarter of the time (longsim, 100 seeds).</para>
     /// The player's house is never asked (its bookings are the player's). Draws nothing.
@@ -331,19 +332,26 @@ public sealed class Matchmaker
         if (horizon <= 0) return held;
         bool Taken(FighterId id) => (exclude is not null && exclude.Contains(id)) || (sameCard is not null && sameCard.Contains(id));
 
-        // The belts the matchmaker will book, in its order (vacant first).
+        // The belts the matchmaker will book, in its order (vacant first). A belt already on a card takes no place:
+        // a champion committed to his defense is taken, and a vacant belt whose crowning is on this card or on the
+        // books is the same (TitleBouts never puts either up again).
         var queue = new List<(Division D, Title T, Fighter? Champ, long Priority)>();
+        HashSet<TitleId>? crowningBooked = null;
         foreach (var d in promo.Divisions)
         {
             if (d.Rankings.Count == 0 || d.Title is not { } tid || world.Get(tid) is not { } title) continue;
-            if (title.CurrentChampion is not { } cid) { queue.Add((d, title, null, VacantBeltPriority)); continue; }
+            if (title.CurrentChampion is not { } cid)
+            {
+                if (tid == onThisCard || (crowningBooked ??= CrowningsBooked(world, promo)).Contains(tid)) continue;
+                queue.Add((d, title, null, VacantBeltPriority));
+                continue;
+            }
             if (world.Get(cid) is not { } champ || !champ.IsMatchReady(fightDate) || Taken(cid)) continue;
             queue.Add((d, title, champ, DaysIdle(world, recent, cid)));
         }
         int cadence = 7 * Living.ForwardCalendar.CadenceWeeks(promo);
         int lead = 7 * Living.ForwardCalendar.LeadWeeks(Org.OrgSizing.SizeOf(promo));
         int place = 0;
-        HashSet<TitleId>? crowningBooked = null;
         foreach (var (d, title, champ, _) in queue.OrderByDescending(q => q.Priority).ThenBy(q => (int)q.D.WeightClass)
                      .ThenBy(q => (int)q.D.Sex).ThenBy(q => q.T.Id.Value))
         {
@@ -353,9 +361,7 @@ public sealed class Matchmaker
             var defense = world.CurrentDate.AddDays(announced + lead);
             if (champ is null)
             {
-                // A vacant belt holds the two men it would be crowned between (never once its crowning is on this
-                // card or already on the books: those men are taken, and the next pair down is nobody's title fight).
-                if (title.Id == onThisCard || (crowningBooked ??= CrowningsBooked(world, promo)).Contains(title.Id)) continue;
+                // A vacant belt holds the two men it would be crowned between.
                 var free = d.Rankings.Select(world.Get)
                     .Where(f => f is not null && f.Contract is { } k && k.Promotion == promo.Id && k.FightsRemaining > 0
                                 && f.IsMatchReady(defense) && !Taken(f.Id))

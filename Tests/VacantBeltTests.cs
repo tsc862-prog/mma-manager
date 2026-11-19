@@ -7,8 +7,10 @@ namespace MmaManager.Tests;
 /// Who a VACANT belt is crowned between (today's mode). Before this rule set a vacant belt went to whichever two
 /// ranked men happened to be free on the date, in or out of form, and nothing kept the #1 and #2 off the undercard
 /// while the belt waited for its card: both men in a crowning were the house's top two only about a quarter of the
-/// time (longsim, 100 seeds). These tests failed there (an out-of-form #2 was crowned over a ready #3; the #1 and #2
-/// were booked into undercard bouts with the belt vacant).
+/// time (longsim, 100 seeds). Six of these tests fail on main (an out-of-form #2 crowned over a ready #3; the #1 and #2,
+/// or the second vacant belt's #1 and #2, booked into undercard bouts with the belt vacant; a hurt or deal-spent #1 with
+/// nobody held behind him); the rest guard what must not change (a weak or thin division and a small house crown at
+/// once, the player's house and a belt already on a card hold nobody).
 /// Every scene is built two years past the generated history, so only the bouts staged here are recent.
 /// </summary>
 public class VacantBeltTests
@@ -220,6 +222,50 @@ public class VacantBeltTests
         Assert.False(headliners[0].IsTitle);
         Assert.True(On(new[] { headliners[0] }, s.Ranked[2]) || On(new[] { headliners[0] }, s.Ranked[3]),
             "the co-main may be the #3 v #4 eliminator");
+    }
+
+    [Fact]
+    public void TwoVacantBelts_TheSecondPairIsHeld_WhileTheFirstCrowningIsOnTheBooks()
+    {
+        // A monthly house with two vacant belts announces the first one's crowning; until the second is booked its own
+        // top two are kept off the undercard. (Before, the booked belt still took the first place in the house's queue,
+        // the second was a cadence away, past the undercard's date, and its top two were booked: the original failure,
+        // for every vacant belt after the first.)
+        var s = Build();
+        s.P.Prestige = 25;
+        Assert.Equal(OrgSize.Regional, MmaManager.Core.Sim.Org.OrgSizing.SizeOf(s.P));
+        var d2 = s.P.Divisions.Where(d => d != s.D && d.Title is not null)
+            .Select(d => (D: d, Men: s.W.RosterOf(s.P.Id).Where(f => d.Matches(f) && !s.Ranked.Contains(f) && f != s.Spare).OrderBy(f => f.Id.Value).ToList()))
+            .First(x => x.Men.Count >= 6);
+        var t2 = s.W.Get(d2.D.Title!.Value)!;
+        foreach (var f in d2.Men)
+        {
+            f.Status = FighterStatus.Active; f.CurrentInjury = null; f.ReadyToFightOn = null; f.SuspendedUntil = null; f.Camp = null;
+            f.Record.Wins = 12; f.Record.Losses = 2; f.Record.CurrentStreak = 2;
+            if (f.Contract is { } c) c.FightsRemaining = Math.Max(c.FightsRemaining, 3);
+        }
+        if (t2.CurrentChampion is { } old && s.W.Get(old) is { } ex) ex.Status = FighterStatus.Retired;
+        t2.CurrentChampion = null;
+        t2.Lineage.Clear();
+        d2.D.Rankings.Clear();
+        d2.D.Rankings.AddRange(d2.Men.Take(5).Select(f => f.Id));
+
+        // The belts queue vacant-first by weight class, sex, title id: A is the one the house books first.
+        static (int, int, int) Order(Division d) => ((int)d.WeightClass, (int)d.Sex, d.Title!.Value.Value);
+        bool sceneFirst = Order(s.D).CompareTo(Order(d2.D)) < 0;
+        var (aDiv, aTitle, aMen) = sceneFirst ? (s.D, s.T, s.Ranked) : (d2.D, t2, d2.Men);
+        var (bMen, _) = sceneFirst ? (d2.Men, 0) : (s.Ranked, 0);
+
+        var ev = new Event { Id = s.W.NewEventId(), Promotion = s.P.Id, Name = "Crowning night", Date = s.W.CurrentDate.AddDays(28), Status = EventStatus.Scheduled };
+        ev.Card.Add(new Fight { Id = s.W.NewFightId(), RedCorner = aMen[0].Id, BlueCorner = aMen[1].Id, WeightClass = aDiv.WeightClass, IsTitleFight = true, Title = aTitle.Id });
+        s.W.Events[ev.Id] = ev;
+        s.W.Relationships.Clear();
+
+        var exclude = AllBut(s, s.Ranked.Concat(d2.Men).Append(s.Spare).Where(f => f != aMen[0] && f != aMen[1]));
+        var card = new Matchmaker().BuildUndercard(s.W, s.P.Id, 10, s.W.CurrentDate.AddDays(21), exclude);
+        Assert.NotEmpty(card);
+        Assert.False(On(card, bMen[0]), "the second belt's #1 waits for it");
+        Assert.False(On(card, bMen[1]), "the second belt's #2 waits for it");
     }
 
     [Fact]
