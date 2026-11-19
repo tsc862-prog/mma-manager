@@ -28,7 +28,8 @@ if (args.Length > 0 && args[0] == "compare")
 {
     int n = args.Length > 1 ? int.Parse(args[1]) : 10;
     int yrs = args.Length > 2 ? int.Parse(args[2]) : 5;
-    RunCompare(n, yrs);
+    ulong firstSeed = args.Length > 3 ? ulong.Parse(args[3]) : 1;   // compare N Y FIRST: seeds FIRST..FIRST+N-1
+    RunCompare(n, yrs, firstSeed);
     return;
 }
 
@@ -280,10 +281,10 @@ static void RunDiagnose(ulong seed, int years, string[] orgs)
 }
 
 // ---------------------------------------------------------------------------
-static void RunCompare(int seeds, int years)
+static void RunCompare(int seeds, int years, ulong firstSeed = 1)
 {
     var results = new ConcurrentDictionary<ulong, SeedResult>();
-    Parallel.ForEach(Enumerable.Range(1, seeds).Select(i => (ulong)i), seed =>
+    Parallel.ForEach(Enumerable.Range(0, seeds).Select(i => firstSeed + (ulong)i), seed =>
     {
         var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
         world.PlayerPromotion = default;
@@ -459,7 +460,7 @@ static void RunCompare(int seeds, int years)
         results[seed] = res;
     });
 
-    Console.WriteLine($"=== {seeds} SEEDS x {years} YEARS — comparison ===");
+    Console.WriteLine($"=== {seeds} SEEDS ({firstSeed}..{firstSeed + (ulong)seeds - 1}) x {years} YEARS — comparison ===");
     Console.WriteLine();
     Console.WriteLine($"{"seed",4} | {"active",6} {"avgPop",6} | {"orgs",4} {"pyramid",11} | {"AFC",8} | {"top 3",-24} | {"IFA bank",12} | {"zmb",3} | folds");
     foreach (var r in results.Values.OrderBy(r => r.Seed))
