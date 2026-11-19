@@ -144,17 +144,19 @@ public class WashoutTests
     [Fact]
     public void NobodyGrindsOutADreadfulRecord_TheyQuitFirst()
     {
-        // (Seed 30, not 31: the washout floor is a monthly roll, so a lone signed 0-6 survivor leaks now and then. Over
-        // seeds 21-40 main at d17112e had one in 4 of the 20 worlds and world/vacant-belts in 1 (seed 31); seed 30 has
-        // none on either. A world where they are common, not one where one slips through, is what this guards.)
-        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 30 });
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 31 });
         new WorldTick().AdvanceWeeks(world, 156);   // three years of the filter at work
 
         var active = world.Fighters.Values
             .Where(f => f.Status == FighterStatus.Active && !f.LocalTalent).ToList();
 
-        // The 0-10 fighter doesn't exist: winless careers end long before ten bouts.
-        Assert.DoesNotContain(active, f => f.Record.Wins == 0 && f.Record.Losses >= 6);
+        // The 0-10 fighter doesn't exist: winless careers end long before ten bouts. At most ONE winless man at 0-6 or
+        // worse is tolerated in the world: a known leak, a signed winless man riding out his deal between the monthly
+        // washout rolls (the signed floor is 30% a month). Measured over seeds 21-40 after three years: main at d17112e
+        // had exactly one such man in 4 of the 20 worlds, world/vacant-belts in 1 of 20 (this seed, a 19-year-old 0-6
+        // with four fights left on his deal); never two.
+        Assert.True(active.Count(f => f.Record.Wins == 0 && f.Record.Losses >= 6) <= 1,
+            "winless careers should end long before ten bouts (at most one signed 0-6 slips through)");
 
         // Deep losing careers are RARE, not extinct — real regional MMA carries
         // some 4-12 journeymen; it's the winless who don't exist. Cap the share.
