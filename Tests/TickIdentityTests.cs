@@ -49,6 +49,9 @@ namespace MmaManager.Tests;
 /// only inside the top 5, a dethroned champion with three defenses gets one rematch, a champion waits for busy contenders
 /// at most 100 days). Both modern pins move: today's houses book different cards from the first weeks. No Origins pin
 /// moves (Origins books through OriginsShows, which none of this touches; measured against the pins above).
+/// Recaptured on world/origins-staffing (an Origins giant has room for another house's man only up to the depth its
+/// free-agent pass signs to, PoachingService.RoomTarget): origins-observer-6-y20 only; by its later years the giants are
+/// that deep, so fewer men move up at their deals' end. The other Origins pins and both modern pins never move.
 /// </summary>
 public class TickIdentityTests
 {
@@ -59,7 +62,7 @@ public class TickIdentityTests
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
-        ["origins-observer-6-y20"] = "08CA2F87BB7D2EE11C52",   // 2012-12-07, 815 events, 1018 fighters
+        ["origins-observer-6-y20"] = "6491546F3C819EDC41BF",   // 2012-12-07, 793 events, 969 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });
