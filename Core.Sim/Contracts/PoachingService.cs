@@ -114,7 +114,7 @@ public static class PoachingService
         && (f.Intangibles.Popularity.Value >= OrgSizing.DrawFloor(OrgSizing.SizeOf(p))
             || world.RosterOf(p.Id).Count(x => x.Status != FighterStatus.Retired
                     && p.Divisions.Any(d => d.Matches(f) && d.Matches(x)))
-               < RoomTarget(world, p) + 2);
+               < RoomTarget(world, p) + OrgSizing.RoomSlack);
 
     /// <summary>
     /// How deep a division a suitor holds before it has no room: the depth its own free-agent pass signs to. Today's mode,

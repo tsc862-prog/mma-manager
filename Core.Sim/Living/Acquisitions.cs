@@ -212,7 +212,7 @@ public static class Acquisitions
             // (its own depth and two seats of slack, as a poach: OrgSizing.DivisionDepth).
             if (f.Status == FighterStatus.Active && div is not null && f.Contract is { } c
                 && (champions.Contains(f.Id)
-                    || have < OrgSizing.DivisionDepth(world, buyer) + 2))
+                    || have < OrgSizing.DivisionDepth(world, buyer) + OrgSizing.RoomSlack))
             {
                 Contracts.Lifers.OnLeaving(world, f, target, $"{target.Name} was sold to {buyer.Name}", date, buyer.Id);
                 f.Contract = new Contract

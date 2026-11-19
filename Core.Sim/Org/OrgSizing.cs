@@ -107,6 +107,14 @@ public static class OrgSizing
             ? Living.OriginsShows.DivisionRosterTarget(p, distressed: false)
             : RosterTargetPerDivision(SizeOf(p));
 
+    /// <summary>
+    /// The seats past <see cref="DivisionDepth"/> a division may hold for a signing worth squeezing in: the poaching room
+    /// and a buyer's room in a takeover both allow it, and in an Origins world the trim at renewal keeps it too, so the
+    /// three never disagree. (With the trim at the depth and the room at depth + 2, an Origins giant let three men a year
+    /// go at renewal and took six from the smaller houses: longsim origins 40 20.) Today's mode trims at the depth.
+    /// </summary>
+    public const int RoomSlack = 2;
+
     /// <summary>The next tier up (International is the top — returns itself).</summary>
     public static OrgSize NextTier(OrgSize size) => size switch
     {
