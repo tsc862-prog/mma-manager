@@ -83,7 +83,7 @@ public static class FreeAgencyService
             // prospects instead of names — nobody signs their way into the grave.
             int distress = Org.Solvency.Distress(promo, world);
             decimal purseCeiling = distress == 0 ? decimal.MaxValue
-                : Org.Solvency.DistressedBudget(world, promo, distress);   // (an Origins house's never under the floor purse)
+                : Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress);
 
             // A promotion only fills its divisions as deep as its TIER can pay for —
             // a lean roster at the small halls, real depth only at the top.

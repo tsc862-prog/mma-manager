@@ -286,7 +286,7 @@ public static class ContractLifecycle
                 int distress = Org.Solvency.Distress(promo, world);
                 // (Measured against what he would ask THIS house, Negotiator.AffordAsk: his tier price in an Origins world.)
                 if (distress > 0 && Negotiator.AffordAsk(world, promo, f, exp, market) >
-                    Org.Solvency.DistressedBudget(world, promo, distress))   // (an Origins house's never under the floor purse)
+                    Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
                 {
                     Walk(world, f, promo, date, $"{promo.Abbreviation} couldn't afford to keep him");   // too rich for a bleeding org — let them walk
                     probe?.Count($"staff|exp|{promo.Id.Value}|distress-walked");
