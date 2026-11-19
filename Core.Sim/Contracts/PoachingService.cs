@@ -125,10 +125,7 @@ public static class PoachingService
     /// (longsim origins 40 20, ORIGINS STAFFING).
     /// (A suitor in the red never poaches, so the solvent target.)
     /// </summary>
-    internal static int RoomTarget(World world, Promotion p) =>
-        world.Mode == WorldMode.Origins
-            ? Living.OriginsShows.DivisionRosterTarget(p, distressed: false)
-            : OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p));
+    internal static int RoomTarget(World world, Promotion p) => OrgSizing.DivisionDepth(world, p);
 
     // Does a promotion at this level actually want this fighter — the same call it
     // makes signing off the free-agent market? Two independent reasons to pursue:

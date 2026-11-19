@@ -98,6 +98,62 @@ public class OriginsStaffingTests
     {
         var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 4 });
         Assert.All(w.Promotions.Values, p =>
-            Assert.Equal(OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p)), PoachingService.RoomTarget(w, p)));
+        {
+            Assert.Equal(OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p)), PoachingService.RoomTarget(w, p));
+            Assert.Equal(OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p)), OrgSizing.DivisionDepth(w, p));
+        });
+    }
+
+    /// <summary>
+    /// At a deal's end an Origins giant split by weight lets a man go once his division holds more than the depth it
+    /// signs to (counting him), not today's tier depth of 14-24: the renewal trim reads the same depth as the free-agent
+    /// pass and the poaching room (<see cref="OrgSizing.DivisionDepth"/>).
+    /// </summary>
+    [Fact]
+    public void AnOriginsGiant_TrimsAtRenewal_ToTheDepthItSignsTo()
+    {
+        var (w, giant, div) = SplitGiant();
+        int target = OriginsShows.DivisionRosterTarget(giant, distressed: false);
+        Assert.Equal(target, OrgSizing.DivisionDepth(w, giant));
+        Assert.True(OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(giant)) > target + 1);
+
+        var free = w.Fighters.Values.First(f => f.Status == FighterStatus.Active && div.Matches(f));
+        FillTo(w, giant, div, target, free);
+        var man = w.RosterOf(giant.Id).Where(f => div.Matches(f) && f.Status != FighterStatus.Retired).OrderBy(f => f.Id.Value).First();
+        Assert.False(ContractLifecycle.DivisionOverTarget(w, giant, man), "at its depth: renewed as usual");
+        FillTo(w, giant, div, target + 1, free);
+        Assert.True(ContractLifecycle.DivisionOverTarget(w, giant, man), "one past its depth: the deal runs out to trim the division");
+    }
+
+    /// <summary>
+    /// When an Origins giant buys a house it carries the bought men into a division only up to its own depth and two seats
+    /// of slack (as a poach), not today's tier depth: the rest are cut loose to the market. Champions always come over.
+    /// </summary>
+    [Fact]
+    public void AnOriginsBuyer_CarriesMenOnlyUpToItsOwnDepth()
+    {
+        var (w, giant, div) = SplitGiant();
+        var seller = House(w, "DLB");
+        int target = OrgSizing.DivisionDepth(w, giant);
+        Assert.True(OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(giant)) > target + 4);
+
+        // The seller holds at least five men of the buyer's division (tryout men of its own, as its gyms would send).
+        var gen = MmaManager.Core.Sim.Generation.FighterGenerator.ForWorld(w);
+        for (int guard = 0; InDivision(w, seller, div) < 5 && guard < 400; guard++)
+        {
+            var m = OriginsFounding.TryoutMan(w, gen, seller, "USA", w.CurrentDate, new MmaManager.Core.Sim.Rng.SimRandom(0xBEEFUL + (ulong)w.Fighters.Count));
+            if (m is not null && !div.Matches(m)) ContractLifecycle.Release(w, m, dentReputation: false);
+        }
+        Assert.True(InDivision(w, seller, div) >= 5);
+        var champions = seller.Titles.Select(t => w.Get(t)?.CurrentChampion).Where(c => c is not null).Select(c => c!.Value).ToHashSet();
+        var sellersMen = w.RosterOf(seller.Id).Where(f => f.Status == FighterStatus.Active && div.Matches(f) && f.Contract is not null).ToList();
+        int champs = sellersMen.Count(f => champions.Contains(f.Id));
+
+        // The buyer's division one seat short of its depth and slack: room for exactly one bought man (or the champion).
+        FillTo(w, giant, div, target + 1, sellersMen[0]);
+        Acquisitions.Execute(w, giant, seller, w.CurrentDate, new Money(1_000));
+
+        Assert.Equal(Math.Max(target + 2, target + 1 + champs), InDivision(w, giant, div));
+        Assert.True(sellersMen.Count(f => f.Contract is null) >= sellersMen.Count - 1 - champs, "the rest were cut loose");
     }
 }

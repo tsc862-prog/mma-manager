@@ -94,6 +94,19 @@ public static class OrgSizing
         _ => 12,   // City
     };
 
+    /// <summary>
+    /// How deep a division this house holds in THIS world: what its own free-agent pass signs to when solvent. Today's
+    /// mode, its tier's (<see cref="RosterTargetPerDivision"/>). An Origins house's, <see cref="Living.OriginsShows.DivisionRosterTarget"/>
+    /// (its night's field when it runs one open division, about six a division once it splits by weight). Every
+    /// "is this division full?" gate reads this one depth: the poaching room (PoachingService.RoomTarget), the trim at
+    /// renewal (ContractLifecycle) and the buyer's room in a takeover (Acquisitions). Read at today's tier depth
+    /// (14-24) an Origins giant kept and carried men far past the depth it signs to (longsim origins 40 20, ORIGINS STAFFING).
+    /// </summary>
+    public static int DivisionDepth(World world, Promotion p) =>
+        world.Mode == WorldMode.Origins
+            ? Living.OriginsShows.DivisionRosterTarget(p, distressed: false)
+            : RosterTargetPerDivision(SizeOf(p));
+
     /// <summary>The next tier up (International is the top — returns itself).</summary>
     public static OrgSize NextTier(OrgSize size) => size switch
     {

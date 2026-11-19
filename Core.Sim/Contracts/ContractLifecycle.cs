@@ -311,14 +311,16 @@ public static class ContractLifecycle
         return resolved;
     }
 
-    // The fighter's division at this promotion already holds more than the tier
-    // roster target (counting the fighter themself) — renewing would keep paying
-    // the hoarding retainer for depth the org can't book.
-    private static bool DivisionOverTarget(World world, Promotion promo, Fighter f)
+    // The fighter's division at this promotion already holds more than the depth
+    // it signs to (counting the fighter themself) — renewing would keep paying
+    // for depth the org can't book. (An Origins house's depth is its own,
+    // OrgSizing.DivisionDepth: read at today's tier depth, a giant split by weight
+    // renewed every man up to 14-24 a division against the ~6 it signs to.)
+    internal static bool DivisionOverTarget(World world, Promotion promo, Fighter f)
     {
         var div = promo.Divisions.FirstOrDefault(d => d.Matches(f));
         if (div is null) return false;
-        int target = Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo));
+        int target = Org.OrgSizing.DivisionDepth(world, promo);
         return world.RosterOf(promo.Id).Count(x => div.Matches(x) && x.Status != FighterStatus.Retired) > target;
     }
 

@@ -208,10 +208,11 @@ public static class Acquisitions
             int have = div is null ? int.MaxValue
                 : world.RosterOf(buyer.Id).Count(x => div.Matches(x) && x.Status != FighterStatus.Retired);
             // Champions ALWAYS come over — absorbing the belts is the point of
-            // the purchase; everyone else needs room in the buyer's division.
+            // the purchase; everyone else needs room in the buyer's division
+            // (its own depth and two seats of slack, as a poach: OrgSizing.DivisionDepth).
             if (f.Status == FighterStatus.Active && div is not null && f.Contract is { } c
                 && (champions.Contains(f.Id)
-                    || have < OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(buyer)) + 2))
+                    || have < OrgSizing.DivisionDepth(world, buyer) + 2))
             {
                 Contracts.Lifers.OnLeaving(world, f, target, $"{target.Name} was sold to {buyer.Name}", date, buyer.Id);
                 f.Contract = new Contract
