@@ -126,6 +126,9 @@ public sealed class WorldTick
         var report = new WorldTickReport { Date = after };
 
         using (TickProbe.Phase("week/heal")) report.Healed = Lifecycle.HealReturning(world, after);
+        // A winless man at the wall (0-5) is done before he can be fought again: before the club shows and the
+        // calendar, which takes him off any card he was on (today's mode; no RNG).
+        using (TickProbe.Phase("week/winless-wall")) report.Washouts += Lifecycle.RetireTheWinless(world, after);
         // The club shows the local circuit staged for this week's dates (no RNG:
         // their rolls were made when they were staged; the bouts seed off fight ids).
         using (TickProbe.Phase("week/local-run")) report.LocalFights += LocalCircuit.RunDue(world, after);
@@ -180,7 +183,7 @@ public sealed class WorldTick
             devPhase.Dispose();
 
             using (TickProbe.Phase("month/retirements")) report.Retired = Lifecycle.RollRetirements(world, after, rng);
-            using (TickProbe.Phase("month/washouts")) report.Washouts = Lifecycle.RollWashouts(world, after, rng);
+            using (TickProbe.Phase("month/washouts")) report.Washouts += Lifecycle.RollWashouts(world, after, rng);   // (+=: a winless-wall exit this week feeds the intake too)
             // Intake tracks outflow so the population self-balances instead of
             // ballooning — and because washouts prune the failures EARLY while
             // the intake arrives green, the whole pool tilts young: a wide base
