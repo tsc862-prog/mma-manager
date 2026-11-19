@@ -60,6 +60,10 @@ public static class Ledger
         {
             int retained = world.RosterOf(promo.Id)
                 .Count(f => f.Status != FighterStatus.Retired && (f.Contract?.IsExclusive ?? true));
+            // (Today's tier depth in an Origins world too, deliberately: the gates that stop hoarding read the Origins
+            // depth, OrgSizing.DivisionDepth, so what an Origins giant holds past it is champions, lifers, draws and its two
+            // seats of poaching slack - about 5 men over a ~46-man want, longsim origins 40 20. At 3,000 a man-month,
+            // twice an Origins house's whole base overhead, that would be ~200k a year against an authored giant's ~+40k.)
             int target = Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo))
                        * Math.Max(1, promo.Divisions.Count);
             decimal retainer = Math.Min(retained, target) * RetainerPerSpot
