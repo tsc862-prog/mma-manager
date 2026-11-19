@@ -377,6 +377,7 @@ public static class OriginsFounding
     public static void RunTryouts(World world, DateOnly date)
     {
         FighterGenerator? gen = null;
+        var probe = TickProbe.Current;   // (reporting only: longsim origins' staffing counts; never read by the sim)
         foreach (var promo in world.Promotions.Values
                      .Where(p => !p.Defunct && p.Id != world.PlayerPromotion)
                      .OrderBy(p => p.Id.Value).ToList())
@@ -388,10 +389,19 @@ public static class OriginsFounding
             // red fills to that solvent target too, not the smaller distressed one the free-agent pass aims for: the
             // tryout men cost nothing up front and sign on the floor purse, and the rule as written measured healthy
             // (longsim origins 40 12 and 40 20, all seeds).
-            if (!ShortHanded(world, promo, date, out int onBooks)) continue;
+            if (!ShortHanded(world, promo, date, out int onBooks))
+            {
+                if (probe is not null && onBooks < TryoutTarget(promo)) probe.Count($"staff|tryout|{promo.Id.Value}|under-target-not-short");
+                continue;
+            }
             int target = TryoutTarget(promo);
             if (promo.Ledger.Any(e => e.Category == FinanceCategory.Other && e.Description == TryoutLedgerLine
-                                      && date.DayNumber - e.Date.DayNumber < TryoutEveryDays)) continue;
+                                      && date.DayNumber - e.Date.DayNumber < TryoutEveryDays))
+            {
+                probe?.Count($"staff|tryout|{promo.Id.Value}|short-spacing-blocked");
+                continue;
+            }
+            probe?.Count($"staff|tryout|{promo.Id.Value}|held");
             var home = promo.HomeCity is { } hc ? world.Get(hc) : null;
             if (home is null || world.Get(home.Country) is not { } country) continue;
 

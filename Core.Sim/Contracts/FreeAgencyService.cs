@@ -70,6 +70,9 @@ public static class FreeAgencyService
         // One Origins market read for as long as the pass only reads (OriginsMarket): dropped at every signing and every
         // lodged offer, the only things the pass changes, so each man is priced off exactly the numbers he would be alone.
         OriginsMarket? read = null;
+        // (Reporting only: longsim origins' staffing counts. Null in the game and in every other run, and never read
+        // by the sim; the key strings are built only when a listener is set.)
+        var probe = world.Mode == WorldMode.Origins ? Living.TickProbe.Current : null;
         foreach (var promo in world.Promotions.Values
                      .Where(p => p.Id != world.PlayerPromotion && p.Id != HarnessHandsOff && !p.Defunct)
                      .OrderByDescending(p => p.Prestige.Value)
@@ -104,6 +107,7 @@ public static class FreeAgencyService
                     .Count(f => div.Matches(f) && f.Status != FighterStatus.Retired)
                     + OfferMarket.SeatsHeld(world, promo.Id, div);
                 if (Have() >= target) continue;
+                probe?.Count($"staff|fa|{promo.Id.Value}|div-short");
 
                 // Chase the best SIGNINGS, not just the best fighters — a genuine
                 // draw is worth pursuing over a slightly better but anonymous pro.
@@ -121,13 +125,13 @@ public static class FreeAgencyService
                 foreach (var fa in pool)
                 {
                     if (Have() >= target) break;
-                    if (fa.Contract is not null) continue;      // taken earlier this pass
+                    if (fa.Contract is not null) { probe?.Count($"staff|fa|{promo.Id.Value}|taken"); continue; }      // taken earlier this pass
                     // A star with a public bidding war running is off the quiet
                     // market — the war (or a player swoop) decides where they land.
-                    if (world.BiddingWars.Any(w => w.Fighter == fa.Id)) continue;
+                    if (world.BiddingWars.Any(w => w.Fighter == fa.Id)) { probe?.Count($"staff|fa|{promo.Id.Value}|war"); continue; }
                     // Likewise a free agent with a rival's offer in his hand (one the
                     // player courts): that offer decides, not a second quiet bid.
-                    if (OfferMarket.HasLiveOffer(world, fa.Id)) continue;
+                    if (OfferMarket.HasLiveOffer(world, fa.Id)) { probe?.Count($"staff|fa|{promo.Id.Value}|offer-held"); continue; }
                     // A National+ org doesn't stock RAW kids as filler — a debut
                     // belongs on the small-hall circuit until the record says
                     // otherwise (the rare elite/famous prospect still gets
@@ -137,35 +141,50 @@ public static class FreeAgencyService
                     using var wantsPhase = Living.TickProbe.Phase("fa/gates");
                     if (fa.Record.TotalBouts < 4
                         && Org.OrgSizing.SizeOf(promo) >= OrgSize.National
-                        && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
+                        && !Org.RosterPolicy.Wants(world, promo, fa)) { probe?.Count($"staff|fa|{promo.Id.Value}|raw-gate"); continue; }
                     // A big org won't roster a journeyman — unless the division is
                     // so thin it needs bodies just to put on a card.
-                    if (Have() >= minBodies && !Org.RosterPolicy.Wants(world, promo, fa)) continue;
+                    if (Have() >= minBodies && !Org.RosterPolicy.Wants(world, promo, fa)) { probe?.Count($"staff|fa|{promo.Id.Value}|not-wanted"); continue; }
 
                     var evalPhase = Living.TickProbe.Phase("fa/evaluate");
                     var exp = Valuation.EvaluateWith(world, fa, ref read);   // (and the read goes to his table: nothing changes in between)
                     evalPhase.Dispose();
                     // Out of a distressed budget: measured against what he would ask THIS house (Negotiator.AffordAsk:
                     // his tier price in an Origins world, his open-market ask today).
-                    if (distress > 0 && Negotiator.AffordAsk(world, promo, fa, exp, read) > purseCeiling) continue;
+                    if (distress > 0 && Negotiator.AffordAsk(world, promo, fa, exp, read) > purseCeiling)
+                    {
+                        probe?.Count($"staff|fa|{promo.Id.Value}|{(purseCeiling < Negotiator.OriginsPurseFloor ? "distress-under-floor" : "distress-budget")}");
+                        continue;
+                    }
 
                     var negPhase = Living.TickProbe.Phase("fa/negotiate");
                     var offer = Negotiator.AiOpeningOffer(world, promo, fa, exp, market: read);
                     var verdict = Negotiator.Evaluate(world, fa, offer, exp, read).Verdict;
                     negPhase.Dispose();
-                    if (verdict != NegotiationVerdict.Accept) continue;
+                    if (verdict != NegotiationVerdict.Accept)
+                    {
+                        // (Capped: the offer is under what he asks this house, so the house's cap stopped it; else he
+                        // turned the money it could pay down for other reasons: the stage, the length, a signing bonus.)
+                        probe?.Count($"staff|fa|{promo.Id.Value}|" + (probe is null ? "" :
+                            offer.PursePerFight.Amount < Negotiator.TableAsk(world, promo, fa, exp, offer.Exclusive, read) ? "refused-cap" : "refused-other"));
+                        continue;
+                    }
 
                     // A free agent the player is courting (open talks): the org puts
                     // this same deal in front of him with a deadline instead of signing
                     // him on the spot — the player gets his chance to beat it. Nobody
                     // else's free agents are touched (no talks, no offer: today's signing).
-                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) { have = -1; read = null; continue; }
+                    if (OfferMarket.TryLodgeFreeAgent(world, promo, fa, offer, date)) { probe?.Count($"staff|fa|{promo.Id.Value}|lodged"); have = -1; read = null; continue; }
 
                     ContractLifecycle.Sign(world, fa, offer, date);
+                    probe?.Count($"staff|fa|{promo.Id.Value}|signed");
                     have = -1;
                     read = null;
                     signings++;
                 }
+                if (probe is not null && Have() < target)
+                    for (int k = Have(); k < target; k++)
+                        probe.Count($"staff|fa|{promo.Id.Value}|{(pool.Count == 0 ? "missing-no-men" : "missing-pool-tried")}");
             }
         }
         return signings;

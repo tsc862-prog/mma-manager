@@ -82,6 +82,7 @@ public static partial class OriginsMode
         LadderReport(aiRuns, scriptedRuns);
         TitleShotReport(aiRuns);
         SpreadReport(aiRuns);
+        StaffingReport(aiRuns);
         Console.WriteLine(failures == 0 ? "ORIGINS HEALTH: OK" : $"ORIGINS HEALTH: {failures} seed(s) failed");
         return failures == 0 ? 0 : 1;
     }
@@ -105,6 +106,7 @@ public static partial class OriginsMode
         public List<(int Year, TitleShots.Shot Shot)> Shots = new();         // title shots at a reigning champion (AI runs), by year fought
         public int Years;
         public ObserverPlan? Observer;
+        public Staffing? Staff;              // ORIGINS STAFFING (AI runs only)
 
         public bool Healthy(bool deterministic) =>
             Exception is null && Violations.Count == 0 && Folds.Count == 0 && Problems.Count == 0 && deterministic;
@@ -179,6 +181,21 @@ public static partial class OriginsMode
         var foldedOn = new Dictionary<PromotionId, DateOnly>();
         var demand = new Dictionary<PromotionId, long>();   // what each night would have drawn with no walls (read the week it ran)
         var shots = player is null ? new TitleShots() : null;   // the challenger's rank at booking (AI runs; read-only)
+        // ORIGINS STAFFING (AI runs): the sim's staffing counts through the probe, and a weekly diff of who is where.
+        var staffFounders = OriginsPromotions.All.Select(x => x.Abbreviation).ToHashSet();
+        var staffArrivals = OriginsArrivals.All.Where(a => a.Kind == OriginsArrivalKind.Promotion).Select(a => a.Name).ToHashSet();
+        string KindOf(Promotion p) => staffFounders.Contains(p.Abbreviation) ? "founder" : staffArrivals.Contains(p.Name) ? "authored" : "founded";
+        if (player is null && plan is null)
+        {
+            o.Staff = new Staffing();
+            foreach (var f in world.Fighters.Values)
+            {
+                o.Staff.Known.Add(f.Id);
+                if (f.Status != FighterStatus.Retired && f.Contract is { } c0)
+                    o.Staff.Last[f.Id] = (c0.Promotion.Value, c0.SignedOn, c0.FightsRemaining, DealWindow.OutOfDeal(world, f));
+            }
+            TickProbe.Current = o.Staff.Probe;
+        }
         try
         {
             for (int y = 0; y < years; y++)
@@ -195,6 +212,8 @@ public static partial class OriginsMode
                     int shotsBefore = shots?.Shots.Count ?? 0;
                     var r = tick.AdvanceWeek(world);
                     plan?.After(world, o.Problems);
+                    if (o.Staff is not null)
+                        StaffWeek(world, o.Staff, KindOf, world.Promotions.Keys.Where(id => !firstSeen.ContainsKey(id)).ToHashSet());
                     if (shots is not null)
                     {
                         shots.AfterWeek(world, monthBoundary: false);
@@ -249,6 +268,7 @@ public static partial class OriginsMode
         {
             o.Exception = $"{ex.GetType().Name} on {world.CurrentDate:yyyy-MM-dd}: {ex.Message} @ {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}";
         }
+        finally { if (o.Staff is not null) TickProbe.Current = null; }
 
         // Health at the end.
         var banks = new List<string>();
