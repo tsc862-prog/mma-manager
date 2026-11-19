@@ -194,6 +194,8 @@ public static class ContractLifecycle
     public static int ProcessExpiries(World world, DateOnly date)
     {
         int resolved = 0;
+        // (Reporting only: longsim origins' staffing counts; null in the game and never read by the sim.)
+        var probe = world.Mode == WorldMode.Origins ? Living.TickProbe.Current : null;
         foreach (var f in world.Fighters.Values
                      .Where(IsExpired)
                      .OrderBy(f => f.Id.Value)
@@ -217,6 +219,7 @@ public static class ContractLifecycle
                 {
                     Living.Lifecycle.Retire(world, f, date);
                     Living.Camps.OnRetirement(world, f, date, roll);
+                    probe?.Count($"staff|exp|{promo.Id.Value}|sunset");
                     resolved++;
                     continue;
                 }
@@ -234,7 +237,7 @@ public static class ContractLifecycle
             // champion, who vacates the belt as they move up.
             bool poached;
             using (Living.TickProbe.Phase("expiries/poach")) poached = PoachingService.TryPoach(world, f, date);
-            if (poached) { resolved++; continue; }
+            if (poached) { probe?.Count($"staff|exp|{promo.Id.Value}|poached"); resolved++; continue; }
 
             bool champion = world.Titles.Values.Any(t => t.CurrentChampion == f.Id);
 
@@ -248,10 +251,12 @@ public static class ContractLifecycle
             {
                 var champExp = Valuation.Evaluate(world, f, out var champMarket);
                 Sign(world, f, Negotiator.AiOpeningOffer(world, promo, f, champExp, market: champMarket), date);
+                probe?.Count($"staff|exp|{promo.Id.Value}|champion-kept");
             }
             else if (!Org.RosterPolicy.Wants(world, promo, f))
             {
                 Walk(world, f, promo, date, $"{promo.Abbreviation} let his deal run out");   // not re-signed — slides down the ladder
+                probe?.Count($"staff|exp|{promo.Id.Value}|not-wanted");
             }
             else if (Lifers.KeepsFirstCall(world, f))
             {
@@ -263,14 +268,17 @@ public static class ContractLifecycle
                 // reach him, he has outgrown the house.
                 var exp = Valuation.Evaluate(world, f, out var market);   // (the market read goes to his table: nothing changes in between)
                 var offer = Negotiator.AiOpeningOffer(world, promo, f, exp, Lifers.RenewalStretch, market);
-                if (Negotiator.Evaluate(world, f, offer, exp, market).Verdict == NegotiationVerdict.Accept)
+                bool kept = Negotiator.Evaluate(world, f, offer, exp, market).Verdict == NegotiationVerdict.Accept;
+                if (kept)
                     Sign(world, f, offer, date);
                 else
                     Walk(world, f, promo, date, $"his deal ran out and {promo.Abbreviation} couldn't pay what it would take to keep him", hisChoice: true);
+                probe?.Count($"staff|exp|{promo.Id.Value}|{(kept ? "lifer-kept" : "lifer-walked")}");
             }
             else if (DivisionOverTarget(world, promo, f))
             {
                 Walk(world, f, promo, date, $"{promo.Abbreviation} let his deal run out to trim the division");   // hoarded depth — over the tier target, let them walk
+                probe?.Count($"staff|exp|{promo.Id.Value}|trimmed");
             }
             else
             {
@@ -281,14 +289,20 @@ public static class ContractLifecycle
                     Negotiator.PurseCap(world, promo) * Org.Solvency.DistressedPurseFactor(distress))
                 {
                     Walk(world, f, promo, date, $"{promo.Abbreviation} couldn't afford to keep him");   // too rich for a bleeding org — let them walk
+                    probe?.Count($"staff|exp|{promo.Id.Value}|distress-walked");
                 }
                 else
                 {
                     var offer = Negotiator.AiOpeningOffer(world, promo, f, exp, market: market);
-                    if (Negotiator.Evaluate(world, f, offer, exp, market).Verdict == NegotiationVerdict.Accept)
+                    bool renewed = Negotiator.Evaluate(world, f, offer, exp, market).Verdict == NegotiationVerdict.Accept;
+                    // (Reporting: a refusal where the house's cap held the offer under his table price, or one for other reasons.)
+                    string why = probe is null ? "" : renewed ? "renewed"
+                        : offer.PursePerFight.Amount < Negotiator.TableAsk(world, promo, f, exp, offer.Exclusive, market) ? "refused-cap" : "refused-other";
+                    if (renewed)
                         Sign(world, f, offer, date);   // renew in place
                     else
                         Walk(world, f, promo, date, $"his deal ran out and he turned down {promo.Abbreviation}'s offer", hisChoice: true);   // to the open market
+                    probe?.Count($"staff|exp|{promo.Id.Value}|{why}");
                 }
             }
 
