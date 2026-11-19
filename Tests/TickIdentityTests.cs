@@ -54,6 +54,11 @@ namespace MmaManager.Tests;
 /// that deep, so fewer men move up at their deals' end. The other Origins pins and both modern pins never move.
 /// Recaptured on world/vacant-belts (a vacant belt is crowned between the two most credible men, who are held off
 /// non-title bouts until it is booked; a belt already on a card takes no place in the house's hold queue). Both modern pins move; no Origins pin does (all four equal main's at d17112e).
+/// Recaptured on world/origins-depth (an Origins giant split by weight lets a man go at his deal's end once his division
+/// holds more than the depth it signs to, and a buyer carries bought men only to that depth and two seats of slack:
+/// OrgSizing.DivisionDepth, not today's tier depth): origins-player-8-y10, origins-observer-5-y10 and origins-observer-6-y20
+/// move (their houses split by weight before 2002, so more men reach the market at their deals' end); origins-player-3-y4
+/// (no house split yet by 1996) and both modern pins never move.
 /// </summary>
 public class TickIdentityTests
 {
@@ -62,9 +67,9 @@ public class TickIdentityTests
         ["modern-ai-11-y2"] = "2E4EA5EFF035E601FA49",   // 2027-12-30, 4630 events, 7578 fighters
         ["modern-player-4-y2"] = "8FE48B21103944EB8C93",   // 2027-12-30, 4568 events, 7532 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
-        ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
-        ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
-        ["origins-observer-6-y20"] = "6491546F3C819EDC41BF",   // 2012-12-07, 793 events, 969 fighters
+        ["origins-player-8-y10"] = "E4099F3E9D05ACD3A845",   // 2002-12-20, 193 events, 307 fighters
+        ["origins-observer-5-y10"] = "BA931AA9EA06E0B699EC",   // 2002-12-20, 306 events, 417 fighters
+        ["origins-observer-6-y20"] = "E43DA711953358297648",   // 2012-12-07, 824 events, 1013 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });
