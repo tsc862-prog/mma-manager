@@ -156,4 +156,60 @@ public class OriginsStaffingTests
         Assert.Equal(Math.Max(target + 2, target + 1 + champs), InDivision(w, giant, div));
         Assert.True(sellersMen.Count(f => f.Contract is null) >= sellersMen.Count - 1 - champs, "the rest were cut loose");
     }
+
+    /// <summary>
+    /// A distressed Origins house's per-man budget never falls under the sport's floor purse, the purse its own open
+    /// tryouts pay: a small house's cap at 35% (or 15%) is under what any man asks, so before this every free agent was
+    /// "over the distress budget" and it lived on tryouts. Today's mode keeps the cap times the factor.
+    /// </summary>
+    [Fact]
+    public void ADistressedOriginsHouse_BudgetsAtLeastTheFloorPurse()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        foreach (var p in w.Promotions.Values)
+            foreach (int distress in new[] { 1, 2 })
+            {
+                decimal raw = Negotiator.PurseCap(w, p) * Solvency.DistressedPurseFactor(distress);
+                Assert.Equal(Math.Max(raw, Negotiator.OriginsPurseFloor), Solvency.DistressedBudget(w, p, distress));
+            }
+        var small = w.Promotions.Values.OrderBy(p => Negotiator.PurseCap(w, p)).ThenBy(p => p.Id.Value).First();
+        Assert.True(Negotiator.PurseCap(w, small) * Solvency.DistressedPurseFactor(1) < Negotiator.OriginsPurseFloor,
+            $"a small house's 35% ({Negotiator.PurseCap(w, small) * Solvency.DistressedPurseFactor(1)}) is under the floor");
+        Assert.Equal(Negotiator.OriginsPurseFloor, Solvency.DistressedBudget(w, small, 1));
+
+        var m = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 4 });
+        Assert.All(m.Promotions.Values, p => Assert.Equal(
+            Negotiator.PurseCap(m, p) * Solvency.DistressedPurseFactor(1), Solvency.DistressedBudget(m, p, 1)));
+    }
+
+    /// <summary>
+    /// A distressed small Origins house whose men have walked signs men asking the floor purse off the open market in the
+    /// monthly pass (before, its 35% budget reached nobody), and never pays a man under the floor.
+    /// </summary>
+    [Fact]
+    public void ADistressedSmallOriginsHouse_SignsFloorMenAtTheTable()
+    {
+        var w = OriginsWorldTests.AiWorld(11);
+        var small = w.Promotions.Values.OrderBy(p => Negotiator.PurseCap(w, p)).ThenBy(p => p.Id.Value).First();
+        // Everyone else is the player's or hands-off: the market is the small house's to shop.
+        var other = w.Promotions.Values.Where(p => p.Id != small.Id).OrderBy(p => p.Id.Value).ToList();
+        w.PlayerPromotion = other[0].Id;
+        other[0].IsPlayerControlled = true;
+        foreach (var p in other.Skip(1)) p.Defunct = true;
+        foreach (var f in w.RosterOf(small.Id).ToList()) f.Contract = null;   // its men walk: it needs bodies
+        small.Balance = new Money(-1m);                                       // in the red: distress 1
+        Assert.Equal(1, Solvency.Distress(small, w));
+        Assert.True(Negotiator.PurseCap(w, small) * Solvency.DistressedPurseFactor(1) < Negotiator.OriginsPurseFloor);
+
+        var val = new FighterValuation();
+        var floorMen = w.FreeAgents().Where(f => f.Status == FighterStatus.Active && small.Divisions.Any(d => d.Matches(f))
+                                                 && Negotiator.AffordAsk(w, small, f, val.Evaluate(w, f)) <= Negotiator.OriginsPurseFloor)
+                        .Select(f => f.Id).ToHashSet();
+        Assert.NotEmpty(floorMen);
+
+        FreeAgencyService.RunMonthly(w, w.CurrentDate);
+        var signed = w.RosterOf(small.Id).Where(f => f.Status != FighterStatus.Retired).ToList();
+        Assert.Contains(signed, f => floorMen.Contains(f.Id));
+        Assert.All(signed, f => Assert.True(f.Contract!.PursePerFight.Amount >= Negotiator.OriginsPurseFloor));
+    }
 }

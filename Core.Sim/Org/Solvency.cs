@@ -69,6 +69,21 @@ public static class Solvency
     /// </summary>
     public static decimal DistressedPurseFactor(int distress) => distress >= 2 ? 0.15m : 0.35m;
 
+    /// <summary>
+    /// The most a distressed house (<paramref name="distress"/> &gt; 0) will commit to one man: its purse cap times
+    /// <see cref="DistressedPurseFactor"/>. In an Origins world never under the sport's floor purse
+    /// (<see cref="Contracts.Negotiator.OriginsPurseFloor"/>, 500), the purse its own open tryouts pay: a small house's cap
+    /// of 750 at 0.35 is 262, under what any man asks, so every free agent was "over the budget", every man at his deal's
+    /// end walked, and the house lived on tryouts at that same 500 (longsim origins 40 20, ORIGINS STAFFING). No man
+    /// signs under the floor and nobody's price changes; a man asking more than the floor is still out of reach.
+    /// Today's mode: the cap times the factor, as before.
+    /// </summary>
+    public static decimal DistressedBudget(World world, Promotion promo, int distress)
+    {
+        decimal budget = Contracts.Negotiator.PurseCap(world, promo) * DistressedPurseFactor(distress);
+        return world.Mode == WorldMode.Origins ? Math.Max(budget, Contracts.Negotiator.OriginsPurseFloor) : budget;
+    }
+
     public static void RunMonthly(World world, DateOnly date)
     {
         foreach (var promo in world.Promotions.Values.Where(p => !p.Defunct).ToList())
