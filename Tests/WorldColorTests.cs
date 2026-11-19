@@ -150,13 +150,11 @@ public class WashoutTests
         var active = world.Fighters.Values
             .Where(f => f.Status == FighterStatus.Active && !f.LocalTalent).ToList();
 
-        // The 0-10 fighter doesn't exist: winless careers end long before ten bouts. At most ONE winless man at 0-6 or
-        // worse is tolerated in the world: a known leak, a signed winless man riding out his deal between the monthly
-        // washout rolls (the signed floor is 30% a month). Measured over seeds 21-40 after three years: main at d17112e
-        // had exactly one such man in 4 of the 20 worlds, world/vacant-belts in 1 of 20 (this seed, a 19-year-old 0-6
-        // with four fights left on his deal); never two.
-        Assert.True(active.Count(f => f.Record.Wins == 0 && f.Record.Losses >= 6) <= 1,
-            "winless careers should end long before ten bouts (at most one signed 0-6 slips through)");
+        // The 0-10 fighter doesn't exist: winless careers end long before ten bouts. Nobody active is 0-6 or worse
+        // (the winless wall retires a man the week after his fifth loss without a win, signed or not: a deal used
+        // to carry a signed 0-5 between the monthly washout rolls, and before the wall one such man stood in 4 of
+        // seeds 21-40 after three years).
+        Assert.DoesNotContain(active, f => f.Record.Wins == 0 && f.Record.Losses >= 6);
 
         // Deep losing careers are RARE, not extinct — real regional MMA carries
         // some 4-12 journeymen; it's the winless who don't exist. Cap the share.
@@ -170,6 +168,69 @@ public class WashoutTests
         // And the base of the pyramid stays wide: plenty of green fighters working their way in.
         int green = active.Count(f => f.Record.TotalBouts <= 4);
         Assert.True(green >= active.Count / 6, $"the world should carry a wide green base ({green} of {active.Count})");
+    }
+
+    [Fact]
+    public void ASignedWinlessManAtTheWall_DoesNotFightAgain()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 31 });
+        new WorldTick().AdvanceWeeks(world, 4);   // the houses have their next cards on the books
+
+        // A signed man on an AI house's card a week or two out, made 0-5 (the loss that made it is behind him).
+        var (card, man) = world.Events.Values
+            .Where(e => e.Status == EventStatus.Scheduled && e.Promotion != world.PlayerPromotion && world.Get(e.Promotion) is not null
+                        && e.Date > world.CurrentDate.AddDays(7) && e.Date <= world.CurrentDate.AddDays(21))
+            .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+            .SelectMany(e => e.Card.Where(x => !x.IsTitleFight).Select(x => (Card: e, Man: world.Get(x.RedCorner)!)))
+            .First(p => p.Man is { LocalTalent: false, Status: FighterStatus.Active } m && m.Contract?.Promotion == p.Card.Promotion
+                        && m.Contract.FightsRemaining >= 2);
+        man.Record.Wins = man.Record.WinsByKo = man.Record.WinsBySubmission = man.Record.WinsByDecision = 0;
+        man.Record.Draws = man.Record.NoContests = 0;
+        man.Record.Losses = Lifecycle.WinlessWall;
+        man.Record.CurrentStreak = -Lifecycle.WinlessWall;
+        int bouts = man.BoutHistory.Count;
+
+        // Main: the monthly roll (30% while signed) is the only thing that could stop him, and he fights the card.
+        new WorldTick().AdvanceWeeks(world, 4);
+
+        Assert.True(card.Date <= world.CurrentDate);
+        Assert.Equal(bouts, man.BoutHistory.Count);   // (main: he fought the card)
+        Assert.Equal(FighterStatus.Retired, man.Status);
+        Assert.Null(man.Contract);
+        Assert.DoesNotContain(card.Card, x => x.RedCorner == man.Id || x.BlueCorner == man.Id);
+        Assert.NotEqual(EventStatus.Scheduled, card.Status);   // the card ran (or was called off) without him
+    }
+
+    [Fact]
+    public void ThePlayersWinlessManAtTheWall_QuitsAndThePlayerIsTold()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 31 });
+        var man = world.RosterOf(world.PlayerPromotion).OrderBy(f => f.Id.Value).First(f => !f.LocalTalent);
+        man.Record.Wins = man.Record.WinsByKo = man.Record.WinsBySubmission = man.Record.WinsByDecision = 0;
+        man.Record.Draws = man.Record.NoContests = 0;
+        man.Record.Losses = Lifecycle.WinlessWall;
+
+        new WorldTick().AdvanceWeeks(world, 1);
+
+        Assert.Equal(FighterStatus.Retired, man.Status);
+        Assert.Contains(world.Mail, m => m.Subject == $"{man.FullName} has quit the sport" && m.Body.Contains("0-5"));
+    }
+
+    [Fact]
+    public void AWinlessManShortOfTheWall_IsLeftToTheMonthlyRoll()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 31 });
+        var man = world.Fighters.Values.OrderBy(f => f.Id.Value)
+            .First(f => f is { LocalTalent: false, Status: FighterStatus.Active, Contract: not null } && f.Contract.Promotion != world.PlayerPromotion);
+        man.Record.Wins = man.Record.WinsByKo = man.Record.WinsBySubmission = man.Record.WinsByDecision = 0;
+        man.Record.Draws = man.Record.NoContests = 0;
+        man.Record.Losses = Lifecycle.WinlessWall - 1;
+
+        Lifecycle.RetireTheWinless(world, world.CurrentDate);
+        Assert.NotEqual(FighterStatus.Retired, man.Status);
+        man.Record.Losses = Lifecycle.WinlessWall;
+        Assert.True(Lifecycle.RetireTheWinless(world, world.CurrentDate) >= 1);
+        Assert.Equal(FighterStatus.Retired, man.Status);
     }
 }
 

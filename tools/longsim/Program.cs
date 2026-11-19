@@ -292,6 +292,8 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
         var res = new SeedResult { Seed = seed };
         var titleShots = new LongSim.TitleShots();
         res.TitleShots = titleShots;
+        var washouts = new LongSim.Washouts();
+        res.Washouts = washouts;
         var deadAtYear = new Dictionary<string, int>();
 
         var startDate = world.CurrentDate;   // day-one back-dated history is excluded from the rates below
@@ -310,8 +312,11 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
             for (int w = 0; w < 52; w++)
             {
                 titleShots.BeforeWeek(world);
+                washouts.BeforeWeek(world);
+                var weekBefore = world.CurrentDate;
                 tick.AdvanceWeeks(world, 1);
                 titleShots.AfterWeek(world, w % 4 == 3);
+                washouts.AfterWeek(world, weekBefore);
                 int from = 0;
                 if (lastSeen is not null)
                 {
@@ -350,8 +355,10 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
             foreach (var p in world.Promotions.Values.Where(p => p.Defunct))
                 deadAtYear.TryAdd(p.Abbreviation, yr);
             flows.YearEnd(world);
+            washouts.YearEnd(world);
         }
         flows.End(world, startDate);
+        washouts.Close(world);
 
         // Durable, from event/fight state (events are never pruned for AI orgs).
         var simEvents = world.Events.Values.Where(e => e.Date > startDate).ToList();
@@ -521,6 +528,7 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
         LongSim.TitleShots.PrintWaiting(results.Values.Select(r => r.TitleShots!).ToList());
         LongSim.TitleShots.PrintTiers(results.Values.Select(r => r.TitleShots!).ToList());
         LongSim.TitleShots.PrintVacant(results.Values.Select(r => r.TitleShots!).ToList());
+        LongSim.Washouts.Print(results.Values.OrderBy(r => r.Seed).Select(r => r.Washouts!).ToList());
         Console.WriteLine($"  REIGNS begun in the run (DURABLE: lineages, AI orgs): ended {ended} · mean length {days:0} days · mean defenses {defs:0.00} | still running at the end {ongoing} · their defenses so far {odefs:0.00}");
     }
     // Every org's completed cards over the run, pooled by its tier at the end (or when it died): what each tier pays a card.
@@ -684,6 +692,7 @@ sealed class SeedResult
 {
     public ulong Seed;
     public LongSim.TitleShots? TitleShots;
+    public LongSim.Washouts? Washouts;
     public (int Ended, double Days, double Defenses, int Ongoing, double OngoingDefenses) Reigns;
     public List<OrgAutopsy> Orgs = new();
     public List<string> Folds = new();

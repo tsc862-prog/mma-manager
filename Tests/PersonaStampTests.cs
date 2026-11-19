@@ -29,7 +29,9 @@ public class PersonaStampTests
     // differ inside twelve weeks, so the Modern pin moves whole. The Origins world is identical.)
     // (Re-pinned on world/vacant-belts: a vacant belt now holds its two most credible men off the undercard, so today's
     // world books differently inside twelve weeks and the Modern pin moves whole. The Origins world is identical.)
-    private const string ModernNoCatalog12Weeks = "749D20F5E30625EC";
+    // (Re-pinned on world/washout-leak: the winless wall retires a 0-5 man the week after his fifth loss, so today's world
+    // loses a few men inside twelve weeks and the Modern pin moves whole. The Origins world is identical.)
+    private const string ModernNoCatalog12Weeks = "2AA3BE3F8D2552E7";
     private const string OriginsNoCatalog12Weeks = "5AF296CA832E8562";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.

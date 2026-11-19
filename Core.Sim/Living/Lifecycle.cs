@@ -125,6 +125,46 @@ public static class Lifecycle
         return quit;
     }
 
+    /// <summary>
+    /// The losses a man can take without a win before the career is over: the loss that makes him 0-5 is his last.
+    /// </summary>
+    public const int WinlessWall = 5;
+
+    /// <summary>
+    /// The WINLESS WALL (today's mode; run at the top of every week): a man with no wins and
+    /// <see cref="WinlessWall"/> losses is done, signed or not. The monthly washout roll is a chance a month, and a
+    /// deal used to carry a man through it: a signed winless man (30% a month) could ride out his deal between
+    /// rolls and be booked to 0-6, 0-7 by a house that kept him on its cards. So the decision no longer waits on a
+    /// roll: the week after the fifth straight loss without a win, he retires through the normal path, before any
+    /// card runs (the calendar takes him off the cards he was booked on, as for any retirement), and the player
+    /// is told plainly when it is one of his. A pure read of the record: no draw on any stream, so the wall
+    /// moves no tuned roll. Origins keeps its own early filter (its houses are tiny and its men few).
+    /// Returns the count retired.
+    /// </summary>
+    public static int RetireTheWinless(World world, DateOnly date)
+    {
+        if (world.Mode != WorldMode.Modern) return 0;
+        List<Fighter>? done = null;
+        foreach (var f in world.Fighters.Values)
+        {
+            if (f.Status == FighterStatus.Retired || f.LocalTalent) continue;
+            if (f.Record.Wins == 0 && f.Record.Losses >= WinlessWall) (done ??= new()).Add(f);
+        }
+        if (done is null) return 0;
+        foreach (var f in done.OrderBy(f => f.Id.Value))
+        {
+            bool players = f.Contract is { } deal && deal.Promotion == world.PlayerPromotion;
+            string record = f.Record.ToString();
+            Retire(world, f, date);
+            if (players)
+                Mail.Post(world, date, MailCategory.General, "Matchmaking", $"{f.FullName} has quit the sport",
+                    Contracts.Lifers.Gendered(f, $"{f.FullName} has walked away at {record}. Five losses and not one win: he says it isn't working "
+                        + "and he's going back to a day job. His contract is torn up and he's off any card he was booked on."),
+                    aboutFighter: f.Id);
+        }
+        return done.Count;
+    }
+
     /// <summary>Retire a fighter: release him, strip him from rankings, hand off any belt.</summary>
     public static void Retire(World world, Fighter f, DateOnly date)
     {
