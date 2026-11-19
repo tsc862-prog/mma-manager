@@ -52,13 +52,15 @@ namespace MmaManager.Tests;
 /// Recaptured on world/origins-staffing (an Origins giant has room for another house's man only up to the depth its
 /// free-agent pass signs to, PoachingService.RoomTarget): origins-observer-6-y20 only; by its later years the giants are
 /// that deep, so fewer men move up at their deals' end. The other Origins pins and both modern pins never move.
+/// Recaptured on world/vacant-belts (a vacant belt is crowned between the two most credible men, who are held off
+/// non-title bouts until it is booked; a belt already on a card takes no place in the house's hold queue). Both modern pins move; no Origins pin does (all four equal main's at d17112e).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "FCE9BB204A384D73E52C",   // 2027-12-30, 4634 events, 7506 fighters
-        ["modern-player-4-y2"] = "178F7FF1ABA55D95D7CA",   // 2027-12-30, 4580 events, 7536 fighters
+        ["modern-ai-11-y2"] = "2E4EA5EFF035E601FA49",   // 2027-12-30, 4630 events, 7578 fighters
+        ["modern-player-4-y2"] = "8FE48B21103944EB8C93",   // 2027-12-30, 4568 events, 7532 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
