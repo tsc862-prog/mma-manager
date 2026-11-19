@@ -71,7 +71,7 @@ public sealed class Matchmaker
         if (BestBout(world, promo, fightDate, exclude, titleLength: true) is not { } main) return Array.Empty<Matchup>();
 
         var taken = new HashSet<FighterId>(exclude ?? (IEnumerable<FighterId>)Array.Empty<FighterId>()) { main.Red, main.Blue };
-        return BestPairing(world, promo, fightDate, taken, RecentBouts(world)) is { } co
+        return BestPairing(world, promo, fightDate, taken, RecentBouts(world), main.Title) is { } co
             ? new[] { new Matchup(co.A, co.B, co.Wc, promo.Rules.StandardRounds, false, null), main }
             : new[] { main };
     }
@@ -96,10 +96,10 @@ public sealed class Matchmaker
     }
 
     private static Candidate? BestPairing(World world, Promotion promo, DateOnly fightDate, IReadOnlySet<FighterId>? exclude,
-        Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent)
+        Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent, TitleId? onThisCard = null)
     {
         Candidate? best = null;
-        foreach (var c in Candidates(world, promo, fightDate, exclude, recent)
+        foreach (var c in Candidates(world, promo, fightDate, exclude, recent, onThisCard: onThisCard)
                      .OrderByDescending(c => c.Tier).ThenByDescending(c => c.Ability)
                      .ThenBy(c => c.A.Value).ThenBy(c => c.B.Value))
         {
@@ -138,7 +138,7 @@ public sealed class Matchmaker
         // that produces the next challenger) outranks a routine "keep them active"
         // bout. Within a tier, the most idle pair goes first, ability as tiebreak.
         var undercard = new List<Matchup>();
-        foreach (var c in Candidates(world, promo, fightDate, exclude, recent, booked)
+        foreach (var c in Candidates(world, promo, fightDate, exclude, recent, booked, mainEvent?.Title)
                      .OrderByDescending(c => c.Tier)
                      .ThenByDescending(c => c.Idle)
                      .ThenByDescending(c => c.Ability))
@@ -215,8 +215,9 @@ public sealed class Matchmaker
             }
             else if (champ is null && contenders.Count >= 2)
             {
-                // A vacant belt jumps the queue — crown a champion at the top two.
-                titleBouts.Add((title, division.WeightClass, contenders[0], contenders[1], VacantBeltPriority));
+                // A vacant belt jumps the queue: crowned between the two most credible men free (see ChooseVacantPair).
+                var (a, b, _) = ChooseVacantPair(world, promo, title, division.Rankings, contenders);
+                if (a is not null && b is not null) titleBouts.Add((title, division.WeightClass, a, b, VacantBeltPriority));
             }
         }
         return titleBouts;
@@ -231,7 +232,7 @@ public sealed class Matchmaker
     // fighters, with its booking tier, idleness and combined ability.
     private static List<Candidate> Candidates(World world, Promotion promo, DateOnly fightDate,
         IReadOnlySet<FighterId>? exclude, Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent,
-        IReadOnlySet<FighterId>? sameCard = null)
+        IReadOnlySet<FighterId>? sameCard = null, TitleId? onThisCard = null)
     {
         using var _ = Living.TickProbe.Phase("mm/candidates");
         // Champions only fight for the belt — keep them out of the undercard pool.
@@ -245,7 +246,7 @@ public sealed class Matchmaker
         // READ (the fog: a matchmaker pairs the fighters he thinks are close, not
         // the ones who truly are), id as the last word.
         var feuds = Living.Storylines.RivalriesByPair(world);
-        var nextInLine = NextInLine(world, promo, fightDate, exclude, sameCard, recent, feuds);
+        var nextInLine = NextInLine(world, promo, fightDate, exclude, sameCard, recent, feuds, onThisCard);
         var free = world.RosterOf(promo.Id)
             .Where(f => f.IsMatchReady(fightDate) && !champions.Contains(f.Id) && !nextInLine.Contains(f.Id)
                         && (exclude is null || !exclude.Contains(f.Id)))
@@ -312,12 +313,17 @@ public sealed class Matchmaker
     /// him free again. A #1 booked into an eliminator was the commonest reason a
     /// title shot went down the rankings (58% of the shots that did not go to #1,
     /// longsim at 40 seeds).</para>
+    /// <para>A VACANT belt holds the two men <see cref="ChooseVacantPair"/> would crown it between, read
+    /// the same way (signed on a live deal, fit for the date it would be announced for, not committed), and only
+    /// when they are a credible pair: never on a fallback, never once the crowning is on this card or on the books.
+    /// Before this the #1 and #2 were the house's busiest men when a belt fell vacant, and a crowning was between
+    /// both of them only about a quarter of the time (longsim, 100 seeds).</para>
     /// The player's house is never asked (its bookings are the player's). Draws nothing.
     /// </summary>
     private static HashSet<FighterId> NextInLine(World world, Promotion promo, DateOnly fightDate,
         IReadOnlySet<FighterId>? exclude, IReadOnlySet<FighterId>? sameCard,
         Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent,
-        Dictionary<(int, int), Rivalry> feuds)
+        Dictionary<(int, int), Rivalry> feuds, TitleId? onThisCard = null)
     {
         var held = new HashSet<FighterId>();
         if (promo.Id == world.PlayerPromotion) return held;
@@ -337,14 +343,27 @@ public sealed class Matchmaker
         int cadence = 7 * Living.ForwardCalendar.CadenceWeeks(promo);
         int lead = 7 * Living.ForwardCalendar.LeadWeeks(Org.OrgSizing.SizeOf(promo));
         int place = 0;
+        HashSet<TitleId>? crowningBooked = null;
         foreach (var (d, title, champ, _) in queue.OrderByDescending(q => q.Priority).ThenBy(q => (int)q.D.WeightClass)
                      .ThenBy(q => (int)q.D.Sex).ThenBy(q => q.T.Id.Value))
         {
             int announced = place * cadence;           // days from today until this belt's defense is announced
             if (announced >= horizon) break;           // announced after his bout: he is free again by then
             place++;
-            if (champ is null) continue;               // a vacant belt is crowned from whoever is free (holds nobody)
             var defense = world.CurrentDate.AddDays(announced + lead);
+            if (champ is null)
+            {
+                // A vacant belt holds the two men it would be crowned between (never once its crowning is on this
+                // card or already on the books: those men are taken, and the next pair down is nobody's title fight).
+                if (title.Id == onThisCard || (crowningBooked ??= CrowningsBooked(world, promo)).Contains(title.Id)) continue;
+                var free = d.Rankings.Select(world.Get)
+                    .Where(f => f is not null && f.Contract is { } k && k.Promotion == promo.Id && k.FightsRemaining > 0
+                                && f.IsMatchReady(defense) && !Taken(f.Id))
+                    .Cast<Fighter>().ToList();
+                var (a, b, vkind) = ChooseVacantPair(world, promo, title, d.Rankings, free);
+                if (vkind == VacantKind.Pair) { held.Add(a!.Id); held.Add(b!.Id); }
+                continue;
+            }
             var contenders = d.Rankings.Select(world.Get)
                 .Where(f => f is not null && f.Contract?.Promotion == promo.Id && f.IsMatchReady(defense) && !Taken(f.Id))
                 .Cast<Fighter>().ToList();
@@ -477,6 +496,46 @@ public sealed class Matchmaker
             ?? contenders.FirstOrDefault(c => c.Id != staleRematch)                // at least not a rematch
             ?? contenders[0];                                                      // last resort
         return (pick, ChallengerKind.Fallback);
+    }
+
+    /// <summary>How the vacant-belt picker arrived at its pair (or at none).</summary>
+    internal enum VacantKind { None, Pair, Fallback }
+
+    /// <summary>
+    /// The two men a VACANT belt is contested between, read off the house's rankings (public facts: résumés,
+    /// not ratings): the two best-ranked men inside the top <see cref="TitleShotWindow"/> who are free on the
+    /// date, signed here on a live deal and in form (<see cref="Worthy"/>), the better-ranked in the red corner.
+    /// With fewer than two such men the belt is still crowned at once, the old way: the two best-ranked men free
+    /// (a thin or weak division never stalls its belt). <paramref name="contenders"/> is the free, signed part of
+    /// <paramref name="rankings"/>, in ranking order. Draws nothing; the order is the rankings'. Shared by the
+    /// booking (<see cref="TitleBouts"/>) and the hold (<see cref="NextInLine"/>), so the men held are the men
+    /// crowned.
+    /// </summary>
+    internal static (Fighter? A, Fighter? B, VacantKind Kind) ChooseVacantPair(World world, Promotion promo, Title title,
+        IReadOnlyList<FighterId> rankings, List<Fighter> contenders)
+    {
+        Fighter? first = null;
+        foreach (var c in contenders)
+        {
+            int i = IndexOf(rankings, c.Id);
+            if (i < 0 || i >= TitleShotWindow) break;   // in ranking order: nobody further on is inside the window
+            if (c.Contract is not { } k || k.Promotion != promo.Id || k.FightsRemaining <= 0 || !Worthy(c)) continue;
+            if (first is null) { first = c; continue; }
+            return (first, c, VacantKind.Pair);
+        }
+        return contenders.Count >= 2 ? (contenders[0], contenders[1], VacantKind.Fallback) : (null, null, VacantKind.None);
+    }
+
+    // The vacant belts of this house whose crowning is already on a scheduled card.
+    private static HashSet<TitleId> CrowningsBooked(World world, Promotion promo)
+    {
+        var set = new HashSet<TitleId>();
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Status != EventStatus.Scheduled || e.Promotion != promo.Id) continue;
+            foreach (var f in e.Card) if (f.IsTitleFight && f.Title is { } t) set.Add(t);
+        }
+        return set;
     }
 
     private static int IndexOf(IReadOnlyList<FighterId> list, FighterId id)
