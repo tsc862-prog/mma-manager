@@ -59,6 +59,9 @@ namespace MmaManager.Tests;
 /// OrgSizing.DivisionDepth, not today's tier depth): origins-player-8-y10, origins-observer-5-y10 and origins-observer-6-y20
 /// move (their houses split by weight before 2002, so more men reach the market at their deals' end); origins-player-3-y4
 /// (no house split yet by 1996) and both modern pins never move.
+/// Recaptured on world/origins-depth again (a distressed Origins house's per-man budget never falls under the 500 floor
+/// purse, Solvency.DistressedBudget): origins-observer-6-y20 only; its houses run in the red in the later years, and a
+/// distressed house now signs and keeps men asking the floor. The other Origins pins and both modern pins never move.
 /// </summary>
 public class TickIdentityTests
 {
@@ -69,7 +72,7 @@ public class TickIdentityTests
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "E4099F3E9D05ACD3A845",   // 2002-12-20, 193 events, 307 fighters
         ["origins-observer-5-y10"] = "BA931AA9EA06E0B699EC",   // 2002-12-20, 306 events, 417 fighters
-        ["origins-observer-6-y20"] = "E43DA711953358297648",   // 2012-12-07, 824 events, 1013 fighters
+        ["origins-observer-6-y20"] = "9602E1CDD3790F44BCD4",   // 2012-12-07, 785 events, 970 fighters
     };
 
     public static IEnumerable<object[]> Cases() => Expected.Keys.Select(k => new object[] { k });
