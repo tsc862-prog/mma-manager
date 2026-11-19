@@ -107,13 +107,27 @@ public static class PoachingService
     /// a real DRAW always is). Without this, the giants hoarded every fighter the
     /// deepening talent base produced and simply ate the hoarding retainer: AFC's
     /// roster ran to ~190 on a target of ~110. Public facts only (rosters, popularity).
+    /// The division's depth is <see cref="RoomTarget"/>: what the house signs to on the open market.
     /// </summary>
     internal static bool HasRoom(World world, Promotion p, Fighter f) =>
         p.Divisions.Any(d => d.Matches(f))
         && (f.Intangibles.Popularity.Value >= OrgSizing.DrawFloor(OrgSizing.SizeOf(p))
             || world.RosterOf(p.Id).Count(x => x.Status != FighterStatus.Retired
                     && p.Divisions.Any(d => d.Matches(f) && d.Matches(x)))
-               < OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p)) + 2);
+               < RoomTarget(world, p) + 2);
+
+    /// <summary>
+    /// How deep a division a suitor holds before it has no room: the depth its own free-agent pass signs to. Today's mode,
+    /// its tier's (<see cref="OrgSizing.RosterTargetPerDivision"/>). An Origins house's, <see cref="Living.OriginsShows.DivisionRosterTarget"/>
+    /// (about six a division once it splits by weight): read at today's tier depth (14-24), the Origins giants took
+    /// the small houses' men at every deal's end until they held 120 on a 48-man target, the market emptied (14 free men
+    /// in a 583-man sport in 2012) and the small houses could sign nobody (longsim origins, ORIGINS STAFFING).
+    /// (A suitor in the red never poaches, so the solvent target.)
+    /// </summary>
+    internal static int RoomTarget(World world, Promotion p) =>
+        world.Mode == WorldMode.Origins
+            ? Living.OriginsShows.DivisionRosterTarget(p, distressed: false)
+            : OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(p));
 
     // Does a promotion at this level actually want this fighter — the same call it
     // makes signing off the free-agent market? Two independent reasons to pursue:
