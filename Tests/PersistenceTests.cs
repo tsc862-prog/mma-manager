@@ -50,6 +50,15 @@ public class PersistenceTests
                 DemandFrac = 0.913, Mood = 51, Patience = 2, Round = 3,
                 SouredUntil = world.CurrentDate.AddDays(9), LastTalked = world.CurrentDate.AddDays(-12),
             });
+            // A bidding war in progress: whether one is running on the save date is seed noise (none was, at week 30
+            // of seed 99, once the winless wall retired today's 0-5 men).
+            if (world.BiddingWars.Count == 0)
+                world.BiddingWars.Add(new BiddingWar
+                {
+                    Fighter = world.Fighters.Keys.Skip(6).First(),
+                    Suitors = { world.Promotions.Keys.First(), world.Promotions.Keys.Skip(1).First() },
+                    CurrentBid = new Money(40_000m), Round = 2, NextRoundOn = world.CurrentDate.AddDays(7),
+                });
             // A rival's offer on the books (the sample fill gives every field a value).
             world.RivalOffers.Add(new RivalOffer
             {
