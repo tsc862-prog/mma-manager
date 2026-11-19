@@ -311,19 +311,19 @@ public static class ContractLifecycle
         return resolved;
     }
 
-    // The fighter's division at this promotion already holds more than the depth
-    // it signs to (counting the fighter themself) — renewing would keep paying
-    // for depth the org can't book. (An Origins house's depth is its own,
-    // OrgSizing.DivisionDepth: read at today's tier depth, a giant split by weight
-    // renewed every man up to 14-24 a division against the ~6 it signs to. It keeps
-    // the same slack its poaching room allows, OrgSizing.RoomSlack, or it lets its
-    // own men go only to take the small houses' men in their place.)
-    internal static bool DivisionOverTarget(World world, Promotion promo, Fighter f)
+    // The fighter's division at this promotion already holds more than the tier
+    // roster target (counting the fighter themself) — renewing would keep paying
+    // the hoarding retainer for depth the org can't book.
+    // (Today's tier depth in an Origins world too, deliberately. Measured on longsim
+    // origins 40 20 (PR #92): trimmed at the Origins depth, OrgSizing.DivisionDepth,
+    // a giant let 3 men a year go at renewal only to take 6 a year from the small
+    // houses into the seats its poaching room (depth + RoomSlack) then had free; with
+    // the room's slack as well, it trimmed almost nobody and the world matched main.)
+    private static bool DivisionOverTarget(World world, Promotion promo, Fighter f)
     {
         var div = promo.Divisions.FirstOrDefault(d => d.Matches(f));
         if (div is null) return false;
-        int target = Org.OrgSizing.DivisionDepth(world, promo)
-                   + (world.Mode == WorldMode.Origins ? Org.OrgSizing.RoomSlack : 0);
+        int target = Org.OrgSizing.RosterTargetPerDivision(Org.OrgSizing.SizeOf(promo));
         return world.RosterOf(promo.Id).Count(x => div.Matches(x) && x.Status != FighterStatus.Retired) > target;
     }
 

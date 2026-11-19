@@ -98,9 +98,10 @@ public static class OrgSizing
     /// How deep a division this house holds in THIS world: what its own free-agent pass signs to when solvent. Today's
     /// mode, its tier's (<see cref="RosterTargetPerDivision"/>). An Origins house's, <see cref="Living.OriginsShows.DivisionRosterTarget"/>
     /// (its night's field when it runs one open division, about six a division once it splits by weight). Every
-    /// "is this division full?" gate reads this one depth: the poaching room (PoachingService.RoomTarget), the trim at
-    /// renewal (ContractLifecycle) and the buyer's room in a takeover (Acquisitions). Read at today's tier depth
-    /// (14-24) an Origins giant kept and carried men far past the depth it signs to (longsim origins 40 20, ORIGINS STAFFING).
+    /// "is this division full?" gate that lets a man IN reads this one depth: the poaching room (PoachingService.RoomTarget)
+    /// and the buyer's room in a takeover (Acquisitions). Read at today's tier depth (14-24) an Origins giant took and
+    /// carried men far past the depth it signs to (longsim origins 40 20, ORIGINS STAFFING). The trim at renewal keeps
+    /// today's tier depth on purpose (ContractLifecycle.DivisionOverTarget says why).
     /// </summary>
     public static int DivisionDepth(World world, Promotion p) =>
         world.Mode == WorldMode.Origins
@@ -109,9 +110,7 @@ public static class OrgSizing
 
     /// <summary>
     /// The seats past <see cref="DivisionDepth"/> a division may hold for a signing worth squeezing in: the poaching room
-    /// and a buyer's room in a takeover both allow it, and in an Origins world the trim at renewal keeps it too, so the
-    /// three never disagree. (With the trim at the depth and the room at depth + 2, an Origins giant let three men a year
-    /// go at renewal and took six from the smaller houses: longsim origins 40 20.) Today's mode trims at the depth.
+    /// and a buyer's room in a takeover both allow it (one constant, so the two never disagree).
     /// </summary>
     public const int RoomSlack = 2;
 

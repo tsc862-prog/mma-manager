@@ -105,35 +105,6 @@ public class OriginsStaffingTests
     }
 
     /// <summary>
-    /// At a deal's end an Origins giant split by weight lets a man go once his division holds more than the depth it
-    /// signs to and the same two seats of slack its poaching room allows (counting him), not today's tier depth of 14-24:
-    /// the trim reads the depth the free-agent pass and the poaching room read (<see cref="OrgSizing.DivisionDepth"/>) and
-    /// the room's slack (<see cref="OrgSizing.RoomSlack"/>). Trimmed at the bare depth, a giant let its own men go only to
-    /// take the small houses' men into the seats it had just freed.
-    /// </summary>
-    [Fact]
-    public void AnOriginsGiant_TrimsAtRenewal_OnlyPastItsDepthAndTheRoomsSlack()
-    {
-        var (w, giant, div) = SplitGiant();
-        int target = OriginsShows.DivisionRosterTarget(giant, distressed: false);
-        Assert.Equal(target, OrgSizing.DivisionDepth(w, giant));
-        Assert.Equal(2, OrgSizing.RoomSlack);
-        Assert.True(OrgSizing.RosterTargetPerDivision(OrgSizing.SizeOf(giant)) > target + 3);
-
-        var free = w.Fighters.Values.First(f => f.Status == FighterStatus.Active && div.Matches(f));
-        FillTo(w, giant, div, target + 2, free);
-        var man = w.RosterOf(giant.Id).Where(f => div.Matches(f) && f.Status != FighterStatus.Retired).OrderBy(f => f.Id.Value).First();
-        Assert.False(ContractLifecycle.DivisionOverTarget(w, giant, man), "at its depth and the room's two seats of slack: renewed as usual");
-        // Exactly as full as a poach may leave it: no room for another man, and no trim either.
-        var other = w.Fighters.Values.Where(f => f.Status == FighterStatus.Active && div.Matches(f) && f.Contract is not null && f.Contract.Promotion != giant.Id)
-            .OrderBy(f => f.Id.Value).First();
-        other.Intangibles.Popularity = new Rating(0);
-        Assert.False(PoachingService.HasRoom(w, giant, other));
-        FillTo(w, giant, div, target + 3, free);
-        Assert.True(ContractLifecycle.DivisionOverTarget(w, giant, man), "one past its slack: the deal runs out to trim the division");
-    }
-
-    /// <summary>
     /// When an Origins giant buys a house it carries the bought men into a division only up to its own depth and two seats
     /// of slack (as a poach), not today's tier depth: the rest are cut loose to the market. Champions always come over.
     /// </summary>
