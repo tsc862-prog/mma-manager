@@ -10,8 +10,8 @@ namespace MmaManager.Tests;
 /// The Origins giants stop taking the small houses' men once a division is as deep as they sign to on the open market
 /// (<see cref="PoachingService.RoomTarget"/>: <see cref="OriginsShows.DivisionRosterTarget"/>, about six a division once
 /// a house splits by weight, plus the usual two seats of slack). Read at today's tier depth (14-24 a division) the room
-/// gate let the giants take a small house's man at every deal's end until they held 120 men on a 48-man target, the free
-/// market emptied and the late small houses lived on open tryouts (longsim origins 40 20, ORIGINS STAFFING).
+/// gate let the giants take a small house's man at every deal's end until they held 155% of the men they sign to, the free
+/// market thinned and the late small houses lived on open tryouts (longsim origins 40 20, ORIGINS STAFFING).
 /// Today's mode keeps its tier depth.
 /// </summary>
 public class OriginsStaffingTests
