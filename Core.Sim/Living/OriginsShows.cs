@@ -136,13 +136,17 @@ public static class OriginsShows
             if (OriginsReforms.BoundByCode(world, promo)) return null;
             int size = Math.Max(2, promo.Rules.TournamentSize);
             // Only a house that could field the bracket today puts one on the books.
-            if (!TournamentService.PreviewField(world, promo, when, null, size).Full) return null;   // (the one field rule: TournamentService)
+            if (!TournamentService.PreviewField(world, promo, when, null, size).Full)   // (the one field rule: TournamentService)
+            {
+                TickProbe.Current?.Count($"staff|show|{promo.Id.Value}|no-field");   // (reporting only: longsim origins' staffing counts)
+                return null;
+            }
             ev = NewTournament(world, promo, when, $"{promo.Name} {number}", room);
         }
         else
         {
             var card = SuggestCard(world, promo.Id, when);
-            if (card.Count < 2) return null;
+            if (card.Count < 2) { TickProbe.Current?.Count($"staff|show|{promo.Id.Value}|no-field"); return null; }   // (reporting only, as above)
             ev = events.CreateEvent(world, promo.Id, NightName(promo, number), when, card, room.City);
             ev.Venue = room.Name; ev.VenueId = room.Id;
         }
