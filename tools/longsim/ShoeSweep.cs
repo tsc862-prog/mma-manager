@@ -699,7 +699,7 @@ public static class ShoeSweep
                 });
             }
         }
-        finally { FreeAgencyService.HarnessHandsOff = null; }
+        finally { FreeAgencyService.HarnessHandsOff = null; RoomFit.HarnessOldRooms = null; }
         offers.Finish(run.D, world);
         run.FinalPrestige = nwf.Prestige.Value;
         run.FinalTier = OrgSizing.SizeOf(nwf);
