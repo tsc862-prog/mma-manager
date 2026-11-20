@@ -359,6 +359,13 @@ public static class Financials
                         Draw(world, world.Get(main.BlueCorner), main, host));
     }
 
+    /// <summary>
+    /// What <paramref name="f"/> would draw on top of an ordinary (non-title, no-feud) card in <paramref name="host"/>:
+    /// the headliner term the box office uses. Public facts only (popularity, look, the city's knowledge of him).
+    /// </summary>
+    internal static int HeadlineDraw(World world, Fighter f, CityId? host) =>
+        Draw(world, f, new Fight { Id = default, RedCorner = f.Id, BlueCorner = f.Id }, host);
+
     // A fighter's drawing power: popularity, the marketable look baked into
     // their portrait (a menace sells stakes), how well the host city knows
     // them, and the hometown-hero surge when they fight where they're from.

@@ -16,8 +16,10 @@ namespace MmaManager.Core.Sim.Booking;
 /// went broke and were sold in 100 seeds x 5 years, against none on main.)</para>
 /// <para>This replaced <c>WorldMap.PickVenueIn</c> for AI cards in today's mode. That estimate used a flat 900 for
 /// the headliner and left out the market multipliers, so the giants sat in rooms half their crowd's size (the AFC's
-/// mean room was 12,750 against 26,800 who wanted in). The player's house and Origins houses do not come here: the
-/// player picks his own room, and Origins keeps its own rooms.</para>
+/// mean room was 12,750 against 26,800 who wanted in). The player's house and Origins houses are never refitted here:
+/// the player picks his own room, and Origins keeps its own rooms. The player's NEW card starts in this rule's room
+/// and the Card Desk marks it (<see cref="PlayerBooking.FittedRoom"/>), but once his card has a room only he moves
+/// it.</para>
 /// </summary>
 public static class RoomFit
 {

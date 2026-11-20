@@ -11,7 +11,8 @@ namespace MmaManager.Tests;
 /// office's own demand for the card and takes the best-netting room the crowd fills to half, else the
 /// smallest. Before this rule the pick (<see cref="WorldMap.PickVenueIn"/>) estimated the crowd with a flat 900 for
 /// the headliner and no market multipliers, and the flagship played a 12,750-seat room against 26,800 who wanted in
-/// (longsim, 200 seeds). The player's house and Origins houses keep their old rooms.
+/// (longsim, 200 seeds). The player's house is never refitted (his new card starts in the fitted room, which the Card
+/// Desk marks, and only he moves it after that); Origins houses keep their old rooms.
 /// </summary>
 public class RoomFitTests
 {
@@ -201,6 +202,101 @@ public class RoomFitTests
         Assert.Equal(EventTier.Ppv, sf.Tier);
         var rooms = w.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Id.Value).ToList();
         Assert.Same(RoomFit.Choose(w, sf, rooms, Financials.Demand(w, sf)), w.Get(sf.VenueId!.Value));
+    }
+
+    // ---- the player's default room and the Card Desk's marker -----------------------------------------------
+
+    // A free man of the house (match-ready, in deal, on no card), made the biggest draw on the roster.
+    private static Fighter MadeTheStar(World w, Promotion p, DateOnly date)
+    {
+        var busy = ForwardCalendar.Committed(w);
+        var star = w.RosterOf(p.Id).Where(f => !f.LocalTalent && !busy.Contains(f.Id) && f.Contract is { FightsRemaining: > 0 }
+                                              && f.IsMatchReady(date))
+            .OrderBy(f => f.Id.Value).First();
+        foreach (var f in w.RosterOf(p.Id)) f.Intangibles.Popularity = Math.Min(f.Intangibles.Popularity.Value, 60);
+        star.Intangibles.Popularity = 100;
+        return star;
+    }
+
+    [Fact]
+    public void APlayersNewCard_StartsInTheFittedRoom_AndTheMarkerPointsToIt()
+    {
+        // The default build hands the player the AFC. With a 100-popularity man free to headline, his new card in his
+        // home town starts in the room the sim fits an AI card with that man on top to: bigger than the old estimate's
+        // room (a flat 900 for the headliner, no market), which put the flagship in a hall a fraction of its crowd.
+        var w = Build(4);
+        var mine = w.Get(w.PlayerPromotion)!;
+        Assert.False(RoomFit.AppliesTo(w, mine));   // the player's cards are still never refitted by the sim
+        var city = mine.HomeCity!.Value;
+        var date = w.CurrentDate.AddDays(30);
+        var star = MadeTheStar(w, mine, date);
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(w, date, city: city);
+
+        var room = w.Get(ev.VenueId!.Value)!;
+        Assert.Equal(city, room.City);
+        Assert.Equal(room.Name, ev.Venue);
+        // Exactly the AI's rule for the card with its likely headliner on top.
+        var staged = new Event
+        {
+            Id = ev.Id, Promotion = ev.Promotion, Name = ev.Name, Date = ev.Date, VenueId = ev.VenueId, Region = ev.Region, Tier = ev.Tier,
+            Card = { new Fight { Id = default, RedCorner = star.Id, BlueCorner = star.Id } },
+        };
+        Assert.Same(RoomFit.Pick(w, staged, city), room);
+        Assert.True(WorldMap.PickVenueIn(w, mine, city)!.Capacity < room.Capacity);
+
+        // The Card Desk marks that room as the sim's pick.
+        var options = booking.VenueOptions(w, ev);
+        Assert.Equal(ev.VenueId, Assert.Single(options, o => o.SimPick).Venue);
+        Assert.Equal(ev.VenueId, Assert.Single(options, o => o.Selected).Venue);
+    }
+
+    [Fact]
+    public void TheMarker_FollowsTheCard_ButTheCardsRoomNeverMovesByItself()
+    {
+        var w = Build(4);
+        var mine = w.Get(w.PlayerPromotion)!;
+        var city = mine.HomeCity!.Value;
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(w, w.CurrentDate.AddDays(10), city: city);
+        var chosen = Smallest(w, city);
+        Assert.True(booking.SetVenue(w, ev, chosen.Id, out var err), err);
+
+        // A big main event on top: the marker moves to the room the card now fits; the card stays where he put it.
+        foreach (var m in ReadyBouts(w, mine, 3, pop: 95))
+            Assert.True(booking.AddBout(w, ev, m.Red, m.Blue, 3, false, out var why), why);
+        var fit = RoomFit.Pick(w, ev, city)!;
+        Assert.NotEqual(chosen.Id, fit.Id);
+        Assert.Equal(fit.Id, Assert.Single(booking.VenueOptions(w, ev), o => o.SimPick).Venue);
+        Assert.Equal(chosen.Id, ev.VenueId);
+
+        // The weeks before (announcements, the weekly pass) and fight night leave his room alone.
+        var tick = new WorldTick();
+        for (int i = 0; i < 3 && ev.Status == EventStatus.Scheduled; i++)
+        {
+            tick.AdvanceWeek(w);
+            Assert.Equal(chosen.Id, ev.VenueId);
+            Assert.Equal(chosen.Name, ev.Venue);
+        }
+        Assert.Equal(EventStatus.Completed, ev.Status);
+        Assert.Equal(chosen.Id, ev.VenueId);
+        Assert.Equal(chosen.Capacity, ev.Financials!.Attendance);   // sold out: the crowd was there
+    }
+
+    [Fact]
+    public void AnOriginsPlayersCard_KeepsItsOwnRoomAndMarker()
+    {
+        var w = new WorldBuilder().Build(WorldBuilder.Options.Origins(3, 0));
+        var mine = w.Get(w.PlayerPromotion)!;
+        var date = w.CurrentDate.AddDays(30);
+        var expected = OriginsShows.PlayerVenue(w, mine, date, null);
+        var booking = new PlayerBooking();
+        var ev = booking.CreateEvent(w, date);
+        Assert.Equal(expected?.Id, ev.VenueId);
+
+        var city = w.Get(ev.VenueId!.Value)!.City;
+        var marker = booking.VenueOptions(w, ev).Where(o => o.SimPick).Select(o => (VenueId?)o.Venue).SingleOrDefault();
+        Assert.Equal(WorldMap.PickVenueIn(w, mine, city)?.Id, marker);
     }
 
     [Fact]

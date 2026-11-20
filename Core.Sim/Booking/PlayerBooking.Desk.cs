@@ -357,14 +357,16 @@ public sealed partial class PlayerBooking
     /// The rooms in the card's host city, smallest first, each with the house it
     /// would hold, the gate and PPV it would take, production with rent, and the
     /// box office (gate + PPV − production − rent; purses are the same in every
-    /// room). <see cref="VenueOption.SimPick"/> marks the room the sim would choose
-    /// (<see cref="WorldMap.PickVenueIn"/>); <see cref="VenueOption.Selected"/> the current one.
+    /// room). <see cref="VenueOption.SimPick"/> marks the room the sim would choose for the card as it stands
+    /// (<see cref="FittedRoom"/>, today's mode; <see cref="WorldMap.PickVenueIn"/> in Origins); it follows the card
+    /// as bouts are added, while the card's own room never moves by itself. <see cref="VenueOption.Selected"/> is the
+    /// current one.
     /// </summary>
     public IReadOnlyList<VenueOption> VenueOptions(World world, Event ev)
     {
         var promo = world.Get(ev.Promotion);
         if (!IsMine(world, ev) || promo is null || WorldMap.CityOf(world, ev) is not { } city) return Array.Empty<VenueOption>();
-        var simPick = WorldMap.PickVenueIn(world, promo, city)?.Id;
+        var simPick = (world.Mode == WorldMode.Origins ? WorldMap.PickVenueIn(world, promo, city) : FittedRoom(world, promo, ev, city))?.Id;
         var list = new List<VenueOption>();
         int demand = -1;
         foreach (var v in world.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Capacity).ThenBy(v => v.Id.Value))
@@ -390,10 +392,44 @@ public sealed partial class PlayerBooking
         if (world.Get(venue) is not { } v) { error = "That venue doesn't exist."; return false; }
         if (world.Get(ev.Promotion) is not { } promo) { error = "Promotion not found."; return false; }
         if (!Org.OrgReach.CanBookIn(world, promo, v.City)) { error = "That city is beyond the promotion's reach."; return false; }
+        PutIn(world, ev, v);
+        return true;
+    }
+
+    private static void PutIn(World world, Event ev, Venue v)
+    {
         ev.VenueId = v.Id;
         ev.Venue = v.Name;
         if (world.Get(v.City) is { } c) ev.Region = c.Region;
-        return true;
+    }
+
+    /// <summary>
+    /// The room in <paramref name="city"/> the sim would book the player's card in (today's mode): the room an AI
+    /// house's card is fitted to (<see cref="RoomFit.Pick"/>: the best-netting room the night's crowd fills at least
+    /// half), for the card as it stands. A card with no bouts yet is read with its likely headliner on top: the
+    /// house's biggest draw free that night (match-ready, in deal, on no other card; the box office's own headliner
+    /// term, public facts only). A house with nobody free keeps the old estimate (<see cref="WorldMap.PickVenueIn"/>,
+    /// which assumes a typical headliner). Read-only: this never moves the card.
+    /// </summary>
+    public static Venue? FittedRoom(World world, Promotion promo, Event ev, CityId city)
+    {
+        if (ev.Card.Count > 0) return RoomFit.Pick(world, ev, city);
+        var star = world.RosterOf(promo.Id)
+            .Where(f => !f.LocalTalent && f.IsMatchReady(ev.Date) && !BookedElsewhere(world, ev, f.Id)
+                        && !Contracts.DealWindow.OutOfDeal(world, f))
+            .Select(f => (Man: f, Draw: Financials.HeadlineDraw(world, f, city)))
+            .OrderByDescending(x => x.Draw).ThenBy(x => x.Man.Id.Value)
+            .Select(x => x.Man)
+            .FirstOrDefault();
+        if (star is null) return WorldMap.PickVenueIn(world, promo, city);
+        var staged = new Event
+        {
+            Id = ev.Id, Promotion = ev.Promotion, Name = ev.Name, Date = ev.Date, Venue = ev.Venue, VenueId = ev.VenueId,
+            Region = ev.Region, Tier = ev.Tier, Format = ev.Format, Status = ev.Status, HypeBonus = ev.HypeBonus,
+            MainCardFights = ev.MainCardFights,
+            Card = { new Fight { Id = default, RedCorner = star.Id, BlueCorner = star.Id } },
+        };
+        return RoomFit.Pick(world, staged, city);
     }
 
     // A stand-in for the card in another room, for read-only projections. It
