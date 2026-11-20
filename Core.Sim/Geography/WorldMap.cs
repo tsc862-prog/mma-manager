@@ -118,6 +118,9 @@ public static class WorldMap
     /// <summary>
     /// The best room for this promotion in a specific city: the venue whose
     /// capacity best matches what the org can expect to draw there.
+    /// <para>The default room for the player's own cards (he picks his own) and for Origins houses. An AI house in
+    /// today's mode fits its room to its card's own demand instead (<see cref="Booking.RoomFit"/>): this estimate
+    /// has a flat 900 for the headliner and no market multipliers, and left the giants in rooms half their crowd.</para>
     /// </summary>
     public static Venue? PickVenueIn(World world, Promotion promo, CityId city)
     {
