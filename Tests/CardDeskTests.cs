@@ -266,7 +266,8 @@ public class CardDeskTests
 
         var options = booking.VenueOptions(world, ev);
         Assert.Equal(world.Venues.Values.Count(v => v.City == city), options.Count);
-        Assert.Equal(MmaManager.Core.Sim.Geography.WorldMap.PickVenueIn(world, promo, city)!.Id, Assert.Single(options, o => o.SimPick).Venue);
+        Assert.Equal(PlayerBooking.FittedRoom(world, promo, ev, city)!.Id, Assert.Single(options, o => o.SimPick).Venue);
+        Assert.Equal(RoomFit.Pick(world, ev, city)!.Id, Assert.Single(options, o => o.SimPick).Venue);   // a booked card: the AI's rule
         Assert.Equal(ev.VenueId, Assert.Single(options, o => o.Selected).Venue);
         Assert.All(options, o => Assert.True(o.ProjectedAttendance <= o.Capacity));
         Assert.All(options, o => Assert.Equal(Math.Min(o.Demand, o.Capacity), o.ProjectedAttendance));

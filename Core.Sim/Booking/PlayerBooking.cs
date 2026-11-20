@@ -62,6 +62,12 @@ public sealed partial class PlayerBooking
             Tier = tier,
             Status = EventStatus.Scheduled,
         };
+        // Today's mode: the city is settled above; the room in it is the one the sim fits an AI card to (RoomFit),
+        // for this card as it is about to stand (FittedRoom: empty, so its likely headliner). Set once, here: from
+        // now on the room only changes when the player changes it.
+        if (!origins && promo is not null && venue is not null && FittedRoom(world, promo, ev, venue.City) is { } fit
+            && fit.Id != venue.Id)
+            PutIn(world, ev, fit);
         world.Events[ev.Id] = ev;
         return ev;
     }
