@@ -225,7 +225,11 @@ public sealed class MediaHealth
 
         // The acquisitions audit: every in-run sale, the seller's media trouble in the year before, and the fate of
         // every day-one org that was ever National+.
-        var byName = world.Promotions.Values.ToDictionary(p => p.Name);
+        // Names can repeat (a later house may take a dead one's name): the seller is the defunct house of that name last
+        // seen alive closest before the sale, ties to the lower id.
+        Promotion? SellerOf(string name, DateOnly on) => world.Promotions.Values
+            .Where(p => p.Name == name && p.Defunct && _last.TryGetValue(p.Id, out var l) && l.On <= on.AddDays(7))
+            .OrderByDescending(p => _last[p.Id].On).ThenBy(p => p.Id.Value).FirstOrDefault();
         string Media(PromotionId id, DateOnly from, DateOnly to)
         {
             var l = _log.GetValueOrDefault(id) ?? new();
@@ -239,7 +243,7 @@ public sealed class MediaHealth
             {
                 if (e.Category != FinanceCategory.Acquisition || e.Amount.Amount >= 0 || e.Date <= start) continue;
                 string name = e.Description.Replace("Acquisition of ", "");
-                if (!byName.TryGetValue(name, out var seller)) continue;
+                if (SellerOf(name, e.Date) is not { } seller) continue;
                 sold.Add(seller.Id);
                 var last = _last.GetValueOrDefault(seller.Id);
                 var yearBefore = e.Date.AddDays(-365);
