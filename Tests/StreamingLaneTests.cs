@@ -155,6 +155,117 @@ public class StreamingLaneTests
         Assert.DoesNotContain(house.MediaDeals, d => d.Kind == MediaKind.MajorStream);
     }
 
+    private static DealOffer WithTerms(DealOffer o, params DealRequirement[] terms) => new()
+    {
+        Media = o.Media, Partner = o.Partner, FeePerEvent = o.FeePerEvent, Term = o.Term,
+        Requirements = terms.ToList(), OfferedOn = o.OfferedOn, ExpiresOn = o.ExpiresOn,
+    };
+
+    /// <summary>Subscribers at which the platform nets just under (or, one more, just over) the given quarterly sum.</summary>
+    private static int SubscribersNetting(Promotion house, decimal perQuarter)
+    {
+        // Net per quarter = 3 x (subs x 6 - (6,000 + subs x 0.6)) = 16.2 x subs - 18,000.
+        int subs = (int)Math.Floor((perQuarter + 18_000m) / 16.2m);
+        house.Stream!.Subscribers = subs;
+        if (MediaService.PlatformPerQuarter(house) >= perQuarter) subs--;
+        return subs;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheDecision_TurnsOnTheQuarterlyNet_AtTheBoundary(bool justUnder)
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        var offer = GiantOffer(world, "Arena+", 1_000_000m);
+        decimal value = MediaService.OfferPerQuarter(world, house, offer);
+        Assert.True(value > 1_000_000m);
+        int subs = SubscribersNetting(house, value);
+        house.Stream!.Subscribers = justUnder ? subs : subs + 1;
+        decimal net = MediaService.PlatformPerQuarter(house);
+        Assert.True(justUnder ? net < value && value - net < 20m : net > value && net - value < 20m);
+        Assert.Equal(justUnder, MediaService.TakesOverPlatform(world, house, offer));
+    }
+
+    [Fact]
+    public void TheStarClause_WeighsTheOffer_AndAHouseThatWouldMissItMostlyRefuses()
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        house.Stream!.Subscribers = 0;                           // the platform loses money: only the terms can say no
+        var plain = GiantOffer(world, "Arena+", 1_000_000m);
+        var nobody = WithTerms(plain, new DealRequirement(DealRequirementKind.MinStarPower, 101));
+        Assert.Equal(0, MediaService.RecordAgainst(world, house, nobody).Cleared);
+        Assert.Equal(MediaService.OfferPerQuarter(world, house, plain) / 2, MediaService.OfferPerQuarter(world, house, nobody));
+        Assert.True(MediaService.TakesOverPlatform(world, house, plain));
+        Assert.False(MediaService.TakesOverPlatform(world, house, nobody));
+
+        // The share is the house's own main events against the clause, popularity as it stands.
+        int today = world.CurrentDate.DayNumber;
+        var mains = world.Events.Values.Where(e => e.Promotion == house.Id && e.Status == EventStatus.Completed && e.Card.Count > 0
+            && e.Date.DayNumber <= today && today - e.Date.DayNumber < 365).Select(e => e.Card[^1]).ToList();
+        int Pop(FighterId id) => world.Get(id)?.Intangibles.Popularity.Value ?? 0;
+        var pops = mains.Select(b => Math.Max(Pop(b.RedCorner), Pop(b.BlueCorner))).OrderBy(x => x).ToList();
+        int mid = pops[pops.Count / 2];
+        var some = WithTerms(plain, new DealRequirement(DealRequirementKind.MinStarPower, mid));
+        var rec = MediaService.RecordAgainst(world, house, some);
+        Assert.Equal(mains.Count, rec.Cards);
+        Assert.Equal(pops.Count(x => x >= mid), rec.Cleared);
+        Assert.Equal((rec.Cards - rec.Cleared) * MediaService.MissOneIn <= rec.Cards, MediaService.TakesOverPlatform(world, house, some));
+    }
+
+    [Fact]
+    public void AHouseWithNoCardInAYear_NeverTakesADeal()
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        house.Stream!.Subscribers = 0;                           // the platform is losing money today
+        world.CurrentDate = world.CurrentDate.AddYears(2);       // and nothing has run since
+        var offer = GiantOffer(world, "Arena+", 5_000_000m);
+        Assert.True(MediaService.PlatformPerQuarter(house) < 0);
+        Assert.Equal(0m, MediaService.OfferPerQuarter(world, house, offer));
+        Assert.False(MediaService.TakesOverPlatform(world, house, offer));
+    }
+
+    [Fact]
+    public void AYoungHouse_IsPacedOverTheTimeItHasRun()
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        var first = world.Events.Values.Where(e => e.Promotion == house.Id && e.Status == EventStatus.Completed && e.Card.Count > 0)
+            .Min(e => e.Date);
+        world.CurrentDate = first.AddDays(120);                  // as if it had run four months
+        var offer = GiantOffer(world, "Arena+", 1_000_000m);
+        var rec = MediaService.RecordAgainst(world, house, offer);
+        int cards = world.Events.Values.Count(e => e.Promotion == house.Id && e.Status == EventStatus.Completed && e.Card.Count > 0
+            && e.Date >= first && e.Date <= world.CurrentDate);
+        Assert.Equal(120, rec.Days);
+        Assert.Equal(cards, rec.Cards);
+        Assert.Equal(1_000_000m * MediaService.RightsPremium(world, house) * cards * 91m / 120m, MediaService.OfferPerQuarter(world, house, offer));
+    }
+
+    [Fact]
+    public void AFreedGiant_ShopsAroundToAHouseOnItsOwnPlatform()
+    {
+        // A giant that walks out of one house pitches the most prestigious house that could use it, and a house on its
+        // own platform is one of those now. (Revert the ShopAround line and the pitch goes elsewhere or nowhere.)
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        var holder = world.Promotions.Values.Where(p => p.Id != house.Id && p.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream))
+            .OrderBy(p => p.Id.Value).First();
+        var deal = holder.MediaDeals.First(d => d.Kind == MediaKind.MajorStream);
+        house.PrestigeHundredths = 9_900;                        // the top of the sport
+        house.Offers.Clear();
+        house.CourtedBy.Clear();
+        deal.Strikes = 1;                                        // not renewed with a strike at term end
+        deal.MonthsRemaining = 1;
+        MediaService.RunMonthly(world, holder, world.CurrentDate, new SimRandom(5));
+
+        Assert.DoesNotContain(deal, holder.MediaDeals);
+        Assert.Contains(house.Offers, o => o.Media == MediaKind.MajorStream && o.Partner == deal.Partner);
+    }
+
     [Fact]
     public void AnOriginsWorld_KeepsTheOldLane()
     {
@@ -171,9 +282,9 @@ public class StreamingLaneTests
     public void CourtingBack_MakesNoDrawOnTheSharedStream()
     {
         // A house whose other lanes are pinned drew nothing on the shared stream in a month before this change
-        // (its streaming lane read as held), and still draws nothing while the giants court it and it signs:
+        // (its streaming lane read as held), and still draws nothing while the giants court it:
         // their calls at a house on its own platform roll on their own keyed hashes. (Once a deal holds the lane
-        // the ordinary rules run, renewal coin flip included, so the check stops at the signing.)
+        // the ordinary rules run, renewal coin flip included, so the check stops at the first call.)
         var world = Build();
         var house = OwnPlatformHouse(world);
         QuietOtherLanes(house);
@@ -186,9 +297,8 @@ public class StreamingLaneTests
             var twin = new SimRandom(77);
             MediaService.RunMonthly(world, house, world.CurrentDate.AddMonths(m), used);
             Assert.True(twin.NextULong() == used.NextULong(), $"month {m} drew on the shared stream");
-            courted = house.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream);
+            courted = house.Offers.Any(o => o.Media == MediaKind.MajorStream) || house.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream);
         }
-        Assert.True(courted, "no giant signed the house in two years");
-        Assert.Null(house.Stream);
+        Assert.True(courted, "no giant called on the house in two years");
     }
 }

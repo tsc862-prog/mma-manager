@@ -322,15 +322,56 @@ public static class MediaService
     private static double Unit(ulong h) => (h >> 11) * (1.0 / (1UL << 53));
 
     /// <summary>
-    /// What a rights deal would pay this house per quarter: the offer's public fee per card, times the
-    /// premium the house's own rights earn (<see cref="RightsPremium"/>), times the cards it ran in the last
-    /// year over four (its own calendar, as it stands). Full pay assumed (a card that misses terms pays half).
+    /// The house's own last year of cards read against an offer's public terms: how many it ran, over how many days
+    /// it has actually been running (the year, or less for a young house: since its first card, at least a quarter),
+    /// how many had a main event whose better-known man clears the offer's star clause (popularity as it stands, a
+    /// public fact; the clause judges the bout that runs last, see <see cref="DealCompliance"/>), and whether its
+    /// pace keeps the offer's cadence clause. Draws nothing.
+    /// </summary>
+    public readonly record struct TrackRecord(int Cards, int Days, int Cleared, bool KeepsCadence)
+    {
+        /// <summary>The share of its recent cards that would have cleared the offer's star clause (1 when it has none).</summary>
+        public double ClearedShare => Cards == 0 ? 0 : (double)Cleared / Cards;
+    }
+
+    /// <summary>A giant's offer is turned down when the house would have failed its star clause on more than one in this many of its recent cards (a third).</summary>
+    public const int MissOneIn = 3;
+
+    public static TrackRecord RecordAgainst(World world, Promotion promo, DealOffer offer)
+    {
+        int today = world.CurrentDate.DayNumber;
+        int? bar = offer.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.MinStarPower)?.Threshold;
+        int? cadence = offer.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence)?.Threshold;
+        int cards = 0, cleared = 0, first = int.MaxValue;
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Promotion != promo.Id || e.Status != EventStatus.Completed || e.Card.Count == 0 || e.Date.DayNumber > today) continue;
+            first = Math.Min(first, e.Date.DayNumber);
+            if (today - e.Date.DayNumber >= 365) continue;
+            cards++;
+            var main = e.Card[^1];
+            int pop = Math.Max(world.Get(main.RedCorner)?.Intangibles.Popularity.Value ?? 0,
+                world.Get(main.BlueCorner)?.Intangibles.Popularity.Value ?? 0);
+            if (bar is not { } b || pop >= b) cleared++;
+        }
+        int days = cards == 0 ? 365 : Math.Clamp(today - first, 91, 365);
+        bool keeps = cards > 0 && (cadence is not { } c || (double)days / cards <= c);
+        return new TrackRecord(cards, days, cleared, keeps);
+    }
+
+    /// <summary>
+    /// What a rights deal can be expected to pay this house per quarter: the offer's public fee per card, times the
+    /// premium the house's own rights earn (<see cref="RightsPremium"/>), times its pace of cards per quarter over the
+    /// time it has been running, at full pay on the share of its recent cards that cleared the offer's star clause and
+    /// half pay on the rest (what a card that misses terms earns). 0 with no card in the last year.
     /// </summary>
     public static decimal OfferPerQuarter(World world, Promotion promo, DealOffer offer)
     {
-        int cards = world.Events.Values.Count(e => e.Promotion == promo.Id && e.Status == EventStatus.Completed
-            && world.CurrentDate.DayNumber - e.Date.DayNumber < 365);
-        return offer.FeePerEvent.Amount * RightsPremium(world, promo) * cards / 4m;
+        var rec = RecordAgainst(world, promo, offer);
+        if (rec.Cards == 0) return 0m;
+        decimal perQuarter = rec.Cards * 91m / rec.Days;
+        decimal pay = (decimal)(rec.ClearedShare + (1 - rec.ClearedShare) * 0.5);
+        return offer.FeePerEvent.Amount * RightsPremium(world, promo) * perQuarter * pay;
     }
 
     /// <summary>What the house's own platform nets per quarter at today's audience (income less running cost); 0 without one.</summary>
@@ -342,13 +383,19 @@ public static class MediaService
     }
 
     /// <summary>
-    /// Does an AI house on its own platform take this streaming giant's offer? Only when the deal pays more
-    /// per quarter than the platform nets (<see cref="OfferPerQuarter"/> against <see cref="PlatformPerQuarter"/>).
-    /// Deterministic; reads only the house's own books and calendar and the offer's public terms.
+    /// Does an AI house on its own platform take this streaming giant's offer? Only when its recent cards say it can
+    /// keep the terms (a card in the last year; its pace inside the cadence clause; the star clause cleared on all but
+    /// at most one in <see cref="MissOneIn"/> of them) AND the deal's expected pay beats what the platform nets
+    /// (<see cref="OfferPerQuarter"/> against <see cref="PlatformPerQuarter"/>). Deterministic; reads only the house's
+    /// own books and calendar, public popularity, and the offer's public terms.
     /// </summary>
-    public static bool TakesOverPlatform(World world, Promotion promo, DealOffer offer) =>
-        offer.Media == MediaKind.MajorStream && OnOwnPlatform(world, promo)
-        && OfferPerQuarter(world, promo, offer) > PlatformPerQuarter(promo);
+    public static bool TakesOverPlatform(World world, Promotion promo, DealOffer offer)
+    {
+        if (offer.Media != MediaKind.MajorStream || !OnOwnPlatform(world, promo)) return false;
+        var rec = RecordAgainst(world, promo, offer);
+        if (rec.Cards == 0 || !rec.KeepsCadence || (rec.Cards - rec.Cleared) * MissOneIn > rec.Cards) return false;
+        return OfferPerQuarter(world, promo, offer) > PlatformPerQuarter(promo);
+    }
 
     /// <summary>
     /// Close the house's own platform: the subscribers go and the running costs stop, the way a platform
