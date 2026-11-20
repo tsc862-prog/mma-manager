@@ -2112,6 +2112,40 @@ public partial class App : Application
                     Layout();
                     Console.WriteLine($"RENDERAPP fame drilled into {spot.Where} ({spot.City} {spot.Fame})");
                 }
+                // The drawn World Map's states: --maplist (the List of place cards instead), --mapregion <Europe|MiddleEast|...>
+                // (zoomed to a region, as a click on its name does), --mapcity <name> (a city clicked: its country's cards
+                // beside the zoomed map), --hover <city name> / --hovercountry <Natural Earth code> (the hover card).
+                if (appId == "map")
+                {
+                    var wm = vm.WorldMap;
+                    if (e.Args.Contains("--maplist")) wm.ShowList = true;
+                    if (e.Args.Contains("--mapregion"))
+                        wm.MapRegionCommand.Execute(Enum.Parse<MmaManager.Core.Model.Region>(e.Args[Array.IndexOf(e.Args, "--mapregion") + 1], true));
+                    if (e.Args.Contains("--mapcity"))
+                    {
+                        string name = e.Args[Array.IndexOf(e.Args, "--mapcity") + 1];
+                        wm.MapSpotCommand.Execute(wm.MapSpots.FirstOrDefault(s => s.Name == name));
+                    }
+                    Layout();
+                    if (e.Args.Contains("--hover"))
+                    {
+                        string name = e.Args[Array.IndexOf(e.Args, "--hover") + 1];
+                        wm.HoverSpot = wm.MapSpots.FirstOrDefault(s => s.Name == name);
+                    }
+                    if (e.Args.Contains("--hovercountry")) wm.HoverCountry = e.Args[Array.IndexOf(e.Args, "--hovercountry") + 1];
+                    // --mapadvance: a week goes by with the map drilled in (the drill, layer and subject must survive the refresh).
+                    if (e.Args.Contains("--mapadvance"))
+                    {
+                        string before = $"{string.Join(" > ", wm.Breadcrumb.Select(c => c.Label))} / {wm.Layer} / list {wm.ShowList}";
+                        vm.AdvanceWeekCommand.Execute(null);
+                        string after = $"{string.Join(" > ", wm.Breadcrumb.Select(c => c.Label))} / {wm.Layer} / list {wm.ShowList}";
+                        Console.WriteLine($"RENDERAPP map across a week: before [{before}] after [{after}] {(before == after ? "KEPT" : "CHANGED")}");
+                    }
+                    Layout();
+                    Console.WriteLine($"RENDERAPP map: list {wm.ShowList}, level {string.Join(" > ", wm.Breadcrumb.Select(c => c.Label))}, layer {wm.Layer}, "
+                        + $"{wm.MapSpots.Count} cities ({wm.MapSpots.Count(s => s.Lit)} lit, {wm.MapSpots.Count(s => s.AlwaysLabel)} always labelled), "
+                        + $"{wm.MapFills.Count} tinted lands, {MmaManager.Wpf.Map.WorldShapes.Land.Count} land shapes; hover '{wm.HoverTitle}' {wm.HoverValue} / {wm.HoverOrgs}");
+                }
                 // --talks <fa|lifer|unhappy>: put someone across the Contracts table (or on the
                 // Fighter Profile, when that's the app): the top free agent, or one of our own
                 // made a holding lifer (a company man at loyalty 90) — "unhappy" also puts the

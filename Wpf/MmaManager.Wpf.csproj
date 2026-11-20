@@ -19,6 +19,12 @@
     <ProjectReference Include="..\Persistence\Persistence.csproj" />
   </ItemGroup>
 
+  <!-- The World Map's land: Natural Earth 1:110m Admin 0 countries (public domain), as compact text
+       (see the file's header and Map\WorldShapes.cs). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Map\world-countries-110m.txt" LogicalName="MmaManager.Wpf.Map.world-countries-110m.txt" />
+  </ItemGroup>
+
   <!-- Bundled fighter art. Assets\Painted is the AI-painted pack (approved
        identities shipped by the separate FighterArt project at E:/FighterArt via
        sync/syncassets.py; face + body per life stage). Loaders degrade gracefully
