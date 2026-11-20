@@ -58,15 +58,16 @@ namespace MmaManager.Tests;
 /// or not, before any card runs; today's mode only, no draw). Both modern pins move; no Origins pin does (all four equal
 /// main's at e20705f).
 /// Recaptured on world/afc-headliners (an AI house on television puts on top the bout whose better-known man clears its
-/// strictest live star clause, an overdue belt excepted: Matchmaker.StarTier at booking, ForwardCalendar.HeadlineForTheNetwork on the running
-/// order; no draw). Both modern pins move; no Origins pin does (all four equal main's at c804505).
+/// strictest live star clause (an overdue belt is still the one booked): Matchmaker.StarTier at booking, ForwardCalendar.HeadlineForTheNetwork on the running
+/// order; no draw; a displaced non-title main back to three rounds; a new top of an announced bill is news). Both modern
+/// pins move; no Origins pin does (all four equal main's at c804505).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "E9DA90AC2071B1A8C0B9",   // 2027-12-30, 4624 events, 7559 fighters
-        ["modern-player-4-y2"] = "A099BF62A08C7B5BBD83",   // 2027-12-30, 4572 events, 7574 fighters
+        ["modern-ai-11-y2"] = "66238247139CDBF79877",   // 2027-12-30, 4629 events, 7555 fighters
+        ["modern-player-4-y2"] = "CC86C1D670849525F8A8",   // 2027-12-30, 4572 events, 7553 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
