@@ -36,6 +36,20 @@ public sealed class MediaHealth
     public int AfcTurnedAway, AfcRoomCards, AfcCardsOverRoom;
     public decimal AfcGateTurnedAway, AfcDemand, AfcCapacity;
 
+    // Per org (for the acquisitions audit): dated strikes and losses, weeks for sale, last weekly tier and bank.
+    private readonly Dictionary<PromotionId, List<(DateOnly Date, string What)>> _log = new();
+    private readonly Dictionary<PromotionId, int> _forSaleWeeks = new();
+    private readonly Dictionary<PromotionId, (OrgSize Tier, decimal Bank, DateOnly On)> _last = new();
+    /// <summary>One line per acquisition and one per day-one National+ org's fate (printed raw, joined across runs by hand).</summary>
+    public readonly List<string> AcqRows = new(), FateRows = new();
+    public readonly Dictionary<(string Tier, string Why), int> AcqBy = new();
+
+    private void Log(PromotionId p, DateOnly d, string what)
+    {
+        if (!_log.TryGetValue(p, out var l)) _log[p] = l = new();
+        l.Add((d, what));
+    }
+
     private sealed record DealSnap(MediaDeal Deal, int Strikes, DateOnly? LastAired, int Months);
     private sealed record OrgSnap(Promotion P, OrgSize Tier, bool HadStream, List<DealSnap> Deals);
     private Dictionary<PromotionId, OrgSnap> _before = new();
@@ -81,6 +95,7 @@ public sealed class MediaHealth
                 bool star = missed.Contains(DealRequirementKind.MinStarPower), quality = missed.Contains(DealRequirementKind.MinCardQuality);
                 string what = star && quality ? "star+quality" : star ? "star" : quality ? "quality" : "other";
                 foreach (var w in who) Add(Strikes, (w, what));
+                Log(ev.Promotion, ev.Date, "strike:" + what);
             }
 
             // The strictest live star clause against the man on top.
@@ -112,6 +127,8 @@ public sealed class MediaHealth
             if (p.Defunct) continue;
             var who = Who(p, snap.Tier).ToList();
             foreach (var w in who) Add(OrgWeeks, w);
+            _last[p.Id] = (snap.Tier, p.Balance.Amount, world.CurrentDate);
+            if (MmaManager.Core.Sim.Living.Acquisitions.IsForSale(world, p)) _forSaleWeeks[p.Id] = _forSaleWeeks.GetValueOrDefault(p.Id) + 1;
             var ladder = MediaService.LadderView(world, p);
             ranBy.TryGetValue(p.Id, out var cards);
             foreach (var d in snap.Deals)
@@ -127,6 +144,7 @@ public sealed class MediaHealth
                     : p.MediaDeals.Any(x => MediaLanes.LaneOf(x.Kind) == MediaLanes.LaneOf(d.Deal.Kind)) ? "replaced"
                     : "other";
                 foreach (var w in who) Add(Lost, (w, why));
+                Log(p.Id, world.CurrentDate, "lost:" + why);
             }
 
             // The streaming lane at houses a streaming giant would sign.
@@ -191,6 +209,42 @@ public sealed class MediaHealth
             else run = 0;
         }
         if (AfcMinQuarterBank == decimal.MaxValue) AfcMinQuarterBank = 0;
+
+        // The acquisitions audit: every in-run sale, the seller's media trouble in the year before, and the fate of
+        // every day-one org that was ever National+.
+        var byName = world.Promotions.Values.ToDictionary(p => p.Name);
+        string Media(PromotionId id, DateOnly from, DateOnly to)
+        {
+            var l = _log.GetValueOrDefault(id) ?? new();
+            int N(string w) => l.Count(x => x.Date > from && x.Date <= to && x.What == w);
+            return $"star {N("strike:star") + N("strike:star+quality")} qual {N("strike:quality")} lost3s {N("lost:walked at 3 strikes")} lost1s {N("lost:not renewed (a strike)")} coin {N("lost:not renewed (coin flip)")} repl {N("lost:replaced")}";
+        }
+        decimal Tv(Promotion p, DateOnly from, DateOnly to) => p.Ledger.Where(e => e.Category == FinanceCategory.Broadcast && e.Date > from && e.Date <= to).Sum(e => e.Amount.Amount);
+        var sold = new HashSet<PromotionId>();
+        foreach (var buyer in world.Promotions.Values)
+            foreach (var e in buyer.Ledger)
+            {
+                if (e.Category != FinanceCategory.Acquisition || e.Amount.Amount >= 0 || e.Date <= start) continue;
+                string name = e.Description.Replace("Acquisition of ", "");
+                if (!byName.TryGetValue(name, out var seller)) continue;
+                sold.Add(seller.Id);
+                var last = _last.GetValueOrDefault(seller.Id);
+                var yearBefore = e.Date.AddDays(-365);
+                int star = (_log.GetValueOrDefault(seller.Id) ?? new()).Count(x => x.Date > yearBefore && x.Date <= e.Date && x.What.StartsWith("strike:star"));
+                int walks = (_log.GetValueOrDefault(seller.Id) ?? new()).Count(x => x.Date > yearBefore && x.Date <= e.Date && (x.What == "lost:walked at 3 strikes" || x.What == "lost:not renewed (a strike)"));
+                string why = star >= 3 || walks > 0 ? "star strikes/deal lost in the year before" : "no media trouble in the year before";
+                AcqBy[(OrgSizing.Label(last.Tier), why)] = AcqBy.GetValueOrDefault((OrgSizing.Label(last.Tier), why)) + 1;
+                AcqRows.Add($"ACQ seed {Seed} {seller.Abbreviation} ({OrgSizing.Label(last.Tier)}) bought {e.Date:yyyy-MM-dd} by {buyer.Abbreviation} for {-e.Amount.Amount / 1_000_000m:0.00}M"
+                    + $" · last bank {last.Bank / 1_000_000m:0.00}M · weeks for sale {_forSaleWeeks.GetValueOrDefault(seller.Id)} · year before: {Media(seller.Id, yearBefore, e.Date)}"
+                    + $" · broadcast year before {Tv(seller, yearBefore, e.Date) / 1_000_000m:0.00}M vs first year {Tv(seller, start, start.AddDays(365)) / 1_000_000m:0.00}M");
+            }
+        foreach (var p in world.Promotions.Values.OrderBy(p => p.Id.Value))
+        {
+            if (!_last.TryGetValue(p.Id, out var l) || p.Abbreviation == "AFC") continue;
+            if (!_log.ContainsKey(p.Id) && l.Tier < OrgSize.National && !_forSaleWeeks.ContainsKey(p.Id)) continue;
+            string fate = sold.Contains(p.Id) ? "bought" : p.Defunct ? "bankrupt" : "alive";
+            FateRows.Add($"FATE seed {Seed} {p.Abbreviation} {fate} · last tier {OrgSizing.Label(l.Tier)} · bank {(p.Defunct ? l.Bank : p.Balance.Amount) / 1_000_000m:0.00}M · weeks for sale {_forSaleWeeks.GetValueOrDefault(p.Id)} · run: {Media(p.Id, start, world.CurrentDate)}");
+        }
     }
 
     // --- Report ---------------------------------------------------------------
@@ -276,6 +330,18 @@ public sealed class MediaHealth
                 + $" · demand over the room on {100.0 * seeds.Sum(s => s.AfcCardsOverRoom) / rc:0.0}% of cards · turned away {seeds.Sum(s => (double)s.AfcTurnedAway) / qs / 1000:0.0}k/quarter"
                 + $" · gate turned away {M(seeds.Sum(s => s.AfcGateTurnedAway) / qs):0.00}M/quarter");
         }
+    }
+
+    public static void PrintAcquisitions(IReadOnlyList<MediaHealth> seeds)
+    {
+        Console.WriteLine();
+        Console.WriteLine("  --- ACQUISITIONS AUDIT (seller tier = last weekly sample before the sale; 'media trouble' = 3+ star strikes or a deal lost to strikes (walked, or not renewed with a strike) in the 365 days before) ---");
+        foreach (var g in seeds.SelectMany(s => s.AcqBy).GroupBy(kv => kv.Key).OrderBy(g => g.Key.Tier).ThenBy(g => g.Key.Why))
+            Console.WriteLine($"    {g.Key.Tier,-14} {g.Key.Why,-45} {g.Sum(kv => kv.Value)}");
+        int forSale = seeds.Sum(s => s._forSaleWeeks.Values.Sum());
+        Console.WriteLine($"    org-weeks for sale (IsForSale, weekly, all orgs): {forSale}");
+        foreach (var s in seeds.OrderBy(s => s.Seed)) foreach (var r in s.AcqRows) Console.WriteLine("    " + r);
+        foreach (var s in seeds.OrderBy(s => s.Seed)) foreach (var r in s.FateRows) Console.WriteLine("    " + r);
     }
 
     private static string Dist(List<decimal> v)
