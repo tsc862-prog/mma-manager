@@ -11,7 +11,7 @@
                        Foreground="{StaticResource TextSecondary}" Margin="0,4,0,14" />
 
             <!-- ============ Found a new promotion ============ -->
-            <RadioButton x:Name="FoundMode" IsChecked="True" GroupName="Mode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged">
+            <RadioButton x:Name="FoundMode" IsChecked="True" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged">
                 <StackPanel Margin="4,0,0,0">
                     <TextBlock Text="Found a new promotion" FontWeight="SemiBold" FontSize="14" />
                     <TextBlock Text="Zero to hero: a small bankroll, the fighters nobody signed, and everything to prove."
@@ -59,7 +59,7 @@
             </Border>
 
             <!-- ============ Take over an existing promotion ============ -->
-            <RadioButton x:Name="TakeoverMode" GroupName="Mode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged">
+            <RadioButton x:Name="TakeoverMode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged">
                 <StackPanel Margin="4,0,0,0">
                     <TextBlock Text="Take over an existing promotion" FontWeight="SemiBold" FontSize="14" />
                     <TextBlock Text="Skip the climb and run one of the world's established organizations."
@@ -110,7 +110,7 @@
             </Border>
 
             <!-- ============ Origins: the birth of the sport ============ -->
-            <RadioButton x:Name="OriginsMode" GroupName="Mode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged" Unchecked="OnModeChanged">
+            <RadioButton x:Name="OriginsMode" Foreground="{StaticResource TextPrimary}" Checked="OnModeChanged" Unchecked="OnModeChanged">
                 <StackPanel Margin="4,0,0,0">
                     <TextBlock Text="Origins: 1 January 1993" FontWeight="SemiBold" FontSize="14" />
                     <TextBlock Text="The sport has no name yet. Three tiny promotions on three continents, no weight classes, no television deals, no rulebook anyone agrees on. Run one of them, or watch from ringside and found your own."

@@ -357,8 +357,8 @@
                         Margin="12,0,0,0" ToolTip="Opens Book Event's plan form (pick a date in the calendar first to plan on that date)" />
                 <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Center" ToolTip="Month grid or a list of what is coming">
                     <StackPanel Orientation="Horizontal">
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Month" GroupName="plannerView" IsChecked="{Binding ShowMonth}" />
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Agenda" GroupName="plannerView" IsChecked="{Binding ShowAgenda}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Month" IsChecked="{Binding ShowMonth}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Agenda" IsChecked="{Binding ShowAgenda}" />
                     </StackPanel>
                 </Border>
                 <StackPanel Orientation="Horizontal">
@@ -387,10 +387,10 @@
                 </StackPanel>
                 <Border Style="{StaticResource Segmented}" Margin="0,0,14,6" VerticalAlignment="Center" ToolTip="Which of the sport's announced cards to show. A card that costs one of your houses always shows.">
                     <StackPanel Orientation="Horizontal">
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Just mine" GroupName="plannerScope" IsChecked="{Binding ScopeIsMine}" />
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Near me" GroupName="plannerScope" IsChecked="{Binding ScopeIsNear}" />
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Everywhere" GroupName="plannerScope" IsChecked="{Binding ScopeIsAll}" />
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Flagships" GroupName="plannerScope" IsChecked="{Binding ScopeIsFlagships}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Just mine" IsChecked="{Binding ScopeIsMine}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Near me" IsChecked="{Binding ScopeIsNear}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Everywhere" IsChecked="{Binding ScopeIsAll}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Flagships" IsChecked="{Binding ScopeIsFlagships}" />
                     </StackPanel>
                 </Border>
             </WrapPanel>
