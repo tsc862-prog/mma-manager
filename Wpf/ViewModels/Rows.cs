@@ -554,10 +554,34 @@ public sealed class FighterRow
         }
     }
 
-    /// <summary>How well-known the fighter is in each region (0–100, derived from cities), shown as bars.</summary>
+    /// <summary>How well-known the fighter is in each region (0–100, derived from cities), shown as bars, best first.</summary>
     public IReadOnlyList<RatingBar> RegionalFame => Enum.GetValues<Region>()
-        .Select(r => new RatingBar(Pretty(r.ToString()), MmaManager.Core.Sim.Geography.Reputation.FighterInRegion(_w, _f, r)))
-        .ToList();
+        .Select(r => new RatingBar(Fame.PrettyRegion(r), MmaManager.Core.Sim.Geography.Reputation.FighterInRegion(_w, _f, r)))
+        .OrderByDescending(b => b.Value).ToList();
+
+    // --- Drawing power and where the name carries (public facts: never fogged) -------------
+    /// <summary>Popularity (0-100): the draw meter's number.</summary>
+    public int Popularity => _f.Intangibles.Popularity.Value;
+
+    private List<(City City, int Fame)>? _known;
+    private List<(City City, int Fame)> Known => _known ??= Fame.KnownCities(_w, _f);
+
+    /// <summary>"WHERE HE'S KNOWN" / "WHERE SHE'S KNOWN".</summary>
+    public string FameKicker => _f.Sex == Sex.Female ? "WHERE SHE'S KNOWN" : "WHERE HE'S KNOWN";
+    /// <summary>Known in no city at all: the panel says so in words instead of a column of zeros.</summary>
+    public bool IsKnownNowhere => Known.Count == 0;
+    /// <summary>Where the name carries furthest, in a line; or the human line for a nobody.</summary>
+    public string FameLine => IsKnownNowhere ? Fame.NobodyLine(_f) : Fame.ReachLine(_w, Known);
+    /// <summary>The three hottest cities as heat chips.</summary>
+    public IReadOnlyList<HotSpot> FameHotSpots => Known.Take(3).Select(k => new HotSpot
+    {
+        City = k.City.Name, Where = _w.Get(k.City.Country)?.Name is { } cn && cn != k.City.Name ? cn : "", Fame = k.Fame,
+        HeatBrush = Fame.Heat(k.Fame), InkBrush = Fame.InkOn(k.Fame),
+        IsHome = k.City.Id == _f.HomeCity, Region = k.City.Region, Country = k.City.Country,
+    }).ToList();
+    /// <summary>Regions where the name means anything (the bars only list these; all zero shows none).</summary>
+    public IReadOnlyList<RatingBar> KnownRegions => RegionalFame.Where(b => b.Value > 0).ToList();
+    public string FameMapText => _f.Sex == Sex.Female ? "See where she's known on the map ›" : "See where he's known on the map ›";
 
     /// <summary>The fighter's real nationality ("Georgia").</summary>
     public string Nation => _w.Get(_f.Country)?.Name ?? Pretty(_f.Nationality.ToString());

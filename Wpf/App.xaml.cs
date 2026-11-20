@@ -2063,6 +2063,55 @@ public partial class App : Application
                     Layout();
                     Console.WriteLine($"RENDERAPP profile ({(people ? "people" : "plain")}): {pick?.FullName ?? "nobody"} - {(pick is null ? "" : MmaManager.Core.Sim.Flavor.Biographer.PeopleText(w, pick))}");
                 }
+                // --fame <star|regional|unknown|mine>: the fame heat map. A fighter (the best-known name in the world,
+                // a name known in one region only, or one known nowhere) is opened on his profile and, unless the
+                // app is the profile itself, put on the World Map's fame layer the way "Where he's known" does;
+                // "mine" switches the map to where the player's own promotion is known.
+                if (e.Args.Contains("--fame"))
+                {
+                    var w = vm.LiveWorld!;
+                    string kind = e.Args[Array.IndexOf(e.Args, "--fame") + 1];
+                    if (kind == "mine")
+                    {
+                        vm.WorldMap.ShowPromotion();
+                        var mine = w.Get(w.PlayerPromotion);
+                        Console.WriteLine($"RENDERAPP fame (mine): {mine?.Name}; known in {mine?.PopularityByCity.Count(kv => kv.Value.Value > 0) ?? 0} cities; {vm.WorldMap.SubjectLine}");
+                    }
+                    else
+                    {
+                        static int TopCity(MmaManager.Core.Model.Fighter f) => f.CityReputation.Count == 0 ? 0 : f.CityReputation.Values.Max(v => v.Value);
+                        var pool = w.Fighters.Values.Where(f => f.Status != MmaManager.Core.Model.FighterStatus.Retired).OrderBy(f => f.Id.Value).ToList();
+                        int RegionsKnown(MmaManager.Core.Model.Fighter f) => Enum.GetValues<MmaManager.Core.Model.Region>()
+                            .Count(r => MmaManager.Core.Sim.Geography.Reputation.FighterInRegion(w, f, r) >= 8);
+                        var pick = kind switch
+                        {
+                            // the widest-known name: most cities that know him well, then the deepest fame
+                            "star" => pool.OrderByDescending(f => f.CityReputation.Values.Count(v => v.Value >= 20))
+                                          .ThenByDescending(f => MmaManager.Core.Sim.Geography.Reputation.FighterBest(w, f)).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                            // a working regional name: known (30-55) in his best city, and in one region only
+                            "regional" => pool.Where(f => !f.LocalTalent && TopCity(f) is >= 30 and <= 55 && RegionsKnown(f) == 1)
+                                              .OrderByDescending(f => f.CityReputation.Values.Count(v => v.Value > 0)).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                            // the least-known name on file (a signed or listed fighter before a scouted local)
+                            _ => pool.OrderBy(TopCity).ThenBy(f => f.LocalTalent).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                        };
+                        if (pick is not null)
+                        {
+                            vm.OpenFighter(pick.Id.Value);
+                            if (appId != "fighter") MmaManager.Wpf.Mvvm.AppCommands.ShowFame.Execute(pick.Id.Value);
+                        }
+                        Console.WriteLine($"RENDERAPP fame ({kind}): {pick?.FullName ?? "nobody"} pop {pick?.Intangibles.Popularity.Value} best region "
+                            + $"{(pick is null ? 0 : MmaManager.Core.Sim.Geography.Reputation.FighterBest(w, pick))} top city {(pick is null ? 0 : TopCity(pick))}; "
+                            + $"map layer {vm.WorldMap.Layer}; {vm.WorldMap.SubjectLine}");
+                    }
+                    Layout();
+                }
+                // --drillfame: open the country of the subject's hottest city on the fame map (the city level).
+                if (e.Args.Contains("--drillfame") && vm.WorldMap.HotSpots.FirstOrDefault() is { } spot)
+                {
+                    vm.WorldMap.HotSpotCommand.Execute(spot);
+                    Layout();
+                    Console.WriteLine($"RENDERAPP fame drilled into {spot.Where} ({spot.City} {spot.Fame})");
+                }
                 // --talks <fa|lifer|unhappy>: put someone across the Contracts table (or on the
                 // Fighter Profile, when that's the app): the top free agent, or one of our own
                 // made a holding lifer (a company man at loyalty 90) — "unhappy" also puts the
@@ -2721,6 +2770,145 @@ public partial class App : Application
             return;
         }
 
+        // Closed windows are let go: `MmaManager.Wpf --closecheck` (see CloseCheckHarness).
+        if (e.Args.Contains("--closecheck"))
+        {
+            int code;
+            try { code = CloseCheckHarness.Run(hold: e.Args.Contains("--hold")); }
+            catch (Exception ex) { Console.WriteLine("CLOSECHECK FAIL: " + ex); code = 1; }
+            Environment.Exit(code);
+            return;
+        }
+
+        // Segmented toggles under stress: `MmaManager.Wpf --radiocheck`. First replays the owner's
+        // crash in a shown (off-screen) shell: Card Desk opened, closed, reopened, toggled. Then opens every desktop app,
+        // finds every screen holding radio buttons, then builds two more copies of that screen on
+        // the SAME view model - once detached (no window: how every closed app window and every
+        // harness render lives) and once side by side in one shown window - and clicks every
+        // option in both copies in turn. A radio group shared across copies used to ping-pong
+        // through the bindings until the stack overflowed (the Card Desk's Story/Table toggle,
+        // 2026-11-20), which kills this process outright; a clean run prints RADIOCHECK OK.
+        // It also fails on any RadioButton with a GroupName: named groups are app-wide, so
+        // segments must group by their panel instead (see SegmentedOption in App.xaml).
+        if (e.Args.Contains("--radiocheck"))
+        {
+            int failures = 0, flips = 0;
+            void Fail(string what) { failures++; Console.WriteLine("FAIL  " + what); }
+            try
+            {
+                var win = new MainWindow();
+                var vm = (MainViewModel)win.DataContext;
+                vm.AdvanceMonthCommand.Execute(null);
+                var root = (FrameworkElement)win.Content;
+                var size = new Size(1500, 950);
+                void Lay(FrameworkElement el)
+                {
+                    el.Measure(size); el.Arrange(new Rect(size)); el.UpdateLayout();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.Background, new Action(() => { }));
+                }
+
+                // The way the owner hit it, in a real shown shell (parked off-screen): the Card Desk
+                // opened and closed twice, opened again, and its sheet toggled. A closed app window's
+                // screen stays in memory, bound to the view model, until the GC takes it.
+                win.WindowStartupLocation = WindowStartupLocation.Manual;
+                win.Left = -32000; win.Top = -32000; win.ShowInTaskbar = false; win.ShowActivated = false;
+                win.Show();
+                for (int i = 0; i < 2; i++)
+                {
+                    vm.Desktop.Open("book"); Lay(root);
+                    Console.WriteLine($"      shown shell: Card Desk open #{i + 1} laid out");
+                    foreach (var w in vm.Desktop.Windows.ToList()) vm.Desktop.Close(w);
+                    Lay(root);
+                }
+                vm.Desktop.Open("book"); Lay(root);
+                Console.WriteLine("      shown shell: Card Desk open #3 laid out");
+                for (int i = 0; i < 4; i++) { vm.Booking.ShowSheetTable = !vm.Booking.ShowSheetTable; flips++; Lay(root); }
+                Console.WriteLine("OK    shown shell: Card Desk opened and closed twice, opened again, its sheet view flipped four times");
+
+                // Every screen (nearest UserControl) that holds a bound radio, with the context it runs on.
+                var hosts = new List<(Type Type, object? Context)>();
+                foreach (var spec in vm.Desktop.PromotionApps.Concat(vm.Desktop.WorldApps).ToList())
+                {
+                    foreach (var open in vm.Desktop.Windows.ToList()) vm.Desktop.Close(open);
+                    vm.Desktop.Open(spec.Id);
+                    Lay(root);
+                    foreach (var rb in RadiosIn(root))
+                    {
+                        if (!string.IsNullOrEmpty(rb.GroupName)) Fail($"{spec.Id}: radio '{rb.Content}' has GroupName=\"{rb.GroupName}\" (an app-wide group)");
+                        if (HostOf(rb) is { } host && !hosts.Any(h => h.Type == host.GetType()))
+                            hosts.Add((host.GetType(), host.DataContext));
+                    }
+                }
+                foreach (var open in vm.Desktop.Windows.ToList()) vm.Desktop.Close(open);
+                foreach (var rb in RadiosIn(new NewGameWindow()))
+                    if (!string.IsNullOrEmpty(rb.GroupName)) Fail($"NewGameWindow: radio '{rb.Name}' has GroupName=\"{rb.GroupName}\"");
+
+                // Click every option in each copy; the two copies must agree with each other (one
+                // view model) and each panel of options must show exactly one on.
+                void Exercise(string label, System.Windows.Controls.UserControl a, System.Windows.Controls.UserControl b)
+                {
+                    static List<System.Windows.Controls.RadioButton> Bound(DependencyObject v) => RadiosIn(v)
+                        .Where(r => System.Windows.Data.BindingOperations.IsDataBound(r, System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty)).ToList();
+                    var ra = Bound(a); var rbs = Bound(b);
+                    if (ra.Count != rbs.Count) { Fail($"{label}: the copies differ ({ra.Count} vs {rbs.Count} radios)"); return; }
+                    for (int i = 0; i < ra.Count; i++)
+                        foreach (var (click, side) in new[] { (ra, "first"), (rbs, "second") })
+                        {
+                            var target = click[i];
+                            target.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);   // what a click does
+                            flips++;
+                            for (int j = 0; j < ra.Count; j++)
+                                if (ra[j].IsChecked != rbs[j].IsChecked)
+                                    Fail($"{label}: after clicking '{target.Content}' in the {side} copy, '{ra[j].Content}' reads {ra[j].IsChecked} vs {rbs[j].IsChecked}");
+                            foreach (var copy in new[] { ra, rbs })
+                                foreach (var panel in copy.GroupBy(r => LogicalTreeHelper.GetParent(r)))
+                                    if (panel.Count() > 1 && panel.Count(r => r.IsChecked == true) != 1)
+                                        Fail($"{label}: after clicking '{target.Content}', options [{string.Join("|", panel.Select(r => r.Content))}] have {panel.Count(r => r.IsChecked == true)} on");
+                        }
+                    Console.WriteLine($"OK    {label}: {ra.Count} bound radios, every one clicked in both copies");
+                }
+
+                foreach (var (type, context) in hosts)
+                {
+                    System.Windows.Controls.UserControl Make()
+                    {
+                        var v = (System.Windows.Controls.UserControl)Activator.CreateInstance(type)!;
+                        v.DataContext = context;
+                        return v;
+                    }
+                    // Two copies with no window (a closed app window is exactly this).
+                    var a = Make(); var b = Make();
+                    Lay(a); Lay(b);
+                    Exercise($"{type.Name} detached x2", a, b);
+                    // Two copies in one shown window (the shell is one window).
+                    var c = Make(); var d = Make();
+                    var grid = new System.Windows.Controls.Grid();
+                    grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition());
+                    grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition());
+                    System.Windows.Controls.Grid.SetColumn(d, 1);
+                    grid.Children.Add(c); grid.Children.Add(d);
+                    var shown = new Window
+                    {
+                        Content = grid, Width = 1600, Height = 900, Left = -32000, Top = -32000,
+                        WindowStyle = WindowStyle.None, ShowInTaskbar = false, ShowActivated = false,
+                    };
+                    shown.Show();
+                    Lay(grid);
+                    Exercise($"{type.Name} one window x2", c, d);
+                    shown.Close();
+                }
+                if (hosts.Count == 0) Fail("no screen with radio buttons found");
+            }
+            catch (Exception ex)
+            {
+                Fail(ex.GetType().Name + ": " + ex.Message);
+            }
+            Console.WriteLine(failures == 0 ? $"RADIOCHECK OK: {flips} clicks, no named radio groups" : $"RADIOCHECK FAIL: {failures} problems");
+            Environment.Exit(failures == 0 ? 0 : 1);
+            return;
+        }
+
         // Headless smoke test (no window): `MmaManager.Wpf --selftest`. Lets us
         // confirm the view model builds a world and its screens populate without
         // a display, since the GUI itself can only be verified by launching it.
@@ -2954,5 +3142,34 @@ public partial class App : Application
             if (child is T hit) yield return hit;
             foreach (var deeper in FindAll<T>(child)) yield return deeper;
         }
+    }
+
+    // Every radio under root, through both trees: the logical tree reaches panels that are
+    // collapsed (never templated, so absent from the visual tree), the visual tree reaches
+    // radios generated from item templates. Order is stable for two copies of one screen.
+    private static List<System.Windows.Controls.RadioButton> RadiosIn(DependencyObject root)
+    {
+        var seen = new HashSet<DependencyObject>();
+        var found = new List<System.Windows.Controls.RadioButton>();
+        void Walk(DependencyObject d)
+        {
+            if (!seen.Add(d)) return;
+            if (d is System.Windows.Controls.RadioButton rb) found.Add(rb);
+            foreach (var child in LogicalTreeHelper.GetChildren(d).OfType<DependencyObject>()) Walk(child);
+            if (d is Visual or System.Windows.Media.Media3D.Visual3D)
+                for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++) Walk(VisualTreeHelper.GetChild(d, i));
+        }
+        Walk(root);
+        return found;
+    }
+
+    // The screen a radio belongs to: its nearest UserControl.
+    private static System.Windows.Controls.UserControl? HostOf(DependencyObject d)
+    {
+        for (var p = Parent(d); p is not null; p = Parent(p))
+            if (p is System.Windows.Controls.UserControl uc) return uc;
+        return null;
+        static DependencyObject? Parent(DependencyObject x) =>
+            LogicalTreeHelper.GetParent(x) ?? (x is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(x) : null);
     }
 }

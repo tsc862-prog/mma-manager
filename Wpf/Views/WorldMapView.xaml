@@ -1,6 +1,7 @@
 <UserControl x:Class="MmaManager.Wpf.Views.WorldMapView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls"
              xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
         <Grid Margin="8" DataContext="{Binding WorldMap}" HorizontalAlignment="Left" MaxWidth="1560">
             <Grid.RowDefinitions>
@@ -8,17 +9,105 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <StackPanel Margin="2,0,0,8">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="The Global Scene" FontSize="18" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Summary}" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Bottom" Margin="12,0,0,2" />
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="28,0,0,0">
-                        <TextBlock Text="MMA interest:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,7,0" FontSize="11" />
-                        <Border Width="16" Height="12" Background="#2C5F8A" />
-                        <TextBlock Text="cool" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="4,0,10,0" VerticalAlignment="Center" />
-                        <Border Width="16" Height="12" Background="#8A5B58" />
-                        <Border Width="16" Height="12" Background="#C0392B" />
-                        <TextBlock Text="fight-mad" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="4,0,0,0" VerticalAlignment="Center" />
+                <DockPanel>
+                    <!-- What the map is coloured by: siblings in one panel (never a named group) -->
+                    <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Center" Margin="16,0,6,0">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource SegmentedOption}" IsChecked="{Binding IsInterestLayer}"
+                                         ToolTip="How fight-mad each place is">MMA interest</RadioButton>
+                            <RadioButton Style="{StaticResource SegmentedOption}" IsChecked="{Binding IsPromotionLayer}"
+                                         Visibility="{Binding CanShowPromotion, Converter={StaticResource BoolToVis}}"
+                                         ToolTip="Where your promotion's name is known: the question to ask before picking a city for a card">Where I'm known</RadioButton>
+                            <RadioButton Style="{StaticResource SegmentedOption}" IsChecked="{Binding IsFighterLayer}"
+                                         Visibility="{Binding CanShowFighter, Converter={StaticResource BoolToVis}}"
+                                         ToolTip="Where this fighter's name is known (open any profile's 'Where he's known' to change who)">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:Icon Kind="Flame" Width="13" Height="13" Brush="{StaticResource DrawInk}" StrokeThickness="2" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding FighterLayerLabel}" />
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="The Global Scene" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Summary}" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Bottom" Margin="12,0,0,2" />
+                        <!-- Legend: MMA interest -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="28,0,0,0"
+                                    Visibility="{Binding IsInterestLayer, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="MMA interest:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,7,0" FontSize="11" />
+                            <Border Width="16" Height="12" Background="#2C5F8A" />
+                            <TextBlock Text="cool" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="4,0,10,0" VerticalAlignment="Center" />
+                            <Border Width="16" Height="12" Background="#8A5B58" />
+                            <Border Width="16" Height="12" Background="#C0392B" />
+                            <TextBlock Text="fight-mad" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="4,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <!-- Legend: fame (the same ramp the cards are drawn with) -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="28,0,0,0"
+                                    Visibility="{Binding IsFameLayer, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Fame:" Foreground="{StaticResource TextMuted}" VerticalAlignment="Top" Margin="0,-2,8,0" FontSize="11" />
+                            <ItemsControl ItemsSource="{Binding FameLegend}" ItemTemplate="{StaticResource FameLegendStopTemplate}" Focusable="False">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
+                </DockPanel>
+
+                <!-- Whose heat this is: the face (or the logo), the name, where it carries, home -->
+                <Border Background="{StaticResource PanelFill}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1" CornerRadius="8"
+                        Padding="0" Margin="0,12,6,0" Visibility="{Binding IsFameLayer, Converter={StaticResource BoolToVis}}">
+                    <DockPanel>
+                        <Border x:Name="face" DockPanel.Dock="Left" Width="96" Height="104" CornerRadius="8,0,0,8" ClipToBounds="True" Background="{StaticResource SurfaceSunken}">
+                            <Image Source="{Binding SubjectPicture}" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Stretch" Value="UniformToFill" />
+                                        <Setter Property="VerticalAlignment" Value="Top" />
+                                        <Style.Triggers>
+                                            <!-- a logo is shown whole, padded, not cropped like a face -->
+                                            <DataTrigger Binding="{Binding SubjectPictureIsLogo}" Value="True">
+                                                <Setter Property="Stretch" Value="Uniform" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                                <Setter Property="Margin" Value="10" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                        </Border>
+                        <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,14,0">
+                            <Button Content="{Binding OpenSubjectText}" Command="{Binding OpenSubjectCommand}" Style="{StaticResource Button.Soft}" Padding="12,4" Margin="0,0,0,6" />
+                            <Button Content="‹ Back to MMA interest" Command="{Binding BackToInterestCommand}" Style="{StaticResource Button.Ghost}" Padding="12,4"
+                                    ToolTip="The plain map: how fight-mad each place is" />
+                        </StackPanel>
+                        <StackPanel Margin="16,10,8,10" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding SubjectKicker}" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource DrawInk}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                <TextBlock Text="{Binding SubjectName}" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" />
+                                <controls:DrawMeter Value="{Binding SubjectDraw}" ShowNumber="True" Margin="16,0,0,0" VerticalAlignment="Center"
+                                                    Visibility="{Binding ShowSubjectDraw, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
+                            <TextBlock x:Name="line" Text="{Binding SubjectLine}" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0" Visibility="{Binding HasSubjectHome, Converter={StaticResource BoolToVis}}">
+                                <controls:Icon Kind="Home" Width="14" Height="14" Brush="{StaticResource Gold}" StrokeThickness="2" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding SubjectHome}" Foreground="{StaticResource TextSecondary}" FontSize="12" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <!-- The hottest cities, as chips (each opens its country) -->
+                <StackPanel Margin="0,10,0,0" Visibility="{Binding HasHotSpots, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding HotSpotsHeader}" Foreground="{StaticResource TextMuted}" FontSize="10" Margin="0,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding HotSpots}" Focusable="False">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource HotSpotChip}"
+                                        Command="{Binding DataContext.HotSpotCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" ToolTip="{Binding Word}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
 
                 <!-- Breadcrumb + level hint -->
@@ -30,22 +119,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <Button Content="{Binding Label}"
                                             Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"
-                                            Background="Transparent" BorderThickness="0" Padding="2,0" Cursor="Hand">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsLast}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-                                                        <Setter Property="IsEnabled" Value="False" />
-                                                        <Setter Property="Cursor" Value="Arrow" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
+                                            CommandParameter="{Binding}" Style="{StaticResource CrumbButton}" />
                                     <TextBlock Text="  ›  " Foreground="{StaticResource TextMuted}" VerticalAlignment="Center">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
@@ -112,13 +186,22 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="{Binding TextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Interest}" FontWeight="Bold" FontSize="22" Foreground="{Binding TextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Chevron}" FontSize="22" Foreground="{Binding TextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                            <Border Grid.Column="1" Style="{StaticResource HomePill}" Margin="6,0,0,0"
+                                                    Visibility="{Binding IsHome, Converter={StaticResource BoolToVis}}" ToolTip="Home town">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <controls:Icon Kind="Home" Width="12" Height="12" Brush="{StaticResource Gold}" StrokeThickness="2.2" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="HOME" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                            <TextBlock Grid.Column="2" Text="{Binding Interest}" FontWeight="Bold" FontSize="22" Foreground="{Binding TextBrush}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                       ToolTip="{Binding ValueTip}" />
+                                            <TextBlock Grid.Column="3" Text="{Binding Chevron}" FontSize="22" Foreground="{Binding TextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
                                         </Grid>
                                     </Border>
-                                    <TextBlock Grid.Row="1" Text="{Binding OrgSummary}" Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="12,8,12,0" />
+                                    <TextBlock Grid.Row="1" Text="{Binding OrgSummary}" Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="12,8,12,0" TextWrapping="Wrap" />
                                     <ItemsControl Grid.Row="2" ItemsSource="{Binding Orgs}" Margin="12,4,12,6">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>

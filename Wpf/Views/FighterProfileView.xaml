@@ -1,7 +1,8 @@
 <UserControl x:Class="MmaManager.Wpf.Views.FighterProfileView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm">
+             xmlns:mvvm="clr-namespace:MmaManager.Wpf.Mvvm"
+             xmlns:controls="clr-namespace:MmaManager.Wpf.Controls">
         <Grid Margin="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -36,6 +37,9 @@
                                        ToolTip="{Binding ScoutTip}" />
                             <TextBlock Text="{Binding SelectedFighter.Ovr}" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding SelectedFighter.Record}" FontSize="16" Margin="18,0,0,0" VerticalAlignment="Center" />
+                            <!-- Drawing power: a public fact; the word, the meter and the number -->
+                            <TextBlock Text="DRAW" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="22,1,8,0" VerticalAlignment="Center" />
+                            <controls:DrawMeter Value="{Binding SelectedFighter.Popularity}" ShowNumber="True" FontSize="14" VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Text="{Binding SelectedFighter.Finishes}" Margin="0,4,0,0" Foreground="#A8B0B9" />
                         <TextBlock Text="{Binding SelectedFighter.StatusLine}" Margin="0,4,0,0" />
@@ -164,6 +168,50 @@
                             <TextBlock Text="{Binding SelectedFighter.ScoutingLine}" FontSize="11" Foreground="#C9CFD6" VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
+                    <!-- Where the name carries: the hottest cities as heat chips, the regions that know him, and the map -->
+                    <Border Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource Border}" BorderThickness="1" Padding="10,8"
+                            Margin="0,0,12,12" MaxWidth="476" HorizontalAlignment="Left">
+                        <StackPanel>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="{Binding SelectedFighter.FameMapText}" Style="{StaticResource Button.Link}" Padding="0"
+                                        Command="{x:Static mvvm:AppCommands.ShowFame}" CommandParameter="{Binding SelectedFighter.Id}"
+                                        ToolTip="The World Map as a heat map of this name, city by city" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:Icon Kind="Flame" Width="14" Height="14" Brush="{StaticResource DrawInk}" StrokeThickness="2" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding SelectedFighter.FameKicker}" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource DrawInk}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DockPanel>
+                            <TextBlock Text="{Binding SelectedFighter.FameLine}" FontSize="12" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            <ItemsControl ItemsSource="{Binding SelectedFighter.FameHotSpots}" Focusable="False" Margin="0,8,0,0"
+                                          Visibility="{Binding SelectedFighter.IsKnownNowhere, Converter={StaticResource InverseBoolToVis}}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource HotSpotChip}" Command="{x:Static mvvm:AppCommands.ShowFame}"
+                                                CommandParameter="{Binding DataContext.SelectedFighter.Id, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                ToolTip="{Binding Word}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <ItemsControl ItemsSource="{Binding SelectedFighter.KnownRegions}" Margin="0,2,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="26" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" />
+                                            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Value, Mode=OneWay}" Height="9" Margin="2,0"
+                                                         Foreground="{StaticResource DrawInk}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                     <ItemsControl ItemsSource="{Binding SelectedFighter.RatingGroups}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -198,27 +246,6 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Border Width="300" HorizontalAlignment="Left" Margin="0,0,12,12" Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource Border}" BorderThickness="1" Padding="8">
-                        <StackPanel>
-                            <TextBlock Text="Regional Fame" FontWeight="Bold" Foreground="{StaticResource Gold}" Margin="0,0,0,5" />
-                            <ItemsControl ItemsSource="{Binding SelectedFighter.RegionalFame}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="100" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="26" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" />
-                                            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Value, Mode=OneWay}" Height="11" Margin="2,0" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
                     </StackPanel>
                 </ScrollViewer>
                 <DockPanel Grid.Column="1" Margin="12,0,0,0">

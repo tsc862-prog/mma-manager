@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
@@ -6,6 +7,7 @@ using System.Windows.Media;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Geography;
 using MmaManager.Core.Sim.Org;
+using MmaManager.Wpf.Art;
 using MmaManager.Wpf.Mvvm;
 
 namespace MmaManager.Wpf.ViewModels;
@@ -33,10 +35,19 @@ public sealed class MapOrgRow
 /// <summary>The three tiers you can drill through on the world overview.</summary>
 public enum PlaceLevel { World, Region, Country }
 
+/// <summary>
+/// What the map is coloured by: the sport's appetite (MMA interest), how well the player's own
+/// promotion is known, or how well one fighter is known. Fame layers read the sim's
+/// <see cref="Reputation"/> (cities are the truth; regions and countries are its market-weighted
+/// roll-up), nothing else.
+/// </summary>
+public enum MapLayer { Interest, MyPromotion, Fighter }
+
 /// <summary>A place (region / country / city) as a heat-mapped, drillable card.</summary>
 public sealed class PlaceCard
 {
     public required string Name { get; init; }
+    /// <summary>The number in the card's heat strip: MMA interest, or fame on a fame layer (0-100).</summary>
     public required int Interest { get; init; }
     public required Brush HeatBrush { get; init; }
     public required Brush TextBrush { get; init; }
@@ -48,6 +59,10 @@ public sealed class PlaceCard
     public bool Drillable { get; init; }
     public string Chevron => Drillable ? "›" : "";
     public ObservableCollection<MapOrgRow> Orgs { get; } = new();
+    /// <summary>The fame layer's subject calls this place home (his home town is in it).</summary>
+    public bool IsHome { get; init; }
+    /// <summary>What the strip's number means on hover.</summary>
+    public string ValueTip { get; init; } = "";
 
     // Drill payload — what this card opens into.
     public PlaceLevel DrillTo { get; init; }
@@ -65,11 +80,33 @@ public sealed class Crumb
     public bool IsLast { get; set; }
 }
 
+/// <summary>A city where the subject's name carries, as a clickable chip (opens its country).</summary>
+public sealed class HotSpot
+{
+    public required string City { get; init; }
+    public required string Where { get; init; }
+    public required int Fame { get; init; }
+    public required Brush HeatBrush { get; init; }
+    public required Brush InkBrush { get; init; }
+    public string Word => ViewModels.Fame.PlaceWord(Fame);
+    public bool IsHome { get; init; }
+    public Region Region { get; init; }
+    public CountryId Country { get; init; }
+}
+
+/// <summary>A stop on the fame legend.</summary>
+public sealed class LegendStop
+{
+    public required string Word { get; init; }
+    public required Brush Brush { get; init; }
+}
+
 /// <summary>
-/// The world at a glance, drill-down style: start on the seven continental regions
-/// (heat-mapped by MMA interest), click into a region to see its countries, then a
-/// country to see its individual fight cities. Each card colour-keys the local
-/// interest and lists the promotions based there. A breadcrumb walks back up.
+/// The world at a glance, drill-down style: start on the seven continental regions, click into
+/// a region to see its countries, then a country to see its individual fight cities. Each card
+/// colour-keys the chosen layer: MMA interest, where the player's promotion is known, or where one
+/// fighter is known (a heat map of fame, his face and home town on it). A breadcrumb walks back up.
+/// Holds ids only (the subject fighter, the country drilled into) so a refresh rebuilds in place.
 /// </summary>
 public sealed class WorldMapViewModel : ObservableObject
 {
@@ -83,12 +120,22 @@ public sealed class WorldMapViewModel : ObservableObject
     private PlaceLevel _level = PlaceLevel.World;
     private Region _region;
     private CountryId? _country;
+    private MapLayer _layer = MapLayer.Interest;
+    private int? _fighterId;
 
     public ObservableCollection<PlaceCard> Places { get; } = new();
     public ObservableCollection<Crumb> Breadcrumb { get; } = new();
+    public ObservableCollection<HotSpot> HotSpots { get; } = new();
+
+    /// <summary>The fame legend, cold to hot (drawn with the same ramp the cards use).</summary>
+    public IReadOnlyList<LegendStop> FameLegend { get; } = ViewModels.Fame.LegendStops
+        .Select(s => new LegendStop { Word = s.Word, Brush = ViewModels.Fame.Heat(s.Fame) }).ToList();
 
     public ICommand DrillCommand { get; }
     public ICommand NavigateCommand { get; }
+    public ICommand HotSpotCommand { get; }
+    public ICommand BackToInterestCommand { get; }
+    public ICommand OpenSubjectCommand { get; }
 
     private string _summary = "";
     public string Summary { get => _summary; private set => Set(ref _summary, value); }
@@ -100,14 +147,98 @@ public sealed class WorldMapViewModel : ObservableObject
     {
         DrillCommand = new RelayCommand<PlaceCard>(Drill);
         NavigateCommand = new RelayCommand<Crumb>(NavigateTo);
+        HotSpotCommand = new RelayCommand<HotSpot>(GoToSpot);
+        BackToInterestCommand = new RelayCommand(() => SetLayer(MapLayer.Interest));
+        OpenSubjectCommand = new RelayCommand(OpenSubject);
     }
+
+    // --- Layers ------------------------------------------------------------------------------
+
+    public MapLayer Layer => _layer;
+    public bool IsInterestLayer { get => _layer == MapLayer.Interest; set { if (value) SetLayer(MapLayer.Interest); } }
+    public bool IsPromotionLayer { get => _layer == MapLayer.MyPromotion; set { if (value) SetLayer(MapLayer.MyPromotion); } }
+    public bool IsFighterLayer { get => _layer == MapLayer.Fighter; set { if (value) SetLayer(MapLayer.Fighter); } }
+    public bool IsFameLayer => _layer != MapLayer.Interest;
+
+    /// <summary>The player runs a house (not watching from ringside): "where am I known" makes sense.</summary>
+    public bool CanShowPromotion => PlayerPromo is not null;
+    /// <summary>A fighter has been put on the map (from a profile): his layer is offered.</summary>
+    public bool CanShowFighter => SubjectFighter is not null;
+    /// <summary>The fighter segment's label ("Kvaratskhelia").</summary>
+    public string FighterLayerLabel => SubjectFighter is { } f ? f.LastName : "A fighter";
+
+    /// <summary>Put the map into fame mode for one fighter (from his profile), at the world view.</summary>
+    public void ShowFighter(int fighterId)
+    {
+        _fighterId = fighterId;
+        _level = PlaceLevel.World;
+        _country = null;
+        SetLayer(MapLayer.Fighter, force: true);
+    }
+
+    /// <summary>Put the map into "where my promotion is known" mode, at the world view.</summary>
+    public void ShowPromotion()
+    {
+        _level = PlaceLevel.World;
+        _country = null;
+        SetLayer(MapLayer.MyPromotion, force: true);
+    }
+
+    private void SetLayer(MapLayer layer, bool force = false)
+    {
+        if (layer == MapLayer.Fighter && SubjectFighter is null) layer = MapLayer.Interest;
+        if (layer == MapLayer.MyPromotion && PlayerPromo is null) layer = MapLayer.Interest;
+        if (layer == _layer && !force) return;
+        _layer = layer;
+        Rebuild();
+    }
+
+    private Fighter? SubjectFighter => _world is not null && _fighterId is { } id ? _world.Get(new FighterId(id)) : null;
+    private Promotion? PlayerPromo => _world?.Get(_world.PlayerPromotion) is { Defunct: false } p ? p : null;
+
+    // --- The subject banner (fame layers) ----------------------------------------------------
+
+    public string SubjectKicker { get; private set; } = "";
+    public string SubjectName { get; private set; } = "";
+    public ImageSource? SubjectPicture { get; private set; }
+    public bool SubjectPictureIsLogo { get; private set; }
+    /// <summary>Where the name carries, or (known nowhere) a human line on why not yet.</summary>
+    public string SubjectLine { get; private set; } = "";
+    public bool SubjectIsNobody { get; private set; }
+    public string SubjectHome { get; private set; } = "";
+    public bool HasSubjectHome => SubjectHome.Length > 0;
+    /// <summary>The fighter's popularity for his draw meter (fighter layer only).</summary>
+    public int SubjectDraw { get; private set; }
+    public bool ShowSubjectDraw => _layer == MapLayer.Fighter;
+    public string OpenSubjectText => _layer == MapLayer.Fighter ? "Open profile ›" : "Open HQ ›";
+    public bool HasHotSpots => HotSpots.Count > 0;
+    public string HotSpotsHeader { get; private set; } = "";
+
+    private void OpenSubject()
+    {
+        if (_layer == MapLayer.Fighter && _fighterId is { } id) AppCommands.OpenFighter.Execute(id);
+        else if (_layer == MapLayer.MyPromotion && PlayerPromo is { } p) AppCommands.OpenOrg.Execute(p.Id.Value);
+    }
+
+    // --- Lifecycle -----------------------------------------------------------------------------
 
     public void Attach(World world)
     {
+        bool fresh = !ReferenceEquals(world, _world);
         _world = world;
-        _level = PlaceLevel.World;
-        _region = default;
-        _country = null;
+        if (fresh)
+        {
+            // A new world (load, new game): back to the plain map at the top.
+            _level = PlaceLevel.World;
+            _region = default;
+            _country = null;
+            _fighterId = null;
+            _layer = MapLayer.Interest;
+        }
+        // A refresh keeps the layer, the subject (by id) and where the player had drilled to.
+        if (_layer == MapLayer.Fighter && SubjectFighter is null) _layer = MapLayer.Interest;
+        if (_layer == MapLayer.MyPromotion && PlayerPromo is null) _layer = MapLayer.Interest;
+        if (_level == PlaceLevel.Country && (_country is not { } cid || world.Get(cid) is null)) _level = PlaceLevel.World;
         Rebuild();
     }
 
@@ -127,10 +258,20 @@ public sealed class WorldMapViewModel : ObservableObject
         Rebuild();
     }
 
+    private void GoToSpot(HotSpot? spot)
+    {
+        if (spot is null || _world is null) return;
+        _level = PlaceLevel.Country;
+        _region = spot.Region;
+        _country = spot.Country;
+        Rebuild();
+    }
+
     private void Rebuild()
     {
         if (_world is null) return;
         Places.Clear();
+        BuildSubject(_world);
         switch (_level)
         {
             case PlaceLevel.World: BuildRegions(_world); break;
@@ -138,35 +279,139 @@ public sealed class WorldMapViewModel : ObservableObject
             case PlaceLevel.Country: BuildCities(_world, _country!.Value); break;
         }
         BuildBreadcrumb(_world);
+        // Everything that hangs off the layer (segments, banner, legend) reads again.
+        OnPropertyChanged(string.Empty);
+    }
+
+    // --- What a layer reads ----------------------------------------------------------------
+
+    private int InRegion(World w, Region r) => _layer switch
+    {
+        MapLayer.Fighter when SubjectFighter is { } f => Reputation.FighterInRegion(w, f, r),
+        MapLayer.MyPromotion when PlayerPromo is { } p => Reputation.OrgInRegion(w, p, r),
+        _ => MmaInterest.InRegion(w, r),
+    };
+
+    private int InCountry(World w, CountryId c) => _layer switch
+    {
+        MapLayer.Fighter when SubjectFighter is { } f => Reputation.FighterInCountry(w, f, c),
+        MapLayer.MyPromotion when PlayerPromo is { } p => Reputation.OrgInCountry(w, p, c),
+        _ => MmaInterest.InCountry(w, c),
+    };
+
+    private int InCity(City c) => _layer switch
+    {
+        MapLayer.Fighter when SubjectFighter is { } f => Reputation.FighterInCity(f, c.Id),
+        MapLayer.MyPromotion when PlayerPromo is { } p => Reputation.OrgInCity(p, c.Id),
+        _ => c.MmaInterest,
+    };
+
+    private Brush HeatOf(int v) => IsFameLayer ? ViewModels.Fame.Heat(v) : Heat(v);
+    private Brush InkOf(int v) => IsFameLayer ? ViewModels.Fame.InkOn(v) : TextOn(v);
+
+    /// <summary>The subject's home city (his home town, or the promotion's home city), if any.</summary>
+    private City? HomeCity(World w) => _layer switch
+    {
+        MapLayer.Fighter when SubjectFighter is { HomeCity: { } hc } => w.Get(hc),
+        MapLayer.MyPromotion when PlayerPromo is { HomeCity: { } hc } => w.Get(hc),
+        _ => null,
+    };
+
+    private string ValueTip(string where) => _layer switch
+    {
+        MapLayer.Fighter => $"How well {SubjectFighter?.FullName} is known in {where} (0-100; a region or country is its cities' average, weighted by market size)",
+        MapLayer.MyPromotion => $"How well {PlayerPromo?.Abbreviation} is known in {where} (0-100; a region or country is its cities' average, weighted by market size)",
+        _ => $"MMA interest in {where} (0-100): how fight-mad the place is",
+    };
+
+    private void BuildSubject(World w)
+    {
+        HotSpots.Clear();
+        SubjectKicker = SubjectName = SubjectLine = SubjectHome = HotSpotsHeader = "";
+        SubjectPicture = null;
+        SubjectPictureIsLogo = SubjectIsNobody = false;
+        SubjectDraw = 0;
+        if (!IsFameLayer) return;
+
+        List<(City City, int Fame)> known;
+        if (_layer == MapLayer.Fighter && SubjectFighter is { } f)
+        {
+            known = ViewModels.Fame.KnownCities(w, f);
+            SubjectKicker = f.Sex == Sex.Female ? "WHERE SHE'S KNOWN" : "WHERE HE'S KNOWN";
+            SubjectName = f.FullName;
+            SubjectPicture = Portraits.Thumb(f, w);
+            SubjectDraw = f.Intangibles.Popularity.Value;
+            SubjectIsNobody = known.Count == 0;
+            SubjectLine = SubjectIsNobody ? ViewModels.Fame.NobodyLine(f) : ViewModels.Fame.ReachLine(w, known);
+            SubjectHome = HomeCity(w) is { } home ? $"Home town: {ViewModels.Fame.CityLabel(w, home)}" : "";
+        }
+        else if (PlayerPromo is { } p)
+        {
+            known = ViewModels.Fame.KnownCities(w, p);
+            SubjectKicker = "WHERE YOUR PROMOTION IS KNOWN";
+            SubjectName = p.Name;
+            SubjectPicture = LogoFactory.ForPromotion(p);
+            SubjectPictureIsLogo = true;
+            SubjectIsNobody = known.Count == 0;
+            SubjectLine = SubjectIsNobody ? ViewModels.Fame.NobodyLine(p) : ViewModels.Fame.ReachLine(w, known);
+            SubjectHome = HomeCity(w) is { } home ? $"Home city: {ViewModels.Fame.CityLabel(w, home)}" : "";
+        }
+        else return;
+
+        var homeId = HomeCity(w)?.Id;
+        foreach (var (city, fame) in known.Take(6))
+            HotSpots.Add(new HotSpot
+            {
+                City = city.Name,
+                Where = w.Get(city.Country)?.Name is { } cn && cn != city.Name ? cn : "",
+                Fame = fame,
+                HeatBrush = ViewModels.Fame.Heat(fame),
+                InkBrush = ViewModels.Fame.InkOn(fame),
+                IsHome = city.Id == homeId,
+                Region = city.Region,
+                Country = city.Country,
+            });
+        HotSpotsHeader = HotSpots.Count == 0 ? "" : "HOTTEST CITIES  ·  click one to open its country";
     }
 
     // --- World: the seven continental regions --------------------------------
     private void BuildRegions(World world)
     {
+        var home = HomeCity(world);
         foreach (var region in Layout)
         {
-            int interest = MmaInterest.InRegion(world, region);
+            int value = InRegion(world, region);
             var orgs = OrgsInRegion(world, region);
-            int cities = world.Cities.Values.Count(c => c.Region == region);
-            bool playerHere = world.Get(world.PlayerPromotion)?.BaseRegion == region;
+            var cities = world.Cities.Values.Where(c => c.Region == region).ToList();
+            bool playerHere = _layer != MapLayer.Fighter && world.Get(world.PlayerPromotion)?.BaseRegion == region;
 
             var card = new PlaceCard
             {
                 Name = Pretty(region),
-                Interest = interest,
-                HeatBrush = Heat(interest),
-                TextBrush = TextOn(interest),
+                Interest = value,
+                HeatBrush = HeatOf(value),
+                TextBrush = InkOf(value),
                 IsPlayerHere = playerHere,
-                Drillable = cities > 0,
+                IsHome = home?.Region == region,
+                Drillable = cities.Count > 0,
                 DrillTo = PlaceLevel.Region,
                 Region = region,
-                OrgSummary = $"{Count(orgs.Count, "promotion")}  ·  {Count(cities, "city", "cities")}",
-                CitiesLine = TopCities(world.Cities.Values.Where(c => c.Region == region)),
+                ValueTip = ValueTip(Pretty(region)),
+                OrgSummary = IsFameLayer ? FameSummary(value, cities)
+                    : $"{Count(orgs.Count, "promotion")}  ·  {Count(cities.Count, "city", "cities")}",
+                CitiesHeader = IsFameLayer ? "WHERE THE NAME CARRIES" : "HOTTEST CITIES",
+                CitiesLine = IsFameLayer ? FameCities(cities) : TopCities(cities),
             };
             foreach (var p in orgs) card.Orgs.Add(new MapOrgRow(p, world));
             Places.Add(card);
         }
 
+        if (IsFameLayer)
+        {
+            Summary = "";
+            LevelHint = "Click a region to see its countries";
+            return;
+        }
         int active = world.Promotions.Values.Count(p => !p.Defunct);
         Summary = $"{active} active promotions across {world.Cities.Count} cities";
         LevelHint = "Click a region to see its countries";
@@ -175,6 +420,7 @@ public sealed class WorldMapViewModel : ObservableObject
     // --- Region: its countries with a fight scene ----------------------------
     private void BuildCountries(World world, Region region)
     {
+        var home = HomeCity(world);
         var countries = world.Cities.Values
             .Where(c => c.Region == region)
             .Select(c => c.Country)
@@ -182,60 +428,71 @@ public sealed class WorldMapViewModel : ObservableObject
             .Select(id => world.Get(id))
             .Where(c => c is not null)
             .Select(c => c!)
-            .OrderByDescending(c => MmaInterest.InCountry(world, c.Id))
+            .Select(c => (c, v: InCountry(world, c.Id)))
+            .OrderByDescending(t => t.v).ThenByDescending(t => MmaInterest.InCountry(world, t.c.Id)).ThenBy(t => t.c.Name)
             .ToList();
 
-        foreach (var country in countries)
+        foreach (var (country, value) in countries)
         {
-            int interest = MmaInterest.InCountry(world, country.Id);
             var cities = world.Cities.Values.Where(c => c.Country == country.Id).ToList();
             var orgs = OrgsWhere(world, p => p.HomeCity is { } hc && world.Get(hc)?.Country == country.Id);
 
             var card = new PlaceCard
             {
                 Name = country.Name,
-                Interest = interest,
-                HeatBrush = Heat(interest),
-                TextBrush = TextOn(interest),
+                Interest = value,
+                HeatBrush = HeatOf(value),
+                TextBrush = InkOf(value),
+                IsHome = home?.Country == country.Id,
                 Drillable = cities.Count > 0,
                 DrillTo = PlaceLevel.Country,
                 Region = region,
                 Country = country.Id,
-                OrgSummary = $"{Count(orgs.Count, "promotion")}  ·  {Count(cities.Count, "city", "cities")}",
-                CitiesLine = TopCities(cities),
+                ValueTip = ValueTip(country.Name),
+                OrgSummary = IsFameLayer ? FameSummary(value, cities)
+                    : $"{Count(orgs.Count, "promotion")}  ·  {Count(cities.Count, "city", "cities")}",
+                CitiesHeader = IsFameLayer ? "WHERE THE NAME CARRIES" : "HOTTEST CITIES",
+                CitiesLine = IsFameLayer ? FameCities(cities) : TopCities(cities),
             };
             foreach (var p in orgs) card.Orgs.Add(new MapOrgRow(p, world));
             Places.Add(card);
         }
 
-        Summary = $"{Pretty(region)} — {Count(countries.Count, "country", "countries")} with a fight scene";
+        Summary = IsFameLayer ? "" : $"{Pretty(region)} — {Count(countries.Count, "country", "countries")} with a fight scene";
         LevelHint = "Click a country to see its cities";
     }
 
     // --- Country: its individual fight cities (the leaves) -------------------
     private void BuildCities(World world, CountryId countryId)
     {
+        var home = HomeCity(world);
         var cities = world.Cities.Values
             .Where(c => c.Country == countryId)
-            .OrderByDescending(c => c.MmaInterest)
+            .OrderByDescending(InCity).ThenByDescending(c => c.MmaInterest).ThenBy(c => c.Id.Value)
             .ToList();
 
         foreach (var city in cities)
         {
+            int value = InCity(city);
             var orgs = OrgsWhere(world, p => p.HomeCity == city.Id);
             int locals = world.Fighters.Values.Count(f => f.HomeCity == city.Id && f.Status != FighterStatus.Retired);
-            bool playerHere = world.Get(world.PlayerPromotion)?.HomeCity == city.Id;
+            bool playerHere = _layer != MapLayer.Fighter && world.Get(world.PlayerPromotion)?.HomeCity == city.Id;
+            bool isHome = home?.Id == city.Id;
 
             var card = new PlaceCard
             {
                 Name = city.Name,
-                Interest = city.MmaInterest,
-                HeatBrush = Heat(city.MmaInterest),
-                TextBrush = TextOn(city.MmaInterest),
+                Interest = value,
+                HeatBrush = HeatOf(value),
+                TextBrush = InkOf(value),
                 IsPlayerHere = playerHere,
+                IsHome = isHome,
                 Drillable = false,
-                OrgSummary = $"Market {city.Market}  ·  {Count(orgs.Count, "promotion")}",
-                CitiesHeader = "FROM THIS CITY",
+                ValueTip = ValueTip(city.Name),
+                OrgSummary = IsFameLayer
+                    ? $"{Cap(ViewModels.Fame.PlaceWord(value))} here  ·  MMA interest {city.MmaInterest}  ·  market {city.Market}"
+                    : $"Market {city.Market}  ·  {Count(orgs.Count, "promotion")}",
+                CitiesHeader = IsFameLayer && isHome ? "HOME TOWN" : "FROM THIS CITY",
                 CitiesLine = locals == 0 ? "no ranked fighters call it home" : $"{Count(locals, "fighter")} call it home",
             };
             foreach (var p in orgs) card.Orgs.Add(new MapOrgRow(p, world));
@@ -243,7 +500,7 @@ public sealed class WorldMapViewModel : ObservableObject
         }
 
         var country = world.Get(countryId);
-        Summary = $"{country?.Name} — {Count(cities.Count, "fight city", "fight cities")}";
+        Summary = IsFameLayer ? "" : $"{country?.Name} — {Count(cities.Count, "fight city", "fight cities")}";
         LevelHint = "";
     }
 
@@ -258,20 +515,42 @@ public sealed class WorldMapViewModel : ObservableObject
         Breadcrumb[^1].IsLast = true;
     }
 
+    // --- Fame-layer lines --------------------------------------------------------------------
+
+    /// <summary>"Popular · 4 of 9 cities know the name", or "Nobody here knows the name yet".</summary>
+    private string FameSummary(int value, List<City> cities)
+    {
+        int knowing = cities.Count(c => InCity(c) > 0);
+        if (knowing == 0) return "Nobody here knows the name yet";
+        // (a name a few cities know can still average out to 0 across a big market: say "barely", never "unknown")
+        string word = value == 0 ? "barely heard of" : ViewModels.Fame.PlaceWord(value);
+        return $"{Cap(word)} overall  ·  {knowing} of {Count(cities.Count, "city", "cities")} know the name";
+    }
+
+    /// <summary>The three cities in a place where the name carries furthest ("Tbilisi 62 · Batumi 30").</summary>
+    private string FameCities(List<City> cities)
+    {
+        var top = cities.Select(c => (c, v: InCity(c))).Where(t => t.v > 0)
+            .OrderByDescending(t => t.v).ThenBy(t => t.c.Id.Value).Take(3).ToList();
+        return top.Count == 0 ? "—" : string.Join("   ·   ", top.Select(t => $"{t.c.Name} {t.v}"));
+    }
+
     // --- Helpers -------------------------------------------------------------
-    private static System.Collections.Generic.List<Promotion> OrgsInRegion(World world, Region region) =>
+    private static List<Promotion> OrgsInRegion(World world, Region region) =>
         world.Promotions.Values.Where(p => !p.Defunct && p.BaseRegion == region)
             .OrderByDescending(p => p.Prestige.Value).ToList();
 
-    private static System.Collections.Generic.List<Promotion> OrgsWhere(World world, Func<Promotion, bool> pred) =>
+    private static List<Promotion> OrgsWhere(World world, Func<Promotion, bool> pred) =>
         world.Promotions.Values.Where(p => !p.Defunct && pred(p))
             .OrderByDescending(p => p.Prestige.Value).ToList();
 
-    private static string TopCities(System.Collections.Generic.IEnumerable<City> cities) =>
+    private static string TopCities(IEnumerable<City> cities) =>
         string.Join("   ·   ", cities.OrderByDescending(c => c.MmaInterest).Take(3).Select(c => $"{c.Name} {c.MmaInterest}"));
 
     private static string Count(int n, string singular, string? plural = null) =>
         n == 1 ? $"1 {singular}" : $"{n} {plural ?? singular + "s"}";
+
+    private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     // MMA interest → a cold-blue-to-hot-red heat colour.
     private static Brush Heat(int interest)
@@ -286,11 +565,5 @@ public sealed class WorldMapViewModel : ObservableObject
     private static Brush TextOn(int interest) =>
         interest >= 55 ? Brushes.White : new SolidColorBrush(Color.FromRgb(0xE6, 0xE9, 0xEC));
 
-    private static string Pretty(Region r) => r switch
-    {
-        Region.NorthAmerica => "North America",
-        Region.SouthAmerica => "South America",
-        Region.MiddleEast => "Middle East",
-        _ => r.ToString(),
-    };
+    private static string Pretty(Region r) => ViewModels.Fame.PrettyRegion(r);
 }
