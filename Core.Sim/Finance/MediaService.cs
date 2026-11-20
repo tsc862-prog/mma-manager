@@ -827,16 +827,24 @@ public static class MediaService
         foreach (var offer in promo.Offers.Where(o => o.Media is not null)
                      .OrderByDescending(o => o.FeePerEvent.Amount).ToList())
         {
+            if (!promo.Offers.Contains(offer)) continue;   // answered earlier in this pass
             if (offer.Media is { } k && (LaneOpen(promo, k)
                 || DealIn(promo, MediaLanes.LaneOf(k))?.RightsFeePerEvent.Amount < offer.FeePerEvent.Amount))
                 Accept(world, promo, offer, date);
-            // A streaming giant's offer to a house on its own platform: taken only when it pays more than the
-            // platform nets; the platform closes and the deal holds the lane for its whole term. An offer it
-            // turns down stays on the table until it lapses (weighed again each month meanwhile).
-            else if (TakesOverPlatform(world, promo, offer))
+            // A streaming giant's offer to a house on its own platform is answered at once. Taken only when the
+            // house's own recent cards say it can keep the terms and the pay beats what the platform nets: the
+            // platform closes, the deal holds the lane for its whole term, and the other giants' offers are turned
+            // down with it. Otherwise turned down (the partner has had its one pitch). Neither kind of offer is left
+            // on the table, where it could later slip into an emptied lane, or over the signed giant, unweighed.
+            else if (offer.Media == MediaKind.MajorStream && OnOwnPlatform(world, promo))
             {
-                CloseStream(world, promo, date, $"as {offer.Partner} takes over its streaming rights");
-                Accept(world, promo, offer, date);
+                if (TakesOverPlatform(world, promo, offer))
+                {
+                    CloseStream(world, promo, date, $"as {offer.Partner} takes over its streaming rights");
+                    Accept(world, promo, offer, date);
+                    promo.Offers.RemoveAll(o => o.Media == MediaKind.MajorStream);
+                }
+                else promo.Offers.Remove(offer);
             }
         }
 

@@ -62,8 +62,7 @@ public class StreamingLaneTests
         for (int m = 0; m < 12 && !pitched; m++)
         {
             MediaService.RunMonthly(world, house, world.CurrentDate.AddMonths(m), rng);
-            pitched = house.Offers.Any(o => o.Media == MediaKind.MajorStream)
-                || house.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream);
+            pitched = house.CourtedBy.Overlaps(Giants);   // a pitch is remembered, whether taken or turned down
         }
         Assert.True(pitched, "no streaming giant called in a year");
     }
@@ -102,7 +101,31 @@ public class StreamingLaneTests
 
         Assert.NotNull(house.Stream);
         Assert.DoesNotContain(house.MediaDeals, d => d.Kind == MediaKind.MajorStream);
-        Assert.Contains(offer, house.Offers);               // left on the table to lapse; never signed
+        Assert.DoesNotContain(offer, house.Offers);         // answered at once: turned down, not left to slip in later
+    }
+
+    [Fact]
+    public void TakingOneGiant_TurnsTheOthersDown_AndNoneSlipsInLater()
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        house.Stream!.Subscribers = 1_000;
+        foreach (var g in Giants) house.CourtedBy.Add(g);   // no new calls: only the two offers below
+        var strict = WithTerms(GiantOffer(world, "Streamflix", 3_000_000m), new DealRequirement(DealRequirementKind.MinStarPower, 101));
+        var easy = GiantOffer(world, "Watchtower", 1_000_000m);
+        house.Offers.Add(strict);
+        house.Offers.Add(easy);
+        var rng = new SimRandom(3);
+        MediaService.RunMonthly(world, house, world.CurrentDate, rng);
+
+        var deal = Assert.Single(house.MediaDeals, d => d.Kind == MediaKind.MajorStream);
+        Assert.Equal("Watchtower", deal.Partner);                 // the richer offer's star clause was out of reach
+        Assert.DoesNotContain(house.Offers, o => o.Media == MediaKind.MajorStream);
+        for (int m = 1; m <= 3; m++)
+        {
+            MediaService.RunMonthly(world, house, world.CurrentDate.AddMonths(m), rng);
+            Assert.Same(deal, Assert.Single(house.MediaDeals, d => d.Kind == MediaKind.MajorStream));
+        }
     }
 
     [Fact]
@@ -297,7 +320,7 @@ public class StreamingLaneTests
             var twin = new SimRandom(77);
             MediaService.RunMonthly(world, house, world.CurrentDate.AddMonths(m), used);
             Assert.True(twin.NextULong() == used.NextULong(), $"month {m} drew on the shared stream");
-            courted = house.Offers.Any(o => o.Media == MediaKind.MajorStream) || house.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream);
+            courted = house.CourtedBy.Overlaps(Giants);
         }
         Assert.True(courted, "no giant called on the house in two years");
     }
