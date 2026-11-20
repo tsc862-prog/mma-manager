@@ -282,8 +282,13 @@ public static class MediaService
     // on a platform netting a fraction of what a giant pays. Now the giants court
     // such a house on the ordinary rules (the rung's bar, one pitch per partner
     // until it re-enters the market, exclusivity) and the house weighs the offer
-    // against what its platform nets as it stands. The player's house is left as
-    // it was (his Media desk, his call), and so is the 1993 world.
+    // against its own record and what its platform nets. Narrowed so the market
+    // stays open to everyone else (CourtableOnPlatform): only the International
+    // houses are courted back, never for the last free giant, and not for two
+    // years after a house relaunched its platform on losing a giant to strikes.
+    // A freed giant's shop-around still goes to open-lane houses only. The
+    // player's house is left as it was (his Media desk, his call), and so is the
+    // 1993 world.
 
     /// <summary>
     /// An AI house in today's world whose streaming lane is held only by its own platform: a streaming giant
@@ -299,6 +304,46 @@ public static class MediaService
     /// <c>Booking.RoomFit.HarnessOldRooms</c>.
     /// </summary>
     [ThreadStatic] public static PromotionId? HarnessPlayerLane;
+
+    /// <summary>A giant courts back a house on its own platform only while at least this many giants are free (so one is always left for open-lane houses, the player's among them).</summary>
+    public const int CourtBackMinFree = 2;
+
+    /// <summary>How long a house that relaunched its platform on losing a giant to strikes is left alone.</summary>
+    public const int RelaunchSpellDays = 730;
+
+    /// <summary>
+    /// May a streaming giant court this house back off its own platform this month? An AI house on its own platform
+    /// (<see cref="OnOwnPlatform"/>) at the top of the sport (International), while at least
+    /// <see cref="CourtBackMinFree"/> giants are free, and not inside <see cref="RelaunchSpellDays"/> of a platform it
+    /// relaunched after its last giant walked over broken terms (<see cref="RelaunchedAfterStrikes"/>). Public facts and
+    /// the house's own books only; draws nothing.
+    /// </summary>
+    public static bool CourtableOnPlatform(World world, Promotion promo, DateOnly date) =>
+        OnOwnPlatform(world, promo)
+        && Org.OrgSizing.SizeOf(promo) >= OrgSize.International
+        && PartnersIn(world, RungOf(MediaKind.MajorStream)).Count(pp => PartnerFree(world, pp.Name)) >= CourtBackMinFree
+        && !(RelaunchedAfterStrikes(world, promo) && date.DayNumber - promo.Stream!.LaunchedOn.DayNumber < RelaunchSpellDays);
+
+    /// <summary>
+    /// Was the house's platform launched during play after a streaming giant paid it reduced rights for broken terms
+    /// in the year before (its own ledger: a giant's "(terms missed)" rights line)? That is the house that took a
+    /// giant, missed its clauses and fell back on its own service.
+    /// </summary>
+    public static bool RelaunchedAfterStrikes(World world, Promotion promo)
+    {
+        if (promo.Stream is not { } s || s.LaunchedOn <= world.StartDate) return false;
+        int from = s.LaunchedOn.DayNumber - 365;
+        var giants = PartnersIn(world, RungOf(MediaKind.MajorStream)).Select(pp => $" — {pp.Name} rights (terms missed)").ToList();
+        for (int i = promo.Ledger.Count - 1; i >= 0; i--)
+        {
+            var e = promo.Ledger[i];
+            if (e.Date.DayNumber > s.LaunchedOn.DayNumber) continue;
+            if (e.Date.DayNumber < from) break;
+            if (e.Category == FinanceCategory.Broadcast && giants.Any(g => e.Description.EndsWith(g, StringComparison.Ordinal)))
+                return true;
+        }
+        return false;
+    }
 
     private const ulong CourtBackSalt = 0x57E4_3BAC_0001UL;
     private const ulong CourtBackPickSalt = 0x57E4_3BAC_0002UL;
@@ -710,14 +755,14 @@ public static class MediaService
             // Into an open lane — or over the top of a LESSER deal in the same
             // lane (the bigger network poaches: cable calls the org stuck on
             // specialty). The player's own platform isn't poachable; an AI house
-            // on its own platform IS courted by the streaming giants (see
-            // OnOwnPlatform), on its own keyed rolls.
+            // at the top of the sport on its own platform may be courted back by
+            // a streaming giant (see CourtableOnPlatform), on its own keyed rolls.
             var current = DealIn(promo, MediaLanes.LaneOf(rung.Kind));
             bool upgrade = current is not null && current.Kind != rung.Kind
                 && rung.FeeIn(world, promo) > current.RightsFeePerEvent.Amount;
             if (!LaneOpen(promo, rung.Kind) && !upgrade)
             {
-                if (rung.Kind == MediaKind.MajorStream && OnOwnPlatform(world, promo)
+                if (rung.Kind == MediaKind.MajorStream && CourtableOnPlatform(world, promo, date)
                     && CourtingBack(world, promo, rung, date) is { } back)
                     MakeOffer(world, promo, rung, back, date);
                 continue;
@@ -762,7 +807,9 @@ public static class MediaService
     /// which, iterated in promotion order, always handed a freed channel to the
     /// same early-created orgs and starved late risers of television for
     /// decades. The org that just lost them is skipped; the monthly loop can
-    /// still re-court them later.
+    /// still re-court them later. A house on its own platform is never shopped to:
+    /// a freed giant goes to houses with an open lane first (the player's among
+    /// them), and only the monthly courting back reaches a platform house.
     /// </summary>
     private static void ShopAround(World world, MediaKind kind, string partner, DateOnly date, Promotion? except)
     {
@@ -774,8 +821,7 @@ public static class MediaService
                 && !p.Offers.Any(o => o.Partner == partner)
                 && (LaneOpen(p, kind)
                     || (DealIn(p, MediaLanes.LaneOf(kind)) is { } cur && cur.Kind != kind
-                        && rung.FeeIn(world, p) > cur.RightsFeePerEvent.Amount)
-                    || (kind == MediaKind.MajorStream && OnOwnPlatform(world, p))))
+                        && rung.FeeIn(world, p) > cur.RightsFeePerEvent.Amount)))
             .OrderByDescending(p => p.Prestige.Value)
             .FirstOrDefault();
         if (suitor is not null) MakeOffer(world, suitor, rung, ProfileOf(partner), date);

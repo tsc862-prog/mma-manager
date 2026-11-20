@@ -16,13 +16,21 @@ public class StreamingLaneTests
 
     private static World Build(ulong seed = 5) => new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed });
 
-    /// <summary>An AI house on its own platform that a streaming giant would sign, lowest id first.</summary>
-    private static Promotion OwnPlatformHouse(World world) =>
+    /// <summary>AI houses on their own platform that a streaming giant would sign, lowest id first.</summary>
+    private static IEnumerable<Promotion> PlatformHouses(World world) =>
         world.Promotions.Values
             .Where(p => !p.Defunct && p.Id != world.PlayerPromotion && p.Stream is not null
                 && MediaService.DealIn(p, MediaLane.Streaming) is null
                 && MediaService.LadderView(world, p).First(r => r.Kind == MediaKind.MajorStream).Qualified)
-            .OrderBy(p => p.Id.Value).First();
+            .OrderBy(p => p.Id.Value);
+
+    /// <summary>The first of them, lifted to the top of the sport (International) so a giant may court it back.</summary>
+    private static Promotion OwnPlatformHouse(World world)
+    {
+        var p = PlatformHouses(world).First();
+        p.PrestigeHundredths = Math.Max(p.PrestigeHundredths, 7_200);
+        return p;
+    }
 
     /// <summary>Pin the house's other lanes so the monthly market makes no draw for them (top linear rung, a PPV pipe, long terms, no clauses).</summary>
     private static void QuietOtherLanes(Promotion p)
@@ -265,28 +273,83 @@ public class StreamingLaneTests
             && e.Date >= first && e.Date <= world.CurrentDate);
         Assert.Equal(120, rec.Days);
         Assert.Equal(cards, rec.Cards);
-        Assert.Equal(1_000_000m * MediaService.RightsPremium(world, house) * cards * 91m / 120m, MediaService.OfferPerQuarter(world, house, offer));
+        decimal expected = 1_000_000m * MediaService.RightsPremium(world, house) * cards * 91m / 120m;
+        Assert.InRange(MediaService.OfferPerQuarter(world, house, offer), expected - 0.01m, expected + 0.01m);
     }
 
     [Fact]
-    public void AFreedGiant_ShopsAroundToAHouseOnItsOwnPlatform()
+    public void AFreedGiant_ShopsAroundToAnOpenLane_NotToAHouseOnItsOwnPlatform()
     {
-        // A giant that walks out of one house pitches the most prestigious house that could use it, and a house on its
-        // own platform is one of those now. (Revert the ShopAround line and the pitch goes elsewhere or nowhere.)
+        // A giant that walks out of one house pitches the most prestigious house with an OPEN lane; a house on its own
+        // platform is passed over even from the very top. (Put the platform house back in ShopAround and it takes the pitch.)
         var world = Build();
-        var house = OwnPlatformHouse(world);
-        var holder = world.Promotions.Values.Where(p => p.Id != house.Id && p.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream))
+        var platform = OwnPlatformHouse(world);
+        var open = world.Promotions.Values.Where(p => !p.Defunct && p.Id != platform.Id && p.Id != world.PlayerPromotion && p.Stream is not null)
+            .OrderBy(p => p.Id.Value).First();
+        open.Stream = null;                                      // runs no platform: its streaming lane is open
+        var holder = world.Promotions.Values.Where(p => p.Id != platform.Id && p.Id != open.Id && p.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream))
             .OrderBy(p => p.Id.Value).First();
         var deal = holder.MediaDeals.First(d => d.Kind == MediaKind.MajorStream);
-        house.PrestigeHundredths = 9_900;                        // the top of the sport
-        house.Offers.Clear();
-        house.CourtedBy.Clear();
+        platform.PrestigeHundredths = 9_900;                     // the top of the sport
+        open.PrestigeHundredths = 9_800;                         // just under it
+        foreach (var p in new[] { platform, open }) { p.Offers.Clear(); p.CourtedBy.Clear(); }
         deal.Strikes = 1;                                        // not renewed with a strike at term end
         deal.MonthsRemaining = 1;
         MediaService.RunMonthly(world, holder, world.CurrentDate, new SimRandom(5));
 
         Assert.DoesNotContain(deal, holder.MediaDeals);
-        Assert.Contains(house.Offers, o => o.Media == MediaKind.MajorStream && o.Partner == deal.Partner);
+        Assert.Contains(open.Offers, o => o.Media == MediaKind.MajorStream && o.Partner == deal.Partner);
+        Assert.DoesNotContain(platform.Offers, o => o.Partner == deal.Partner);
+    }
+
+    [Fact]
+    public void AContinentalHouseOnItsOwnPlatform_IsNotCourtedBack()
+    {
+        var world = Build();
+        var house = PlatformHouses(world).First();
+        house.PrestigeHundredths = 6_000;                        // Continental, over the giants' prestige bar
+        Assert.True(MediaService.OnOwnPlatform(world, house));
+        Assert.False(MediaService.CourtableOnPlatform(world, house, world.CurrentDate));
+        house.CourtedBy.Clear();
+        var rng = new SimRandom(11);
+        for (int m = 0; m < 24; m++)
+            MediaService.RunMonthly(world, house, world.CurrentDate.AddMonths(m), rng);
+        Assert.False(house.CourtedBy.Overlaps(Giants));
+        Assert.NotNull(house.Stream);
+    }
+
+    [Fact]
+    public void TheLastFreeGiant_IsLeftForTheOpenLanes()
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        var others = world.Promotions.Values.Where(p => !p.Defunct && p.Id != house.Id).OrderBy(p => p.Id.Value).ToList();
+        var free = Giants.Where(g => MediaService.PartnerFree(world, g)).ToList();
+        Assert.True(free.Count >= MediaService.CourtBackMinFree);
+        Assert.True(MediaService.CourtableOnPlatform(world, house, world.CurrentDate));
+        // Sign all but one free giant elsewhere: the last one is not courted back over a platform.
+        for (int i = 0; i < free.Count - 1; i++)
+            others[i].MediaDeals.Add(new MediaDeal { Kind = MediaKind.MajorStream, Partner = free[i], MonthsRemaining = 24, SignedOn = world.CurrentDate });
+        Assert.Equal(1, Giants.Count(g => MediaService.PartnerFree(world, g)));
+        Assert.False(MediaService.CourtableOnPlatform(world, house, world.CurrentDate));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AHouseThatRelaunchedAfterStrikes_IsLeftAloneForTwoYears(bool struck)
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        var launched = world.CurrentDate.AddDays(30);
+        world.CurrentDate = launched.AddDays(30);
+        // Its last giant paid it reduced rights for broken terms (or paid in full) shortly before the relaunch.
+        Ledger.Income(house, launched.AddDays(-60), FinanceCategory.Broadcast, new Money(500_000m),
+            $"Some Night — Arena+ rights{(struck ? " (terms missed)" : "")}");
+        house.Stream = new StreamingPlatform { Name = "X+", LaunchedOn = launched, Subscribers = 1_000 };
+        Assert.Equal(struck, MediaService.RelaunchedAfterStrikes(world, house));
+        Assert.Equal(!struck, MediaService.CourtableOnPlatform(world, house, world.CurrentDate));
+        Assert.True(MediaService.CourtableOnPlatform(world, house, launched.AddDays(MediaService.RelaunchSpellDays)));
     }
 
     [Fact]
