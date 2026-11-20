@@ -995,8 +995,8 @@ public static class ForwardCalendar
         $"{world.Get(fight.RedCorner)?.FullName ?? "?"} vs {world.Get(fight.BlueCorner)?.FullName ?? "?"}";
 
     /// <summary>
-    /// The room is fitted to the draw the promotion has ON THE NIGHT, as it was
-    /// when AI cards were booked on the day. A card announced a month ahead
+    /// The room is fitted to the crowd the card draws ON THE NIGHT (<see cref="Booking.RoomFit"/>:
+    /// the box office's own demand for this card, as it was when AI cards were booked on the day). A card announced a month ahead
     /// keeps its city, but moves to the room that now fits its following: a
     /// startup announced in its first week would otherwise be stuck in a
     /// thousand-seat club while twice that many want in (that capped every new
@@ -1010,7 +1010,8 @@ public static class ForwardCalendar
         if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;
         if (world.Mode == WorldMode.Origins) return;   // the first promotions stay in their own rooms (no draws here)
         if (ev.VenueId is not { } current || world.Get(current) is not { } room) return;
-        if (Geography.WorldMap.PickVenueIn(world, promo, room.City) is not { } fit || fit.Id == current) return;
+        if (!Booking.RoomFit.AppliesTo(world, promo)) return;
+        if (Booking.RoomFit.Pick(world, ev, room.City) is not { } fit || fit.Id == current) return;
         ev.VenueId = fit.Id;
         ev.Venue = fit.Name;
         if (world.Get(fit.City) is { } city) ev.Region = city.Region;

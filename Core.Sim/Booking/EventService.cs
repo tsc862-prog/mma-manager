@@ -60,6 +60,15 @@ public sealed class EventService
         }
         Living.LocalCircuit.YieldTo(world, ev.Card);   // a promotion's booking beats a staged club card
 
+        // An AI house in today's mode sizes the room to the crowd this card will draw (its headliner is known now),
+        // in the city the room above is in. A tradition keeps the big house: that IS the occasion.
+        if (!biggestRoom && venue is not null && promo is not null && RoomFit.AppliesTo(world, promo)
+            && RoomFit.Pick(world, ev, venue.City) is { } fit && fit.Id != venue.Id)
+        {
+            ev.VenueId = fit.Id;
+            ev.Venue = fit.Name;
+        }
+
         world.Events[ev.Id] = ev;
         return ev;
     }
