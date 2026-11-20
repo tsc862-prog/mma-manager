@@ -10,12 +10,14 @@ namespace MmaManager.Tests;
 /// An AI house on television books the top of its card for its network (today's mode). A media deal's star clause
 /// ("a main-eventer people know") is judged on the better-known man of the bout that runs LAST; before this rule set
 /// the matchmaker never looked at it (the headliner was the longest-idle belt or the strongest pairing) and 81% of
-/// the flagship's media strikes were that clause (longsim, 40 seeds). Four of these tests fail on main: the
-/// longest-idle belt headlined over a belt whose bout clears the clause; the strongest non-title pairing headlined
-/// over a strong pairing with a star in it; a card close to its date kept a main event under the clause with a
-/// main-card bout above it; the same with the clause on a PPV carrier's night. The rest guard what must not
-/// change: a belt whose champion is overdue stays on top, nobody clears the clause (the usual order), no clause, a co-main pick, a star on the prelims, a main event
-/// that clears it, the player's house, the 1993 world.
+/// the flagship's media strikes were that clause (longsim, 40 seeds). Eight of these tests fail with the clause
+/// switched off: the longest-idle belt headlined over a belt whose bout clears the clause; the strongest non-title
+/// pairing headlined over a strong pairing with a star in it; a card close to its date kept a main event under the
+/// clause with a main-card bout above it; the same with the clause on a PPV carrier's night; an overdue belt's bout
+/// stayed on top of a star; a displaced non-title main kept five rounds; a main that barely clears stayed above one
+/// that clears with room to spare; a new top of an announced bill was not news. The rest guard what must not change:
+/// an overdue belt is the one booked, nobody clears the clause (the usual order), no clause, a co-main pick, a star on
+/// the prelims, a main event that clears it, a bare clear over another bare clear, the player's house, the 1993 world.
 /// Every scene is built two years past the generated history, so only the bouts staged here are recent.
 /// </summary>
 public class HeadlinerStarClauseTests
@@ -245,6 +247,77 @@ public class HeadlinerStarClauseTests
         Assert.Contains(titleFight, ev.Card);
         Assert.True(titleFight.IsTitleFight);   // the belt is still on the line, as the co-main
         Assert.True(DealCompliance.Meets(s.W, ev, new DealRequirement(DealRequirementKind.MinStarPower, Clause)));
+    }
+
+    [Fact]
+    public void AnOverdueBelt_IsBookedOntoTheCard_ButABiggerNameMayRunAboveIt()
+    {
+        var s = Build(idleA: 150);                // A's champion (nobody knows him: 40) is overdue
+        var star = s.B.Ranked[3];                 // a well-known man on the main card, not B's challenger
+        star.Intangibles.Popularity = 85;
+        var booked = Headliner(s, Everyone(s.A).Concat(Everyone(s.B)));
+        Assert.Equal(s.A.T.Id, booked!.Value.Title);   // the overdue belt is the one booked
+        var ev = Card(s);                         // A's title fight announced on top; the star's bout on the main card
+        var titleFight = ev.Card[^1];
+        var starBout = ev.Card.Single(f => f.RedCorner == star.Id || f.BlueCorner == star.Id);
+        ForwardCalendar.HeadlineForTheNetwork(s.W, ev);
+        Assert.Same(starBout, ev.Card[^1]);
+        Assert.Same(titleFight, ev.Card[^2]);
+        Assert.True(titleFight.IsTitleFight);
+        Assert.Equal(s.P.Rules.TitleRounds, titleFight.ScheduledRounds);
+    }
+
+    [Fact]
+    public void ADisplacedNonTitleMain_GoesBackToTheStandardDistance()
+    {
+        var s = Build();
+        var ev = Card(s);
+        var oldMain = ev.Card[^1];
+        oldMain.IsTitleFight = false;
+        oldMain.Title = null;                     // a non-title five-round headliner
+        var starBout = ev.Card[3];
+        s.W.Get(starBout.RedCorner)!.Intangibles.Popularity = 80;
+        ForwardCalendar.HeadlineForTheNetwork(s.W, ev);
+        Assert.Same(starBout, ev.Card[^1]);
+        Assert.Equal(s.P.Rules.TitleRounds, starBout.ScheduledRounds);
+        Assert.Equal(s.P.Rules.StandardRounds, oldMain.ScheduledRounds);
+        Assert.Equal(1, ev.Card.Count(f => !f.IsTitleFight && f.ScheduledRounds == s.P.Rules.TitleRounds));
+    }
+
+    [Fact]
+    public void AMainThatBarelyClears_GivesWayToOneThatClearsWithRoomToSpare_ButNotToAnotherBareClear()
+    {
+        var s = Build();
+        var ev = Card(s);
+        var main = ev.Card[^1];
+        s.A.Champ.Intangibles.Popularity = Clause + 1;                       // clears, under the margin (tier 1)
+        var bare = ev.Card[2];
+        s.W.Get(bare.RedCorner)!.Intangibles.Popularity = Clause + 2;          // also tier 1
+        ForwardCalendar.HeadlineForTheNetwork(s.W, ev);
+        Assert.Same(main, ev.Card[^1]);                                        // tier 1 does not displace tier 1
+        var safe = ev.Card[3];
+        s.W.Get(safe.RedCorner)!.Intangibles.Popularity = Clause + Matchmaker.StarMargin;   // tier 2
+        ForwardCalendar.HeadlineForTheNetwork(s.W, ev);
+        Assert.Same(safe, ev.Card[^1]);
+        Assert.True(main.IsTitleFight);
+    }
+
+    [Fact]
+    public void ANewTopOfTheBill_OnAnAnnouncedCardThatMadeTheNews_IsNewsToo()
+    {
+        var s = Build();
+        var quiet = Card(s);
+        s.W.Get(quiet.Card[3].RedCorner)!.Intangibles.Popularity = 80;
+        int before = s.W.News.Count(n => n.Headline.EndsWith(ForwardCalendar.NewMainEventMarker));
+        ForwardCalendar.HeadlineForTheNetwork(s.W, quiet);                      // at announcement: its own headline follows
+        Assert.Equal(before, s.W.News.Count(n => n.Headline.EndsWith(ForwardCalendar.NewMainEventMarker)));
+
+        var ev = Card(s);
+        Assert.True(ForwardCalendar.MeritsHeadline(s.W, ev), "a belt on top of a Continental+ card makes the news");
+        ForwardCalendar.HeadlineForTheNetwork(s.W, ev, newsOn: s.W.CurrentDate);
+        var posted = s.W.News.Where(n => n.Headline == $"{ev.Name} {ForwardCalendar.NewMainEventMarker}").ToList();
+        Assert.Single(posted);
+        Assert.Contains(s.W.Get(ev.Card[^1].RedCorner)!.LastName, posted[0].Body);
     }
 
     [Fact]

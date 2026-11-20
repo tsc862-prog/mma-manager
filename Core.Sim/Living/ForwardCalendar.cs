@@ -584,7 +584,7 @@ public static class ForwardCalendar
                                  && e.Date >= today && e.Date.DayNumber - today.DayNumber <= UndercardFillDays)
                      .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
                      .ToList())
-            HeadlineForTheNetwork(world, ev);
+            HeadlineForTheNetwork(world, ev, newsOn: today);
     }
 
     /// <summary>
@@ -592,15 +592,20 @@ public static class ForwardCalendar
     /// (<see cref="Finance.MediaService.StarBar"/>, read on the better-known man of the bout that runs LAST, as
     /// <see cref="Finance.DealCompliance"/> reads it) puts on top the main-card bout that answers it best
     /// (<see cref="Matchmaker.StarTier"/>: clears it with room to spare, else clears it; a belt first, then the bigger
-    /// name, then the bout id), and that bout goes the title distance. Only bouts already inside the broadcast window
+    /// name, then the bout id), and that bout goes the title distance; the main event it displaces goes back to the
+    /// standard distance unless it is a title fight (a card carries one non-title five-rounder, its main event).
+    /// Only bouts already inside the broadcast window
     /// (<see cref="Finance.MediaService.BroadcastWindow"/>) move, and only up: a main event that answers the clause as
     /// well as any of them stays, and nobody is added, held or moved between cards. A belt that drops to the co-main is
     /// still on the line (the networks' title clause reads the whole card). Left alone: the player's cards, a
     /// champion-vs-champion superfight, a main event an authored booking names, the 1993 world. Before this the
     /// matchmaker never looked at the clause and 81% of the flagship's media strikes were a headliner under it (longsim,
-    /// 40 seeds). Draws nothing.
+    /// 40 seeds). On a card already announced (<paramref name="newsOn"/> set: the weekly pass, a replaced main event; not the
+    /// call inside <see cref="AnnounceCard"/>, whose own headline follows it) whose announcement made the news
+    /// (<see cref="MeritsHeadline"/>), the new top of the bill is news too, so the announcement and the result never
+    /// disagree. Draws nothing.
     /// </summary>
-    internal static void HeadlineForTheNetwork(World world, Event ev)
+    internal static void HeadlineForTheNetwork(World world, Event ev, DateOnly? newsOn = null)
     {
         if (ev.Card.Count < 2 || ev.Promotion == world.PlayerPromotion || Storylines.IsSuperfight(ev)) return;
         if (world.Get(ev.Promotion) is not { Defunct: false } promo) return;
@@ -619,9 +624,27 @@ public static class ForwardCalendar
             .ThenBy(x => x.F.Id.Value)
             .Select(x => x.F).FirstOrDefault();
         if (best is null) return;
+        bool inTheNews = newsOn is not null && MeritsHeadline(world, ev);   // read before the bill changes: the headline it made
         ev.Card.Remove(best);
         ev.Card.Add(best);
         if (best.ScheduledRounds < promo.Rules.TitleRounds) best.ScheduledRounds = promo.Rules.TitleRounds;
+        if (!main.IsTitleFight && main.ScheduledRounds > promo.Rules.StandardRounds) main.ScheduledRounds = promo.Rules.StandardRounds;
+        if (inTheNews) NewTopOfTheBill(world, promo, ev, best, main, bar, newsOn!.Value);
+    }
+
+    /// <summary>"AFC Fight Night 212 has a new main event": the network's running order, as the news reads it.</summary>
+    internal const string NewMainEventMarker = "has a new main event";
+
+    private static void NewTopOfTheBill(World world, Promotion promo, Event ev, Fight top, Fight was, int bar, DateOnly on)
+    {
+        string Bout(Fight f) => $"{world.Get(f.RedCorner)?.LastName ?? "?"} vs {world.Get(f.BlueCorner)?.LastName ?? "?"}";
+        string partner = promo.MediaDeals
+            .Where(d => d.Requirements.Any(r => r.Kind == DealRequirementKind.MinStarPower && r.Threshold == bar))
+            .Select(d => d.Partner).OrderBy(n => n, StringComparer.Ordinal).FirstOrDefault() ?? "The network";
+        string body = (ev.Id.Value % 2 == 0)
+            ? $"{partner} wants the bigger name on top: {Bout(top)} now headlines {ShowLabel(promo, ev)}, and {Bout(was)} moves to the co-main."
+            : $"{Bout(was)} slides to the co-main. {partner} asked for a main-eventer its viewers know, and {Bout(top)} closes the show.";
+        News.Post(world, on, NewsCategory.General, $"{ev.Name} {NewMainEventMarker}", body, promo.Id, top.RedCorner, ev.Id);
     }
 
     // --- Between announcement and fight night --------------------------------
@@ -775,7 +798,7 @@ public static class ForwardCalendar
         }
         var main = ev.Card[^1];
         if (main.ScheduledRounds < promo.Rules.TitleRounds) main.ScheduledRounds = promo.Rules.TitleRounds;
-        HeadlineForTheNetwork(world, ev);
+        HeadlineForTheNetwork(world, ev, newsOn: world.CurrentDate);
     }
 
     /// <summary>

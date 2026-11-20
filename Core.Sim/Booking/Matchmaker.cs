@@ -22,9 +22,11 @@ public readonly record struct Matchup(
 /// <item>a house on television books its headliner for its network: when its live
 /// media deals hold the main event to a star clause (<see cref="Finance.MediaService.StarBar"/>),
 /// a headliner whose better-known man clears it comes first (see <see cref="StarTier"/>),
-/// and only then the usual order; a belt that is overdue (vacant, or its champion out
-/// <see cref="ChampionWaitMaxDays"/> or longer) is never passed over for it. Who fights
-/// for a belt is never changed by it.</item>
+/// and only then the usual order. A belt that is overdue (vacant, or its champion out
+/// <see cref="ChampionWaitMaxDays"/> or longer) is always the belt BOOKED onto the card,
+/// whatever the names; the running order (<c>ForwardCalendar.HeadlineForTheNetwork</c>)
+/// may still put a bigger name's bout above it, with the belt as the co-main. Who fights
+/// for a belt is never changed by any of this.</item>
 /// </list>
 /// Fully deterministic: rotation is driven by how long each belt has gone
 /// undefended, not by chance. Every build can be made for a FUTURE fight date
@@ -260,11 +262,12 @@ public sealed class Matchmaker
     }
 
     /// <summary>
-    /// A belt the network's star clause never passes over: vacant, or its champion out <see cref="ChampionWaitMaxDays"/>
-    /// or longer (under the 120 days after which an idle man's loyalty starts to wear). Without this a champion nobody
-    /// knows lost his place to a better-known one card after card: at National+ houses champions idle past 180 days went
-    /// 11.1% -> 14.2% of champion-months (longsim, 100 seeds). Such a belt still goes on the card; the running order
-    /// (<c>ForwardCalendar.HeadlineForTheNetwork</c>) may put a bigger name above it.
+    /// A belt that is always the one booked onto the card, whatever the names: vacant, or its champion out
+    /// <see cref="ChampionWaitMaxDays"/> or longer (under the 120 days after which an idle man's loyalty starts to wear).
+    /// This decides only which belt is BOOKED: the running order (<c>ForwardCalendar.HeadlineForTheNetwork</c>, run as
+    /// soon as the card is announced) may still put a bigger name's bout above it, with the belt fought as the co-main.
+    /// Without it a champion nobody knew lost his booking to a better-known one card after card: at National+ houses
+    /// champion-months idle past 180 days went 11.1% -> 14.2% (longsim, 100 seeds); with it, 11.4%.
     /// </summary>
     private static int Overdue(long priority) => priority >= ChampionWaitMaxDays ? 1 : 0;
 
