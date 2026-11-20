@@ -62,15 +62,16 @@ namespace MmaManager.Tests;
 /// order; no draw; a displaced non-title main back to three rounds; a new top of an announced bill is news). Both modern
 /// pins move; no Origins pin does (all four equal main's at c804505).
 /// Recaptured on world/ai-venues (an AI house in today's mode books the room its card's own demand fills, Booking.RoomFit;
-/// no draw). Both modern pins move: the gate, and through it banks and prestige, differs from the first cards. No Origins
+/// no draw; fitted again after the network's running order at announcement and once the card has settled on fight
+/// night). Both modern pins move: the gate, and through it banks and prestige, differs from the first cards. No Origins
 /// pin moves (all four equal main's at 860c31a; Origins houses never come to RoomFit).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "A3509D22687089DA6D37",   // 2027-12-30, 4623 events, 7512 fighters
-        ["modern-player-4-y2"] = "DBC314F13B80F8B980AE",   // 2027-12-30, 4584 events, 7565 fighters
+        ["modern-ai-11-y2"] = "5B6F3BAAF24CA9EB4031",   // 2027-12-30, 4635 events, 7543 fighters
+        ["modern-player-4-y2"] = "B3D2DE9893F7CBCFFCE4",   // 2027-12-30, 4584 events, 7567 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
