@@ -50,6 +50,10 @@ public sealed class MediaHealth
         l.Add((d, what));
     }
 
+    /// <summary>"... has a new main event" headlines (ForwardCalendar.NewMainEventMarker), by "AFC"/tier at the time: HEADLINE-SAMPLED weekly.</summary>
+    public readonly Dictionary<string, int> NewMainNews = new();
+    private NewsItem? _lastNews;
+
     private sealed record DealSnap(MediaDeal Deal, int Strikes, DateOnly? LastAired, int Months);
     private sealed record OrgSnap(Promotion P, OrgSize Tier, bool HadStream, List<DealSnap> Deals);
     private Dictionary<PromotionId, OrgSnap> _before = new();
@@ -70,6 +74,7 @@ public sealed class MediaHealth
             _before[p.Id] = new OrgSnap(p, OrgSizing.SizeOf(p), p.Stream is not null,
                 p.MediaDeals.Select(d => new DealSnap(d, d.Strikes, d.LastAiredOn, d.MonthsRemaining)).ToList());
         }
+        _lastNews = world.News.Count > 0 ? world.News[^1] : null;
         var horizon = world.CurrentDate.AddDays(8);
         _due = world.Events.Values.Where(e => e.Status == EventStatus.Scheduled && e.Date <= horizon).ToList();
     }
@@ -77,6 +82,14 @@ public sealed class MediaHealth
     public void AfterWeek(World world)
     {
         _week++;
+        int from = 0;
+        if (_lastNews is not null)
+            for (int i = world.News.Count - 1; i >= 0; i--)
+                if (ReferenceEquals(world.News[i], _lastNews)) { from = i + 1; break; }
+        for (int i = from; i < world.News.Count; i++)
+            if (world.News[i].Headline.EndsWith("has a new main event", StringComparison.Ordinal)
+                && _before.TryGetValue(world.News[i].Promotion, out var ns))
+                foreach (var w in Who(ns.P, ns.Tier)) Add(NewMainNews, w);
         var ran = _due.Where(e => e.Status == EventStatus.Completed && e.Card.Count > 0).ToList();
         var ranBy = ran.GroupBy(e => e.Promotion).ToDictionary(g => g.Key, g => g.ToList());
 
@@ -318,6 +331,8 @@ public sealed class MediaHealth
             Console.WriteLine($"    {w,-14} cards {cards,6} · missed {miss,5} ({100.0 * miss / Math.Max(1, cards):0.0}%) · "
                 + string.Join(" · ", MissKinds.Select(k => $"{k} {seeds.Sum(s => s.StarMiss.GetValueOrDefault((w, k)))}")));
         }
+        Console.WriteLine("  'has a new main event' news (the network's running order changed an announced bill; HEADLINE-SAMPLED weekly), per org-year in the tier: "
+            + string.Join(" · ", Whos(seeds).Select(w => $"{w} {seeds.Sum(s => s.NewMainNews.GetValueOrDefault(w))} ({seeds.Sum(s => s.NewMainNews.GetValueOrDefault(w)) / Math.Max(0.01, seeds.Sum(s => s.OrgWeeks.GetValueOrDefault(w)) / 52.0):0.00})")));
         Console.WriteLine("  streaming lane at houses a MajorStream partner would sign (SAMPLED weekly; signings/losses from deal objects):");
         foreach (var w in Whos(seeds))
             if (StreamKinds.Any(k => seeds.Any(s => s.Stream.ContainsKey((w, k)))))
