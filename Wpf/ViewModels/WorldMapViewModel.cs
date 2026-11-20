@@ -8,6 +8,7 @@ using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Geography;
 using MmaManager.Core.Sim.Org;
 using MmaManager.Wpf.Art;
+using MmaManager.Wpf.Map;
 using MmaManager.Wpf.Mvvm;
 
 namespace MmaManager.Wpf.ViewModels;
@@ -150,7 +151,56 @@ public sealed class WorldMapViewModel : ObservableObject
         HotSpotCommand = new RelayCommand<HotSpot>(GoToSpot);
         BackToInterestCommand = new RelayCommand(() => SetLayer(MapLayer.Interest));
         OpenSubjectCommand = new RelayCommand(OpenSubject);
+        MapSpotCommand = new RelayCommand<MapSpot>(OpenSpot);
+        MapCountryCommand = new RelayCommand<string>(OpenLand);
+        MapRegionCommand = new RelayCommand<Region>(r => { _level = PlaceLevel.Region; _region = r; Rebuild(); });
     }
+
+    // --- Map or list -------------------------------------------------------------------------
+
+    // The drawn map leads; the place cards are its detail (a rail beside the zoomed map) and the List
+    // view. A viewing preference, so it is kept across a new world too.
+    private bool _showMap = true;
+    public bool ShowMap { get => _showMap; set { if (value && !_showMap) { _showMap = true; Rebuild(); } } }
+    public bool ShowList { get => !_showMap; set { if (value && _showMap) { _showMap = false; Rebuild(); } } }
+    /// <summary>Map view, drilled in: the region's countries (or the country's cities) as cards beside the map.</summary>
+    public bool ShowRail => _showMap && _level != PlaceLevel.World && Places.Count > 0;
+    public string RailHeader => _level == PlaceLevel.Country ? "ITS FIGHT CITIES" : "COUNTRIES WITH A FIGHT SCENE";
+
+    public ICommand MapSpotCommand { get; }
+    public ICommand MapCountryCommand { get; }
+    public ICommand MapRegionCommand { get; }
+
+    public IReadOnlyList<MapSpot> MapSpots { get; private set; } = Array.Empty<MapSpot>();
+    public IReadOnlyList<MapRegionLabel> MapRegions { get; private set; } = Array.Empty<MapRegionLabel>();
+    public IReadOnlyDictionary<string, Color> MapFills { get; private set; } = new Dictionary<string, Color>();
+    public MapFocus? MapFocus { get; private set; }
+    public string? MapFocusCountry { get; private set; }
+
+    // --- Hover card (the map writes the hover here; nothing else reads it) --------------------
+
+    private MapSpot? _hoverSpot;
+    private string? _hoverCountry;
+    public MapSpot? HoverSpot { get => _hoverSpot; set { if (!ReferenceEquals(_hoverSpot, value)) { _hoverSpot = value; HoverRead(); } } }
+    public string? HoverCountry { get => _hoverCountry; set { if (_hoverCountry != value) { _hoverCountry = value; HoverRead(); } } }
+
+    public bool HasHover { get; private set; }
+    public string HoverTitle { get; private set; } = "";
+    public string HoverWhere { get; private set; } = "";
+    public string HoverValue { get; private set; } = "";
+    public Brush HoverValueBrush { get; private set; } = Brushes.Transparent;
+    public string HoverSecond { get; private set; } = "";
+    public string HoverOrgs { get; private set; } = "";
+    public string HoverHint { get; private set; } = "";
+    public bool HoverIsHome { get; private set; }
+    public string HoverHomeText { get; private set; } = "";
+
+    private static readonly string[] HoverProps =
+    {
+        nameof(HasHover), nameof(HoverTitle), nameof(HoverWhere), nameof(HoverValue), nameof(HoverValueBrush),
+        nameof(HoverSecond), nameof(HoverOrgs), nameof(HoverHint), nameof(HoverIsHome), nameof(HoverHomeText),
+        nameof(HoverSpot), nameof(HoverCountry),
+    };
 
     // --- Layers ------------------------------------------------------------------------------
 
@@ -279,8 +329,239 @@ public sealed class WorldMapViewModel : ObservableObject
             case PlaceLevel.Country: BuildCities(_world, _country!.Value); break;
         }
         BuildBreadcrumb(_world);
-        // Everything that hangs off the layer (segments, banner, legend) reads again.
+        BuildMap(_world);
+        _hoverSpot = null;      // the spots were rebuilt: an old hover points at nothing
+        _hoverCountry = null;
+        HoverClear();
+        if (_showMap) LevelHint = _level switch
+        {
+            PlaceLevel.World => "Click a region's name or its land to zoom in · click a city to open its country",
+            PlaceLevel.Region => "Click a country or a city to see its cities",
+            _ => "",
+        };
+        // Everything that hangs off the layer (segments, banner, legend, the map) reads again.
         OnPropertyChanged(string.Empty);
+    }
+
+    // --- The drawn map ---------------------------------------------------------------------------
+
+    // Each region's zoomed view (display longitudes: Samoa and Tonga sit past 180, beside Fiji).
+    private static readonly Dictionary<Region, MapFocus> RegionBoxes = new()
+    {
+        [Region.NorthAmerica] = new(-128, -56, 10, 58),
+        [Region.SouthAmerica] = new(-92, -30, -56, 14),
+        [Region.Europe] = new(-14, 48, 35, 66),
+        [Region.MiddleEast] = new(24, 72, 10, 45),
+        [Region.Asia] = new(64, 150, -10, 50),
+        [Region.Africa] = new(-24, 56, -37, 38),
+        [Region.Oceania] = new(108, 192, -50, -2),
+    };
+
+    // Where each region's name sits on the whole-world view: over open land, clear of its cities.
+    private static readonly Dictionary<Region, (double Lat, double Lon)> RegionNameAt = new()
+    {
+        [Region.NorthAmerica] = (54, -102),
+        [Region.SouthAmerica] = (-8, -60),
+        [Region.Europe] = (63, 40),
+        [Region.MiddleEast] = (33, 54),
+        [Region.Asia] = (46, 100),
+        [Region.Africa] = (2, 21),
+        [Region.Oceania] = (-23, 132),
+    };
+
+    private static readonly Color PlainLand = Color.FromRgb(0x22, 0x29, 0x32);
+    private static readonly Color DimLand = Color.FromRgb(0x1A, 0x1F, 0x26);
+
+    private void BuildMap(World w)
+    {
+        var home = HomeCity(w);
+        var mine = PlayerPromo;
+        var byCity = w.Promotions.Values.Where(p => !p.Defunct && p.HomeCity is not null)
+            .GroupBy(p => p.HomeCity!.Value).ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.Prestige.Value).ToList());
+
+        // Cities: every one the atlas placed (49 today and in Origins); a city without coordinates is skipped.
+        var spots = new List<MapSpot>();
+        foreach (var city in w.Cities.Values.OrderBy(c => c.Id.Value))
+        {
+            if (!CityCoordinates.TryGet(w, city.Id, out var at)) continue;
+            int v = InCity(city);
+            var orgs = byCity.GetValueOrDefault(city.Id) ?? new List<Promotion>();
+            spots.Add(new MapSpot
+            {
+                CityId = city.Id.Value, Name = city.Name, CountryName = w.Get(city.Country)?.Name ?? "",
+                Country = city.Country, Region = city.Region, Lat = at.Lat, Lon = at.Lon,
+                Value = v,
+                Heat = IsFameLayer ? ViewModels.Fame.HeatT(v) : InterestT(v),
+                Color = ((SolidColorBrush)HeatOf(v)).Color,
+                Lit = !IsFameLayer || v > 0,
+                IsHome = home?.Id == city.Id,
+                IsMine = _layer == MapLayer.Interest && mine?.HomeCity == city.Id,
+                LabelRank = v + city.Market / 1000.0,
+                ValueWord = IsFameLayer ? ViewModels.Fame.PlaceWord(v) : InterestWord(v),
+                ValueLine = ValueLineFor(v),
+                Orgs = orgs.Select(p => p.Abbreviation).ToList(),
+                HasMyOrg = mine is not null && orgs.Any(p => p.Id == mine.Id),
+            });
+        }
+        // Always labelled on the whole world: the hot ones (fame: everywhere with a few fans or more; interest:
+        // the dozen most fight-mad), home and your base. The rest name themselves on hover or when zoomed.
+        var hot = IsFameLayer
+            ? spots.Where(s => s.Value >= 10).OrderByDescending(s => s.Value).Take(14).ToList()
+            : spots.OrderByDescending(s => s.Value).ThenBy(s => s.CityId).Take(12).ToList();
+        if (IsFameLayer && hot.Count < 4)
+            hot = spots.Where(s => s.Value > 0).OrderByDescending(s => s.Value).ThenBy(s => s.CityId).Take(5).ToList();
+        var always = hot.Select(s => s.CityId).ToHashSet();
+        MapSpots = spots.Select(s => always.Contains(s.CityId) || s.IsHome || s.IsMine ? With(s, alwaysLabel: true) : s).ToList();
+
+        // Region names (whole world only), with the layer's roll-up.
+        MapRegions = _level == PlaceLevel.World
+            ? Layout.Select(r =>
+            {
+                int v = InRegion(w, r);
+                return new MapRegionLabel
+                {
+                    Region = r, Name = Pretty(r), Value = v, Ink = ((SolidColorBrush)HeatOf(v)).Color,
+                    Lat = RegionNameAt[r].Lat, Lon = RegionNameAt[r].Lon,
+                };
+            }).ToList()
+            : new List<MapRegionLabel>();
+
+        // Land: faint colour from the country roll-up, so there is heat between the dots. Interest: every
+        // country the atlas knows; fame: the countries with a fight city (the sim's roll-up is cities only).
+        var byCode = w.Countries.Values.GroupBy(c => c.Code).ToDictionary(g => g.Key, g => g.First());
+        var fills = new Dictionary<string, Color>();
+        foreach (var shape in WorldShapes.Land)
+        {
+            Country? country = WorldShapes.LandToAtlas.TryGetValue(shape.Code, out var atlas) ? byCode.GetValueOrDefault(atlas) : null;
+            var region = country?.Continent ?? shape.Region;
+            bool outside = _level != PlaceLevel.World && region != _region;
+            Color baseColor = outside ? DimLand : PlainLand;
+            if (country is null || outside) { if (outside) fills[shape.Code] = baseColor; continue; }
+            int v = InCountry(w, country.Id);
+            if (IsFameLayer && v <= 0) continue;
+            // A hint, not a fill: the city glows lead. The blend grows with the value raised to 1.5, so a big
+            // country at a low value (fame ~20) is barely off plain land, and even the hottest stays well under its glow.
+            var heat = ((SolidColorBrush)HeatOf(v)).Color;
+            double t = IsFameLayer ? Math.Clamp(v / 100.0, 0, 1) : InterestT(v);
+            fills[shape.Code] = Blend(baseColor, heat, (IsFameLayer ? 0.28 : 0.16) * Math.Pow(t, 1.5));
+        }
+        MapFills = fills;
+
+        MapFocus = _level == PlaceLevel.World ? null : RegionBoxes[_region];
+        MapFocusCountry = _level == PlaceLevel.Country && _country is { } cid && w.Get(cid) is { } fc
+            ? WorldShapes.AtlasToLand.GetValueOrDefault(fc.Code) : null;
+    }
+
+    private static MapSpot With(MapSpot s, bool alwaysLabel) => new()
+    {
+        CityId = s.CityId, Name = s.Name, CountryName = s.CountryName, Country = s.Country, Region = s.Region,
+        Lat = s.Lat, Lon = s.Lon, Value = s.Value, Heat = s.Heat, Color = s.Color, Lit = s.Lit, IsHome = s.IsHome,
+        IsMine = s.IsMine, AlwaysLabel = alwaysLabel, LabelRank = s.LabelRank, ValueWord = s.ValueWord,
+        ValueLine = s.ValueLine, Orgs = s.Orgs, HasMyOrg = s.HasMyOrg,
+    };
+
+    private string ValueLineFor(int v) => _layer switch
+    {
+        MapLayer.Interest => $"MMA interest {v}  ·  {InterestWord(v)}",
+        _ => v > 0 ? $"Fame {v}  ·  {ViewModels.Fame.PlaceWord(v)}" : "Nobody here knows the name yet",
+    };
+
+    /// <summary>MMA interest in words, the legend's own ends ("cool" to "fight-mad").</summary>
+    private static string InterestWord(int v) => v switch
+    {
+        >= 75 => "fight-mad",
+        >= 60 => "a fight town",
+        >= 45 => "warm to it",
+        >= 30 => "lukewarm",
+        _ => "cool",
+    };
+
+    /// <summary>Where interest sits on its ramp (0..1): the same span the card colour uses, so glow and card agree.</summary>
+    private static double InterestT(int v) => Math.Clamp((v - 25) / 60.0, 0, 1);
+
+    private static Color Blend(Color a, Color b, double t) => Color.FromRgb(
+        (byte)Math.Round(a.R + (b.R - a.R) * t), (byte)Math.Round(a.G + (b.G - a.G) * t), (byte)Math.Round(a.B + (b.B - a.B) * t));
+
+    private void OpenSpot(MapSpot? spot)
+    {
+        if (spot is null || _world is null) return;
+        _level = PlaceLevel.Country;
+        _region = spot.Region;
+        _country = spot.Country;
+        Rebuild();
+    }
+
+    /// <summary>A click on land: zoom to its region first; once there, a country with a fight city opens its cities.</summary>
+    private void OpenLand(string? code)
+    {
+        if (code is null || _world is null || WorldShapes.ByCode(code) is not { } shape) return;
+        var country = WorldShapes.LandToAtlas.TryGetValue(code, out var atlas)
+            ? _world.Countries.Values.FirstOrDefault(c => c.Code == atlas) : null;
+        var region = country?.Continent ?? shape.Region;
+        if (_level == PlaceLevel.World || region != _region)
+        {
+            _level = PlaceLevel.Region;
+            _region = region;
+            Rebuild();
+            return;
+        }
+        if (country is not null && _world.Cities.Values.Any(c => c.Country == country.Id))
+        {
+            _level = PlaceLevel.Country;
+            _country = country.Id;
+            Rebuild();
+        }
+    }
+
+    private void HoverClear()
+    {
+        HasHover = HoverIsHome = false;
+        HoverTitle = HoverWhere = HoverValue = HoverSecond = HoverOrgs = HoverHint = HoverHomeText = "";
+        HoverValueBrush = Brushes.Transparent;
+    }
+
+    /// <summary>The hover card's words for the city or land under the pointer.</summary>
+    private void HoverRead()
+    {
+        HoverClear();
+        var w = _world;
+        if (w is not null && _hoverSpot is { } s && w.Get(new CityId(s.CityId)) is { } city)
+        {
+            HasHover = true;
+            HoverTitle = s.Name;
+            HoverWhere = $"{s.CountryName}  ·  {Pretty(s.Region)}";
+            HoverValue = s.ValueLine;
+            HoverValueBrush = HeatOf(s.Value);
+            HoverSecond = IsFameLayer ? $"MMA interest {city.MmaInterest}  ·  market {city.Market}" : $"Market {city.Market}";
+            HoverOrgs = s.Orgs.Count == 0 ? "No promotion based here" : $"Based here: {string.Join(", ", s.Orgs)}";
+            HoverIsHome = s.IsHome || s.IsMine;
+            HoverHomeText = s.IsMine ? "YOUR BASE" : _layer == MapLayer.Fighter ? "HOME TOWN" : "HOME CITY";
+            HoverHint = $"Click to open {s.CountryName}";
+        }
+        else if (w is not null && _hoverCountry is { } code && WorldShapes.ByCode(code) is { } shape)
+        {
+            var country = WorldShapes.LandToAtlas.TryGetValue(code, out var atlas) ? w.Countries.Values.FirstOrDefault(c => c.Code == atlas) : null;
+            var region = country?.Continent ?? shape.Region;
+            int cities = country is null ? 0 : w.Cities.Values.Count(c => c.Country == country.Id);
+            HasHover = true;
+            HoverTitle = country?.Name ?? shape.Name;
+            HoverWhere = Pretty(region);
+            if (country is not null && (!IsFameLayer || cities > 0))
+            {
+                int v = InCountry(w, country.Id);
+                HoverValue = ValueLineFor(v);
+                HoverValueBrush = HeatOf(v);
+            }
+            HoverSecond = cities == 0 ? "No fight city on file" : cities == 1 ? "1 fight city" : $"{cities} fight cities";
+            if (country is not null)
+            {
+                var orgs = OrgsWhere(w, p => p.HomeCity is { } hc && w.Get(hc)?.Country == country.Id);
+                HoverOrgs = orgs.Count == 0 ? "" : $"Based here: {string.Join(", ", orgs.Take(5).Select(p => p.Abbreviation))}{(orgs.Count > 5 ? $" +{orgs.Count - 5}" : "")}";
+            }
+            HoverHint = _level == PlaceLevel.World || region != _region ? $"Click to zoom to {Pretty(region)}"
+                : cities > 0 ? "Click to see its cities" : "";
+        }
+        foreach (var p in HoverProps) OnPropertyChanged(p);
     }
 
     // --- What a layer reads ----------------------------------------------------------------

@@ -1323,6 +1323,59 @@
             </Setter>
         </Style>
 
+        <!-- MapListToggle (ToggleButton): "Map | List" for a screen whose picture leads (the World Map);
+             IsChecked = the List (the place cards). Same look as CardsTableToggle. -->
+        <Style x:Key="MapListToggle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ToolTip" Value="The drawn map, or the place cards as a list" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Style="{StaticResource Segmented}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border x:Name="map" CornerRadius="5" Padding="9,2" Background="{StaticResource CardHover}">
+                                    <TextBlock x:Name="mapText" Text="Map" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" />
+                                </Border>
+                                <Border x:Name="list" CornerRadius="5" Padding="9,2" Background="Transparent">
+                                    <TextBlock x:Name="listText" Text="List" Foreground="{StaticResource TextSoft}" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="map" Property="Background" Value="Transparent" />
+                                <Setter TargetName="mapText" Property="Foreground" Value="{StaticResource TextSoft}" />
+                                <Setter TargetName="mapText" Property="FontWeight" Value="Normal" />
+                                <Setter TargetName="list" Property="Background" Value="{StaticResource CardHover}" />
+                                <Setter TargetName="listText" Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                <Setter TargetName="listText" Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- MapHoverCard (Border): the card that follows the pointer on a drawn map (a city's or a country's facts). -->
+        <Style x:Key="MapHoverCard" TargetType="Border">
+            <Setter Property="Background" Value="#151A21" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderStrong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="12,9,14,10" />
+            <Setter Property="MinWidth" Value="190" />
+            <Setter Property="MaxWidth" Value="320" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.55" Color="Black" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- The sea around a zoomed map and the frame it sits in. -->
+        <SolidColorBrush x:Key="MapSea" Color="#0B1117" />
+
         <!-- SearchBox (TextBox): rounded field with a search icon; Tag = the placeholder text. -->
         <Style x:Key="SearchBox" TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
