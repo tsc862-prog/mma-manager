@@ -33,6 +33,12 @@ public sealed class MediaHealth
     /// <summary>Keyed by "AFC" and by tier label (the AFC counts in its tier too).</summary>
     public readonly Dictionary<string, int> JudgedCards = new(), StarCards = new(), OrgWeeks = new();
     public readonly Dictionary<(string Who, string What), int> Strikes = new(), Lost = new(), StarMiss = new(), Stream = new();
+    /// <summary>Streaming money by "AFC"/tier and the house's streaming state that week ("major" / "own" / "neither"):
+    /// weeks in the state, and the ledger sums of own-platform net (Streaming + StreamingOps), MajorStream rights
+    /// (Broadcast entries from the house's MajorStream partner) and all Broadcast earned in those weeks. DURABLE.</summary>
+    public readonly Dictionary<(string Who, string State), int> StateWeeks = new();
+    public readonly Dictionary<(string Who, string State, string What), decimal> StateMoney = new();
+    private Dictionary<PromotionId, int> _ledgerAt = new();
     public int AfcTurnedAway, AfcRoomCards, AfcCardsOverRoom;
     public decimal AfcGateTurnedAway, AfcDemand, AfcCapacity;
 
@@ -73,6 +79,7 @@ public sealed class MediaHealth
             if (p.Defunct) continue;
             _before[p.Id] = new OrgSnap(p, OrgSizing.SizeOf(p), p.Stream is not null,
                 p.MediaDeals.Select(d => new DealSnap(d, d.Strikes, d.LastAiredOn, d.MonthsRemaining)).ToList());
+            _ledgerAt[p.Id] = p.Ledger.Count;
         }
         _lastNews = world.News.Count > 0 ? world.News[^1] : null;
         var horizon = world.CurrentDate.AddDays(8);
@@ -173,6 +180,31 @@ public sealed class MediaHealth
                 foreach (var w in who) Add(Stream, (w, "MajorStream deals lost"));
             if (!snap.HadStream && p.Stream is not null)
                 foreach (var w in who) Add(Stream, (w, "own platform launched"));
+            if (snap.HadStream && p.Stream is null)
+                foreach (var w in who) Add(Stream, (w, "own platform closed"));
+
+            // The week's streaming money against the house's streaming state at the week's end.
+            var majors = snap.Deals.Select(d => d.Deal).Concat(p.MediaDeals).Where(d => d.Kind == MediaKind.MajorStream)
+                .Select(d => $" — {d.Partner} rights").Distinct().ToList();
+            decimal own = 0, majorTv = 0, tv = 0;
+            for (int i = _ledgerAt.GetValueOrDefault(p.Id); i < p.Ledger.Count; i++)
+            {
+                var e = p.Ledger[i];
+                if (e.Category is FinanceCategory.Streaming or FinanceCategory.StreamingOps) own += e.Amount.Amount;
+                else if (e.Category == FinanceCategory.Broadcast)
+                {
+                    tv += e.Amount.Amount;
+                    if (majors.Any(m => e.Description.Contains(m, StringComparison.Ordinal))) majorTv += e.Amount.Amount;
+                }
+            }
+            string st = p.MediaDeals.Any(x => x.Kind == MediaKind.MajorStream) ? "major" : p.Stream is not null ? "own" : "neither";
+            foreach (var w in who)
+            {
+                Add(StateWeeks, (w, st));
+                StateMoney[(w, st, "own")] = StateMoney.GetValueOrDefault((w, st, "own")) + own;
+                StateMoney[(w, st, "major")] = StateMoney.GetValueOrDefault((w, st, "major")) + majorTv;
+                StateMoney[(w, st, "tv")] = StateMoney.GetValueOrDefault((w, st, "tv")) + tv;
+            }
         }
 
         // The flagship's rooms: the house it could have sold against the one it played.
@@ -269,7 +301,7 @@ public sealed class MediaHealth
     private static readonly string[] StrikeKinds = { "star", "quality", "star+quality", "other", "cadence" };
     private static readonly string[] LossKinds = { "walked at 3 strikes", "not renewed (a strike)", "not renewed (coin flip)", "not renewed (below the bar)", "replaced", "other" };
     private static readonly string[] MissKinds = { "a main-card bout cleared it", "a prelim cleared it", "only a man off the card cleared it", "nobody signed cleared it", "(title on top)", "(non-title on top)" };
-    private static readonly string[] StreamKinds = { "weeks with a MajorStream deal", "weeks on own platform only", "weeks with neither", "MajorStream deals lost", "own platform launched", "MajorStream signed (no own platform)", "MajorStream signed while running own platform" };
+    private static readonly string[] StreamKinds = { "weeks with a MajorStream deal", "weeks on own platform only", "weeks with neither", "MajorStream deals lost", "own platform launched", "own platform closed", "MajorStream signed (no own platform)", "MajorStream signed while running own platform" };
 
     private static IEnumerable<string> Whos(IReadOnlyList<MediaHealth> seeds) =>
         new[] { "AFC" }.Concat(Enum.GetValues<OrgSize>().Reverse().Select(OrgSizing.Label))
@@ -341,6 +373,15 @@ public sealed class MediaHealth
         foreach (var w in Whos(seeds))
             if (StreamKinds.Any(k => seeds.Any(s => s.Stream.ContainsKey((w, k)))))
                 Console.WriteLine($"    {w,-14} " + string.Join(" · ", StreamKinds.Select(k => $"{k} {seeds.Sum(s => s.Stream.GetValueOrDefault((w, k)))}")));
+        Console.WriteLine("  streaming money by the house's streaming state at week end (every live house, not only MajorStream-qualified; DURABLE ledger sums per org-quarter of 13 weeks in the state):"
+            + " own = own-platform net (Streaming + StreamingOps, launch included) · major = MajorStream rights · tv = all Broadcast ($M)");
+        foreach (var w in Whos(seeds))
+            Console.WriteLine($"    {w,-14} " + string.Join(" | ", new[] { "major", "own", "neither" }.Select(st =>
+            {
+                int wk = seeds.Sum(s => s.StateWeeks.GetValueOrDefault((w, st)));
+                decimal Per(string what) => wk == 0 ? 0 : seeds.Sum(s => s.StateMoney.GetValueOrDefault((w, st, what))) / (wk / 13m) / 1_000_000m;
+                return $"{st}: org-qtrs {wk / 13.0,7:0.0} own {Per("own"),6:0.00} major {Per("major"),6:0.00} tv {Per("tv"),6:0.00}";
+            })));
         int rc = seeds.Sum(s => s.AfcRoomCards);
         if (rc > 0)
         {
