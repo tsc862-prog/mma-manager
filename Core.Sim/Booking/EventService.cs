@@ -146,6 +146,11 @@ public sealed class EventService
             Finance.Ledger.Expense(promo, ev.Date, FinanceCategory.Production, fin.ProductionCost, $"{ev.Name} — production");
             Finance.Ledger.Expense(promo, ev.Date, FinanceCategory.FighterPurse, fin.FighterPayroll, $"{ev.Name} — fighter payroll");
 
+            // The night on television (and any belt won or kept on it) travels: remote city fame for the main card,
+            // after the gate is settled so it sells the NEXT card, not this one. Read before the media settle below,
+            // which may tear up a deal on a strike: the card still aired on it.
+            using (Living.TickProbe.Phase("settle/fame")) Geography.BroadcastFame.AfterCard(world, promo, ev);
+
             PayFightOfTheNight(world, promo, ev);
 
             // Fight night is when the commercial side gets paid: sponsor checks,
