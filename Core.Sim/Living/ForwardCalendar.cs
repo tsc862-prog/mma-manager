@@ -348,8 +348,8 @@ public static class ForwardCalendar
             // A tradition has an ADDRESS: the flagship goes home, to the biggest
             // room in the org's own town (read off the promotion, never assumed).
             var home = promo.HomeCity ?? Geography.WorldMap.PickTourStop(world, promo, when);
-            ev = events.CreateEvent(world, promo.Id, $"{signature} {when.Year}", when, top, home, biggestRoom: true);
-            ev.Tier = OrgPerks.MaxEventTier(promo);
+            ev = events.CreateEvent(world, promo.Id, $"{signature} {when.Year}", when, top, home, biggestRoom: true,
+                tier: OrgPerks.MaxEventTier(promo));
         }
         else
         {
@@ -359,6 +359,8 @@ public static class ForwardCalendar
 
         foreach (var m in top) { committed.Add(m.Red); committed.Add(m.Blue); }
         HeadlineForTheNetwork(world, ev);
+        // The room fits the bout that now headlines (the network may have put another on top). A tradition keeps its house.
+        if (signature is null) Booking.RoomFit.Refit(world, promo, ev);
         if (!postNews) return true;
 
         // The authored fight that can't happen is news in its own right.
@@ -811,7 +813,6 @@ public static class ForwardCalendar
     {
         if (world.Get(ev.Promotion) is not { } promo) return;
         if (ev.Promotion == world.PlayerPromotion) { GuardPlayerCardAtRun(world, ev); return; }
-        RefreshVenue(world, promo, ev);
 
         // Spoken for elsewhere: a card that already ran today, the player's
         // held cards, and anything that comes before this one. (A later card
@@ -995,26 +996,21 @@ public static class ForwardCalendar
         $"{world.Get(fight.RedCorner)?.FullName ?? "?"} vs {world.Get(fight.BlueCorner)?.FullName ?? "?"}";
 
     /// <summary>
-    /// The room is fitted to the crowd the card draws ON THE NIGHT (<see cref="Booking.RoomFit"/>:
-    /// the box office's own demand for this card, as it was when AI cards were booked on the day). A card announced a month ahead
-    /// keeps its city, but moves to the room that now fits its following: a
-    /// startup announced in its first week would otherwise be stuck in a
-    /// thousand-seat club while twice that many want in (that capped every new
-    /// promotion's gate and killed them faster). Flagships keep their big
-    /// house, and superfights keep the room they were booked into a month out.
-    /// If the card's announcement made the news (and so named the room), the
-    /// move is a headline too, so the announcement and the result never disagree.
+    /// Fight night, once the card has stopped changing (the guard's scrapped bouts, pullouts, a restored
+    /// headliner, the weigh-ins): an AI card in today's mode moves to the room its card now fits
+    /// (<see cref="Booking.RoomFit"/>: the box office's own demand for the bout that actually headlines, at the
+    /// night's tier), as when AI cards were booked on the day. A card announced a month ahead keeps its city: a
+    /// startup announced in its first week would otherwise be stuck in a thousand-seat club while twice that many
+    /// want in (that capped every new promotion's gate and killed them faster). A tradition keeps its big house; a
+    /// superfight is fitted like any other card (at its pay-per-view tier). If the card's announcement made the
+    /// news (and so named the room), the move is a headline too, so the announcement and the result never
+    /// disagree. Called once a night, so at most one such headline per card.
     /// </summary>
-    private static void RefreshVenue(World world, Promotion promo, Event ev)
+    internal static void FitRoomOnTheNight(World world, Event ev)
     {
-        if (SignatureEvents.IsSignature(world, ev) || Storylines.IsSuperfight(ev)) return;
-        if (world.Mode == WorldMode.Origins) return;   // the first promotions stay in their own rooms (no draws here)
-        if (ev.VenueId is not { } current || world.Get(current) is not { } room) return;
-        if (!Booking.RoomFit.AppliesTo(world, promo)) return;
-        if (Booking.RoomFit.Pick(world, ev, room.City) is not { } fit || fit.Id == current) return;
-        ev.VenueId = fit.Id;
-        ev.Venue = fit.Name;
-        if (world.Get(fit.City) is { } city) ev.Region = city.Region;
+        if (world.Get(ev.Promotion) is not { } promo || ev.Promotion == world.PlayerPromotion) return;
+        if (SignatureEvents.IsSignature(world, ev)) return;
+        if (Booking.RoomFit.Refit(world, promo, ev) is not { } room || world.Get(ev.VenueId!.Value) is not { } fit) return;
         // A card whose announcement made the news named its room: say it moved.
         if (MeritsHeadline(world, ev, AuthoredBookingOn(world, ev) is not null))
             News.Post(world, ev.Date, NewsCategory.General,

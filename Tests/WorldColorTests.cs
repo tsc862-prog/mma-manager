@@ -248,14 +248,18 @@ public class SolvencyTests
         int rosterBefore = world.RosterOf(victim.Id).Count();
         Assert.True(rosterBefore > 0);
 
-        // Held there week by week: a house fills its room now (RoomFit), and five weeks of gates put a giant at -1
-        // back in the black in time to buy the victim.
+        // Held there week by week, at half each house's own debt ceiling: far enough under water that no week's
+        // gates and television (a flagship's best week is a few million) float it back into the black, and far
+        // enough above the ceiling that the month's turn does not close it too. (At -1, set once, a giant filling
+        // its rooms (RoomFit) was back in the black inside five weeks and bought the victim.)
         var tick = new WorldTick();
         for (int w = 0; w < 5; w++)   // crosses a month boundary
         {
-            foreach (var p in world.Promotions.Values.Where(p => p.Id != victim.Id)) p.Balance = new Money(-1m);
+            foreach (var p in world.Promotions.Values.Where(p => p.Id != victim.Id && !p.Defunct))
+                p.Balance = new Money(MmaManager.Core.Sim.Org.Solvency.CeilingFor(p, world) / 2);
             tick.AdvanceWeeks(world, 1);
         }
+        Assert.Single(world.Promotions.Values, p => p.Defunct);   // the victim alone
         var closedOn = world.CurrentDate;
 
         Assert.True(victim.Defunct);

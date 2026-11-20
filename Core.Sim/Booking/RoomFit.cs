@@ -24,9 +24,30 @@ public static class RoomFit
     /// <summary>The least share of a room the night's crowd must fill for the house to book it (unless it fits no room that well).</summary>
     public const double MinFill = 0.5;
 
+    /// <summary>
+    /// Harness only (longsim shoesweep --old-rooms): a house the headless script runs as the player, kept on the
+    /// player's default room (<c>WorldMap.PickVenueIn</c>) so a sweep can tell the world's effect on the climb apart
+    /// from the script's own rooms. Never set by the game. (Per thread, as <c>FreeAgencyService.HarnessHandsOff</c>.)
+    /// </summary>
+    [ThreadStatic] public static PromotionId? HarnessOldRooms;
+
     /// <summary>Whether this house's cards are fitted here: an AI house in today's mode.</summary>
     public static bool AppliesTo(World world, Promotion promo) =>
-        world.Mode != WorldMode.Origins && promo.Id != world.PlayerPromotion;
+        world.Mode != WorldMode.Origins && promo.Id != world.PlayerPromotion && promo.Id != HarnessOldRooms;
+
+    /// <summary>
+    /// Move <paramref name="ev"/> to the room its card fits in the city it is already in (an AI house in today's
+    /// mode only; the card's own tier and headliner as they stand). Returns the room it left, or null if it stays.
+    /// </summary>
+    public static Venue? Refit(World world, Promotion promo, Event ev)
+    {
+        if (!AppliesTo(world, promo) || ev.VenueId is not { } current || world.Get(current) is not { } room) return null;
+        if (Pick(world, ev, room.City) is not { } fit || fit.Id == current) return null;
+        ev.VenueId = fit.Id;
+        ev.Venue = fit.Name;
+        if (world.Get(fit.City) is { } city) ev.Region = city.Region;
+        return room;
+    }
 
     /// <summary>
     /// The room in <paramref name="city"/> for <paramref name="ev"/> as it stands (main event known; the undercard

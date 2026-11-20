@@ -123,13 +123,84 @@ public class RoomFitTests
             new[] { Headliner(w, mine, 100) }, city);
         Assert.Equal(expected?.Id, ev.VenueId);
 
-        // ...and fight night does not move his room either.
-        var booking = new PlayerBooking();
-        var own = booking.CreateEvent(w, w.CurrentDate.AddDays(40), city: city);
-        var smallest = w.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Capacity).ThenBy(v => v.Id.Value).First();
+        // ...and fight night does not move his room either: his card, run through the same fight-night path as an
+        // AI card's below, plays the club hall he left it in although the flagship's crowd would fill the arena.
+        var own = new EventService().CreateEvent(w, mine.Id, "Player Night", w.CurrentDate.AddDays(3), ReadyBouts(w, mine, 3), city);
+        var smallest = Smallest(w, city);
         own.VenueId = smallest.Id; own.Venue = smallest.Name;
-        ForwardCalendar.GuardAtRun(w, own);
+        new WorldTick().RunEventLive(w, own, playByPlay: false);
+        Assert.Equal(EventStatus.Completed, own.Status);
         Assert.Equal(smallest.Id, own.VenueId);
+        Assert.Equal(smallest.Capacity, own.Financials!.Attendance);   // sold out: the crowd was there
+    }
+
+    private static Venue Smallest(World w, CityId city) =>
+        w.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Capacity).ThenBy(v => v.Id.Value).First();
+
+    // Bouts of the house's own fit, free, signed men (none on another card), all made popular: a card the guard keeps.
+    private static List<Matchup> ReadyBouts(World w, Promotion p, int n, int pop = 90)
+    {
+        var busy = ForwardCalendar.Committed(w);
+        var bouts = new List<Matchup>();
+        foreach (var d in p.Divisions.OrderBy(d => d.Sex).ThenBy(d => d.WeightClass))
+        {
+            var free = w.RosterOf(p.Id).Where(f => d.Matches(f) && f.Status == FighterStatus.Active && !busy.Contains(f.Id)
+                                                 && f.Contract is { FightsRemaining: > 0 } && f.IsMatchReady(w.CurrentDate.AddDays(3)))
+                .OrderBy(f => f.Id.Value).Take(2).ToList();
+            if (free.Count < 2) continue;
+            foreach (var f in free) { f.Intangibles.Popularity = pop; busy.Add(f.Id); }
+            bouts.Add(new Matchup(free[0].Id, free[1].Id, d.WeightClass, 3, false, null));
+            if (bouts.Count == n) return bouts;
+        }
+        throw new InvalidOperationException("not enough free pairs");
+    }
+
+    [Fact]
+    public void FightNight_MovesAnAiCardOutOfARoomTooSmall_IntoTheFittedRoom()
+    {
+        // An announced AI card left in the club hall is moved on fight night to the room its card fits (the
+        // arena, for the flagship with popular men on top), not to the old estimate's room (a 4,080-seat hall).
+        var w = Build(4);
+        w.PlayerPromotion = default;
+        var afc = House(w, "AFC");
+        var city = afc.HomeCity!.Value;
+        var ev = new EventService().CreateEvent(w, afc.Id, "AFC Test Night", w.CurrentDate.AddDays(3), ReadyBouts(w, afc, 3), city);
+        var smallest = Smallest(w, city);
+        ev.VenueId = smallest.Id; ev.Venue = smallest.Name;
+        var arena = w.Venues.Values.Where(v => v.City == city).OrderByDescending(v => v.Capacity).ThenBy(v => v.Id.Value).First();
+        Assert.True(WorldMap.PickVenueIn(w, afc, city)!.Capacity < arena.Capacity);   // the old rule would not get there
+
+        new WorldTick().RunEventLive(w, ev, playByPlay: false);
+
+        Assert.Equal(EventStatus.Completed, ev.Status);
+        Assert.Equal(arena.Id, ev.VenueId);
+        Assert.Equal(arena.Name, ev.Venue);
+        Assert.True(ev.Financials!.Attendance >= RoomFit.MinFill * arena.Capacity);
+    }
+
+    [Fact]
+    public void ANightsTier_IsInThePrice_AndASuperfightIsFittedAtItsTier()
+    {
+        var w = Build(4);
+        w.PlayerPromotion = default;
+        var afc = House(w, "AFC");
+        var city = afc.HomeCity!.Value;
+        decimal price = Financials.TicketPrice(w, afc.Prestige.Value);
+        // Two rooms whose rent gap sits between what 500 more seats are worth on a Fight Night and on a pay-per-view.
+        var small = Room(w, city, 10_000, 0m);
+        var big = new Venue { Id = w.NewVenueId(), Name = "Room 20000", City = city, Capacity = 20_000, Rent = new Money(500m * (1.15m * price - 14.4m)) };
+        var night = Card(w, afc);
+        var ppv = Card(w, afc);
+        ppv.Tier = EventTier.Ppv;
+        Assert.Same(small, RoomFit.Choose(w, night, new[] { small, big }, 10_500));
+        Assert.Same(big, RoomFit.Choose(w, ppv, new[] { small, big }, 10_500));
+
+        // The booking carries the tier into the fit (a superfight is created at its pay-per-view tier).
+        var sf = new EventService().CreateEvent(w, afc.Id, "CHAMP VS CHAMP: Test", w.CurrentDate.AddDays(28),
+            new[] { Headliner(w, afc, 95) }, city, tier: EventTier.Ppv);
+        Assert.Equal(EventTier.Ppv, sf.Tier);
+        var rooms = w.Venues.Values.Where(v => v.City == city).OrderBy(v => v.Id.Value).ToList();
+        Assert.Same(RoomFit.Choose(w, sf, rooms, Financials.Demand(w, sf)), w.Get(sf.VenueId!.Value));
     }
 
     [Fact]
