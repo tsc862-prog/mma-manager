@@ -353,6 +353,55 @@ public class StreamingLaneTests
     }
 
     [Fact]
+    public void AGiantOnThePlayersDesk_IsNeverTakenByACourtBack()
+    {
+        // The player holds a giant's offer; an International platform house is courtable and every other free giant
+        // has already called on it, so the only giant a court-back could pick is the player's. Month after month the
+        // keyed roll comes up (about half the months), and the giant must still never pitch the house: taking it would
+        // withdraw the player's offer from under him.
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        var player = world.Promotions.Values.Where(p => !p.Defunct && p.Id != house.Id).OrderBy(p => p.Id.Value).First();
+        world.PlayerPromotion = player.Id;
+        var free = Giants.Where(g => MediaService.PartnerFree(world, g)).ToList();
+        Assert.True(free.Count >= MediaService.CourtBackMinFree + 1);
+        string desk = free[0];
+        var pending = GiantOffer(world, desk, 2_000_000m);
+        player.Offers.Add(pending);
+        house.Offers.Clear();
+        house.CourtedBy.Clear();
+        foreach (var g in Giants.Where(g => g != desk)) house.CourtedBy.Add(g);
+        house.Stream!.Subscribers = 1_000;
+        Assert.True(MediaService.OnPlayersDesk(world, desk));
+        Assert.True(MediaService.CourtableOnPlatform(world, house, world.CurrentDate));
+
+        var rng = new SimRandom(17);
+        for (int m = 0; m < 36; m++)
+            MediaService.RunMonthly(world, house, world.CurrentDate.AddMonths(m), rng);
+
+        Assert.Contains(pending, player.Offers);
+        Assert.DoesNotContain(desk, house.CourtedBy);
+        Assert.DoesNotContain(house.MediaDeals, d => d.Partner == desk);
+    }
+
+    [Fact]
+    public void AGiantOnThePlayersDesk_IsNotCountedFree()
+    {
+        var world = Build();
+        var house = OwnPlatformHouse(world);
+        var player = world.Promotions.Values.Where(p => !p.Defunct && p.Id != house.Id).OrderBy(p => p.Id.Value).First();
+        world.PlayerPromotion = player.Id;
+        var free = Giants.Where(g => MediaService.PartnerFree(world, g)).ToList();
+        // Leave exactly two giants free, then put one of them on the player's desk: one is left, so no court-back.
+        var others = world.Promotions.Values.Where(p => !p.Defunct && p.Id != house.Id && p.Id != player.Id).OrderBy(p => p.Id.Value).ToList();
+        for (int i = 0; i < free.Count - 2; i++)
+            others[i].MediaDeals.Add(new MediaDeal { Kind = MediaKind.MajorStream, Partner = free[i], MonthsRemaining = 24, SignedOn = world.CurrentDate });
+        Assert.True(MediaService.CourtableOnPlatform(world, house, world.CurrentDate));
+        player.Offers.Add(GiantOffer(world, free[^1], 2_000_000m));
+        Assert.False(MediaService.CourtableOnPlatform(world, house, world.CurrentDate));
+    }
+
+    [Fact]
     public void AnOriginsWorld_KeepsTheOldLane()
     {
         var world = Build();

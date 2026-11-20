@@ -501,10 +501,6 @@ public static class ShoeSweep
         return (champ, top2);
     }
 
-    /// <summary>
-    /// Bookkeeping for the offer DIAG (reporting only): every offer for the org seen this
-    /// block, its last state, and lifers who turned a rival down (one per deal).
-    /// </summary>
     /// <summary>The streaming giants' offers at the script's house, scanned weekly off its offer list and deals. Reporting only.</summary>
     public sealed class GiantWatch
     {
@@ -544,6 +540,10 @@ public static class ShoeSweep
         }
     }
 
+    /// <summary>
+    /// Bookkeeping for the offer DIAG (reporting only): every offer for the org seen this
+    /// block, its last state, and lifers who turned a rival down (one per deal).
+    /// </summary>
     public sealed class OfferLog
     {
         private readonly Dictionary<(FighterId, DateOnly), RivalOffer> _seen = new();   // (ids are reused once old offers are dropped)

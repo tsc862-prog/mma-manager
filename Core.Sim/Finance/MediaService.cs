@@ -321,8 +321,17 @@ public static class MediaService
     public static bool CourtableOnPlatform(World world, Promotion promo, DateOnly date) =>
         OnOwnPlatform(world, promo)
         && Org.OrgSizing.SizeOf(promo) >= OrgSize.International
-        && PartnersIn(world, RungOf(MediaKind.MajorStream)).Count(pp => PartnerFree(world, pp.Name)) >= CourtBackMinFree
-        && !(RelaunchedAfterStrikes(world, promo) && date.DayNumber - promo.Stream!.LaunchedOn.DayNumber < RelaunchSpellDays);
+        && PartnersIn(world, RungOf(MediaKind.MajorStream)).Count(pp => PartnerFree(world, pp.Name) && !OnPlayersDesk(world, pp.Name)) >= CourtBackMinFree
+        && !(date.DayNumber - promo.Stream!.LaunchedOn.DayNumber < RelaunchSpellDays && RelaunchedAfterStrikes(world, promo));
+
+    /// <summary>
+    /// Is this partner's offer waiting on the player's Media desk? Such a giant is spoken for while he decides: it is
+    /// not counted free for <see cref="CourtBackMinFree"/> and never picked to court a house back (taking it would
+    /// withdraw his offer under him). Draws nothing.
+    /// </summary>
+    public static bool OnPlayersDesk(World world, string partner) =>
+        world.HasPlayer && world.Get(world.PlayerPromotion) is { } player
+        && player.Offers.Any(o => o.Media is not null && o.Partner == partner);
 
     /// <summary>
     /// Was the house's platform launched during play after a streaming giant paid it reduced rights for broken terms
@@ -359,7 +368,7 @@ public static class MediaService
     {
         ulong key = ((ulong)(uint)promo.Id.Value << 32) ^ (ulong)(uint)date.DayNumber;
         if (Unit(SimRandom.Mix(world.RngSeed, key ^ CourtBackSalt)) >= 0.5) return null;
-        var pool = SuitorPool(world, promo, rung);
+        var pool = SuitorPool(world, promo, rung).Where(pp => !OnPlayersDesk(world, pp.Name)).ToList();
         if (pool.Count == 0) return null;
         return pool[Math.Min(pool.Count - 1, (int)(Unit(SimRandom.Mix(world.RngSeed, key ^ CourtBackPickSalt)) * pool.Count))];
     }
