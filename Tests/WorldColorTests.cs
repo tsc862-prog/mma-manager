@@ -245,11 +245,17 @@ public class SolvencyTests
         victim.Balance = new Money(-12_000_000m);   // past even a top brand's deep debt ceiling
         // Nobody can carry it (a buyer must be out of the red), so it closes rather
         // than being sold at the ceiling (Acquisitions.TryRescue; see BigMoneyTests).
-        foreach (var p in world.Promotions.Values.Where(p => p.Id != victim.Id)) p.Balance = new Money(-1m);
         int rosterBefore = world.RosterOf(victim.Id).Count();
         Assert.True(rosterBefore > 0);
 
-        new WorldTick().AdvanceWeeks(world, 5);   // crosses a month boundary
+        // Held there week by week: a house fills its room now (RoomFit), and five weeks of gates put a giant at -1
+        // back in the black in time to buy the victim.
+        var tick = new WorldTick();
+        for (int w = 0; w < 5; w++)   // crosses a month boundary
+        {
+            foreach (var p in world.Promotions.Values.Where(p => p.Id != victim.Id)) p.Balance = new Money(-1m);
+            tick.AdvanceWeeks(world, 1);
+        }
         var closedOn = world.CurrentDate;
 
         Assert.True(victim.Defunct);
