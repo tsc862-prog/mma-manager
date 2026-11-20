@@ -439,9 +439,11 @@ public sealed class WorldMapViewModel : ObservableObject
             if (country is null || outside) { if (outside) fills[shape.Code] = baseColor; continue; }
             int v = InCountry(w, country.Id);
             if (IsFameLayer && v <= 0) continue;
+            // A hint, not a fill: the city glows lead. The blend grows with the value raised to 1.5, so a big
+            // country at a low value (fame ~20) is barely off plain land, and even the hottest stays well under its glow.
             var heat = ((SolidColorBrush)HeatOf(v)).Color;
-            double t = IsFameLayer ? ViewModels.Fame.HeatT(v) : InterestT(v);
-            fills[shape.Code] = Blend(baseColor, heat, IsFameLayer ? 0.22 + 0.33 * t : 0.10 + 0.17 * t);
+            double t = IsFameLayer ? Math.Clamp(v / 100.0, 0, 1) : InterestT(v);
+            fills[shape.Code] = Blend(baseColor, heat, (IsFameLayer ? 0.28 : 0.16) * Math.Pow(t, 1.5));
         }
         MapFills = fills;
 
