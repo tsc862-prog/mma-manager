@@ -65,13 +65,16 @@ namespace MmaManager.Tests;
 /// no draw; fitted again after the network's running order at announcement and once the card has settled on fight
 /// night). Both modern pins move: the gate, and through it banks and prestige, differs from the first cards. No Origins
 /// pin moves (all four equal main's at 860c31a; Origins houses never come to RoomFit).
+/// Recaptured on world/stream-lane (an AI house in today's mode on its own platform can be courted back by a streaming
+/// giant on keyed hash rolls, and takes the deal when it pays more than the platform nets). Both modern pins move: houses
+/// sign MajorStream deals from the first months. No Origins pin moves (all four equal main's at e5f26b8).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "5B6F3BAAF24CA9EB4031",   // 2027-12-30, 4635 events, 7543 fighters
-        ["modern-player-4-y2"] = "B3D2DE9893F7CBCFFCE4",   // 2027-12-30, 4584 events, 7567 fighters
+        ["modern-ai-11-y2"] = "BBDD470C547A81DF2074",   // 2027-12-30, 4623 events, 7446 fighters
+        ["modern-player-4-y2"] = "19535BD9DE5797245B03",   // 2027-12-30, 4574 events, 7541 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
