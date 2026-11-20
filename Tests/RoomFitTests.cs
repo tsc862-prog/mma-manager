@@ -8,7 +8,7 @@ namespace MmaManager.Tests;
 
 /// <summary>
 /// An AI house in today's mode books the room its card's crowd fills (<see cref="RoomFit"/>): it reads the box
-/// office's own demand for the card and takes the best-netting room the crowd fills to three quarters, else the
+/// office's own demand for the card and takes the best-netting room the crowd fills to half, else the
 /// smallest. Before this rule the pick (<see cref="WorldMap.PickVenueIn"/>) estimated the crowd with a flat 900 for
 /// the headliner and no market multipliers, and the flagship played a 12,750-seat room against 26,800 who wanted in
 /// (longsim, 200 seeds). The player's house and Origins houses keep their old rooms.
@@ -70,10 +70,10 @@ public class RoomFitTests
         var rooms = new[] { arena, forum, hall };
         var ev = Card(w, small);
 
-        Assert.Same(hall, RoomFit.Choose(w, ev, rooms, 300));      // fills nothing to three quarters: the smallest room
-        Assert.Same(hall, RoomFit.Choose(w, ev, rooms, 2_000));    // the forum would be 57% full
-        Assert.Same(forum, RoomFit.Choose(w, ev, rooms, 3_000));   // the forum at 86% nets more than the full hall
-        Assert.Same(forum, RoomFit.Choose(w, ev, rooms, 12_000));  // the arena would be two-thirds empty
+        Assert.Same(hall, RoomFit.Choose(w, ev, rooms, 300));      // fills nothing to half: the smallest room
+        Assert.Same(hall, RoomFit.Choose(w, ev, rooms, 1_500));    // the forum would be 43% full
+        Assert.Same(forum, RoomFit.Choose(w, ev, rooms, 2_500));   // the forum at 71% nets more than the full hall
+        Assert.Same(forum, RoomFit.Choose(w, ev, rooms, 8_000));   // the arena would be more than half empty
     }
 
     [Fact]

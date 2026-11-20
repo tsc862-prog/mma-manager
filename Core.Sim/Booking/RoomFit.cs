@@ -10,7 +10,10 @@ namespace MmaManager.Core.Sim.Booking;
 /// sell against its rent and production) among the rooms that crowd fills to at least <see cref="MinFill"/>.
 /// <para>The fill floor is there because a room is also a statement: a half-empty arena costs standing
 /// (<c>Org.Standing</c> scores the fill), and the night's demand is an estimate. When the crowd fills no room that
-/// far, the house takes the smallest room in town. Ties go to the smaller room, then the lower venue id.</para>
+/// far, the house takes the smallest room in town. Ties go to the smaller room, then the lower venue id. (A floor of
+/// three quarters was tried first: a town's rooms jump from about 1,000 to 3,500 to 14,000 seats, so a Regional house
+/// drawing 2,000-2,600 went back to the 1,000-seat hall, startups' gate per card fell by 30% and 51 Regional houses
+/// went broke and were sold in 100 seeds x 5 years, against none on main.)</para>
 /// <para>This replaced <c>WorldMap.PickVenueIn</c> for AI cards in today's mode. That estimate used a flat 900 for
 /// the headliner and left out the market multipliers, so the giants sat in rooms half their crowd's size (the AFC's
 /// mean room was 12,750 against 26,800 who wanted in). The player's house and Origins houses do not come here: the
@@ -19,7 +22,7 @@ namespace MmaManager.Core.Sim.Booking;
 public static class RoomFit
 {
     /// <summary>The least share of a room the night's crowd must fill for the house to book it (unless it fits no room that well).</summary>
-    public const double MinFill = 0.75;
+    public const double MinFill = 0.5;
 
     /// <summary>Whether this house's cards are fitted here: an AI house in today's mode.</summary>
     public static bool AppliesTo(World world, Promotion promo) =>
