@@ -136,6 +136,12 @@ public sealed partial class MainViewModel : ObservableObject
         AppCommands.OpenOrg = OpenOrgCommand;
         AppCommands.OpenEvent = OpenEventCommand;
         AppCommands.BookFighter = BookFighterCommand;             // "Book him": a promise to keep, a letter
+        AppCommands.ShowFame = new RelayCommand<int>(id =>        // "Where he's known": the map in fame mode
+        {
+            if (_world is null) return;
+            WorldMap.ShowFighter(id);
+            NavigateTo(Tab.WorldMap);
+        });
         News.OpenFighterCommand = OpenFighterCommand;             // follow a story to its people
         News.OpenOrgCommand = OpenOrgCommand;
         News.OpenEventCommand = OpenEventCommand;

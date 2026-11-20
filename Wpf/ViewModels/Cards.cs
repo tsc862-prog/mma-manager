@@ -34,6 +34,7 @@ public sealed class FighterCardModel : Controls.ICardKey
         Age = f.AgeOn(w.CurrentDate);
         Record = f.Record.ToString();
         Scout = FighterRow.Scouted(w, f);
+        Popularity = f.Intangibles.Popularity.Value;
         Why = why ?? "";
 
         var title = w.Titles.Values.FirstOrDefault(t => t.CurrentChampion == f.Id);
@@ -120,6 +121,10 @@ public sealed class FighterCardModel : Controls.ICardKey
     public string Record { get; }
     /// <summary>The player's scouted read (fog of war) — never the truth.</summary>
     public int Scout { get; }
+    /// <summary>Drawing power (popularity): a public fact, shown on the card's draw meter.</summary>
+    public int Popularity { get; }
+    /// <summary>Only a fighter with a following shows a draw meter; a nobody's card stays quiet.</summary>
+    public bool ShowsDraw => Popularity >= Fame.DrawShownFrom;
     /// <summary>Set on walls already grouped by division, so each card doesn't repeat it.</summary>
     public bool HideDivision { get; init; }
     public string Facts => HideDivision ? $"Age {Age}  ·  {Record}" : $"{Division}  ·  {Age}  ·  {Record}";
@@ -138,7 +143,7 @@ public sealed class FighterCardModel : Controls.ICardKey
     public bool IsSelected { get; init; }
 
     /// <summary>Everything the card draws, as one string: equal keys draw identically.</summary>
-    public string CardKey => $"{Id}|{Name}|{Nickname}|{Facts}|{Scout}|{IsChampion}|{IsFace}|{ContractText}|{StatusText}|{StatusTone}|{Why}|{IsSelected}|{Affiliation}|{IsShortlisted}";
+    public string CardKey => $"{Id}|{Name}|{Nickname}|{Facts}|{Scout}|{Popularity}|{IsChampion}|{IsFace}|{ContractText}|{StatusText}|{StatusTone}|{Why}|{IsSelected}|{Affiliation}|{IsShortlisted}";
 }
 
 /// <summary>

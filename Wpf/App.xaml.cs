@@ -2063,6 +2063,55 @@ public partial class App : Application
                     Layout();
                     Console.WriteLine($"RENDERAPP profile ({(people ? "people" : "plain")}): {pick?.FullName ?? "nobody"} - {(pick is null ? "" : MmaManager.Core.Sim.Flavor.Biographer.PeopleText(w, pick))}");
                 }
+                // --fame <star|regional|unknown|mine>: the fame heat map. A fighter (the best-known name in the world,
+                // a name known in one region only, or one known nowhere) is opened on his profile and, unless the
+                // app is the profile itself, put on the World Map's fame layer the way "Where he's known" does;
+                // "mine" switches the map to where the player's own promotion is known.
+                if (e.Args.Contains("--fame"))
+                {
+                    var w = vm.LiveWorld!;
+                    string kind = e.Args[Array.IndexOf(e.Args, "--fame") + 1];
+                    if (kind == "mine")
+                    {
+                        vm.WorldMap.ShowPromotion();
+                        var mine = w.Get(w.PlayerPromotion);
+                        Console.WriteLine($"RENDERAPP fame (mine): {mine?.Name}; known in {mine?.PopularityByCity.Count(kv => kv.Value.Value > 0) ?? 0} cities; {vm.WorldMap.SubjectLine}");
+                    }
+                    else
+                    {
+                        static int TopCity(MmaManager.Core.Model.Fighter f) => f.CityReputation.Count == 0 ? 0 : f.CityReputation.Values.Max(v => v.Value);
+                        var pool = w.Fighters.Values.Where(f => f.Status != MmaManager.Core.Model.FighterStatus.Retired).OrderBy(f => f.Id.Value).ToList();
+                        int RegionsKnown(MmaManager.Core.Model.Fighter f) => Enum.GetValues<MmaManager.Core.Model.Region>()
+                            .Count(r => MmaManager.Core.Sim.Geography.Reputation.FighterInRegion(w, f, r) >= 8);
+                        var pick = kind switch
+                        {
+                            // the widest-known name: most cities that know him well, then the deepest fame
+                            "star" => pool.OrderByDescending(f => f.CityReputation.Values.Count(v => v.Value >= 20))
+                                          .ThenByDescending(f => MmaManager.Core.Sim.Geography.Reputation.FighterBest(w, f)).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                            // a working regional name: known (30-55) in his best city, and in one region only
+                            "regional" => pool.Where(f => !f.LocalTalent && TopCity(f) is >= 30 and <= 55 && RegionsKnown(f) == 1)
+                                              .OrderByDescending(f => f.CityReputation.Values.Count(v => v.Value > 0)).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                            // the least-known name on file (a signed or listed fighter before a scouted local)
+                            _ => pool.OrderBy(TopCity).ThenBy(f => f.LocalTalent).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                        };
+                        if (pick is not null)
+                        {
+                            vm.OpenFighter(pick.Id.Value);
+                            if (appId != "fighter") MmaManager.Wpf.Mvvm.AppCommands.ShowFame.Execute(pick.Id.Value);
+                        }
+                        Console.WriteLine($"RENDERAPP fame ({kind}): {pick?.FullName ?? "nobody"} pop {pick?.Intangibles.Popularity.Value} best region "
+                            + $"{(pick is null ? 0 : MmaManager.Core.Sim.Geography.Reputation.FighterBest(w, pick))} top city {(pick is null ? 0 : TopCity(pick))}; "
+                            + $"map layer {vm.WorldMap.Layer}; {vm.WorldMap.SubjectLine}");
+                    }
+                    Layout();
+                }
+                // --drillfame: open the country of the subject's hottest city on the fame map (the city level).
+                if (e.Args.Contains("--drillfame") && vm.WorldMap.HotSpots.FirstOrDefault() is { } spot)
+                {
+                    vm.WorldMap.HotSpotCommand.Execute(spot);
+                    Layout();
+                    Console.WriteLine($"RENDERAPP fame drilled into {spot.Where} ({spot.City} {spot.Fame})");
+                }
                 // --talks <fa|lifer|unhappy>: put someone across the Contracts table (or on the
                 // Fighter Profile, when that's the app): the top free agent, or one of our own
                 // made a holding lifer (a company man at loyalty 90) — "unhappy" also puts the
