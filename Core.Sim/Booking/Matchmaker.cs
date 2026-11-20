@@ -18,7 +18,15 @@ public readonly record struct Matchup(
 /// keeping the idle rank-and-file busy;</item>
 /// <item>every pairing stays competitive (near neighbours in ability), champions
 /// are kept out of the undercard, and the strongest bout runs last as the main
-/// event.</item>
+/// event;</item>
+/// <item>a house on television books its headliner for its network: when its live
+/// media deals hold the main event to a star clause (<see cref="Finance.MediaService.StarBar"/>),
+/// a headliner whose better-known man clears it comes first (see <see cref="StarTier"/>),
+/// and only then the usual order. A belt that is overdue (vacant, or its champion out
+/// <see cref="ChampionWaitMaxDays"/> or longer) is always the belt BOOKED onto the card,
+/// whatever the names; the running order (<c>ForwardCalendar.HeadlineForTheNetwork</c>)
+/// may still put a bigger name's bout above it, with the belt as the co-main. Who fights
+/// for a belt is never changed by any of this.</item>
 /// </list>
 /// Fully deterministic: rotation is driven by how long each belt has gone
 /// undefended, not by chance. Every build can be made for a FUTURE fight date
@@ -84,23 +92,29 @@ public sealed class Matchmaker
     public Matchup? BestBout(World world, Promotion promo, DateOnly fightDate, IReadOnlySet<FighterId>? exclude, bool titleLength)
     {
         var recent = RecentBouts(world);
+        // Only the bout that runs last answers to the network's star clause: a headliner (title length) reads it.
+        var bar = titleLength ? Finance.MediaService.StarBar(world, promo, ppvNight: false) : null;
         var belts = TitleBouts(world, promo, fightDate, exclude, recent);
         if (belts.Count > 0)
         {
-            var t = belts.OrderByDescending(t => t.Priority).ThenBy(t => (int)t.Wc).First();
+            var t = belts.OrderByDescending(t => Overdue(t.Priority)).ThenByDescending(t => StarTier(world, bar, t.Red.Id, t.Blue.Id))
+                .ThenByDescending(t => t.Priority).ThenBy(t => (int)t.Wc).First();
             return new Matchup(t.Red.Id, t.Blue.Id, t.Wc, promo.Rules.TitleRounds, true, t.Title.Id);
         }
-        return BestPairing(world, promo, fightDate, exclude, recent) is { } top
+        return BestPairing(world, promo, fightDate, exclude, recent, bar: bar) is { } top
             ? new Matchup(top.A, top.B, top.Wc, titleLength ? promo.Rules.TitleRounds : promo.Rules.StandardRounds, false, null)
             : null;
     }
 
+    // The best pairing: feud, then eliminator, then the strongest pair by the house's read. For a headliner under a
+    // network's star clause (bar set), a pairing whose better-known man clears it comes first.
     private static Candidate? BestPairing(World world, Promotion promo, DateOnly fightDate, IReadOnlySet<FighterId>? exclude,
-        Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent, TitleId? onThisCard = null)
+        Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent, TitleId? onThisCard = null, int? bar = null)
     {
         Candidate? best = null;
         foreach (var c in Candidates(world, promo, fightDate, exclude, recent, onThisCard: onThisCard)
-                     .OrderByDescending(c => c.Tier).ThenByDescending(c => c.Ability)
+                     .OrderByDescending(c => StarTier(world, bar, c.A, c.B))
+                     .ThenByDescending(c => c.Tier).ThenByDescending(c => c.Ability)
                      .ThenBy(c => c.A.Value).ThenBy(c => c.B.Value))
         {
             best = c;
@@ -117,15 +131,18 @@ public sealed class Matchmaker
 
         var recent = RecentBouts(world);
         var booked = new HashSet<FighterId>();
+        var bar = belts ? Finance.MediaService.StarBar(world, promo, ppvNight: false) : null;
 
         // --- Belts: headline with the most pressing one ------------------------
+        // (Under a network's star clause, a belt whose bout clears it comes first.)
         Matchup? mainEvent = null;
         if (belts)
         {
             var titleBouts = TitleBouts(world, promo, fightDate, exclude, recent);
             if (titleBouts.Count > 0)
             {
-                var headliner = titleBouts.OrderByDescending(t => t.Priority).ThenBy(t => (int)t.Wc).First();
+                var headliner = titleBouts.OrderByDescending(t => Overdue(t.Priority)).ThenByDescending(t => StarTier(world, bar, t.Red.Id, t.Blue.Id))
+                    .ThenByDescending(t => t.Priority).ThenBy(t => (int)t.Wc).First();
                 mainEvent = new Matchup(headliner.Red.Id, headliner.Blue.Id, headliner.Wc,
                     promo.Rules.TitleRounds, true, headliner.Title.Id);
                 booked.Add(headliner.Red.Id);
@@ -154,7 +171,8 @@ public sealed class Matchmaker
         if (!belts) return undercard;
 
         // Prelims first, headliner last. Without a title fight, promote the
-        // strongest undercard bout to a title-length main event.
+        // strongest undercard bout to a title-length main event (under a
+        // network's star clause, the strongest that clears it).
         var card = new List<Matchup>(undercard);
         if (mainEvent is { } me)
         {
@@ -162,12 +180,13 @@ public sealed class Matchmaker
         }
         else if (card.Count > 0)
         {
-            int best = 0;
+            int best = 0, bestStar = -1;
             double bestScore = -1;
             for (int i = 0; i < card.Count; i++)
             {
+                int star = StarTier(world, bar, card[i].Red, card[i].Blue);
                 double s = Combined(world, promo, card[i]);
-                if (s > bestScore) { bestScore = s; best = i; }
+                if (star > bestStar || (star == bestStar && s > bestScore)) { bestStar = star; bestScore = s; best = i; }
             }
             var promoted = card[best] with { Rounds = promo.Rules.TitleRounds };
             card.RemoveAt(best);
@@ -222,6 +241,35 @@ public sealed class Matchmaker
         }
         return titleBouts;
     }
+
+    /// <summary>
+    /// How far over a star clause a headliner sits before popularity can't drop him under it on the night: the
+    /// clause is read after the main event is fought, and a loss costs a well-known man one to three points
+    /// (the booking desk's <c>PlayerBooking.StarPowerMargin</c> calls a name this close "judged on the night").
+    /// </summary>
+    internal const int StarMargin = 3;
+
+    /// <summary>
+    /// How a bout answers a network's star clause <paramref name="bar"/> (the better-known man's popularity, a public
+    /// fact): 2 = clears it with <see cref="StarMargin"/> to spare, 1 = clears it, 0 = misses it or there is no clause.
+    /// Draws nothing.
+    /// </summary>
+    internal static int StarTier(World world, int? bar, FighterId a, FighterId b)
+    {
+        if (bar is not { } t) return 0;
+        int draw = Math.Max(world.Get(a)?.Intangibles.Popularity.Value ?? 0, world.Get(b)?.Intangibles.Popularity.Value ?? 0);
+        return draw >= t + StarMargin ? 2 : draw >= t ? 1 : 0;
+    }
+
+    /// <summary>
+    /// A belt that is always the one booked onto the card, whatever the names: vacant, or its champion out
+    /// <see cref="ChampionWaitMaxDays"/> or longer (under the 120 days after which an idle man's loyalty starts to wear).
+    /// This decides only which belt is BOOKED: the running order (<c>ForwardCalendar.HeadlineForTheNetwork</c>, run as
+    /// soon as the card is announced) may still put a bigger name's bout above it, with the belt fought as the co-main.
+    /// Without it a champion nobody knew lost his booking to a better-known one card after card: at National+ houses
+    /// champion-months idle past 180 days went 11.1% -> 14.2% (longsim, 100 seeds); with it, 11.4%.
+    /// </summary>
+    private static int Overdue(long priority) => priority >= ChampionWaitMaxDays ? 1 : 0;
 
     private static int DaysIdle(World world, Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent, FighterId id) =>
         recent.TryGetValue(id, out var r)

@@ -123,10 +123,11 @@ public class CityTests
         var ev = new EventService().CreateEvent(world, icf.Id, "Card", world.CurrentDate, card);
         var city = world.Get(WorldMap.CityOf(world, ev)!.Value)!;
 
+        // The demand, not the house: a card with a big name on top fills the room either way.
         city.MmaInterest = 95;
-        int hot = Financials.Compute(world, ev).Attendance;
+        int hot = Financials.Demand(world, ev);
         city.MmaInterest = 30;
-        int cold = Financials.Compute(world, ev).Attendance;
+        int cold = Financials.Demand(world, ev);
 
         Assert.True(hot > cold, $"a fight-mad market should out-draw a cold one ({hot} vs {cold})");
     }
