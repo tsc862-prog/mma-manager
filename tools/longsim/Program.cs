@@ -525,6 +525,7 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
     PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
     LongSim.MoneyFlows.Print(all.Select(r => r.Flows).Where(f => f is not null).Select(f => f!).ToList());
     LongSim.MediaHealth.Print(all.Select(r => r.Media).Where(f => f is not null).Select(f => f!).ToList());
+    LongSim.MediaHealth.PrintAcquisitions(all.Select(r => r.Media).Where(f => f is not null).Select(f => f!).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     LongSim.TitleShots.Print(results.Values.Select(r => (r.TitleShots!, r.Years)).ToList());
     {
