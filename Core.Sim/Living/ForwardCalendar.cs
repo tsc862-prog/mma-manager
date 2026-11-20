@@ -358,6 +358,7 @@ public static class ForwardCalendar
         }
 
         foreach (var m in top) { committed.Add(m.Red); committed.Add(m.Blue); }
+        HeadlineForTheNetwork(world, ev);
         if (!postNews) return true;
 
         // The authored fight that can't happen is news in its own right.
@@ -576,6 +577,51 @@ public static class ForwardCalendar
             LocalCircuit.YieldTo(world, fights);   // a promotion's booking beats a club card
             foreach (var m in under) { committed.Add(m.Red); committed.Add(m.Blue); }
         }
+
+        // The running order of every card close to its date, the full ones too (popularity moves week to week).
+        foreach (var ev in world.Events.Values
+                     .Where(e => e.Status == EventStatus.Scheduled && e.Promotion != world.PlayerPromotion
+                                 && e.Date >= today && e.Date.DayNumber - today.DayNumber <= UndercardFillDays)
+                     .OrderBy(e => e.Date).ThenBy(e => e.Id.Value)
+                     .ToList())
+            HeadlineForTheNetwork(world, ev);
+    }
+
+    /// <summary>
+    /// The network's running order: an AI card whose main event misses the house's strictest live star clause
+    /// (<see cref="Finance.MediaService.StarBar"/>, read on the better-known man of the bout that runs LAST, as
+    /// <see cref="Finance.DealCompliance"/> reads it) puts on top the main-card bout that answers it best
+    /// (<see cref="Matchmaker.StarTier"/>: clears it with room to spare, else clears it; a belt first, then the bigger
+    /// name, then the bout id), and that bout goes the title distance. Only bouts already inside the broadcast window
+    /// (<see cref="Finance.MediaService.BroadcastWindow"/>) move, and only up: a main event that answers the clause as
+    /// well as any of them stays, and nobody is added, held or moved between cards. A belt that drops to the co-main is
+    /// still on the line (the networks' title clause reads the whole card). Left alone: the player's cards, a
+    /// champion-vs-champion superfight, a main event an authored booking names, the 1993 world. Before this the
+    /// matchmaker never looked at the clause and 81% of the flagship's media strikes were a headliner under it (longsim,
+    /// 40 seeds). Draws nothing.
+    /// </summary>
+    internal static void HeadlineForTheNetwork(World world, Event ev)
+    {
+        if (ev.Card.Count < 2 || ev.Promotion == world.PlayerPromotion || Storylines.IsSuperfight(ev)) return;
+        if (world.Get(ev.Promotion) is not { Defunct: false } promo) return;
+        if (Finance.MediaService.StarBar(world, promo, ppvNight: ev.Tier >= EventTier.Ppv) is not { } bar) return;
+        if (AuthoredBookingOn(world, ev) is not null) return;
+        int window = Math.Min(ev.Card.Count, Finance.MediaService.BroadcastWindow(promo) ?? ev.Card.Count);
+        var main = ev.Card[^1];
+        int now = Matchmaker.StarTier(world, bar, main.RedCorner, main.BlueCorner);
+        if (now == 2) return;
+        int Draw(Fight f) => Math.Max(world.Get(f.RedCorner)?.Intangibles.Popularity.Value ?? 0,
+                                      world.Get(f.BlueCorner)?.Intangibles.Popularity.Value ?? 0);
+        var best = ev.Card.Skip(ev.Card.Count - window).Take(window - 1)
+            .Select(f => (F: f, Star: Matchmaker.StarTier(world, bar, f.RedCorner, f.BlueCorner)))
+            .Where(x => x.Star > now)
+            .OrderByDescending(x => x.Star).ThenByDescending(x => x.F.IsTitleFight).ThenByDescending(x => Draw(x.F))
+            .ThenBy(x => x.F.Id.Value)
+            .Select(x => x.F).FirstOrDefault();
+        if (best is null) return;
+        ev.Card.Remove(best);
+        ev.Card.Add(best);
+        if (best.ScheduledRounds < promo.Rules.TitleRounds) best.ScheduledRounds = promo.Rules.TitleRounds;
     }
 
     // --- Between announcement and fight night --------------------------------
@@ -729,6 +775,7 @@ public static class ForwardCalendar
         }
         var main = ev.Card[^1];
         if (main.ScheduledRounds < promo.Rules.TitleRounds) main.ScheduledRounds = promo.Rules.TitleRounds;
+        HeadlineForTheNetwork(world, ev);
     }
 
     /// <summary>

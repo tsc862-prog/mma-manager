@@ -75,6 +75,8 @@ public class FeudTests
         rival.Record.Losses = 2;
         rival.Record.CurrentStreak = 4;
         world.Rivalries.Add(new Rivalry { A = champ.Id, B = rival.Id, Intensity = 90, Since = world.CurrentDate });
+        // Off the air: a network's star clause would put whichever belt has the bigger name on top (Matchmaker.StarTier).
+        promo.MediaDeals.Clear();
 
         var card = new Matchmaker().BuildCard(world, promo.Id);
         var titleBout = card.FirstOrDefault(m => m.IsTitle && m.WeightClass == division.WeightClass);

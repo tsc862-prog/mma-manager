@@ -827,6 +827,27 @@ public static class MediaService
         return max ?? min;
     }
 
+    /// <summary>
+    /// The strictest star clause the house's live media deals hold its main event to ("a main-eventer people know",
+    /// <see cref="DealCompliance"/>: the better-known man of the bout that runs LAST), or null when no deal asks for one.
+    /// The pay-per-view carrier judges only PPV nights, so its clause counts only when <paramref name="ppvNight"/>.
+    /// An AI house's matchmaker books its headliner with this in mind, as a player has to; it is never asked for the
+    /// player's house (his cards are his) or in the 1993 world (Origins books through its own shows). Popularity is a
+    /// public fact, so reading it here is no breach of the fog. Draws nothing.
+    /// </summary>
+    public static int? StarBar(World world, Promotion promo, bool ppvNight)
+    {
+        if (world.Mode == WorldMode.Origins || promo.Id == world.PlayerPromotion) return null;
+        int? bar = null;
+        foreach (var deal in promo.MediaDeals)
+        {
+            if (deal.Kind == MediaKind.PpvCarrier && !ppvNight) continue;
+            foreach (var req in deal.Requirements)
+                if (req.Kind == DealRequirementKind.MinStarPower) bar = Math.Max(bar ?? 0, req.Threshold);
+        }
+        return bar;
+    }
+
     /// <summary>The platform's monthly books at its current audience (what the Media desk quotes).</summary>
     public static (Money Income, Money Ops) StreamMonthly(StreamingPlatform s) =>
         (new Money(s.Subscribers * NetPerSubscriber), new Money(StreamOpsBase + s.Subscribers * StreamOpsPerSub));
