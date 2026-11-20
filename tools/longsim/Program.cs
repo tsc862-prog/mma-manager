@@ -305,6 +305,11 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
         res.Flows = flows;
         var media = new LongSim.MediaHealth { Seed = seed };
         res.Media = media;
+        var rooms = new LongSim.RoomHealth();
+        res.Rooms = rooms;
+        var marks = new LongSim.YearMarks();
+        res.Marks = marks;
+        var deadAtStart = world.Promotions.Values.Where(p => p.Defunct).Select(p => p.Id).ToHashSet();
 
         for (int yr = 1; yr <= years; yr++)
         {
@@ -316,11 +321,13 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
                 titleShots.BeforeWeek(world);
                 washouts.BeforeWeek(world);
                 media.BeforeWeek(world);
+                rooms.BeforeWeek(world);
                 var weekBefore = world.CurrentDate;
                 tick.AdvanceWeeks(world, 1);
                 titleShots.AfterWeek(world, w % 4 == 3);
                 washouts.AfterWeek(world, weekBefore);
                 media.AfterWeek(world);
+                rooms.AfterWeek(world);
                 int from = 0;
                 if (lastSeen is not null)
                 {
@@ -360,6 +367,8 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
                 deadAtYear.TryAdd(p.Abbreviation, yr);
             flows.YearEnd(world);
             media.YearEnd(world);
+            rooms.YearEnd(world);
+            marks.YearEnd(world, yr, dayOneOrgs, deadAtStart, startDate, flows);
             washouts.YearEnd(world);
         }
         flows.End(world, startDate);
@@ -525,6 +534,8 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
     PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
     LongSim.MoneyFlows.Print(all.Select(r => r.Flows).Where(f => f is not null).Select(f => f!).ToList());
     LongSim.MediaHealth.Print(all.Select(r => r.Media).Where(f => f is not null).Select(f => f!).ToList());
+    LongSim.RoomHealth.Print(all.Select(r => r.Rooms).Where(f => f is not null).Select(f => f!).ToList());
+    LongSim.YearMarks.Print(all.Select(r => r.Marks).Where(f => f is not null).Select(f => f!).ToList());
     LongSim.MediaHealth.PrintAcquisitions(all.Select(r => r.Media).Where(f => f is not null).Select(f => f!).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     LongSim.TitleShots.Print(results.Values.Select(r => (r.TitleShots!, r.Years)).ToList());
@@ -719,6 +730,8 @@ sealed class SeedResult
     public double RetiredCareerBouts;
     public LongSim.MoneyFlows? Flows;
     public LongSim.MediaHealth? Media;
+    public LongSim.RoomHealth? Rooms;
+    public LongSim.YearMarks? Marks;
 }
 
 readonly record struct BoutRow(FightMethod Method, int Rounds, Sex Sex, WeightClass Class, bool Local, int EndRound, int Knockdowns, int TenEights, int CardRounds, int Rating);

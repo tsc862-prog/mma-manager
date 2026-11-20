@@ -662,8 +662,8 @@ public static class Storylines
 
                 var ev = new Booking.EventService().CreateEvent(world, promo.Id,
                     $"{SuperfightPrefix}: {champ.LastName} vs {challenger.LastName}", when,
-                    new[] { new Booking.Matchup(champId, challengerId, upperClass, 5, true, upTid) });
-                ev.Tier = Org.OrgPerks.MaxEventTier(promo);
+                    new[] { new Booking.Matchup(champId, challengerId, upperClass, 5, true, upTid) },
+                    tier: Org.OrgPerks.MaxEventTier(promo));   // priced as the pay-per-view it is when its room is fitted
 
                 News.Post(world, date, NewsCategory.Milestone,
                     $"SUPERFIGHT: {challenger.FullName} moves up to challenge {champ.FullName}",

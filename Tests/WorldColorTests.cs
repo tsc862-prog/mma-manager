@@ -245,11 +245,21 @@ public class SolvencyTests
         victim.Balance = new Money(-12_000_000m);   // past even a top brand's deep debt ceiling
         // Nobody can carry it (a buyer must be out of the red), so it closes rather
         // than being sold at the ceiling (Acquisitions.TryRescue; see BigMoneyTests).
-        foreach (var p in world.Promotions.Values.Where(p => p.Id != victim.Id)) p.Balance = new Money(-1m);
         int rosterBefore = world.RosterOf(victim.Id).Count();
         Assert.True(rosterBefore > 0);
 
-        new WorldTick().AdvanceWeeks(world, 5);   // crosses a month boundary
+        // Held there week by week, at half each house's own debt ceiling: far enough under water that no week's
+        // gates and television (a flagship's best week is a few million) float it back into the black, and far
+        // enough above the ceiling that the month's turn does not close it too. (At -1, set once, a giant filling
+        // its rooms (RoomFit) was back in the black inside five weeks and bought the victim.)
+        var tick = new WorldTick();
+        for (int w = 0; w < 5; w++)   // crosses a month boundary
+        {
+            foreach (var p in world.Promotions.Values.Where(p => p.Id != victim.Id && !p.Defunct))
+                p.Balance = new Money(MmaManager.Core.Sim.Org.Solvency.CeilingFor(p, world) / 2);
+            tick.AdvanceWeeks(world, 1);
+        }
+        Assert.Single(world.Promotions.Values, p => p.Defunct);   // the victim alone
         var closedOn = world.CurrentDate;
 
         Assert.True(victim.Defunct);

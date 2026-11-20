@@ -34,7 +34,9 @@ public class PersonaStampTests
     // (Re-pinned on world/afc-headliners: an AI house on television now books the bout that clears its network's star clause
     // on top, so today's world runs different main events inside twelve weeks and the Modern pin moves whole. The Origins
     // world is identical.)
-    private const string ModernNoCatalog12Weeks = "8A3100C9CC162C03";
+    // (Re-pinned on world/ai-venues: an AI house in today's mode now books the room its card's demand fills, so today's gates,
+    // banks and prestige differ inside twelve weeks and the Modern pin moves whole. The Origins world is identical.)
+    private const string ModernNoCatalog12Weeks = "2C3FCF184210F8F5";
     private const string OriginsNoCatalog12Weeks = "5AF296CA832E8562";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.

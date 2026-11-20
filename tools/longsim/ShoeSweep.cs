@@ -10,7 +10,7 @@ using MmaManager.Core.Sim.Scouting;
 namespace LongSim;
 
 /// <summary>
-/// shoesweep &lt;fromSeed&gt; &lt;toSeed&gt; &lt;years&gt; [--script-only] [--ai-renewals] [--no-resign] [--par N]: the shoestring
+/// shoesweep &lt;fromSeed&gt; &lt;toSeed&gt; &lt;years&gt; [--script-only] [--ai-renewals] [--no-resign] [--old-rooms] [--par N]: the shoestring
 /// playthrough (same founding, same scripted owner as <c>shoestring</c>) over many
 /// seeds in parallel, reported as a distribution: final prestige (mean, median),
 /// share reaching each tier, median year of each tier crossing, and the yearly
@@ -88,7 +88,7 @@ public static class ShoeSweep
         int years = int.Parse(args[3]);
         bool scriptOnly = args.Contains("--script-only");
         bool dealRules = PlayerDealRules(args), resign = !args.Contains("--no-resign");
-        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable"); MimicAi = args.Contains("--mimic-ai") || args.Contains("--mimic-ai-no-champ"); MimicNoChampForce = args.Contains("--mimic-ai-no-champ"); Court = !args.Contains("--no-court"); Promising = !args.Contains("--no-promises");
+        Early = args.Contains("--early-resign"); KeepToCap = args.Contains("--keep-to-cap"); DepthBookable = args.Contains("--depth-bookable"); MimicAi = args.Contains("--mimic-ai") || args.Contains("--mimic-ai-no-champ"); MimicNoChampForce = args.Contains("--mimic-ai-no-champ"); Court = !args.Contains("--no-court"); Promising = !args.Contains("--no-promises"); OldRooms = args.Contains("--old-rooms");
         var runs = new ConcurrentBag<Run>();
         Parallel.ForEach(Enumerable.Range((int)from, (int)(to - from + 1)).Select(i => (ulong)i),
             new ParallelOptions { MaxDegreeOfParallelism = Parallelism(args) },
@@ -567,6 +567,7 @@ public static class ShoeSweep
         }
     }
 
+    private static bool OldRooms;   // --old-rooms: the script's house books the player's default room (WorldMap.PickVenueIn), not RoomFit's
     private static bool Early, KeepToCap, DepthBookable, MimicAi, MimicNoChampForce, Court = true, Promising = true;   // --no-promises: the stage 7 script (no promises, no matching rights)   // sweep options (one sweep per process); --depth-bookable: a man in his window is not counted as division depth when hiring
 
     private static double Median(List<double> s) => s.Count == 0 ? 0 : s.Count % 2 == 1 ? s[s.Count / 2] : (s[s.Count / 2 - 1] + s[s.Count / 2]) / 2;
@@ -578,6 +579,7 @@ public static class ShoeSweep
         world.PlayerPromotion = default;
         if (dealRules) DealWindow.HarnessPlayerRules(world, nwf.Id);
         FreeAgencyService.HarnessHandsOff = scriptOnly ? nwf.Id : null;
+        RoomFit.HarnessOldRooms = OldRooms ? nwf.Id : null;   // --old-rooms: the script's house keeps the player's default room
         var tick = new WorldTick();
         var valuation = new FighterValuation();
         int hires = 0;
@@ -697,7 +699,7 @@ public static class ShoeSweep
                 });
             }
         }
-        finally { FreeAgencyService.HarnessHandsOff = null; }
+        finally { FreeAgencyService.HarnessHandsOff = null; RoomFit.HarnessOldRooms = null; }
         offers.Finish(run.D, world);
         run.FinalPrestige = nwf.Prestige.Value;
         run.FinalTier = OrgSizing.SizeOf(nwf);

@@ -21,10 +21,11 @@ public sealed class EventService
     /// Book a card of matchups into a scheduled <see cref="Event"/> (optionally in
     /// a chosen host city). <paramref name="biggestRoom"/> is for the once-a-year
     /// traditions: a flagship goes in the big house rather than the room that
-    /// matches an ordinary night's draw — that IS the occasion.
+    /// matches an ordinary night's draw — that IS the occasion. <paramref name="tier"/> is the night's scale
+    /// (a superfight is a pay-per-view), set before the room is fitted so the fit prices the night it is.
     /// </summary>
     public Event CreateEvent(World world, PromotionId promoId, string name, DateOnly date, IReadOnlyList<Matchup> card,
-        CityId? city = null, bool biggestRoom = false)
+        CityId? city = null, bool biggestRoom = false, EventTier tier = EventTier.FightNight)
     {
         var promo = world.Get(promoId);
         var region = promo?.BaseRegion ?? Region.NorthAmerica;
@@ -42,6 +43,7 @@ public sealed class EventService
             Venue = venue?.Name,
             VenueId = venue?.Id,
             Status = EventStatus.Scheduled,
+            Tier = tier,
         };
 
         foreach (var m in card)
@@ -59,6 +61,10 @@ public sealed class EventService
             });
         }
         Living.LocalCircuit.YieldTo(world, ev.Card);   // a promotion's booking beats a staged club card
+
+        // An AI house in today's mode sizes the room to the crowd this card will draw (its headliner is known now),
+        // in the city the room above is in. A tradition keeps the big house: that IS the occasion.
+        if (!biggestRoom && promo is not null) RoomFit.Refit(world, promo, ev);
 
         world.Events[ev.Id] = ev;
         return ev;

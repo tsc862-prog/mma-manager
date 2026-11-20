@@ -214,11 +214,8 @@ public static class Financials
         var venue = ev.VenueId is { } vid ? world.Get(vid) : null;
         if (venue is not null && capByRoom) attendance = Math.Min(attendance, venue.Capacity);
 
-        // Card scale: a marquee super-card commands premium pricing and PPV but costs more to stage.
-        decimal gateMult = ev.Tier switch { EventTier.Ppv => 1.3m, EventTier.SuperCard => 1.6m, _ => 1.0m };
-        // A one-night bracket (Origins) is the spectacle people pay extra to see: dearer seats, same small production.
-        if (ev.Format == EventFormat.Tournament) gateMult *= OriginsBracketTicketPremium;
-        decimal prodMult = ev.Tier switch { EventTier.Ppv => 1.4m, EventTier.SuperCard => 1.8m, _ => 1.0m };
+        decimal gateMult = GateMult(ev);
+        decimal prodMult = ProdMult(ev);
 
         // 1993's seats (Origins) are a sport nobody has heard of in a hall that holds a few thousand.
         decimal ticketPrice = TicketPrice(world, prestige);
@@ -240,10 +237,7 @@ public static class Financials
         // Production scales with the actual house — a small-hall show is a few
         // staff and a rented cage, a packed arena is a television production.
         // (Rent rolls in so it flows through the box office and ledger.)
-        var rent = RentOf(world, venue);
-        var production = world.Mode == WorldMode.Origins
-            ? new Money(OriginsProduction(attendance) * prodMult) + rent
-            : new Money((10_000m + attendance * 12m) * prodMult) + rent;
+        var production = new Money(Staging(world, attendance) * prodMult) + RentOf(world, venue);
         var payroll = Payroll(world, ev) + PpvPointsPayroll(world, ev, ppvRevenue);
 
         return new EventFinancials
@@ -255,6 +249,30 @@ public static class Financials
             ProductionCost = production,
             FighterPayroll = payroll,
         };
+    }
+
+    // Card scale: a marquee super-card commands premium pricing and PPV but costs more to stage.
+    // A one-night bracket (Origins) is the spectacle people pay extra to see: dearer seats, same small production.
+    private static decimal GateMult(Event ev) =>
+        (ev.Tier switch { EventTier.Ppv => 1.3m, EventTier.SuperCard => 1.6m, _ => 1.0m })
+        * (ev.Format == EventFormat.Tournament ? OriginsBracketTicketPremium : 1m);
+
+    private static decimal ProdMult(Event ev) => ev.Tier switch { EventTier.Ppv => 1.4m, EventTier.SuperCard => 1.8m, _ => 1.0m };
+
+    // Production before the card-scale multiplier and the rent: it scales with the actual house.
+    private static decimal Staging(World world, int attendance) =>
+        world.Mode == WorldMode.Origins ? OriginsProduction(attendance) : 10_000m + attendance * 12m;
+
+    /// <summary>
+    /// What <paramref name="ev"/> nets at the door in <paramref name="room"/> if <paramref name="demand"/> people
+    /// want in: the gate on the seats the room holds, less production and the room's rent, priced exactly as the
+    /// box office prices the night. Pay-per-view and payroll do not depend on the room and are left out. Read-only.
+    /// </summary>
+    public static decimal DoorNet(World world, Event ev, Venue room, int demand)
+    {
+        int seats = Math.Max(0, Math.Min(demand, room.Capacity));
+        int prestige = world.Get(ev.Promotion)?.Prestige.Value ?? 40;
+        return seats * TicketPrice(world, prestige) * GateMult(ev) - Staging(world, seats) * ProdMult(ev) - RentOf(world, room).Amount;
     }
 
     /// <summary>

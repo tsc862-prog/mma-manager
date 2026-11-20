@@ -439,6 +439,8 @@ public sealed class WorldTick
             if (world.Get(ev.Promotion) is { } collapsed) Org.Standing.OnCancelled(world, collapsed, ev);
             return;
         }
+        // The card has stopped changing: an AI card's room fits the bout that actually headlines.
+        if (aiCard) ForwardCalendar.FitRoomOnTheNight(world, ev);
 
         using (TickProbe.Phase("events/run")) _events.RunEvent(world, ev, playByPlay);
         using (TickProbe.Phase("events/after-card")) AfterCard(world, ev, rng, report);
