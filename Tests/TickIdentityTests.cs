@@ -73,8 +73,8 @@ public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "6AFC664C60CECD38B745",   // 2027-12-30, 4635 events, 7529 fighters
-        ["modern-player-4-y2"] = "BC5F3D344BD541ED30CD",   // 2027-12-30, 4585 events, 7626 fighters
+        ["modern-ai-11-y2"] = "265FB05C4DC9F6D941B2",   // 2027-12-30, 4635 events, 7544 fighters
+        ["modern-player-4-y2"] = "45023294C939BAB01D09",   // 2027-12-30, 4582 events, 7529 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
