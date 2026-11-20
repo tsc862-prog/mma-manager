@@ -36,7 +36,9 @@ public class PersonaStampTests
     // world is identical.)
     // (Re-pinned on world/ai-venues: an AI house in today's mode now books the room its card's demand fills, so today's gates,
     // banks and prestige differ inside twelve weeks and the Modern pin moves whole. The Origins world is identical.)
-    private const string ModernNoCatalog12Weeks = "2C3FCF184210F8F5";
+    // (Re-pinned on world/fame-travel: a televised main card and a belt now make a man heard of where the house is known,
+    // so today's draws, gates and banks differ inside twelve weeks and the Modern pin moves whole. The Origins world is identical.)
+    private const string ModernNoCatalog12Weeks = "B8C614EE0AD13B05";
     private const string OriginsNoCatalog12Weeks = "5AF296CA832E8562";
 
     // Who exists, how famous, how they did, where they are, plus every house's bank and the size of the record.
