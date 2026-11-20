@@ -359,14 +359,7 @@ public sealed partial class BookingViewModel
     };
 
     /// <summary>Popularity in words (a public fact): who sells tickets.</summary>
-    internal static string DrawWord(int pop) => pop switch
-    {
-        >= 75 => "a star",
-        >= 60 => "draws a crowd",
-        >= 45 => "a known name",
-        >= 30 => "a following",
-        _ => "little draw yet",
-    };
+    internal static string DrawWord(int pop) => Fame.DrawWord(pop);
 
     /// <summary>"$12k" for a row.</summary>
     internal static string Short(Money m) => Compact(m).TrimStart('+');

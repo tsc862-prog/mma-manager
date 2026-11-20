@@ -23,4 +23,6 @@ public static class AppCommands
     public static ICommand OpenEvent { get; set; } = Nothing;
     /// <summary>"Book him": the Card Desk on the next card he can make, him in the first corner (parameter = fighter id).</summary>
     public static ICommand BookFighter { get; set; } = Nothing;
+    /// <summary>The World Map in fame mode for one fighter: where his name is known (parameter = fighter id).</summary>
+    public static ICommand ShowFame { get; set; } = Nothing;
 }

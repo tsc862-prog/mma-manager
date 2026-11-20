@@ -68,6 +68,91 @@ public sealed class EmptyState : Control
 }
 
 /// <summary>
+/// A fighter's drawing power read at a glance: five rising bars (a crowd getting louder) and the
+/// fight sheet's draw word ("a known name"), with the popularity number on hover or, with
+/// <see cref="ShowNumber"/>, beside the word. Popularity is a public fact, never fogged. Below a
+/// following (<see cref="ViewModels.Fame.DrawShownFrom"/>) the meter is <see cref="IsQuiet"/>: walls
+/// collapse it, so a nobody never wears a loud zero. Look is in App.xaml (implicit style).
+/// </summary>
+public sealed class DrawMeter : Control
+{
+    static DrawMeter() =>
+        DefaultStyleKeyProperty.OverrideMetadata(typeof(DrawMeter), new FrameworkPropertyMetadata(typeof(DrawMeter)));
+
+    public static readonly DependencyProperty ValueProperty = DependencyProperty.Register(
+        nameof(Value), typeof(int), typeof(DrawMeter), new PropertyMetadata(0, (d, _) => ((DrawMeter)d).Update()));
+    public static readonly DependencyProperty ShowNumberProperty = DependencyProperty.Register(
+        nameof(ShowNumber), typeof(bool), typeof(DrawMeter), new PropertyMetadata(false, (d, _) => ((DrawMeter)d).Update()));
+
+    private static readonly DependencyPropertyKey WordKey = DependencyProperty.RegisterReadOnly(nameof(Word), typeof(string), typeof(DrawMeter), new PropertyMetadata(""));
+    public static readonly DependencyProperty WordProperty = WordKey.DependencyProperty;
+    private static readonly DependencyPropertyKey LevelKey = DependencyProperty.RegisterReadOnly(nameof(Level), typeof(int), typeof(DrawMeter), new PropertyMetadata(0));
+    public static readonly DependencyProperty LevelProperty = LevelKey.DependencyProperty;
+    private static readonly DependencyPropertyKey IsQuietKey = DependencyProperty.RegisterReadOnly(nameof(IsQuiet), typeof(bool), typeof(DrawMeter), new PropertyMetadata(true));
+    public static readonly DependencyProperty IsQuietProperty = IsQuietKey.DependencyProperty;
+    private static readonly DependencyPropertyKey IsStarKey = DependencyProperty.RegisterReadOnly(nameof(IsStar), typeof(bool), typeof(DrawMeter), new PropertyMetadata(false));
+    public static readonly DependencyProperty IsStarProperty = IsStarKey.DependencyProperty;
+    private static readonly DependencyPropertyKey NumberTextKey = DependencyProperty.RegisterReadOnly(nameof(NumberText), typeof(string), typeof(DrawMeter), new PropertyMetadata(""));
+    public static readonly DependencyProperty NumberTextProperty = NumberTextKey.DependencyProperty;
+
+    /// <summary>The fighter's popularity (0-100).</summary>
+    public int Value { get => (int)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
+    /// <summary>Print the number beside the word (profile header); walls keep it in the tooltip.</summary>
+    public bool ShowNumber { get => (bool)GetValue(ShowNumberProperty); set => SetValue(ShowNumberProperty, value); }
+    public string Word => (string)GetValue(WordProperty);
+    public int Level => (int)GetValue(LevelProperty);
+    public bool IsQuiet => (bool)GetValue(IsQuietProperty);
+    public bool IsStar => (bool)GetValue(IsStarProperty);
+    /// <summary>"52" when <see cref="ShowNumber"/>, else "".</summary>
+    public string NumberText => (string)GetValue(NumberTextProperty);
+
+    public DrawMeter() => Update();
+
+    private void Update()
+    {
+        int v = Math.Clamp(Value, 0, 100);
+        string word = ViewModels.Fame.DrawWord(v);
+        SetValue(WordKey, word.Length > 0 ? char.ToUpperInvariant(word[0]) + word[1..] : word);
+        SetValue(LevelKey, ViewModels.Fame.DrawLevel(v));
+        SetValue(IsQuietKey, v < ViewModels.Fame.DrawShownFrom);
+        SetValue(IsStarKey, v >= 75);
+        SetValue(NumberTextKey, ShowNumber ? v.ToString() : "");
+        ToolTip = $"Drawing power: popularity {v} of 100. Who sells tickets is public; anyone can see it.";
+    }
+}
+
+/// <summary>The draw meter's five rising bars; <see cref="Level"/> of them lit.</summary>
+public sealed class DrawBars : FrameworkElement
+{
+    public static readonly DependencyProperty LevelProperty = DependencyProperty.Register(
+        nameof(Level), typeof(int), typeof(DrawBars), new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty FillProperty = DependencyProperty.Register(
+        nameof(Fill), typeof(Brush), typeof(DrawBars), new FrameworkPropertyMetadata(Brushes.Orange, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty TrackProperty = DependencyProperty.Register(
+        nameof(Track), typeof(Brush), typeof(DrawBars), new FrameworkPropertyMetadata(Brushes.DimGray, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public int Level { get => (int)GetValue(LevelProperty); set => SetValue(LevelProperty, value); }
+    public Brush Fill { get => (Brush)GetValue(FillProperty); set => SetValue(FillProperty, value); }
+    public Brush Track { get => (Brush)GetValue(TrackProperty); set => SetValue(TrackProperty, value); }
+
+    protected override Size MeasureOverride(Size available) =>
+        new(double.IsNaN(Width) ? 24 : Width, double.IsNaN(Height) ? 12 : Height);
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        double w = ActualWidth, h = ActualHeight;
+        const int n = 5;
+        double gap = Math.Max(1.5, w / 16), bar = (w - gap * (n - 1)) / n;
+        for (int i = 0; i < n; i++)
+        {
+            double bh = h * (0.36 + 0.16 * i);
+            var r = new Rect(i * (bar + gap), h - bh, bar, bh);
+            dc.DrawRoundedRectangle(i < Level ? Fill : Track, null, r, 1, 1);
+        }
+    }
+}
+
+/// <summary>
 /// The scout's read of a fighter, said like a person would: a short bar, the
 /// number, and the band word (Elite / Strong / Solid / Raw) from
 /// <see cref="ScoutReport.Band"/>. Bind <see cref="Value"/> to a SCOUTED

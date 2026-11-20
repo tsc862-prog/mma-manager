@@ -549,6 +549,9 @@
                controls:SectionHeader  Title / Hint / ActionText + ActionCommand.
                controls:EmptyState     Icon (or Glyph) / Title / Message / ActionText + ActionCommand / Footnote.
                controls:RatingBadge    Value = a SCOUTED rating -> bar + number + word.
+               controls:DrawMeter      Value = popularity (public) -> five rising bars + the draw word
+                                       (Fame.DrawWord); ShowNumber prints the number. IsQuiet below a
+                                       following: walls hide it (a nobody wears no loud zero).
                controls:Icon           Kind (an Icon.* name) / Brush / StrokeThickness; 20x20 by default.
                controls:CardWall       virtualised wrapping wall of cards; ItemsSource may mix
                                        CardGroup headings and a CardBanner (full-width feature drawn
@@ -589,6 +592,9 @@
         <SolidColorBrush x:Key="ToneWarnDim" Color="#38301B" />
         <SolidColorBrush x:Key="ToneBadDim" Color="#3A2225" />
         <SolidColorBrush x:Key="ToneInfoDim" Color="#1C2A3D" />
+        <!-- Drawing power and fame heat (the ember ramp lives in ViewModels/Fame.cs: Fame.Heat). -->
+        <SolidColorBrush x:Key="DrawInk" Color="#F0A04B" />
+        <SolidColorBrush x:Key="DrawTrack" Color="#353B45" />
 
         <!-- Tokens: line icons (24x24 grid, stroked by controls:Icon — never filled).
              Add a shape here, then use it anywhere as <controls:Icon Kind="Name" />. -->
@@ -608,6 +614,8 @@
         <Geometry x:Key="Icon.Check">M5,12.5 L10,17.5 L19.5,7</Geometry>
         <Geometry x:Key="Icon.Newspaper">M4,5 H17 V19 H6 A2,2 0 0 1 4,17 Z M17,9 H20 V17 A2,2 0 0 1 18,19 H17 M7,8.5 H14 M7,12 H14 M7,15 H11</Geometry>
         <Geometry x:Key="Icon.Building">M4,20.5 H20 M5.5,20.5 V8 L12,4 L18.5,8 V20.5 M9,11 H10 M14,11 H15 M9,14.5 H10 M14,14.5 H15 M10.5,20.5 V17 H13.5 V20.5</Geometry>
+        <Geometry x:Key="Icon.Home">M3.5,11.5 L12,4.5 L20.5,11.5 M6,9.5 V20 H18 V9.5 M10,20 V14.5 H14 V20</Geometry>
+        <Geometry x:Key="Icon.Flame">M12,21 A6.5,6.5 0 0 1 5.5,14.5 C5.5,10.5 9,8.5 9.5,4 C12.5,6 13.5,9 13,11.5 C14.5,10.8 15.3,9.6 15.5,8.2 C17.5,10 18.5,12.2 18.5,14.5 A6.5,6.5 0 0 1 12,21 Z</Geometry>
         <Geometry x:Key="Icon.ChevronLeft">M15,5 L8,12 L15,19</Geometry>
         <Geometry x:Key="Icon.ChevronRight">M9,5 L16,12 L9,19</Geometry>
 
@@ -1218,6 +1226,68 @@
             </Setter>
         </Style>
 
+        <!-- FAME (the World Map's fame layers; models in ViewModels/WorldMapViewModel.cs, colours from Fame.Heat) -->
+        <!-- One legend stop: a heat swatch over its word. -->
+        <DataTemplate x:Key="FameLegendStopTemplate">
+            <StackPanel Margin="0,0,3,0" Width="78">
+                <Border Height="10" Background="{Binding Brush}" CornerRadius="2" />
+                <TextBlock Text="{Binding Word}" FontSize="10.5" Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0"
+                           TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </DataTemplate>
+        <!-- A city where the name carries, as a heat-coloured chip (the host binds the click). -->
+        <Style x:Key="HotSpotChip" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" Background="{Binding HeatBrush}" CornerRadius="6" Padding="10,5" BorderThickness="1" BorderBrush="Transparent">
+                            <StackPanel Orientation="Horizontal">
+                                <controls:Icon x:Name="home" Kind="Home" Width="14" Height="14" Brush="{Binding InkBrush}" StrokeThickness="2"
+                                               Margin="0,0,6,0" VerticalAlignment="Center" Visibility="Collapsed" />
+                                <TextBlock Text="{Binding City}" FontWeight="SemiBold" Foreground="{Binding InkBrush}" VerticalAlignment="Center" />
+                                <TextBlock x:Name="where" Text="{Binding Where}" FontSize="11" Foreground="{Binding InkBrush}" Opacity="0.8" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Fame}" FontWeight="Bold" FontSize="14" Foreground="{Binding InkBrush}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsHome}" Value="True"><Setter TargetName="home" Property="Visibility" Value="Visible" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Where}" Value=""><Setter TargetName="where" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource TextPrimary}" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- A breadcrumb hop (World > Asia > Japan): gold link, the last hop plain text (no disabled-button grey box). -->
+        <Style x:Key="CrumbButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Padding="2,0"><ContentPresenter VerticalAlignment="Center" /></Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLast}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                    <Setter Property="IsEnabled" Value="False" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- The HOME pill on a place card's heat strip (the fame subject's home town is in this place). -->
+        <Style x:Key="HomePill" TargetType="Border">
+            <Setter Property="Background" Value="#CC12151A" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="7,2,8,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <!-- CardsTableToggle (ToggleButton): the small "Cards | Table" switch for a list that is cards by default;
              IsChecked = the dense sortable table. Bind IsChecked to the screen's Show…Table (a session-long VM flag). -->
         <Style x:Key="CardsTableToggle" TargetType="ToggleButton">
@@ -1454,6 +1524,39 @@
             </Setter>
         </Style>
 
+        <!-- controls:DrawMeter: drawing power (popularity, a public fact) -->
+        <Style TargetType="controls:DrawMeter">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="controls:DrawMeter">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <controls:DrawBars x:Name="bars" Width="22" Height="11" VerticalAlignment="Center"
+                                               Level="{Binding Level, RelativeSource={RelativeSource TemplatedParent}}"
+                                               Fill="{StaticResource DrawInk}" Track="{StaticResource DrawTrack}" />
+                            <TextBlock x:Name="word" Text="{TemplateBinding Word}" Margin="7,0,0,0" VerticalAlignment="Center"
+                                       FontSize="{TemplateBinding FontSize}" Foreground="{TemplateBinding Foreground}" />
+                            <TextBlock x:Name="num" Text="{TemplateBinding NumberText}" Margin="7,0,0,0" VerticalAlignment="Center"
+                                       FontSize="{TemplateBinding FontSize}" FontWeight="Bold" Foreground="{StaticResource DrawInk}" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsStar" Value="True">
+                                <Setter TargetName="word" Property="Foreground" Value="{StaticResource Gold}" />
+                                <Setter TargetName="word" Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="bars" Property="Fill" Value="{StaticResource Gold}" />
+                            </Trigger>
+                            <Trigger Property="IsQuiet" Value="True">
+                                <Setter TargetName="word" Property="Foreground" Value="{StaticResource TextMuted}" />
+                                <Setter TargetName="num" Property="Foreground" Value="{StaticResource TextMuted}" />
+                            </Trigger>
+                            <Trigger Property="NumberText" Value=""><Setter TargetName="num" Property="Visibility" Value="Collapsed" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- controls:RatingBadge -->
         <Style TargetType="controls:RatingBadge">
             <Setter Property="Template">
@@ -1549,7 +1652,7 @@
 
         <!-- FighterCardTemplate: a contact card for walls of fighters -->
         <DataTemplate x:Key="FighterCardTemplate">
-            <Button Style="{StaticResource CardButton}" Height="146"
+            <Button Style="{StaticResource CardButton}" Height="164"
                     Command="{x:Static mvvm:AppCommands.OpenFighter}"
                     CommandParameter="{Binding Id}" ToolTip="Open the profile">
                 <Grid>
@@ -1573,6 +1676,7 @@
                         <TextBlock x:Name="nick" Text="{Binding Nickname}" Style="{StaticResource Text.Caption}" FontStyle="Italic" Foreground="{StaticResource TextSoft}" />
                         <TextBlock Text="{Binding Facts}" Style="{StaticResource Text.Caption}" Margin="0,3,0,0" />
                         <controls:RatingBadge Value="{Binding Scout}" Margin="0,6,0,0" HorizontalAlignment="Left" />
+                        <controls:DrawMeter x:Name="draw" Value="{Binding Popularity}" Margin="0,5,0,0" HorizontalAlignment="Left" />
                         <TextBlock x:Name="deal" Text="{Binding ContractText}" Style="{StaticResource Text.Caption}" Margin="0,6,0,0" />
                         <TextBlock x:Name="status" Text="{Binding StatusText}" Style="{StaticResource Text.Status}" Margin="0,1,0,0" />
                     </StackPanel>
@@ -1585,6 +1689,7 @@
                 <DataTrigger Binding="{Binding IsChampion}" Value="True"><Setter TargetName="champ" Property="Visibility" Value="Visible" /></DataTrigger>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="sel" Property="Visibility" Value="Visible" /></DataTrigger>
                 <DataTrigger Binding="{Binding Nickname}" Value=""><Setter TargetName="nick" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding ShowsDraw}" Value="False"><Setter TargetName="draw" Property="Visibility" Value="Collapsed" /></DataTrigger>
                 <DataTrigger Binding="{Binding ContractTone}" Value="Warn"><Setter TargetName="deal" Property="Foreground" Value="{StaticResource ToneWarn}" /><Setter TargetName="deal" Property="FontWeight" Value="SemiBold" /></DataTrigger>
                 <DataTrigger Binding="{Binding ContractTone}" Value="Bad"><Setter TargetName="deal" Property="Foreground" Value="{StaticResource ToneBad}" /><Setter TargetName="deal" Property="FontWeight" Value="SemiBold" /></DataTrigger>
                 <DataTrigger Binding="{Binding StatusTone}" Value="Good"><Setter TargetName="status" Property="Foreground" Value="{StaticResource ToneGood}" /></DataTrigger>
@@ -1597,7 +1702,7 @@
         <!-- WorldFighterCardTemplate: a fighter from anywhere in the world (Fighters app):
              who they fight for instead of the deal, and a shortlist star. -->
         <DataTemplate x:Key="WorldFighterCardTemplate">
-            <Button Style="{StaticResource CardButton}" Height="146"
+            <Button Style="{StaticResource CardButton}" Height="164"
                     Command="{x:Static mvvm:AppCommands.OpenFighter}"
                     CommandParameter="{Binding Id}" ToolTip="Open the profile">
                 <Grid>
@@ -1623,6 +1728,7 @@
                         </DockPanel>
                         <TextBlock Text="{Binding Facts}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
                         <controls:RatingBadge Value="{Binding Scout}" Margin="0,5,0,0" HorizontalAlignment="Left" />
+                        <controls:DrawMeter x:Name="draw" Value="{Binding Popularity}" Margin="0,5,0,0" HorizontalAlignment="Left" />
                         <TextBlock x:Name="status" Text="{Binding StatusText}" Style="{StaticResource Text.Status}" Margin="0,4,0,0" />
                     </StackPanel>
                     <!-- shortlist star: pins the fighter to the Notes shortlist -->
@@ -1639,6 +1745,7 @@
                 <DataTrigger Binding="{Binding IsChampion}" Value="True"><Setter TargetName="champ" Property="Visibility" Value="Visible" /></DataTrigger>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="sel" Property="Visibility" Value="Visible" /></DataTrigger>
                 <DataTrigger Binding="{Binding Nickname}" Value=""><Setter TargetName="nick" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding ShowsDraw}" Value="False"><Setter TargetName="draw" Property="Visibility" Value="Collapsed" /></DataTrigger>
                 <DataTrigger Binding="{Binding HasAffiliationLogo}" Value="False">
                     <Setter TargetName="logo" Property="Visibility" Value="Collapsed" />
                     <Setter TargetName="aff" Property="Foreground" Value="{StaticResource ToneInfo}" />
