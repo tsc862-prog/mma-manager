@@ -626,6 +626,7 @@ public static class ShoeSweep
         if (dealRules) DealWindow.HarnessPlayerRules(world, nwf.Id);
         FreeAgencyService.HarnessHandsOff = scriptOnly ? nwf.Id : null;
         RoomFit.HarnessOldRooms = OldRooms ? nwf.Id : null;   // --old-rooms: the script's house keeps the player's default room
+        MmaManager.Core.Sim.Finance.MediaService.HarnessPlayerLane = nwf.Id;   // the script's house keeps the player's streaming lane
         var tick = new WorldTick();
         var valuation = new FighterValuation();
         int hires = 0;
@@ -748,7 +749,7 @@ public static class ShoeSweep
                 });
             }
         }
-        finally { FreeAgencyService.HarnessHandsOff = null; RoomFit.HarnessOldRooms = null; }
+        finally { FreeAgencyService.HarnessHandsOff = null; RoomFit.HarnessOldRooms = null; MmaManager.Core.Sim.Finance.MediaService.HarnessPlayerLane = null; }
         offers.Finish(run.D, world);
         run.D.MsOfferOpen += giants.Open;
         run.FinalPrestige = nwf.Prestige.Value;

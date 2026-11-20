@@ -290,8 +290,15 @@ public static class MediaService
     /// may pitch it. Never the player's house; never an Origins world. Draws nothing.
     /// </summary>
     public static bool OnOwnPlatform(World world, Promotion promo) =>
-        world.Mode != WorldMode.Origins && promo.Id != world.PlayerPromotion
+        world.Mode != WorldMode.Origins && promo.Id != world.PlayerPromotion && promo.Id != HarnessPlayerLane
         && promo.Stream is not null && DealIn(promo, MediaLane.Streaming) is null;
+
+    /// <summary>
+    /// Harness only (longsim shoesweep): the scripted house stands in for the player, so it keeps the player's
+    /// streaming lane (no courting back over its own platform). Never set by the game. Per thread, as
+    /// <c>Booking.RoomFit.HarnessOldRooms</c>.
+    /// </summary>
+    [ThreadStatic] public static PromotionId? HarnessPlayerLane;
 
     private const ulong CourtBackSalt = 0x57E4_3BAC_0001UL;
     private const ulong CourtBackPickSalt = 0x57E4_3BAC_0002UL;
