@@ -303,6 +303,8 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
         NewsItem? lastSeen = world.News.Count > 0 ? world.News[^1] : null;
         var flows = new LongSim.MoneyFlows();
         res.Flows = flows;
+        var media = new LongSim.MediaHealth { Seed = seed };
+        res.Media = media;
 
         for (int yr = 1; yr <= years; yr++)
         {
@@ -313,10 +315,12 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
             {
                 titleShots.BeforeWeek(world);
                 washouts.BeforeWeek(world);
+                media.BeforeWeek(world);
                 var weekBefore = world.CurrentDate;
                 tick.AdvanceWeeks(world, 1);
                 titleShots.AfterWeek(world, w % 4 == 3);
                 washouts.AfterWeek(world, weekBefore);
+                media.AfterWeek(world);
                 int from = 0;
                 if (lastSeen is not null)
                 {
@@ -355,9 +359,11 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
             foreach (var p in world.Promotions.Values.Where(p => p.Defunct))
                 deadAtYear.TryAdd(p.Abbreviation, yr);
             flows.YearEnd(world);
+            media.YearEnd(world);
             washouts.YearEnd(world);
         }
         flows.End(world, startDate);
+        media.End(world, startDate);
         washouts.Close(world);
 
         // Durable, from event/fight state (events are never pruned for AI orgs).
@@ -518,6 +524,7 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
     PrintFightMix(all.SelectMany(r => r.Bouts).ToList());
     PrintCardQuality(all.SelectMany(r => r.Cards).ToList());
     LongSim.MoneyFlows.Print(all.Select(r => r.Flows).Where(f => f is not null).Select(f => f!).ToList());
+    LongSim.MediaHealth.Print(all.Select(r => r.Media).Where(f => f is not null).Select(f => f!).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
     LongSim.TitleShots.Print(results.Values.Select(r => (r.TitleShots!, r.Years)).ToList());
     {
@@ -710,6 +717,7 @@ sealed class SeedResult
     public int RetiredInRun;
     public double RetiredCareerBouts;
     public LongSim.MoneyFlows? Flows;
+    public LongSim.MediaHealth? Media;
 }
 
 readonly record struct BoutRow(FightMethod Method, int Rounds, Sex Sex, WeightClass Class, bool Local, int EndRound, int Knockdowns, int TenEights, int CardRounds, int Rating);
