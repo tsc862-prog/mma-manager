@@ -33,6 +33,22 @@ public sealed class MediaHealth
     /// <summary>Keyed by "AFC" and by tier label (the AFC counts in its tier too).</summary>
     public readonly Dictionary<string, int> JudgedCards = new(), StarCards = new(), OrgWeeks = new();
     public readonly Dictionary<(string Who, string What), int> Strikes = new(), Lost = new(), StarMiss = new(), Stream = new();
+    /// <summary>Streaming money by "AFC"/tier and the house's streaming state that week ("major" / "own" / "neither"):
+    /// weeks in the state, and the ledger sums of own-platform net (Streaming + StreamingOps), MajorStream rights
+    /// (Broadcast entries from the house's MajorStream partner) and all Broadcast earned in those weeks. DURABLE.</summary>
+    public readonly Dictionary<(string Who, string State), int> StateWeeks = new();
+    public readonly Dictionary<(string Who, string State, string What), decimal> StateMoney = new();
+    private Dictionary<PromotionId, int> _ledgerAt = new();
+
+    /// <summary>The four streaming giants (MediaService's MajorStream partners).</summary>
+    public static readonly string[] Giants = { "Streamflix", "Arena+", "Watchtower", "Nimbus Video" };
+    /// <summary>Per year (sampled every 4 weeks): giants with no live deal, and houses holding one (sums over samples).</summary>
+    public readonly List<int> GiantsFreeSum = new(), GiantHoldersSum = new(), GiantSamples = new();
+    /// <summary>Own-platform closures per house; MajorStream deals signed over a running platform, and how those ended.</summary>
+    public readonly Dictionary<PromotionId, int> Closures = new();
+    private readonly HashSet<MediaDeal> _overPlatform = new(ReferenceEqualityComparer.Instance);
+    public int OverPlatformSigned;
+    public readonly Dictionary<string, int> OverPlatformLost = new();
     public int AfcTurnedAway, AfcRoomCards, AfcCardsOverRoom;
     public decimal AfcGateTurnedAway, AfcDemand, AfcCapacity;
 
@@ -73,6 +89,7 @@ public sealed class MediaHealth
             if (p.Defunct) continue;
             _before[p.Id] = new OrgSnap(p, OrgSizing.SizeOf(p), p.Stream is not null,
                 p.MediaDeals.Select(d => new DealSnap(d, d.Strikes, d.LastAiredOn, d.MonthsRemaining)).ToList());
+            _ledgerAt[p.Id] = p.Ledger.Count;
         }
         _lastNews = world.News.Count > 0 ? world.News[^1] : null;
         var horizon = world.CurrentDate.AddDays(8);
@@ -173,6 +190,44 @@ public sealed class MediaHealth
                 foreach (var w in who) Add(Stream, (w, "MajorStream deals lost"));
             if (!snap.HadStream && p.Stream is not null)
                 foreach (var w in who) Add(Stream, (w, "own platform launched"));
+            if (snap.HadStream && p.Stream is null)
+            {
+                foreach (var w in who) Add(Stream, (w, "own platform closed"));
+                Closures[p.Id] = Closures.GetValueOrDefault(p.Id) + 1;
+            }
+            if (snap.HadStream)
+                foreach (var nd in p.MediaDeals.Where(x => x.Kind == MediaKind.MajorStream && !snap.Deals.Any(s => ReferenceEquals(s.Deal, x))))
+                    if (_overPlatform.Add(nd)) OverPlatformSigned++;
+            foreach (var d in snap.Deals.Where(d => _overPlatform.Contains(d.Deal) && !p.MediaDeals.Contains(d.Deal)))
+            {
+                string why = d.Deal.Strikes >= MediaService.StrikeLimit ? "walked at 3 strikes"
+                    : d.Deal.MonthsRemaining <= 0 ? (d.Deal.Strikes > 0 ? "not renewed (a strike)" : "term end clean (coin flip / below bar)")
+                    : "other";
+                Add(OverPlatformLost, why);
+            }
+
+            // The week's streaming money against the house's streaming state at the week's end.
+            var majors = snap.Deals.Select(d => d.Deal).Concat(p.MediaDeals).Where(d => d.Kind == MediaKind.MajorStream)
+                .Select(d => $" — {d.Partner} rights").Distinct().ToList();
+            decimal own = 0, majorTv = 0, tv = 0;
+            for (int i = _ledgerAt.GetValueOrDefault(p.Id); i < p.Ledger.Count; i++)
+            {
+                var e = p.Ledger[i];
+                if (e.Category is FinanceCategory.Streaming or FinanceCategory.StreamingOps) own += e.Amount.Amount;
+                else if (e.Category == FinanceCategory.Broadcast)
+                {
+                    tv += e.Amount.Amount;
+                    if (majors.Any(m => e.Description.Contains(m, StringComparison.Ordinal))) majorTv += e.Amount.Amount;
+                }
+            }
+            string st = p.MediaDeals.Any(x => x.Kind == MediaKind.MajorStream) ? "major" : p.Stream is not null ? "own" : "neither";
+            foreach (var w in who)
+            {
+                Add(StateWeeks, (w, st));
+                StateMoney[(w, st, "own")] = StateMoney.GetValueOrDefault((w, st, "own")) + own;
+                StateMoney[(w, st, "major")] = StateMoney.GetValueOrDefault((w, st, "major")) + majorTv;
+                StateMoney[(w, st, "tv")] = StateMoney.GetValueOrDefault((w, st, "tv")) + tv;
+            }
         }
 
         // The flagship's rooms: the house it could have sold against the one it played.
@@ -191,6 +246,14 @@ public sealed class MediaHealth
             AfcGateTurnedAway += turned * Financials.TicketPrice(world, afc.Prestige.Value) * mult;
         }
 
+        if (_week % 4 == 0)
+        {
+            int y = (_week - 1) / 52;
+            while (GiantSamples.Count <= y) { GiantSamples.Add(0); GiantsFreeSum.Add(0); GiantHoldersSum.Add(0); }
+            GiantSamples[y]++;
+            GiantsFreeSum[y] += Giants.Count(g => MediaService.PartnerFree(world, g));
+            GiantHoldersSum[y] += world.Promotions.Values.Count(p => !p.Defunct && p.MediaDeals.Any(d => d.Kind == MediaKind.MajorStream));
+        }
         if (_week % 13 == 0 && world.Promotions.Values.FirstOrDefault(p => p.Abbreviation == "AFC") is { } a)
             AfcMinQuarterBank = Math.Min(AfcMinQuarterBank, a.Balance.Amount);
     }
@@ -269,7 +332,7 @@ public sealed class MediaHealth
     private static readonly string[] StrikeKinds = { "star", "quality", "star+quality", "other", "cadence" };
     private static readonly string[] LossKinds = { "walked at 3 strikes", "not renewed (a strike)", "not renewed (coin flip)", "not renewed (below the bar)", "replaced", "other" };
     private static readonly string[] MissKinds = { "a main-card bout cleared it", "a prelim cleared it", "only a man off the card cleared it", "nobody signed cleared it", "(title on top)", "(non-title on top)" };
-    private static readonly string[] StreamKinds = { "weeks with a MajorStream deal", "weeks on own platform only", "weeks with neither", "MajorStream deals lost", "own platform launched", "MajorStream signed (no own platform)", "MajorStream signed while running own platform" };
+    private static readonly string[] StreamKinds = { "weeks with a MajorStream deal", "weeks on own platform only", "weeks with neither", "MajorStream deals lost", "own platform launched", "own platform closed", "MajorStream signed (no own platform)", "MajorStream signed while running own platform" };
 
     private static IEnumerable<string> Whos(IReadOnlyList<MediaHealth> seeds) =>
         new[] { "AFC" }.Concat(Enum.GetValues<OrgSize>().Reverse().Select(OrgSizing.Label))
@@ -341,6 +404,32 @@ public sealed class MediaHealth
         foreach (var w in Whos(seeds))
             if (StreamKinds.Any(k => seeds.Any(s => s.Stream.ContainsKey((w, k)))))
                 Console.WriteLine($"    {w,-14} " + string.Join(" · ", StreamKinds.Select(k => $"{k} {seeds.Sum(s => s.Stream.GetValueOrDefault((w, k)))}")));
+        Console.WriteLine("  streaming money by the house's streaming state at week end (every live house, not only MajorStream-qualified; DURABLE ledger sums per org-quarter of 13 weeks in the state):"
+            + " own = own-platform net (Streaming + StreamingOps, launch included) · major = MajorStream rights · tv = all Broadcast ($M)");
+        foreach (var w in Whos(seeds))
+            Console.WriteLine($"    {w,-14} " + string.Join(" | ", new[] { "major", "own", "neither" }.Select(st =>
+            {
+                int wk = seeds.Sum(s => s.StateWeeks.GetValueOrDefault((w, st)));
+                decimal Per(string what) => wk == 0 ? 0 : seeds.Sum(s => s.StateMoney.GetValueOrDefault((w, st, what))) / (wk / 13m) / 1_000_000m;
+                return $"{st}: org-qtrs {wk / 13.0,7:0.0} own {Per("own"),6:0.00} major {Per("major"),6:0.00} tv {Per("tv"),6:0.00}";
+            })));
+        int ny = seeds.Max(s => s.GiantSamples.Count);
+        Console.WriteLine("  streaming giants by year (SAMPLED every 4 weeks; mean over samples and seeds): "
+            + string.Join(" · ", Enumerable.Range(0, ny).Select(y =>
+            {
+                int n = seeds.Sum(s => s.GiantSamples.Count > y ? s.GiantSamples[y] : 0);
+                double free = n == 0 ? 0 : seeds.Sum(s => s.GiantSamples.Count > y ? s.GiantsFreeSum[y] : 0) / (double)n;
+                double held = n == 0 ? 0 : seeds.Sum(s => s.GiantSamples.Count > y ? s.GiantHoldersSum[y] : 0) / (double)n;
+                return $"Y{y + 1} free {free:0.00} of 4, houses holding one {held:0.00}";
+            })));
+        var closures = seeds.SelectMany(s => s.Closures.Values).ToList();
+        Console.WriteLine($"  own-platform closures (deal objects / weekly state): total {closures.Sum()} · houses that closed one {closures.Count} · closed 2+ times {closures.Count(c => c >= 2)} · 3+ {closures.Count(c => c >= 3)}"
+            + $" · max per house {(closures.Count == 0 ? 0 : closures.Max())} · per seed {closures.Sum() / (double)seeds.Count:0.00}");
+        int ops = seeds.Sum(s => s.OverPlatformSigned);
+        var lostKinds = seeds.SelectMany(s => s.OverPlatformLost.Keys).Distinct().OrderBy(k => k, StringComparer.Ordinal).ToList();
+        int lostStrikes = seeds.Sum(s => s.OverPlatformLost.GetValueOrDefault("walked at 3 strikes") + s.OverPlatformLost.GetValueOrDefault("not renewed (a strike)"));
+        Console.WriteLine($"  MajorStream deals taken over a running platform {ops} · since lost to strikes {lostStrikes} ({100.0 * lostStrikes / Math.Max(1, ops):0.0}%) · lost by reason: "
+            + (lostKinds.Count == 0 ? "-" : string.Join(" · ", lostKinds.Select(k => $"{k} {seeds.Sum(s => s.OverPlatformLost.GetValueOrDefault(k))}"))));
         int rc = seeds.Sum(s => s.AfcRoomCards);
         if (rc > 0)
         {

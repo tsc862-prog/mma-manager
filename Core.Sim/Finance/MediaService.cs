@@ -263,12 +263,205 @@ public static class MediaService
     /// <summary>A partner an offer could come from: free, and never pitched this promotion before.</summary>
     private static PartnerProfile? Suitor(World world, Promotion promo, Rung rung, SimRandom rng)
     {
-        var candidates = PartnersIn(world, rung)
+        var candidates = SuitorPool(world, promo, rung);
+        return candidates.Count == 0 ? null : Pick(world, promo, candidates, rng);
+    }
+
+    private static List<PartnerProfile> SuitorPool(World world, Promotion promo, Rung rung) =>
+        PartnersIn(world, rung)
             .Where(pp => !promo.CourtedBy.Contains(pp.Name)
                 && !promo.Offers.Any(o => o.Partner == pp.Name)
                 && (!IsExclusive(rung.Kind) || PartnerFree(world, pp.Name)))
             .ToList();
-        return candidates.Count == 0 ? null : Pick(world, promo, candidates, rng);
+
+    // --- Courting back a house on its own platform ----------------------------
+    // An AI house that lost its streaming giant builds its own platform the next
+    // month (AiAccept), and the streaming lane then reads as occupied (LaneOpen),
+    // so no streaming giant ever called again: 0 MajorStream signings at a house
+    // running its own platform in 200 seeds, a third of International weeks spent
+    // on a platform netting a fraction of what a giant pays. Now the giants court
+    // such a house on the ordinary rules (the rung's bar, one pitch per partner
+    // until it re-enters the market, exclusivity) and the house weighs the offer
+    // against its own record and what its platform nets. Narrowed so the market
+    // stays open to everyone else (CourtableOnPlatform): only the International
+    // houses are courted back, never for the last free giant, and not for two
+    // years after a house relaunched its platform on losing a giant to strikes.
+    // A freed giant's shop-around still goes to open-lane houses only. The
+    // player's house is left as it was (his Media desk, his call), and so is the
+    // 1993 world.
+
+    /// <summary>
+    /// An AI house in today's world whose streaming lane is held only by its own platform: a streaming giant
+    /// may pitch it. Never the player's house; never an Origins world. Draws nothing.
+    /// </summary>
+    public static bool OnOwnPlatform(World world, Promotion promo) =>
+        world.Mode != WorldMode.Origins && promo.Id != world.PlayerPromotion && promo.Id != HarnessPlayerLane
+        && promo.Stream is not null && DealIn(promo, MediaLane.Streaming) is null;
+
+    /// <summary>
+    /// Harness only (longsim shoesweep): the scripted house stands in for the player, so it keeps the player's
+    /// streaming lane (no courting back over its own platform). Never set by the game. Per thread, as
+    /// <c>Booking.RoomFit.HarnessOldRooms</c>.
+    /// </summary>
+    [ThreadStatic] public static PromotionId? HarnessPlayerLane;
+
+    /// <summary>A giant courts back a house on its own platform only while at least this many giants are free (so one is always left for open-lane houses, the player's among them).</summary>
+    public const int CourtBackMinFree = 2;
+
+    /// <summary>How long a house that relaunched its platform on losing a giant to strikes is left alone.</summary>
+    public const int RelaunchSpellDays = 730;
+
+    /// <summary>
+    /// May a streaming giant court this house back off its own platform this month? An AI house on its own platform
+    /// (<see cref="OnOwnPlatform"/>) at the top of the sport (International), while at least
+    /// <see cref="CourtBackMinFree"/> giants are free, and not inside <see cref="RelaunchSpellDays"/> of a platform it
+    /// relaunched after its last giant walked over broken terms (<see cref="RelaunchedAfterStrikes"/>). Public facts and
+    /// the house's own books only; draws nothing.
+    /// </summary>
+    public static bool CourtableOnPlatform(World world, Promotion promo, DateOnly date) =>
+        OnOwnPlatform(world, promo)
+        && Org.OrgSizing.SizeOf(promo) >= OrgSize.International
+        && PartnersIn(world, RungOf(MediaKind.MajorStream)).Count(pp => PartnerFree(world, pp.Name) && !OnPlayersDesk(world, pp.Name)) >= CourtBackMinFree
+        && !(date.DayNumber - promo.Stream!.LaunchedOn.DayNumber < RelaunchSpellDays && RelaunchedAfterStrikes(world, promo));
+
+    /// <summary>
+    /// Is this partner's offer waiting on the player's Media desk? Such a giant is spoken for while he decides: it is
+    /// not counted free for <see cref="CourtBackMinFree"/> and never picked to court a house back (taking it would
+    /// withdraw his offer under him). Draws nothing.
+    /// </summary>
+    public static bool OnPlayersDesk(World world, string partner) =>
+        world.HasPlayer && world.Get(world.PlayerPromotion) is { } player
+        && player.Offers.Any(o => o.Media is not null && o.Partner == partner);
+
+    /// <summary>
+    /// Was the house's platform launched during play after a streaming giant paid it reduced rights for broken terms
+    /// in the year before (its own ledger: a giant's "(terms missed)" rights line)? That is the house that took a
+    /// giant, missed its clauses and fell back on its own service.
+    /// </summary>
+    public static bool RelaunchedAfterStrikes(World world, Promotion promo)
+    {
+        if (promo.Stream is not { } s || s.LaunchedOn <= world.StartDate) return false;
+        int from = s.LaunchedOn.DayNumber - 365;
+        var giants = PartnersIn(world, RungOf(MediaKind.MajorStream)).Select(pp => $" — {pp.Name} rights (terms missed)").ToList();
+        for (int i = promo.Ledger.Count - 1; i >= 0; i--)
+        {
+            var e = promo.Ledger[i];
+            if (e.Date.DayNumber > s.LaunchedOn.DayNumber) continue;
+            if (e.Date.DayNumber < from) break;
+            if (e.Category == FinanceCategory.Broadcast && giants.Any(g => e.Description.EndsWith(g, StringComparison.Ordinal)))
+                return true;
+        }
+        return false;
+    }
+
+    private const ulong CourtBackSalt = 0x57E4_3BAC_0001UL;
+    private const ulong CourtBackPickSalt = 0x57E4_3BAC_0002UL;
+
+    /// <summary>
+    /// The monthly call at a house on its own platform: the same even chance as the shared lottery's
+    /// (<c>Chance(0.5)</c>) and the same uniform pick of a free partner who has not pitched it, but on hash
+    /// rolls keyed to the house and the day. These houses never reached the shared stream's draw (they left
+    /// the loop at the lane check), so rolling them there would reshuffle every seed; this way the shared
+    /// stream makes exactly the draws it made before for every house that was already eligible.
+    /// </summary>
+    private static PartnerProfile? CourtingBack(World world, Promotion promo, Rung rung, DateOnly date)
+    {
+        ulong key = ((ulong)(uint)promo.Id.Value << 32) ^ (ulong)(uint)date.DayNumber;
+        if (Unit(SimRandom.Mix(world.RngSeed, key ^ CourtBackSalt)) >= 0.5) return null;
+        var pool = SuitorPool(world, promo, rung).Where(pp => !OnPlayersDesk(world, pp.Name)).ToList();
+        if (pool.Count == 0) return null;
+        return pool[Math.Min(pool.Count - 1, (int)(Unit(SimRandom.Mix(world.RngSeed, key ^ CourtBackPickSalt)) * pool.Count))];
+    }
+
+    private static double Unit(ulong h) => (h >> 11) * (1.0 / (1UL << 53));
+
+    /// <summary>
+    /// The house's own last year of cards read against an offer's public terms: how many it ran, over how many days
+    /// it has actually been running (the year, or less for a young house: since its first card, at least a quarter),
+    /// how many had a main event whose better-known man clears the offer's star clause (popularity as it stands, a
+    /// public fact; the clause judges the bout that runs last, see <see cref="DealCompliance"/>), and whether its
+    /// pace keeps the offer's cadence clause. Draws nothing.
+    /// </summary>
+    public readonly record struct TrackRecord(int Cards, int Days, int Cleared, bool KeepsCadence)
+    {
+        /// <summary>The share of its recent cards that would have cleared the offer's star clause (1 when it has none).</summary>
+        public double ClearedShare => Cards == 0 ? 0 : (double)Cleared / Cards;
+    }
+
+    /// <summary>A giant's offer is turned down when the house would have failed its star clause on more than one in this many of its recent cards (a third).</summary>
+    public const int MissOneIn = 3;
+
+    public static TrackRecord RecordAgainst(World world, Promotion promo, DealOffer offer)
+    {
+        int today = world.CurrentDate.DayNumber;
+        int? bar = offer.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.MinStarPower)?.Threshold;
+        int? cadence = offer.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence)?.Threshold;
+        int cards = 0, cleared = 0, first = int.MaxValue;
+        foreach (var e in world.Events.Values)
+        {
+            if (e.Promotion != promo.Id || e.Status != EventStatus.Completed || e.Card.Count == 0 || e.Date.DayNumber > today) continue;
+            first = Math.Min(first, e.Date.DayNumber);
+            if (today - e.Date.DayNumber >= 365) continue;
+            cards++;
+            var main = e.Card[^1];
+            int pop = Math.Max(world.Get(main.RedCorner)?.Intangibles.Popularity.Value ?? 0,
+                world.Get(main.BlueCorner)?.Intangibles.Popularity.Value ?? 0);
+            if (bar is not { } b || pop >= b) cleared++;
+        }
+        int days = cards == 0 ? 365 : Math.Clamp(today - first, 91, 365);
+        bool keeps = cards > 0 && (cadence is not { } c || (double)days / cards <= c);
+        return new TrackRecord(cards, days, cleared, keeps);
+    }
+
+    /// <summary>
+    /// What a rights deal can be expected to pay this house per quarter: the offer's public fee per card, times the
+    /// premium the house's own rights earn (<see cref="RightsPremium"/>), times its pace of cards per quarter over the
+    /// time it has been running, at full pay on the share of its recent cards that cleared the offer's star clause and
+    /// half pay on the rest (what a card that misses terms earns). 0 with no card in the last year.
+    /// </summary>
+    public static decimal OfferPerQuarter(World world, Promotion promo, DealOffer offer)
+    {
+        var rec = RecordAgainst(world, promo, offer);
+        if (rec.Cards == 0) return 0m;
+        decimal perQuarter = rec.Cards * 91m / rec.Days;
+        decimal pay = (decimal)(rec.ClearedShare + (1 - rec.ClearedShare) * 0.5);
+        return offer.FeePerEvent.Amount * RightsPremium(world, promo) * perQuarter * pay;
+    }
+
+    /// <summary>What the house's own platform nets per quarter at today's audience (income less running cost); 0 without one.</summary>
+    public static decimal PlatformPerQuarter(Promotion promo)
+    {
+        if (promo.Stream is not { } s) return 0m;
+        var (income, ops) = StreamMonthly(s);
+        return (income.Amount - ops.Amount) * 3m;
+    }
+
+    /// <summary>
+    /// Does an AI house on its own platform take this streaming giant's offer? Only when its recent cards say it can
+    /// keep the terms (a card in the last year; its pace inside the cadence clause; the star clause cleared on all but
+    /// at most one in <see cref="MissOneIn"/> of them) AND the deal's expected pay beats what the platform nets
+    /// (<see cref="OfferPerQuarter"/> against <see cref="PlatformPerQuarter"/>). Deterministic; reads only the house's
+    /// own books and calendar, public popularity, and the offer's public terms.
+    /// </summary>
+    public static bool TakesOverPlatform(World world, Promotion promo, DealOffer offer)
+    {
+        if (offer.Media != MediaKind.MajorStream || !OnOwnPlatform(world, promo)) return false;
+        var rec = RecordAgainst(world, promo, offer);
+        if (rec.Cards == 0 || !rec.KeepsCadence || (rec.Cards - rec.Cleared) * MissOneIn > rec.Cards) return false;
+        return OfferPerQuarter(world, promo, offer) > PlatformPerQuarter(promo);
+    }
+
+    /// <summary>
+    /// Close the house's own platform: the subscribers go and the running costs stop, the way a platform
+    /// ends when its house folds or is bought (<c>Stream = null</c>; see Solvency and Acquisitions).
+    /// </summary>
+    private static void CloseStream(World world, Promotion promo, DateOnly date, string why)
+    {
+        if (promo.Stream is not { } s) return;
+        promo.Stream = null;
+        Living.News.Post(world, date, NewsCategory.Finance,
+            $"{promo.Abbreviation} shuts down {s.Name}",
+            $"The promotion's own service goes dark {why}.", promo.Id);
     }
 
     private const ulong OriginsPartnerSalt = 0x0219_3ED1_0008UL;
@@ -570,11 +763,19 @@ public static class MediaService
             if (promo.Offers.Count(o => o.Media == rung.Kind) >= 2) continue;
             // Into an open lane — or over the top of a LESSER deal in the same
             // lane (the bigger network poaches: cable calls the org stuck on
-            // specialty). An org running its OWN platform isn't poachable.
+            // specialty). The player's own platform isn't poachable; an AI house
+            // at the top of the sport on its own platform may be courted back by
+            // a streaming giant (see CourtableOnPlatform), on its own keyed rolls.
             var current = DealIn(promo, MediaLanes.LaneOf(rung.Kind));
             bool upgrade = current is not null && current.Kind != rung.Kind
                 && rung.FeeIn(world, promo) > current.RightsFeePerEvent.Amount;
-            if (!LaneOpen(promo, rung.Kind) && !upgrade) continue;
+            if (!LaneOpen(promo, rung.Kind) && !upgrade)
+            {
+                if (rung.Kind == MediaKind.MajorStream && CourtableOnPlatform(world, promo, date)
+                    && CourtingBack(world, promo, rung, date) is { } back)
+                    MakeOffer(world, promo, rung, back, date);
+                continue;
+            }
             if (!rng.Chance(0.5)) continue;   // the phone doesn't ring the instant you qualify
             if (Suitor(world, promo, rung, rng) is not { } profile) continue;   // nobody free who hasn't already pitched
 
@@ -615,7 +816,9 @@ public static class MediaService
     /// which, iterated in promotion order, always handed a freed channel to the
     /// same early-created orgs and starved late risers of television for
     /// decades. The org that just lost them is skipped; the monthly loop can
-    /// still re-court them later.
+    /// still re-court them later. A house on its own platform is never shopped to:
+    /// a freed giant goes to houses with an open lane first (the player's among
+    /// them), and only the monthly courting back reaches a platform house.
     /// </summary>
     private static void ShopAround(World world, MediaKind kind, string partner, DateOnly date, Promotion? except)
     {
@@ -678,11 +881,32 @@ public static class MediaService
     {
         foreach (var offer in promo.Offers.Where(o => o.Media is not null)
                      .OrderByDescending(o => o.FeePerEvent.Amount).ToList())
+        {
+            if (!promo.Offers.Contains(offer)) continue;   // answered earlier in this pass
             if (offer.Media is { } k && (LaneOpen(promo, k)
                 || DealIn(promo, MediaLanes.LaneOf(k))?.RightsFeePerEvent.Amount < offer.FeePerEvent.Amount))
                 Accept(world, promo, offer, date);
+            // A streaming giant's offer to a house on its own platform is answered at once. Taken only when the
+            // house's own recent cards say it can keep the terms and the pay beats what the platform nets: the
+            // platform closes, the deal holds the lane for its whole term, and the other giants' offers are turned
+            // down with it. Otherwise turned down (the partner has had its one pitch). Neither kind of offer is left
+            // on the table, where it could later slip into an emptied lane, or over the signed giant, unweighed.
+            else if (offer.Media == MediaKind.MajorStream && OnOwnPlatform(world, promo))
+            {
+                if (TakesOverPlatform(world, promo, offer))
+                {
+                    CloseStream(world, promo, date, $"as {offer.Partner} takes over its streaming rights");
+                    Accept(world, promo, offer, date);
+                    promo.Offers.RemoveAll(o => o.Media == MediaKind.MajorStream);
+                }
+                else promo.Offers.Remove(offer);
+            }
+        }
 
-        // A National+ org with cash and no streaming home builds its own.
+        // A National+ org with cash and no streaming home builds its own. A house that closed its platform
+        // for a streaming giant cannot relaunch while that deal holds the lane (no AI path walks out of a
+        // deal, and one giant never replaces another mid-term); it relaunches only once the deal is gone and
+        // it has no streaming income at all.
         if (promo.Stream is null && DealIn(promo, MediaLane.Streaming) is null
             && Org.OrgSizing.SizeOf(promo) >= OrgSize.National
             && promo.Balance.Amount > 1_000_000m)
@@ -738,6 +962,14 @@ public static class MediaService
         || date.DayNumber - previousAiring.DayNumber <= cadence.Threshold;
 
     /// <summary>
+    /// What the house's rights pay over their face value: its perks, its franchise face, and its market share
+    /// (a crowded band thins the rights money too: finite TV hours, split more ways; see Org.MarketShare).
+    /// </summary>
+    public static decimal RightsPremium(World world, Promotion promo) =>
+        Org.OrgPerks.PartnerPremium(promo) * Org.Franchise.PartnerFactor(world, promo)
+        * (decimal)Org.MarketShare.Factor(world, promo);
+
+    /// <summary>
     /// Air the card: every rights partner pays their per-event fee (checked
     /// against the contract's terms — half pay and a strike on a miss), the
     /// cadence clocks reset, the in-house platform converts the night into
@@ -745,10 +977,7 @@ public static class MediaService
     /// </summary>
     public static void SettleEvent(World world, Promotion promo, Event ev)
     {
-        decimal premium = Org.OrgPerks.PartnerPremium(promo) * Org.Franchise.PartnerFactor(world, promo);
-        // A crowded band thins the rights money too — finite TV hours, split
-        // more ways (see Org.MarketShare; the economy shapes the pyramid now).
-        premium *= (decimal)Org.MarketShare.Factor(world, promo);
+        decimal premium = RightsPremium(world, promo);
         var lastCard = LastCardBefore(world, promo.Id, ev);
 
         foreach (var deal in promo.MediaDeals.ToList())
