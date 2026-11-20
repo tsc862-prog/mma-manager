@@ -513,9 +513,9 @@
             <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Top" Margin="12,0,0,0"
                     Visibility="{Binding HasSelectedEvent, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton Style="{StaticResource SegmentedOption}" Content="Card" GroupName="deskView" IsChecked="{Binding ShowCardView}" ToolTip="The bill" />
-                    <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" GroupName="deskView" IsChecked="{Binding ShowTableView}" ToolTip="Your whole roster as a sortable table" />
-                    <RadioButton Style="{StaticResource SegmentedOption}" Content="Poster" GroupName="deskView" IsChecked="{Binding ShowPosterView}" ToolTip="The poster, drawn from the main event" />
+                    <RadioButton Style="{StaticResource SegmentedOption}" Content="Card" IsChecked="{Binding ShowCardView}" ToolTip="The bill" />
+                    <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" IsChecked="{Binding ShowTableView}" ToolTip="Your whole roster as a sortable table" />
+                    <RadioButton Style="{StaticResource SegmentedOption}" Content="Poster" IsChecked="{Binding ShowPosterView}" ToolTip="The poster, drawn from the main event" />
                 </StackPanel>
             </Border>
             <WrapPanel>
@@ -899,8 +899,8 @@
                                             ToolTip="Close the sheet; the picker stays open" />
                                     <Border Style="{StaticResource Segmented}" Margin="0,0,0,6" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
-                                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Story" GroupName="sheetView" IsChecked="{Binding ShowSheetStory}" ToolTip="The fight told in groups" />
-                                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" GroupName="sheetView" IsChecked="{Binding ShowSheetTable}" ToolTip="Every line side by side, scouts' reads included" />
+                                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Story" IsChecked="{Binding ShowSheetStory}" ToolTip="The fight told in groups" />
+                                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" IsChecked="{Binding ShowSheetTable}" ToolTip="Every line side by side, scouts' reads included" />
                                         </StackPanel>
                                     </Border>
                                 </WrapPanel>
@@ -1227,10 +1227,10 @@
                             <DockPanel DockPanel.Dock="Top" Margin="0,0,6,8" Visibility="{Binding IsReplacing, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource Segmented}" HorizontalAlignment="Left">
                                     <StackPanel Orientation="Horizontal">
-                                        <RadioButton Style="{StaticResource SegmentedOption}" GroupName="replaceSide" IsChecked="{Binding ReplacingRed}">
+                                        <RadioButton Style="{StaticResource SegmentedOption}" IsChecked="{Binding ReplacingRed}">
                                             <TextBlock><Run Text="Replace " /><Run Text="{Binding ReplaceRedName, Mode=OneWay}" /></TextBlock>
                                         </RadioButton>
-                                        <RadioButton Style="{StaticResource SegmentedOption}" GroupName="replaceSide" IsChecked="{Binding ReplacingBlue}">
+                                        <RadioButton Style="{StaticResource SegmentedOption}" IsChecked="{Binding ReplacingBlue}">
                                             <TextBlock><Run Text="Replace " /><Run Text="{Binding ReplaceBlueName, Mode=OneWay}" /></TextBlock>
                                         </RadioButton>
                                     </StackPanel>
@@ -1241,11 +1241,11 @@
                             <StackPanel DockPanel.Dock="Top" Margin="0,0,6,8" Visibility="{Binding IsPickingSlot, Converter={StaticResource BoolToVis}}">
                                 <Border Style="{StaticResource Segmented}" HorizontalAlignment="Left">
                                     <StackPanel Orientation="Horizontal">
-                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Suggested" GroupName="pickMode" IsChecked="{Binding PickSuggested}"
+                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Suggested" IsChecked="{Binding PickSuggested}"
                                                      ToolTip="The matchmaker's pairings for this slot" />
-                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Find a fighter" GroupName="pickMode" IsChecked="{Binding PickDivision}"
+                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Find a fighter" IsChecked="{Binding PickDivision}"
                                                      ToolTip="Search your whole roster (Ctrl+F); pick one and every opponent is ranked by the fight they'd make" />
-                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Local" GroupName="pickMode" IsChecked="{Binding PickLocal}"
+                                        <RadioButton Style="{StaticResource SegmentedOption}" Content="Local" IsChecked="{Binding PickLocal}"
                                                      ToolTip="One of yours against the local club scene"
                                                      Visibility="{Binding HasLocalOption, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>

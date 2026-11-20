@@ -16,8 +16,8 @@
                 <DockPanel>
                     <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Center" ToolTip="How the wire is grouped">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="By day" GroupName="newsGroup" IsChecked="{Binding ByDay}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="By kind" GroupName="newsGroup" IsChecked="{Binding ByKind}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="By day" IsChecked="{Binding ByDay}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="By kind" IsChecked="{Binding ByKind}" />
                         </StackPanel>
                     </Border>
                     <StackPanel Orientation="Horizontal">
@@ -40,9 +40,9 @@
                     <Border Style="{StaticResource Segmented}" Margin="0,0,14,6" VerticalAlignment="Top"
                             Visibility="{Binding HasHouse, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Everything" GroupName="newsWho" IsChecked="{Binding WhoEverything}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="My promotion" GroupName="newsWho" IsChecked="{Binding WhoMine}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="My fighters" GroupName="newsWho" IsChecked="{Binding WhoMyFighters}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Everything" IsChecked="{Binding WhoEverything}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="My promotion" IsChecked="{Binding WhoMine}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="My fighters" IsChecked="{Binding WhoMyFighters}" />
                         </StackPanel>
                     </Border>
                     <ComboBox Style="{StaticResource FilterCombo}" ItemsSource="{Binding DivisionOptions}" SelectedItem="{Binding Division}" VerticalAlignment="Top" ToolTip="Stories about fighters in one division" />

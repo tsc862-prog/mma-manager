@@ -17,8 +17,8 @@
                 <DockPanel>
                     <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Top">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Cards" GroupName="rosterMode" IsChecked="{Binding ShowCards}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" GroupName="rosterMode" IsChecked="{Binding ShowTable}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Cards" IsChecked="{Binding ShowCards}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Table" IsChecked="{Binding ShowTable}" />
                         </StackPanel>
                     </Border>
                     <StackPanel>
@@ -40,10 +40,10 @@
                     <TextBlock Text="Show" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,6" />
                     <Border Style="{StaticResource Segmented}" Margin="0,0,18,6">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Everyone" GroupName="rosterShow" IsChecked="{Binding ShowEveryone}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Ready to fight" GroupName="rosterShow" IsChecked="{Binding ShowReady}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Injured" GroupName="rosterShow" IsChecked="{Binding ShowInjured}" />
-                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Deals ending" GroupName="rosterShow" IsChecked="{Binding ShowEnding}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Everyone" IsChecked="{Binding ShowEveryone}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Ready to fight" IsChecked="{Binding ShowReady}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Injured" IsChecked="{Binding ShowInjured}" />
+                            <RadioButton Style="{StaticResource SegmentedOption}" Content="Deals ending" IsChecked="{Binding ShowEnding}" />
                         </StackPanel>
                     </Border>
                     <TextBlock Text="in" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,6" />

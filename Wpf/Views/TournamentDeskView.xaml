@@ -20,8 +20,8 @@
                 </Border>
                 <Border DockPanel.Dock="Right" Style="{StaticResource Segmented}" VerticalAlignment="Top">
                     <StackPanel Orientation="Horizontal">
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="The next night" GroupName="bracketDesk" IsChecked="{Binding ShowNextNight}" />
-                        <RadioButton Style="{StaticResource SegmentedOption}" Content="The last bracket" GroupName="bracketDesk" IsChecked="{Binding ShowBracket}"
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="The next night" IsChecked="{Binding ShowNextNight}" />
+                        <RadioButton Style="{StaticResource SegmentedOption}" Content="The last bracket" IsChecked="{Binding ShowBracket}"
                                      IsEnabled="{Binding HasBoard}" ToolTip="How the last night went, round by round" />
                     </StackPanel>
                 </Border>

@@ -537,6 +537,13 @@
                FilterChip .... (ToggleButton) an on/off pill ("On my shortlist").
                ChipList ...... (ListBox) one-of-many pills on SelectedItem (News kinds, Inbox folders).
                Segmented + SegmentedOption (RadioButtons) — plain-choice toggles, e.g. Cards | Table.
+                              NEVER set GroupName on a RadioButton: a named group spans every copy of
+                              the screen alive in the app (closed app windows stay in memory, still
+                              bound), and two-way IsChecked bindings then ping-pong until the stack
+                              overflows (Card Desk crash, 2026-11-20). Put the options side by side in
+                              one panel, which makes them a group per screen; options made from an
+                              item template get their one-of-many from the view model. The radiocheck
+                              harness mode fails on any GroupName and clicks every option in two copies of each screen.
 
              CONTROLS (Wpf/Controls)
                controls:SectionHeader  Title / Hint / ActionText + ActionCommand.
@@ -1185,6 +1192,7 @@
             <Setter Property="CornerRadius" Value="7" />
             <Setter Property="Padding" Value="2" />
         </Style>
+        <!-- Siblings in one panel, no GroupName (see the style guide at the top: named groups crash). -->
         <Style x:Key="SegmentedOption" TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource TextSoft}" />
             <Setter Property="FontSize" Value="12.5" />
