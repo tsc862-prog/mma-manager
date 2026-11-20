@@ -106,6 +106,10 @@ public sealed partial class MainViewModel : ObservableObject
             Org.Confirm = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep them on");
         Camps.OnChanged = RefreshAll;       // a team deal / camp report moves the balance
+        Media.OnChanged = RefreshAll;       // a deal signed or a platform closed moves the screens and the books
+        Media.Said = line => StatusText = line;
+        if (!HeadlessAutoBoot)
+            Media.Confirm = (heading, body, detail, confirm, keep) => MessageWindow.Ask(heading, body, detail, confirm, keep);
         Booking.OnRunLive = RunLive;        // "run & watch" a card
         Tournament.OnChanged = RefreshAll;  // a night booked or cancelled
         Booking.OpenContracts = () => NavigateTo(Tab.Contracts);   // empty roster: go sign someone

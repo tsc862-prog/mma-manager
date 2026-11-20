@@ -470,7 +470,10 @@ public sealed class MailViewModel : ObservableObject
                 note = $"{o.FeePerEvent} an event. The offer lapses on {o.ExpiresOn:d MMM}.";
                 var row = new OfferRow(o);
                 offerBrand = o.Partner;
-                actions.Add(new LetterAction { Text = "Sign the deal", Command = Then(accept), Parameter = row, IsPrimary = true });
+                // A giant's offer while his own platform runs: the button says it closes the platform (the desk asks once).
+                string sign = media && player is not null && MmaManager.Core.Sim.Finance.MediaService.TradeFor(w, player, o) is { } trade
+                    ? $"Sign and close {trade.Platform}" : "Sign the deal";
+                actions.Add(new LetterAction { Text = sign, Command = Then(accept), Parameter = row, IsPrimary = true });
                 actions.Add(new LetterAction { Text = "Turn it down", Command = Then(decline), Parameter = row });
                 actions.Add(new LetterAction { Text = media ? "Media desk ▸" : "Finance ▸", Command = OpenTabCommand, Parameter = media ? Tab.Media : Tab.Finance });
             }

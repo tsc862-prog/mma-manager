@@ -122,9 +122,10 @@ public sealed class MediaRow
 /// <summary>A sponsor or network offer waiting for an answer.</summary>
 public sealed class OfferRow
 {
-    public OfferRow(DealOffer o)
+    public OfferRow(DealOffer o, PlatformTradeView? trade = null)
     {
         Offer = o;
+        Trade = trade;
         Kind = o.Media is { } mk
             ? $"{MmaManager.Core.Sim.Finance.MediaService.Label(mk)} · {MmaManager.Core.Sim.Finance.MediaService.TagOf(o.Partner)}"
             : "sponsorship";
@@ -137,6 +138,11 @@ public sealed class OfferRow
     }
     public DealOffer Offer { get; }
     public bool IsMedia => Offer.Media is not null;
+    /// <summary>What signing gives up: set on a streaming offer while the player's own platform runs (the Media desk).</summary>
+    public PlatformTradeView? Trade { get; }
+    public bool HasTrade => Trade is not null;
+    /// <summary>The Sign button says what it does: "Sign", or "Sign and close {platform}".</summary>
+    public string SignLabel => Trade is { } t ? $"Sign and close {t.Platform}" : "Sign";
     public string Kind { get; }
     public string Partner { get; }
     public string Fee { get; }

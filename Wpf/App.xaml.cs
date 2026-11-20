@@ -1877,6 +1877,11 @@ public partial class App : Application
                 }
                 Console.WriteLine($"RENDERAPP world ready in {clock.ElapsedMilliseconds} ms");
                 if (e.Args.Contains("--offers")) { PlantOffers(vm.LiveWorld!); vm.Contracts.OnChanged?.Invoke(); }
+                // --platform <keeps|misses|ask-misses|shutdown|shutdown-alone|accepted|shutdone>: the player on his own streaming platform with a
+                // streaming giant's offer on the desk (his record keeping its terms, or missing them); "shutdown" opens the
+                // shutdown confirmation, "shutdone" confirms it, "accepted" signs the offer (both as the desk's buttons do).
+                string? platformMode = e.Args.Contains("--platform") ? e.Args[Array.IndexOf(e.Args, "--platform") + 1] : null;
+                if (platformMode is not null) { PlantPlatformTrade(vm.LiveWorld!, platformMode.EndsWith("misses", StringComparison.Ordinal), alone: platformMode.EndsWith("alone", StringComparison.Ordinal)); vm.Contracts.OnChanged?.Invoke(); }
                 // --hire <name>: hire that member of staff off the market the way the HQ screen does (exact name).
                 if (e.Args.Contains("--hire"))
                 {
@@ -2251,6 +2256,59 @@ public partial class App : Application
                     }
                     Layout();
                     Console.WriteLine($"RENDERAPP planner: {pl.Headline} / {pl.Subline}; {pl.Days.Count} squares, {pl.Agenda.Count} agenda rows, {pl.HeadsUp.Count} heads-up, {pl.Flagships.Count} flagships");
+                }
+                if (platformMode is not null)
+                {
+                    var md = vm.Media;
+                    var w = vm.LiveWorld!;
+                    var mine = w.Get(w.PlayerPromotion)!;
+                    // The desk's own buttons, found in the drawn tree: proves the template's bindings reach the commands.
+                    var buttons = FindAll<System.Windows.Controls.Button>(root).ToList();
+                    var sign = buttons.FirstOrDefault(b => b.Content is string s && s.StartsWith("Sign", StringComparison.Ordinal) && b.DataContext is OfferRow);
+                    var quiet = buttons.FirstOrDefault(b => ReferenceEquals(b.Command, md.AskShutdownCommand));
+                    Console.WriteLine($"RENDERAPP platform: sign button '{sign?.Content}' wired {sign?.Command is not null}; pass wired "
+                        + $"{buttons.Any(b => b.DataContext is OfferRow && ReferenceEquals(b.Command, md.DeclineOfferCommand))}; shut-down link '{(quiet?.Content)}' wired {quiet is not null}");
+                    if (md.Offers.FirstOrDefault(o => o.HasTrade)?.Trade is { } tv)
+                        Console.WriteLine($"RENDERAPP trade: net {tv.PlatformNet}, pays {tv.OfferPays}, gain {tv.Gain}; warning '{tv.Warning}'");
+                    if (platformMode.StartsWith("shut", StringComparison.Ordinal))
+                    {
+                        if (quiet is not null) quiet.Command.Execute(null); else md.AskShutdownCommand.Execute(null);
+                        Layout();
+                        Console.WriteLine($"RENDERAPP shutdown asked: {md.Shutdown?.Subscribers} subs, net {md.Shutdown?.NetPerQuarter}, relaunch {md.Shutdown?.Relaunch}; {md.Shutdown?.Reach}");
+                        if (platformMode == "shutdone")
+                        {
+                            var confirm = FindAll<System.Windows.Controls.Button>(root).FirstOrDefault(b => ReferenceEquals(b.Command, md.ShutdownCommand));
+                            Console.WriteLine($"RENDERAPP shutdown confirm button wired {confirm is not null}");
+                            (confirm?.Command ?? md.ShutdownCommand).Execute(null);
+                        }
+                    }
+                    if (platformMode is "accepted" or "ask-misses")
+                    {
+                        // The one question the Sign button asks first (never shown as a dialog here), drawn to <path>-confirm.png.
+                        if (md.Offers.FirstOrDefault(o => o.HasTrade) is { } asked && md.SignQuestion(asked.Offer) is { } q)
+                        {
+                            var dlg = new MessageWindow(q.Heading, q.Body, q.Detail, severe: true, confirm: q.Confirm, keep: q.Keep);
+                            var droot = (FrameworkElement)dlg.Content;
+                            droot.Measure(new Size(480, double.PositiveInfinity));
+                            var dsize = new Size(480, Math.Ceiling(droot.DesiredSize.Height));
+                            droot.Arrange(new Rect(dsize)); droot.UpdateLayout();
+                            var drtb = new RenderTargetBitmap((int)dsize.Width, (int)dsize.Height, 96, 96, PixelFormats.Pbgra32);
+                            drtb.Render(droot);
+                            var denc = new PngBitmapEncoder(); denc.Frames.Add(BitmapFrame.Create(drtb));
+                            string dp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(e.Args[^1]))!, Path.GetFileNameWithoutExtension(e.Args[^1]) + "-confirm.png");
+                            using (var dfs = File.Create(dp)) denc.Save(dfs);
+                            Console.WriteLine("RENDERAPP sign question -> " + dp);
+                            dlg.Close();
+                        }
+                        if (platformMode != "accepted") { }   // ask-misses: the question only, nothing signed
+                        else if (sign is not null) sign.Command.Execute(sign.CommandParameter);
+                        else if (md.Offers.FirstOrDefault(o => o.HasTrade) is { } row) md.AcceptOfferCommand.Execute(row);
+                    }
+                    Layout();
+                    Console.WriteLine($"RENDERAPP platform after '{platformMode}': stream {(mine.Stream?.Name ?? "none")}, streaming lane "
+                        + $"{MmaManager.Core.Sim.Finance.MediaService.DealIn(mine, MmaManager.Core.Model.MediaLane.Streaming)?.Partner ?? "open"}, "
+                        + $"offers {md.Offers.Count}, deals on the desk [{string.Join(", ", md.Deals.Select(d => d.PartnerName))}], strip '{vm.StatusText}', "
+                        + $"news '{w.News.LastOrDefault()?.Headline}'");
                 }
                 WaitThumbs("before the still");
                 foreach (var wall in FindAll<MmaManager.Wpf.Controls.CardWall>(root))
@@ -3166,6 +3224,48 @@ public partial class App : Application
             OfferedOn = today, ExpiresOn = today.AddDays(60),
         });
         Console.WriteLine($"HARNESS planted offers: {sponsor} (sponsor), Octagon TV (specialty cable)");
+    }
+
+    // Harness only (player-platform renders): the player's house runs its own streaming platform with the lane held by
+    // nothing else, and a streaming giant's offer sits on his desk. Its star clause is set from his own last year of
+    // main events so the record either clears it on every card (keeps) or misses about half, with a cadence clause
+    // tighter than his pace (misses). The fee is set so the deal beats the platform on a clean record.
+    private static void PlantPlatformTrade(MmaManager.Core.Model.World w, bool misses, bool alone = false)
+    {
+        var p = w.Get(w.PlayerPromotion)!;
+        var lane = MmaManager.Core.Model.MediaLane.Streaming;
+        if (MmaManager.Core.Sim.Finance.MediaService.DealIn(p, lane) is { } held) p.MediaDeals.Remove(held);
+        p.Stream ??= new MmaManager.Core.Model.StreamingPlatform { Name = $"{p.Abbreviation}+", LaunchedOn = w.CurrentDate.AddYears(-2) };
+        p.Stream.Subscribers = 240_000;
+        if (alone) p.MediaDeals.Clear();   // no other screen: the platform is the only one airing his cards
+        p.Offers.RemoveAll(o => o.Media is { } k && MmaManager.Core.Model.MediaLanes.LaneOf(k) == lane);
+        var today = w.CurrentDate;
+        MmaManager.Core.Model.DealOffer Offer(decimal fee, params MmaManager.Core.Model.DealRequirement[] terms) => new()
+        {
+            Media = MmaManager.Core.Model.MediaKind.MajorStream, Partner = "Streamflix",
+            FeePerEvent = new MmaManager.Core.Model.Money(fee), Term = 24, Requirements = terms.ToList(),
+            OfferedOn = today, ExpiresOn = today.AddDays(75),
+        };
+        var star = MmaManager.Core.Model.DealRequirementKind.MinStarPower;
+        var rec0 = MmaManager.Core.Sim.Finance.MediaService.RecordAgainst(w, p, Offer(1m));
+        // keeps: the highest bar every recent main event cleared; misses: the lowest bar about half of them miss.
+        int bar = misses
+            ? Enumerable.Range(0, 101).FirstOrDefault(b => MmaManager.Core.Sim.Finance.MediaService.RecordAgainst(w, p, Offer(1m, new MmaManager.Core.Model.DealRequirement(star, b))).Cleared * 2 <= rec0.Cards, 100)
+            : Enumerable.Range(0, 101).Reverse().FirstOrDefault(b => MmaManager.Core.Sim.Finance.MediaService.RecordAgainst(w, p, Offer(1m, new MmaManager.Core.Model.DealRequirement(star, b))).Cleared == rec0.Cards, 0);
+        var terms = new List<MmaManager.Core.Model.DealRequirement> { new(star, bar) };
+        int pace = rec0.Cards == 0 ? 60 : rec0.Days / rec0.Cards;
+        terms.Add(new(MmaManager.Core.Model.DealRequirementKind.EventCadence, misses ? Math.Max(7, pace - 8) : Math.Max(60, pace + 20)));
+        // Priced on a clean record: 1.4x the platform when every card clears; 1.2x when half miss (half pay on those),
+        // so the missing record's expected pay falls under what the platform nets.
+        decimal perUnit = MmaManager.Core.Sim.Finance.MediaService.OfferPerQuarter(w, p, Offer(1_000m)) / 1_000m;
+        decimal platform = MmaManager.Core.Sim.Finance.MediaService.PlatformPerQuarter(p);
+        decimal fee = perUnit <= 0 || platform <= 0 ? 1_000_000m : Math.Round(platform * (misses ? 1.2m : 1.4m) / perUnit / 10_000m) * 10_000m;
+        var offer = Offer(fee, terms.ToArray());
+        p.Offers.Add(offer);
+        var t = MmaManager.Core.Sim.Finance.MediaService.TradeFor(w, p, offer);
+        Console.WriteLine($"HARNESS platform trade ({(misses ? "misses" : "keeps")}): {p.Stream.Name} {p.Stream.Subscribers:N0} subs, Streamflix {offer.FeePerEvent}/ev, "
+            + $"star {bar}+, cadence {terms[1].Threshold} d; record {t?.Record.Cards} cards / {t?.Record.Days} d, cleared {t?.Record.Cleared}, "
+            + $"keeps cadence {t?.Record.KeepsCadence}; keeps terms {t?.RecordKeepsTerms}; platform {t?.PlatformPerQuarter:N0}/q vs deal {t?.OfferPerQuarter:N0}/q");
     }
 
     private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
