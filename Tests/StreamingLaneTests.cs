@@ -7,8 +7,9 @@ namespace MmaManager.Tests;
 
 /// <summary>
 /// An AI house on its own streaming platform can be courted back by a streaming giant (MajorStream), weighs the
-/// offer against what its platform nets, and once it signs it stays on the deal for the term. The player's house
-/// and the 1993 world are untouched, and the shared monthly stream makes no new draw for it.
+/// offer against what its platform nets, and once it signs it stays on the deal for the term. The player's house is
+/// never decided for (its own rule is in PlayerPlatformTests), the 1993 world's houses are untouched, and the shared
+/// monthly stream makes no new draw for it.
 /// </summary>
 public class StreamingLaneTests
 {
@@ -165,19 +166,23 @@ public class StreamingLaneTests
     }
 
     [Fact]
-    public void ThePlayersHouse_OnItsOwnPlatform_IsNeitherCourtedNorDecidedFor()
+    public void ThePlayersHouse_OnItsOwnPlatform_IsCourtedButNeverDecidedFor()
     {
+        // Not by the AI rule (OnOwnPlatform is never his): by his own (PlayerOnOwnPlatform, see PlayerPlatformTests).
         var world = Build();
         var house = OwnPlatformHouse(world);
         world.PlayerPromotion = house.Id;
         Assert.False(MediaService.OnOwnPlatform(world, house));
+        Assert.True(MediaService.PlayerOnOwnPlatform(world, house));
         house.CourtedBy.Clear();
         house.Stream!.Subscribers = 1_000;
         var rng = new SimRandom(11);
-        for (int m = 0; m < 24; m++)
+        for (int m = 0; m < 24 && !house.Offers.Any(o => o.Media == MediaKind.MajorStream); m++)
             MediaService.RunMonthly(world, house, world.CurrentDate.AddMonths(m), rng);
-        Assert.DoesNotContain(house.Offers, o => o.Media == MediaKind.MajorStream);
+        Assert.Contains(house.Offers, o => o.Media == MediaKind.MajorStream);   // it sits on his desk
         Assert.NotNull(house.Stream);
+        Assert.DoesNotContain(house.MediaDeals, d => d.Kind == MediaKind.MajorStream);
+        house.Offers.RemoveAll(o => o.Media == MediaKind.MajorStream);
 
         // An offer on his desk is his to answer: the month never signs it for him.
         house.Offers.Add(GiantOffer(world, "Arena+", 5_000_000m));
