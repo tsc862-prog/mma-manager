@@ -179,7 +179,12 @@ public class ForwardCalendarTests
 
         // And across half a year: whenever both announced headliners are still on
         // the card on fight night, their bout IS the main event (nothing may
-        // reshuffle a standing headliner), and most announced mains do happen.
+        // reshuffle a standing headliner) - unless the house's network holds its
+        // main event to a star clause and a bigger name on the main card took the
+        // top spot for it (ForwardCalendar.HeadlineForTheNetwork; the announced
+        // bout stays on the main card, and popularity read after the fights can't
+        // say who was the bigger name when the order was set) - and most
+        // announced mains do happen.
         var ran = announced.Keys.Select(id => world.Events[id]).Where(e => e.Status == EventStatus.Completed).ToList();
         Assert.True(ran.Count > 100, $"only {ran.Count} announced AI cards ran in 26 weeks");
         int asAnnounced = 0;
@@ -188,7 +193,14 @@ public class ForwardCalendarTests
             var (r, b) = announced[e.Id];
             var bout = e.Card.FirstOrDefault(f => (f.RedCorner == r && f.BlueCorner == b) || (f.RedCorner == b && f.BlueCorner == r));
             if (bout is null) continue;   // a headliner left; the card was rebuilt around it
-            Assert.True(ReferenceEquals(bout, e.Card[^1]), $"{e.Name}: the announced main event was moved down the card");
+            if (!ReferenceEquals(bout, e.Card[^1]))
+            {
+                var promo = world.Get(e.Promotion)!;
+                Assert.True(MmaManager.Core.Sim.Finance.MediaService.StarBar(world, promo, e.Tier >= EventTier.Ppv) is not null,
+                    $"{e.Name}: the announced main event was moved down the card");
+                Assert.True(e.Card.IndexOf(bout) >= e.Card.Count - e.EffectiveMainCard,
+                    $"{e.Name}: the announced main event fell off the main card");
+            }
             asAnnounced++;
         }
         Assert.True(asAnnounced >= ran.Count * 0.8, $"{asAnnounced}/{ran.Count} main events ran as announced");
