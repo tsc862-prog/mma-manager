@@ -896,7 +896,9 @@ public static class MediaService
                 + Terms(offer.Requirements)
                 + (TradeFor(world, promo, offer) is { } t
                     ? $" Signing closes {t.Platform} and its {t.Subscribers:N0} subscribers: it nets {new Money(t.PlatformPerQuarter)} a quarter;"
-                      + $" on our last year of cards the deal pays about {new Money(t.OfferPerQuarter)}."
+                      + (t.Record.Cards == 0
+                          ? " we have run no card in the last year, so there is no recent record to judge what the deal would pay."
+                          : $" on our last year of cards the deal pays about {new Money(t.OfferPerQuarter)} a quarter.")
                     : "")
                 + " Answer at the Media desk — they only ask once.");
         return offer;
@@ -963,10 +965,17 @@ public static class MediaService
         };
         promo.MediaDeals.Add(deal);
 
-        // A signed partner is off the market: their pitches elsewhere are withdrawn.
+        // A signed partner is off the market: their pitches elsewhere are withdrawn. The player hears about his
+        // (he may have been weighing it against his own platform); nobody else's inbox exists.
         if (IsExclusive(kind))
             foreach (var other in world.Promotions.Values.Where(p => p.Id != promo.Id))
-                other.Offers.RemoveAll(o => o.Media is not null && o.Partner == deal.Partner);
+                if (other.Offers.RemoveAll(o => o.Media is not null && o.Partner == deal.Partner) > 0
+                    && other.Id == world.PlayerPromotion)
+                    Living.Mail.Post(world, date, MailCategory.General, deal.Partner,
+                        $"{deal.Partner} signs with {promo.Abbreviation}",
+                        $"{deal.Partner} has signed with {promo.Abbreviation}; their offer is off the table."
+                        + (other.Stream is { } s && DealIn(other, MediaLane.Streaming) is null
+                            ? $" {s.Name} keeps running." : ""));
         Living.News.Post(world, date, NewsCategory.Finance,
             $"{promo.Abbreviation} signs with {deal.Partner}",
             $"A {Label(kind)} deal puts the promotion's cards on a bigger screen.", promo.Id);

@@ -76,7 +76,8 @@ public class PlayerPlatformTests
         Assert.Contains(pitch.Partner, house.CourtedBy);
         Assert.NotNull(house.Stream);                                    // nothing signed or closed for him
         Assert.DoesNotContain(house.MediaDeals, d => d.Kind == MediaKind.MajorStream);
-        Assert.Contains(world.Mail, m => m.Subject.Contains(pitch.Partner) && m.Body.Contains("Signing closes"));
+        Assert.Contains(world.Mail, m => m.Subject.Contains(pitch.Partner) && m.Body.Contains("Signing closes")
+            && m.Body.Contains("the deal pays about"));
     }
 
     [Fact]
@@ -272,6 +273,67 @@ public class PlayerPlatformTests
         MediaService.Accept(world, house, offer, world.CurrentDate);
         Assert.Equal(news, world.News.Count(n => n.Headline.Contains("shuts down")));
         Assert.Single(house.MediaDeals, d => d.Kind == MediaKind.MajorStream);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AGiantSigningElsewhere_TellsThePlayerItsOfferIsOffTheTable(bool onPlatform)
+    {
+        var world = Build();
+        var house = PlayersPlatformHouse(world);
+        if (!onPlatform) house.Stream = null;
+        var mine = GiantOffer(world, "Arena+", 1_000_000m);
+        house.Offers.Add(mine);
+        var rival = world.Promotions.Values
+            .Where(p => !p.Defunct && p.Id != house.Id && p.Stream is null && MediaService.DealIn(p, MediaLane.Streaming) is null)
+            .OrderBy(p => p.Id.Value).First();
+        var theirs = GiantOffer(world, "Arena+", 1_000_000m);
+        rival.Offers.Add(theirs);
+        int mail = world.Mail.Count;
+
+        MediaService.Accept(world, rival, theirs, world.CurrentDate);
+
+        Assert.DoesNotContain(mine, house.Offers);
+        var note = Assert.Single(world.Mail.Skip(mail), m => m.Subject == $"Arena+ signs with {rival.Abbreviation}");
+        Assert.Contains("their offer is off the table", note.Body);
+        Assert.Equal(onPlatform, note.Body.Contains("keeps running"));
+        Assert.Equal(onPlatform, house.Stream is not null);
+    }
+
+    [Fact]
+    public void AGiantSigningElsewhere_SendsNoMailWhenThePlayerHadNoOffer()
+    {
+        var world = Build();
+        var house = PlayersPlatformHouse(world);
+        var rival = world.Promotions.Values
+            .Where(p => !p.Defunct && p.Id != house.Id && p.Stream is null && MediaService.DealIn(p, MediaLane.Streaming) is null)
+            .OrderBy(p => p.Id.Value).First();
+        var theirs = GiantOffer(world, "Arena+", 1_000_000m);
+        rival.Offers.Add(theirs);
+        MediaService.Accept(world, rival, theirs, world.CurrentDate);
+        Assert.DoesNotContain(world.Mail, m => m.Subject == $"Arena+ signs with {rival.Abbreviation}");
+    }
+
+    [Fact]
+    public void WithNoCardInAYear_ThePitchSaysThereIsNoRecordToJudge()
+    {
+        var world = Build();
+        var house = PlayersPlatformHouse(world);
+        QuietOtherLanes(house);
+        world.CurrentDate = world.CurrentDate.AddYears(2);           // nothing has run since
+        DealOffer? pitch = null;
+        for (int m = 0; m < 24 && pitch is null; m++)
+        {
+            world.CurrentDate = world.CurrentDate.AddMonths(1);
+            MediaService.RunMonthly(world, house, world.CurrentDate, new SimRandom(3));
+            pitch = house.Offers.FirstOrDefault(o => o.Media == MediaKind.MajorStream);
+        }
+        Assert.NotNull(pitch);
+        Assert.Equal(0, MediaService.TradeFor(world, house, pitch!)!.Value.Record.Cards);
+        var note = Assert.Single(world.Mail, m => m.Subject.StartsWith($"Media offer: {pitch!.Partner}"));
+        Assert.Contains("no recent record to judge", note.Body);
+        Assert.DoesNotContain("pays about", note.Body);
     }
 
     [Fact]
