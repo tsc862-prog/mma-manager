@@ -137,10 +137,14 @@ public sealed class CardWall : Control
         return base.MeasureOverride(constraint);
     }
 
+    // The source is a screen's collection on the shared view model, which lives for the whole
+    // session; the wall lives only as long as its window. Listen weakly, so the collection never
+    // holds a closed window's wall (and with it the whole screen, still bound) alive. A plain
+    // `CollectionChanged +=` did exactly that for the Roster, Fighters and News.
     private void OnSourceChanged(IEnumerable? oldSource, IEnumerable? newSource)
     {
-        if (oldSource is INotifyCollectionChanged o) o.CollectionChanged -= OnCollectionChanged;
-        if (newSource is INotifyCollectionChanged n) n.CollectionChanged += OnCollectionChanged;
+        if (oldSource is INotifyCollectionChanged o) CollectionChangedEventManager.RemoveHandler(o, OnCollectionChanged);
+        if (newSource is INotifyCollectionChanged n) CollectionChangedEventManager.AddHandler(n, OnCollectionChanged);
         Rebuild();
     }
 

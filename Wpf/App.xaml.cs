@@ -2721,6 +2721,16 @@ public partial class App : Application
             return;
         }
 
+        // Closed windows are let go: `MmaManager.Wpf --closecheck` (see CloseCheckHarness).
+        if (e.Args.Contains("--closecheck"))
+        {
+            int code;
+            try { code = CloseCheckHarness.Run(hold: e.Args.Contains("--hold")); }
+            catch (Exception ex) { Console.WriteLine("CLOSECHECK FAIL: " + ex); code = 1; }
+            Environment.Exit(code);
+            return;
+        }
+
         // Segmented toggles under stress: `MmaManager.Wpf --radiocheck`. First replays the owner's
         // crash in a shown (off-screen) shell: Card Desk opened, closed, reopened, toggled. Then opens every desktop app,
         // finds every screen holding radio buttons, then builds two more copies of that screen on
