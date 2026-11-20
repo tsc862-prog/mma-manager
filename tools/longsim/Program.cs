@@ -23,6 +23,7 @@ if (args.Length > 0 && args[0] == "fightlab") { FightLabMode.Run(args); return; 
 if (args.Length > 0 && args[0] == "asks") { LongSim.Asks.Run(args); return; }       // price levels by stage/ability: Asks.cs
 if (args.Length > 0 && args[0] == "ladders") { LongSim.Ladders.Run(args); return; }      // contender ladders of one world: Ladders.cs
 if (args.Length > 0 && args[0] == "shoesweep") { LongSim.ShoeSweep.Main(args); return; }   // shoestring over many seeds: ShoeSweep.cs
+if (args.Length > 0 && args[0] == "standin") { LongSim.StandIn.Run(args); return; }   // can an open-lane house land a streaming giant: StandIn.cs
 if (args.Length > 0 && args[0] == "tickprofile") { Environment.ExitCode = LongSim.TickProfile.Run(args); return; }   // where the weekly tick's time goes: TickProfile.cs
 if (args.Length > 0 && args[0] == "compare")
 {
