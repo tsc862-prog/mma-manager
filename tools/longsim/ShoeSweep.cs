@@ -72,6 +72,10 @@ public static class ShoeSweep
         public int PromTitle, PromActivity, PromKept, PromBroken, PromVoid, RightsBought, RightMatches;
         public decimal PromPurseOffSum, RightMatchPurseSum, RightRivalPurseSum, RightPremiumSum;
         public int PromNoDiscount, PromAtWaryTable;
+        // Streaming giants (MajorStream) at the script's house: offers it received, how each ended, deals it held, the
+        // year of its first; and how many of the four giants had no live deal (sampled every 4 weeks).
+        public int MsOffers, MsOfferSigned, MsOfferWithdrawn, MsOfferLapsed, MsOfferOpen, MsDeals, MsSeedsWithDeal, MsFirstYearSum, GiantSamples, GiantsFreeSum;
+        public int MsSeedsOffered;
         public void Add(Diag o)
         {
             foreach (var fl in typeof(Diag).GetFields())
@@ -109,6 +113,9 @@ public static class ShoeSweep
             + $" · left to another org {d.PoachedOrSigned} · left to the market {d.ToMarket} · retired off the roster {d.Retired}");
         Console.WriteLine($"  DIAG script skipped in window: skid {d.SkipSkid} · too dear {d.SkipDear} (ask/purse {R(d.SkipDearAskOverPurseSum, d.SkipDear)}, ask/PurseCap {R(d.SkipDearAskOverCapSum, d.SkipDear)}) · bank under $100k {d.SkipBroke} · table refused {d.SkipRefused}"
             + $" · days from deal end to re-sign {R(d.DaysToResignSum, d.DaysToResignN)}");
+        Console.WriteLine($"  DIAG streaming giants at the script's house: MajorStream offers received {d.MsOffers} (seeds offered one {d.MsSeedsOffered}) · signed {d.MsOfferSigned} · withdrawn from under it (the giant signed elsewhere) {d.MsOfferWithdrawn}"
+            + $" · lapsed {d.MsOfferLapsed} · still open {d.MsOfferOpen} · MajorStream deals held {d.MsDeals} · seeds with one {d.MsSeedsWithDeal} (first in year {R(d.MsFirstYearSum, d.MsSeedsWithDeal)} on average)"
+            + $" · giants free {R(d.GiantsFreeSum, d.GiantSamples)} of 4 (sampled every 4 weeks)");
         Console.WriteLine($"  DIAG who: renewed mean CA {R(d.RenewedCaSum, d.RenewedN)} pop {R(d.RenewedPopSum, d.RenewedN)} · left mean CA {R(d.LeftCaSum, d.LeftN)} pop {R(d.LeftPopSum, d.LeftN)}"
             + $" · roster share sitting at 0 fights (monthly checks) {(d.RosterChecks == 0 ? 0 : 100.0 * d.IdleChecks / d.RosterChecks):0.0}%");
         int seedYears = Math.Max(1, all.Sum(r => r.Years.Count));
@@ -498,6 +505,45 @@ public static class ShoeSweep
     /// Bookkeeping for the offer DIAG (reporting only): every offer for the org seen this
     /// block, its last state, and lifers who turned a rival down (one per deal).
     /// </summary>
+    /// <summary>The streaming giants' offers at the script's house, scanned weekly off its offer list and deals. Reporting only.</summary>
+    public sealed class GiantWatch
+    {
+        private readonly List<DealOffer> _open = new();
+        private readonly HashSet<DealOffer> _seen = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<MediaDeal> _deals = new(ReferenceEqualityComparer.Instance);
+        public int Open => _open.Count;
+
+        public void Sample(World world, Diag d)
+        {
+            d.GiantSamples++;
+            d.GiantsFreeSum += MediaHealth.Giants.Count(g => MmaManager.Core.Sim.Finance.MediaService.PartnerFree(world, g));
+        }
+
+        public void Scan(World world, Promotion org, Diag d, int year)
+        {
+            foreach (var o in org.Offers.Where(o => o.Media == MediaKind.MajorStream))
+                if (_seen.Add(o))
+                {
+                    if (d.MsOffers == 0) d.MsSeedsOffered++;
+                    d.MsOffers++;
+                    _open.Add(o);
+                }
+            foreach (var o in _open.Where(o => !org.Offers.Contains(o)).ToList())
+            {
+                _open.Remove(o);
+                if (org.MediaDeals.Any(x => x.Kind == MediaKind.MajorStream && x.Partner == o.Partner && x.SignedOn >= o.OfferedOn)) d.MsOfferSigned++;
+                else if (o.ExpiresOn < world.CurrentDate) d.MsOfferLapsed++;
+                else d.MsOfferWithdrawn++;
+            }
+            foreach (var x in org.MediaDeals.Where(x => x.Kind == MediaKind.MajorStream))
+                if (_deals.Add(x))
+                {
+                    if (d.MsDeals == 0) { d.MsSeedsWithDeal++; d.MsFirstYearSum += year; }
+                    d.MsDeals++;
+                }
+        }
+    }
+
     public sealed class OfferLog
     {
         private readonly Dictionary<(FighterId, DateOnly), RivalOffer> _seen = new();   // (ids are reused once old offers are dropped)
@@ -618,6 +664,7 @@ public static class ShoeSweep
 
         var run = new Run { Seed = seed };
         var offers = new OfferLog();
+        var giants = new GiantWatch();
         var promisesSeen = new HashSet<int>();
         var lastTier = OrgSizing.SizeOf(nwf);
         try
@@ -643,9 +690,11 @@ public static class ShoeSweep
                         .ToDictionary(f => f.Id, f => (f.Contract!.SignedOn, Purse: f.Contract.PursePerFight.Amount, Ca: FighterAbility.CurrentAbility(f), Pop: f.Intangibles.Popularity.Value,
                             Champ: world.Titles.Values.Any(t => t.Promotion == nwf.Id && t.CurrentChampion == f.Id),
                             Ask: f.Contract.FightsRemaining <= 1 ? Negotiator.EffectiveAskingPurse(world, nwf, f, valuation.Evaluate(world, f)).Amount : 0m));
+                    giants.Sample(world, run.D);
                     for (int w = 0; w < 4; w++)
                     {
                         tick.AdvanceWeek(world);
+                        giants.Scan(world, nwf, run.D, year);
                         offers.Scan(world, nwf, run.D);
                         if (dealRules && Court && !nwf.Defunct) { AnswerFreeAgentOffers(world, nwf, MaxAsk(), valuation, run.D); offers.Scan(world, nwf, run.D); }
                     }
@@ -701,6 +750,7 @@ public static class ShoeSweep
         }
         finally { FreeAgencyService.HarnessHandsOff = null; RoomFit.HarnessOldRooms = null; }
         offers.Finish(run.D, world);
+        run.D.MsOfferOpen += giants.Open;
         run.FinalPrestige = nwf.Prestige.Value;
         run.FinalTier = OrgSizing.SizeOf(nwf);
         return run;
