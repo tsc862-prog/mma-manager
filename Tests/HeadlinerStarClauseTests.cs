@@ -14,7 +14,7 @@ namespace MmaManager.Tests;
 /// longest-idle belt headlined over a belt whose bout clears the clause; the strongest non-title pairing headlined
 /// over a strong pairing with a star in it; a card close to its date kept a main event under the clause with a
 /// main-card bout above it; the same with the clause on a PPV carrier's night. The rest guard what must not
-/// change: nobody clears the clause (the usual order), no clause, a co-main pick, a star on the prelims, a main event
+/// change: a belt whose champion is overdue stays on top, nobody clears the clause (the usual order), no clause, a co-main pick, a star on the prelims, a main event
 /// that clears it, the player's house, the 1993 world.
 /// Every scene is built two years past the generated history, so only the bouts staged here are recent.
 /// </summary>
@@ -39,8 +39,9 @@ public class HeadlinerStarClauseTests
 
     // An AI house with two titled men's divisions, each with a champion and five ranked, ready, in-form men plus a
     // spare, everyone at popularity 40; one network deal holding the main event to popularity 70. Belt A's champion
-    // last fought 200 days ago, belt B's 60, so A is the longer-idle belt. Every other division's rankings are emptied.
-    private static Scene Build(ulong seed = 7)
+    // last fought <paramref name="idleA"/> days ago (90: inside Matchmaker.ChampionWaitMaxDays), belt B's 30, so A is
+    // the longer-idle belt. Every other division's rankings are emptied.
+    private static Scene Build(int idleA = 90, ulong seed = 7)
     {
         var w = new WorldBuilder().Build(new WorldBuilder.Options { Seed = seed, UseDesignedRoster = false });
         w.CurrentDate = w.CurrentDate.AddYears(2);
@@ -71,8 +72,8 @@ public class HeadlinerStarClauseTests
             promo.MediaDeals.Clear();
             promo.MediaDeals.Add(Network(w, MediaKind.PrimeBroadcast, Clause));
             var s = new Scene(w, promo, belts[0], belts[1]);
-            Bout(s, belts[0], daysAgo: 200);
-            Bout(s, belts[1], daysAgo: 60);
+            Bout(s, belts[0], daysAgo: idleA);
+            Bout(s, belts[1], daysAgo: 30);
             return s;
         }
         throw new InvalidOperationException("no AI house with two titled men's divisions");
@@ -133,6 +134,15 @@ public class HeadlinerStarClauseTests
         Assert.True(bout!.Value.IsTitle);
         Assert.Equal(s.B.T.Id, bout.Value.Title);
         Assert.Equal(s.B.Ranked[0].Id, bout.Value.Red == s.B.Champ.Id ? bout.Value.Blue : bout.Value.Red);   // the challenger is the queue's, as before
+    }
+
+    [Fact]
+    public void AnOverdueBelt_IsNeverPassedOverForTheNetwork()
+    {
+        var s = Build(idleA: 150);                // A's champion is out past ChampionWaitMaxDays
+        s.B.Champ.Intangibles.Popularity = 80;
+        var bout = Headliner(s, Everyone(s.A).Concat(Everyone(s.B)));
+        Assert.Equal(s.A.T.Id, bout!.Value.Title);
     }
 
     [Fact]

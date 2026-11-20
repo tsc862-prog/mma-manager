@@ -22,7 +22,9 @@ public readonly record struct Matchup(
 /// <item>a house on television books its headliner for its network: when its live
 /// media deals hold the main event to a star clause (<see cref="Finance.MediaService.StarBar"/>),
 /// a headliner whose better-known man clears it comes first (see <see cref="StarTier"/>),
-/// and only then the usual order. Who fights for a belt is never changed by it.</item>
+/// and only then the usual order; a belt that is overdue (vacant, or its champion out
+/// <see cref="ChampionWaitMaxDays"/> or longer) is never passed over for it. Who fights
+/// for a belt is never changed by it.</item>
 /// </list>
 /// Fully deterministic: rotation is driven by how long each belt has gone
 /// undefended, not by chance. Every build can be made for a FUTURE fight date
@@ -93,7 +95,7 @@ public sealed class Matchmaker
         var belts = TitleBouts(world, promo, fightDate, exclude, recent);
         if (belts.Count > 0)
         {
-            var t = belts.OrderByDescending(t => StarTier(world, bar, t.Red.Id, t.Blue.Id))
+            var t = belts.OrderByDescending(t => Overdue(t.Priority)).ThenByDescending(t => StarTier(world, bar, t.Red.Id, t.Blue.Id))
                 .ThenByDescending(t => t.Priority).ThenBy(t => (int)t.Wc).First();
             return new Matchup(t.Red.Id, t.Blue.Id, t.Wc, promo.Rules.TitleRounds, true, t.Title.Id);
         }
@@ -137,7 +139,7 @@ public sealed class Matchmaker
             var titleBouts = TitleBouts(world, promo, fightDate, exclude, recent);
             if (titleBouts.Count > 0)
             {
-                var headliner = titleBouts.OrderByDescending(t => StarTier(world, bar, t.Red.Id, t.Blue.Id))
+                var headliner = titleBouts.OrderByDescending(t => Overdue(t.Priority)).ThenByDescending(t => StarTier(world, bar, t.Red.Id, t.Blue.Id))
                     .ThenByDescending(t => t.Priority).ThenBy(t => (int)t.Wc).First();
                 mainEvent = new Matchup(headliner.Red.Id, headliner.Blue.Id, headliner.Wc,
                     promo.Rules.TitleRounds, true, headliner.Title.Id);
@@ -256,6 +258,15 @@ public sealed class Matchmaker
         int draw = Math.Max(world.Get(a)?.Intangibles.Popularity.Value ?? 0, world.Get(b)?.Intangibles.Popularity.Value ?? 0);
         return draw >= t + StarMargin ? 2 : draw >= t ? 1 : 0;
     }
+
+    /// <summary>
+    /// A belt the network's star clause never passes over: vacant, or its champion out <see cref="ChampionWaitMaxDays"/>
+    /// or longer (under the 120 days after which an idle man's loyalty starts to wear). Without this a champion nobody
+    /// knows lost his place to a better-known one card after card: at National+ houses champions idle past 180 days went
+    /// 11.1% -> 14.2% of champion-months (longsim, 100 seeds). Such a belt still goes on the card; the running order
+    /// (<c>ForwardCalendar.HeadlineForTheNetwork</c>) may put a bigger name above it.
+    /// </summary>
+    private static int Overdue(long priority) => priority >= ChampionWaitMaxDays ? 1 : 0;
 
     private static int DaysIdle(World world, Dictionary<FighterId, (DateOnly Date, FighterId Opponent, bool Won)> recent, FighterId id) =>
         recent.TryGetValue(id, out var r)
