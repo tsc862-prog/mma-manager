@@ -57,13 +57,16 @@ namespace MmaManager.Tests;
 /// Recaptured on world/washout-leak (the winless wall: a man with no wins and five losses retires the week after, signed
 /// or not, before any card runs; today's mode only, no draw). Both modern pins move; no Origins pin does (all four equal
 /// main's at e20705f).
+/// Recaptured on world/afc-headliners (an AI house on television puts on top the bout whose better-known man clears its
+/// strictest live star clause: Matchmaker.StarTier at booking, ForwardCalendar.HeadlineForTheNetwork on the running
+/// order; no draw). Both modern pins move; no Origins pin does (all four equal main's at c804505).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
-        ["modern-ai-11-y2"] = "36520E485835672DF06A",   // 2027-12-30, 4625 events, 7555 fighters
-        ["modern-player-4-y2"] = "B4EC511323B37FF494B9",   // 2027-12-30, 4581 events, 7556 fighters
+        ["modern-ai-11-y2"] = "83B7FF40881F9BBF52DB",   // 2027-12-30, 4622 events, 7538 fighters
+        ["modern-player-4-y2"] = "6985721F6A7F8F58A8CF",   // 2027-12-30, 4582 events, 7559 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "9998A1465FECB9921AC0",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "2240D63A518CD5BCDBBA",   // 2002-12-20, 306 events, 420 fighters
