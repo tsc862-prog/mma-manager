@@ -125,7 +125,7 @@ public class ReachTests
         Assert.Contains(world.Mail, m => m.Subject.Contains("Media offer", StringComparison.OrdinalIgnoreCase));
 
         // Sign it; then slip below the platform's bar — the deal dies at expiry, not before.
-        var signed = MmaManager.Core.Sim.Finance.MediaService.Accept(world, promo, offer!, world.CurrentDate);
+        var signed = MmaManager.Core.Sim.Finance.MediaService.Accept(world, promo, offer!, world.CurrentDate)!;
         promo.Prestige = 20;
         signed.MonthsRemaining = 1;
         signed.LastAiredOn = world.CurrentDate;   // isolate the reach loss from any cadence strike

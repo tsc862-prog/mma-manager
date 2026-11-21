@@ -788,7 +788,7 @@ public static class MediaService
     public static void RunMonthly(World world, Promotion promo, DateOnly date, SimRandom rng)
     {
         TickStream(world, promo, date);
-        promo.Offers.RemoveAll(o => o.Media is not null && o.ExpiresOn < date);
+        promo.Offers.RemoveAll(o => o.Media is not null && !IsLive(o, date));
 
         // Cadence: a partner that has had nothing to air for too long gets restless.
         foreach (var deal in promo.MediaDeals.ToList())
@@ -935,14 +935,29 @@ public static class MediaService
     }
 
     /// <summary>
+    /// Whether an offer (media or sponsor) can still be answered on <paramref name="date"/>: it is live through its
+    /// <see cref="DealOffer.ExpiresOn"/> day and lapsed from the day after. The monthly prune only runs at the month
+    /// turn, so a lapsed offer can sit in <see cref="Promotion.Offers"/> for up to a month: anything that shows or
+    /// signs offers asks this (or <see cref="PendingOffers"/>) instead of reading the list.
+    /// </summary>
+    public static bool IsLive(DealOffer offer, DateOnly date) => offer.ExpiresOn >= date;
+
+    /// <summary>The media offers still open to answer on <paramref name="date"/>, in table order (lapsed ones left out).</summary>
+    public static IEnumerable<DealOffer> PendingOffers(Promotion promo, DateOnly date) =>
+        promo.Offers.Where(o => o.Media is not null && IsLive(o, date));
+
+    /// <summary>
     /// Sign a media offer into its lane (replacing a lesser deal in the same lane). A streaming offer signed by a house
     /// running its own platform closes the platform first (the deal holds the lane; <see cref="TradeFor"/> is what the
     /// desk shows before). An AI house has always closed it itself by then, so this only ever bites for the player.
+    /// Returns null, changing nothing, when the offer has lapsed (<see cref="IsLive"/>): the month turn's prune takes it
+    /// off the table. AI houses only answer inside the monthly pass, after that prune, so they never meet a lapsed one.
     /// </summary>
-    public static MediaDeal Accept(World world, Promotion promo, DealOffer offer, DateOnly date)
+    public static MediaDeal? Accept(World world, Promotion promo, DealOffer offer, DateOnly date)
     {
-        promo.Offers.Remove(offer);
         if (offer.Media is not { } kind) throw new InvalidOperationException("not a media offer");
+        if (!IsLive(offer, date)) return null;
+        promo.Offers.Remove(offer);
         if (MediaLanes.LaneOf(kind) == MediaLane.Streaming && promo.Stream is not null)
             CloseStream(world, promo, date, $"as {offer.Partner} takes over its streaming rights");
         var existing = DealIn(promo, MediaLanes.LaneOf(kind));
