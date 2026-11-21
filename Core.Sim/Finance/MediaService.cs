@@ -287,8 +287,9 @@ public static class MediaService
     // houses are courted back, never for the last free giant, and not for two
     // years after a house relaunched its platform on losing a giant to strikes.
     // A freed giant's shop-around still goes to open-lane houses only. The
-    // player's house is left as it was (his Media desk, his call), and so is the
-    // 1993 world.
+    // 1993 world's AI houses are left as they were. The player's house on its own
+    // platform has its own, looser rule (PlayerOnOwnPlatform, below): his desk,
+    // his call.
 
     /// <summary>
     /// An AI house in today's world whose streaming lane is held only by its own platform: a streaming giant
@@ -446,8 +447,7 @@ public static class MediaService
     public static bool TakesOverPlatform(World world, Promotion promo, DealOffer offer)
     {
         if (offer.Media != MediaKind.MajorStream || !OnOwnPlatform(world, promo)) return false;
-        var rec = RecordAgainst(world, promo, offer);
-        if (rec.Cards == 0 || !rec.KeepsCadence || (rec.Cards - rec.Cleared) * MissOneIn > rec.Cards) return false;
+        if (!KeepsTerms(RecordAgainst(world, promo, offer))) return false;
         return OfferPerQuarter(world, promo, offer) > PlatformPerQuarter(promo);
     }
 
@@ -462,6 +462,92 @@ public static class MediaService
         Living.News.Post(world, date, NewsCategory.Finance,
             $"{promo.Abbreviation} shuts down {s.Name}",
             $"The promotion's own service goes dark {why}.", promo.Id);
+    }
+
+    // --- The player's own platform and the streaming giants -------------------
+    // His platform used to hold the streaming lane against everyone: no giant ever pitched him while it ran, and
+    // nothing could shut it. Now a giant pitches him on its ordinary rules once his house clears the rung's bar
+    // (Continental, prestige 50; no International-only limit, no last-free-giant hold-back, no relaunch spell: those
+    // keep the AI houses from cycling, and every call here is his to answer). The call rolls on the same keyed hashes
+    // as the AI court-back (his house left the monthly loop before the shared coin flip, as before), the offer sits
+    // on his desk like any other, and signing it closes the platform (Accept). Declining keeps it. He may also shut
+    // it down himself (ShutDownPlatform). The sim never answers for him and never closes it for him.
+
+    /// <summary>
+    /// Is this the player's house with its streaming lane held only by his own platform? A streaming giant may pitch
+    /// him while it runs (on keyed rolls, never the shared stream), and taking the giant closes it. Draws nothing.
+    /// </summary>
+    public static bool PlayerOnOwnPlatform(World world, Promotion promo) =>
+        world.HasPlayer && promo.Id == world.PlayerPromotion
+        && promo.Stream is not null && DealIn(promo, MediaLane.Streaming) is null;
+
+    /// <summary>
+    /// The trade a streaming offer puts to a house on its own platform, as the Media desk shows it: what the platform
+    /// nets a quarter at today's audience against what the deal can be expected to pay a quarter on the house's own
+    /// recent record (<see cref="OfferPerQuarter"/>), and whether that record says it can keep the terms (the bar an
+    /// AI house holds itself to). Public facts and the house's own books only.
+    /// </summary>
+    public readonly record struct PlatformTrade(
+        string Platform, int Subscribers, decimal PlatformPerQuarter, decimal OfferPerQuarter,
+        TrackRecord Record, bool RecordKeepsTerms)
+    {
+        /// <summary>What the deal pays a quarter over (or, negative, under) what the platform nets.</summary>
+        public decimal GainPerQuarter => OfferPerQuarter - PlatformPerQuarter;
+    }
+
+    /// <summary>
+    /// The trade behind a streaming offer for a house running its own platform; null when the offer is not for the
+    /// streaming lane or there is no platform to give up. Signing such an offer closes the platform (<see cref="Accept"/>).
+    /// </summary>
+    public static PlatformTrade? TradeFor(World world, Promotion promo, DealOffer offer)
+    {
+        if (offer.Media is not { } k || MediaLanes.LaneOf(k) != MediaLane.Streaming || promo.Stream is not { } s) return null;
+        var rec = RecordAgainst(world, promo, offer);
+        return new PlatformTrade(s.Name, s.Subscribers, PlatformPerQuarter(promo), OfferPerQuarter(world, promo, offer),
+            rec, KeepsTerms(rec));
+    }
+
+    /// <summary>The record check an AI house makes before taking a giant over its platform (see <see cref="TakesOverPlatform"/>).</summary>
+    private static bool KeepsTerms(TrackRecord rec) =>
+        rec.Cards > 0 && rec.KeepsCadence && (rec.Cards - rec.Cleared) * MissOneIn <= rec.Cards;
+
+    /// <summary>What shutting the platform down would cost, for the confirmation the Media desk shows first.</summary>
+    public readonly record struct ShutdownPreview(
+        string Platform, int Subscribers, Money IncomePerMonth, Money OpsPerMonth, decimal NetPerQuarter,
+        Money RelaunchCost, bool OtherScreen, double ExposureNow, double ExposureAfter,
+        double BrandNow, double BrandAfter);
+
+    /// <summary>
+    /// The confirmation before <see cref="ShutDownPlatform"/>: the platform's audience and monthly books, what it nets a
+    /// quarter (<see cref="PlatformPerQuarter"/>), and what goes with it. Every subscriber is lost: a relaunch costs
+    /// <see cref="StreamLaunchCost"/> again and starts from none. The reach it gave (fame and brand carry) falls back to
+    /// whatever other screen the house is on, or to word of mouth with none. Null without a platform. Draws nothing.
+    /// </summary>
+    public static ShutdownPreview? PreviewShutdown(Promotion promo)
+    {
+        if (promo.Stream is not { } s) return null;
+        var (income, ops) = StreamMonthly(s);
+        double exposureAfter = 1.0, brandAfter = 0.75;
+        foreach (var d in promo.MediaDeals)
+        {
+            exposureAfter = Math.Max(exposureAfter, 1.0 + (ExposureOf(d.Kind) - 1.0) * ProfileOf(d.Partner).ReachScale);
+            brandAfter = Math.Max(brandAfter, 0.75 + (BrandOf(d.Kind) - 0.75) * ProfileOf(d.Partner).ReachScale);
+        }
+        return new ShutdownPreview(s.Name, s.Subscribers, income, ops, PlatformPerQuarter(promo), StreamLaunchCost,
+            promo.MediaDeals.Count > 0, Exposure(promo), exposureAfter, BrandFactor(promo), brandAfter);
+    }
+
+    /// <summary>
+    /// The player shuts his own platform down: the subscribers go (all of them; a relaunch starts from none and costs
+    /// <see cref="StreamLaunchCost"/> again), the running costs stop from this month, and the streaming lane is open, so
+    /// a giant's offer can land in it on the ordinary rules. A news line says so. False without a platform. No AI path
+    /// calls this; draws nothing.
+    /// </summary>
+    public static bool ShutDownPlatform(World world, Promotion promo, DateOnly date)
+    {
+        if (promo.Stream is not { } s) return false;
+        CloseStream(world, promo, date, $"by its own decision, and its {s.Subscribers:N0} subscribers go with it");
+        return true;
     }
 
     private const ulong OriginsPartnerSalt = 0x0219_3ED1_0008UL;
@@ -763,15 +849,17 @@ public static class MediaService
             if (promo.Offers.Count(o => o.Media == rung.Kind) >= 2) continue;
             // Into an open lane — or over the top of a LESSER deal in the same
             // lane (the bigger network poaches: cable calls the org stuck on
-            // specialty). The player's own platform isn't poachable; an AI house
-            // at the top of the sport on its own platform may be courted back by
-            // a streaming giant (see CourtableOnPlatform), on its own keyed rolls.
+            // specialty). A house on its own platform is called by a streaming
+            // giant on keyed rolls of its own: an AI house at the top of the sport
+            // (see CourtableOnPlatform), the player's house once it clears the
+            // rung's bar (see PlayerOnOwnPlatform; his to answer).
             var current = DealIn(promo, MediaLanes.LaneOf(rung.Kind));
             bool upgrade = current is not null && current.Kind != rung.Kind
                 && rung.FeeIn(world, promo) > current.RightsFeePerEvent.Amount;
             if (!LaneOpen(promo, rung.Kind) && !upgrade)
             {
-                if (rung.Kind == MediaKind.MajorStream && CourtableOnPlatform(world, promo, date)
+                if (rung.Kind == MediaKind.MajorStream
+                    && (CourtableOnPlatform(world, promo, date) || PlayerOnOwnPlatform(world, promo))
                     && CourtingBack(world, promo, rung, date) is { } back)
                     MakeOffer(world, promo, rung, back, date);
                 continue;
@@ -805,7 +893,14 @@ public static class MediaService
                 (rung.Kind == MediaKind.PpvCarrier
                     ? $"{offer.Partner} will carry our pay-per-views — we keep {profile.FeeScale:P0} of every buy. "
                     : $"{offer.Partner} offers {offer.FeePerEvent}/event for {offer.Term} months. ")
-                + Terms(offer.Requirements) + " Answer at the Media desk — they only ask once.");
+                + Terms(offer.Requirements)
+                + (TradeFor(world, promo, offer) is { } t
+                    ? $" Signing closes {t.Platform} and its {t.Subscribers:N0} subscribers: it nets {new Money(t.PlatformPerQuarter)} a quarter;"
+                      + (t.Record.Cards == 0
+                          ? " we have run no card in the last year, so there is no recent record to judge what the deal would pay."
+                          : $" on our last year of cards the deal pays about {new Money(t.OfferPerQuarter)} a quarter.")
+                    : "")
+                + " Answer at the Media desk — they only ask once.");
         return offer;
     }
 
@@ -836,11 +931,17 @@ public static class MediaService
         if (suitor is not null) MakeOffer(world, suitor, rung, ProfileOf(partner), date);
     }
 
-    /// <summary>Sign a media offer into its lane (replacing a lesser deal in the same lane).</summary>
+    /// <summary>
+    /// Sign a media offer into its lane (replacing a lesser deal in the same lane). A streaming offer signed by a house
+    /// running its own platform closes the platform first (the deal holds the lane; <see cref="TradeFor"/> is what the
+    /// desk shows before). An AI house has always closed it itself by then, so this only ever bites for the player.
+    /// </summary>
     public static MediaDeal Accept(World world, Promotion promo, DealOffer offer, DateOnly date)
     {
         promo.Offers.Remove(offer);
         if (offer.Media is not { } kind) throw new InvalidOperationException("not a media offer");
+        if (MediaLanes.LaneOf(kind) == MediaLane.Streaming && promo.Stream is not null)
+            CloseStream(world, promo, date, $"as {offer.Partner} takes over its streaming rights");
         var existing = DealIn(promo, MediaLanes.LaneOf(kind));
         if (existing is not null)
         {
@@ -864,10 +965,17 @@ public static class MediaService
         };
         promo.MediaDeals.Add(deal);
 
-        // A signed partner is off the market: their pitches elsewhere are withdrawn.
+        // A signed partner is off the market: their pitches elsewhere are withdrawn. The player hears about his
+        // (he may have been weighing it against his own platform); nobody else's inbox exists.
         if (IsExclusive(kind))
             foreach (var other in world.Promotions.Values.Where(p => p.Id != promo.Id))
-                other.Offers.RemoveAll(o => o.Media is not null && o.Partner == deal.Partner);
+                if (other.Offers.RemoveAll(o => o.Media is not null && o.Partner == deal.Partner) > 0
+                    && other.Id == world.PlayerPromotion)
+                    Living.Mail.Post(world, date, MailCategory.General, deal.Partner,
+                        $"{deal.Partner} signs with {promo.Abbreviation}",
+                        $"{deal.Partner} has signed with {promo.Abbreviation}; their offer is off the table."
+                        + (other.Stream is { } s && DealIn(other, MediaLane.Streaming) is null
+                            ? $" {s.Name} keeps running." : ""));
         Living.News.Post(world, date, NewsCategory.Finance,
             $"{promo.Abbreviation} signs with {deal.Partner}",
             $"A {Label(kind)} deal puts the promotion's cards on a bigger screen.", promo.Id);
@@ -876,6 +984,12 @@ public static class MediaService
                 $"{deal.Partner} carries our fights now. Bigger screens make bigger stars.");
         return deal;
     }
+
+    /// <summary>
+    /// Turn a media offer down: it leaves the desk and the partner has had its one pitch (it calls again only once it
+    /// has signed somewhere and that deal has ended). A platform the offer would have closed keeps running.
+    /// </summary>
+    public static void Decline(Promotion promo, DealOffer offer) => promo.Offers.Remove(offer);
 
     private static void AiAccept(World world, Promotion promo, DateOnly date)
     {

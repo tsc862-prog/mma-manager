@@ -62,6 +62,108 @@ public sealed class RungRow
 public sealed record RungPartner(string Name, bool OnAir);
 
 /// <summary>
+/// The trade a streaming giant's offer puts to the player while his own platform runs, in the desk's words:
+/// what the platform nets a quarter, what the deal should pay a quarter on his last year of cards, the
+/// difference, what signing closes, and (when his record says he'd miss the deal's terms) why. Every number
+/// is the sim's (<see cref="MediaService.TradeFor"/>); nothing here is computed on the side.
+/// </summary>
+public sealed class PlatformTradeView
+{
+    public PlatformTradeView(MediaService.PlatformTrade t, DealOffer offer)
+    {
+        Platform = t.Platform;
+        Partner = offer.Partner;
+        PlatformNet = MediaMoney.Signed(t.PlatformPerQuarter);
+        PlatformUp = t.PlatformPerQuarter >= 0;
+        OfferPays = MediaMoney.Plain(t.OfferPerQuarter);
+        Gain = MediaMoney.Signed(t.GainPerQuarter);
+        GainUp = t.GainPerQuarter >= 0;
+        var rec = t.Record;
+        Lede = rec.Cards == 0
+            ? $"{Platform} nets {MediaMoney.Plain(t.PlatformPerQuarter)} a quarter. You haven't run a card in the last year, so there's no record to say what {Partner} would pay."
+            : $"On your last {Plural(rec.Cards, "card")}, {Partner} would pay about {OfferPays} a quarter. "
+              + (GainUp ? $"That's {MediaMoney.Plain(t.GainPerQuarter)} more than {Platform} brings in."
+                        : $"That's {MediaMoney.Plain(-t.GainPerQuarter)} less than {Platform} brings in.");
+        CloseLine = $"Signing closes {Platform}. Its {t.Subscribers:N0} subscribers go, and you can't relaunch while the deal holds the streaming lane.";
+
+        // Why his record says he'd miss the terms (the bar the sim holds an AI house to), in plain words.
+        var lines = new List<string>();
+        int? bar = offer.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.MinStarPower)?.Threshold;
+        int? cadence = offer.Requirements.FirstOrDefault(r => r.Kind == DealRequirementKind.EventCadence)?.Threshold;
+        if (!t.RecordKeepsTerms)
+        {
+            if (rec.Cards == 0)
+                lines.Add("No card in the last year: there's nothing to show you can keep their terms.");
+            else
+            {
+                int missed = rec.Cards - rec.Cleared;
+                if (bar is { } b && missed > 0)
+                    lines.Add($"{missed} of your last {Plural(rec.Cards, "main event")} would have missed their star clause (a headliner at popularity {b}+).");
+                if (!rec.KeepsCadence && cadence is { } c)
+                    lines.Add($"You run a card about every {Math.Round((double)rec.Days / rec.Cards):0} days; they want one at least every {c}.");
+            }
+            lines.Add($"Every card that misses is paid at half and earns a strike. At {MediaService.StrikeLimit} strikes they walk.");
+        }
+        Warning = string.Join(" ", lines);
+    }
+
+    private static string Plural(int n, string what) => n == 1 ? $"1 {what}" : $"{n} {what}s";
+
+    public string Platform { get; }
+    public string Partner { get; }
+    /// <summary>What the platform nets a quarter (signed).</summary>
+    public string PlatformNet { get; }
+    public bool PlatformUp { get; }
+    /// <summary>What the deal should pay a quarter on his recent record.</summary>
+    public string OfferPays { get; }
+    /// <summary>The difference, signed: what signing is worth a quarter.</summary>
+    public string Gain { get; }
+    public bool GainUp { get; }
+    public string Lede { get; }
+    public string CloseLine { get; }
+    /// <summary>Empty when his record keeps the terms.</summary>
+    public string Warning { get; }
+    public bool HasWarning => Warning.Length > 0;
+}
+
+/// <summary>What shutting the player's platform down costs, for the inline confirmation (<see cref="MediaService.PreviewShutdown"/>).</summary>
+public sealed class ShutdownView
+{
+    public ShutdownView(MediaService.ShutdownPreview p, Promotion promo)
+    {
+        Platform = p.Platform;
+        Subscribers = $"{p.Subscribers:N0}";
+        NetPerQuarter = MediaMoney.Signed(p.NetPerQuarter);
+        NetUp = p.NetPerQuarter >= 0;
+        Relaunch = p.RelaunchCost.ToString();
+        Lede = $"{Platform} goes dark today and every subscriber goes with it. Its running costs stop from next month.";
+        var others = promo.MediaDeals.Select(d => d.Partner).Distinct().ToList();
+        Reach = p.OtherScreen
+            ? $"Your cards still air on {string.Join(" and ", others)}, so that's the reach you keep."
+            : "With no other screen, your fights would reach only the people in the room.";
+        RelaunchLine = $"Coming back means paying {Relaunch} again and starting from zero subscribers.";
+    }
+
+    public string Platform { get; }
+    /// <summary>The confirming button says exactly what it does.</summary>
+    public string ConfirmLabel => $"Shut down {Platform}";
+    public string Subscribers { get; }
+    public string NetPerQuarter { get; }
+    public bool NetUp { get; }
+    public string Relaunch { get; }
+    public string Lede { get; }
+    public string Reach { get; }
+    public string RelaunchLine { get; }
+}
+
+internal static class MediaMoney
+{
+    public static string Plain(decimal d) => new Money(Math.Round(d)).ToString();
+    /// <summary>"+$1,200" / "−$300" (a real minus sign).</summary>
+    public static string Signed(decimal d) => (d < 0 ? "−" : "+") + new Money(Math.Abs(Math.Round(d))).ToString();
+}
+
+/// <summary>
 /// The Media desk: who airs the promotion (one deal per lane — linear TV, a
 /// streaming home, the PPV pipe), the offers on the table, the in-house
 /// platform's books, and the ladder of screens still to climb. Networks
@@ -105,27 +207,103 @@ public sealed class MediaViewModel : ObservableObject
     public System.Windows.Input.ICommand AcceptOfferCommand { get; }
     public System.Windows.Input.ICommand DeclineOfferCommand { get; }
     public System.Windows.Input.ICommand LaunchStreamCommand { get; }
+    /// <summary>Opens the shutdown confirmation on the platform's panel (nothing closes yet).</summary>
+    public System.Windows.Input.ICommand AskShutdownCommand { get; }
+    public System.Windows.Input.ICommand CancelShutdownCommand { get; }
+    /// <summary>Shuts the platform down (only from the confirmation).</summary>
+    public System.Windows.Input.ICommand ShutdownCommand { get; }
+
+    /// <summary>Ask before something costly (heading, body, detail, confirm label, keep label); null = go ahead (harness runs).</summary>
+    public Func<string, string, string?, string, string, bool>? Confirm { get; set; }
+    /// <summary>Something here moved the money or the screens: the whole app refreshes (the desk with it).</summary>
+    public Action? OnChanged { get; set; }
+    /// <summary>A line for the shell's result strip.</summary>
+    public Action<string>? Said { get; set; }
+
+    private ShutdownView? _shutdown;
+    /// <summary>The shutdown confirmation, when it's open; null otherwise.</summary>
+    public ShutdownView? Shutdown { get => _shutdown; private set { if (Set(ref _shutdown, value)) OnPropertyChanged(nameof(ShowShutdown)); } }
+    public bool ShowShutdown => _shutdown is not null;
+    private DateOnly _shutdownAskedOn;
+
+    /// <summary>Close the shut-down question without shutting anything (a new window, a new day, another save).</summary>
+    public void CloseShutdown() => Shutdown = null;
+
+    private string _shutdownLabel = "";
+    /// <summary>"Shut down {platform}…" — the quiet action on the platform's panel.</summary>
+    public string ShutdownLabel { get => _shutdownLabel; private set => Set(ref _shutdownLabel, value); }
 
     public MediaViewModel()
     {
         AcceptOfferCommand = new RelayCommand<OfferRow>(row =>
         {
             if (_world?.Get(_world.PlayerPromotion) is not { } promo || row.Offer.Media is null) return;
-            MediaService.Accept(_world, promo, row.Offer, _world.CurrentDate);
-            Refresh();
+            if (!promo.Offers.Contains(row.Offer)) { Refresh(); return; }   // lapsed or answered elsewhere since the row was drawn
+            // A streaming offer while his own platform runs: signing closes it. Say so once, with the sim's numbers.
+            if (Confirm is not null && SignQuestion(row.Offer) is { } q
+                && !Confirm(q.Heading, q.Body, q.Detail, q.Confirm, q.Keep)) return;
+            string? closed = promo.Stream?.Name;
+            var deal = MediaService.Accept(_world, promo, row.Offer, _world.CurrentDate);
+            Said?.Invoke(closed is not null && promo.Stream is null
+                ? $"Signed with {deal.Partner}. {closed} is shut down; your cards stream on {deal.Partner} from the next one."
+                : $"Signed with {deal.Partner}: {MediaService.Label(deal.Kind)} for {deal.MonthsRemaining} months.");
+            Changed();
         });
         DeclineOfferCommand = new RelayCommand<OfferRow>(row =>
         {
             if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
-            promo.Offers.Remove(row.Offer);
-            Refresh();
+            bool trade = MediaService.TradeFor(_world, promo, row.Offer) is not null;
+            MediaService.Decline(promo, row.Offer);
+            Said?.Invoke(trade && promo.Stream is { } s
+                ? $"Passed on {row.Offer.Partner}. {s.Name} keeps running."
+                : $"Passed on {row.Offer.Partner}.");
+            Changed();
         });
         LaunchStreamCommand = new RelayCommand(() =>
         {
             if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
-            MediaService.LaunchStream(_world, promo, _world.CurrentDate);
-            Refresh();
+            if (MediaService.LaunchStream(_world, promo, _world.CurrentDate))
+                Said?.Invoke($"{promo.Stream?.Name} is live: every card airs on it from now on.");
+            Changed();
         });
+        AskShutdownCommand = new RelayCommand(() =>
+        {
+            if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
+            Shutdown = MediaService.PreviewShutdown(promo) is { } p ? new ShutdownView(p, promo) : null;
+            _shutdownAskedOn = _world.CurrentDate;
+        });
+        CancelShutdownCommand = new RelayCommand(() => Shutdown = null);
+        ShutdownCommand = new RelayCommand(() =>
+        {
+            if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
+            string? name = promo.Stream?.Name;
+            Shutdown = null;
+            if (MediaService.ShutDownPlatform(_world, promo, _world.CurrentDate))
+                Said?.Invoke($"{name} is shut down. The subscribers are gone and the running costs stop from next month.");
+            Changed();
+        });
+    }
+
+    /// <summary>
+    /// The one question before signing a streaming offer that closes his own platform (heading, body, detail, the
+    /// confirming and the keeping button); null for any other offer, which signs without asking.
+    /// </summary>
+    public (string Heading, string Body, string Detail, string Confirm, string Keep)? SignQuestion(DealOffer offer)
+    {
+        if (_world?.Get(_world.PlayerPromotion) is not { } promo || MediaService.TradeFor(_world, promo, offer) is not { } t) return null;
+        var view = new PlatformTradeView(t, offer);
+        string body = $"{t.Platform} goes dark the day you sign, and its {t.Subscribers:N0} subscribers go with it. "
+            + $"{offer.Partner} pays {offer.FeePerEvent} an event for {offer.Term} months.";
+        string detail = $"{t.Platform} nets {view.PlatformNet} a quarter now; on your last year of cards the deal pays about {view.OfferPays} ({view.Gain} a quarter). "
+            + "You can't relaunch a platform while the deal holds the streaming lane."
+            + (view.HasWarning ? "\n\n" + view.Warning : "");
+        return ($"Sign with {offer.Partner} and close {t.Platform}?", body, detail, $"Sign and close {t.Platform}", $"Keep {t.Platform}");
+    }
+
+    private void Changed()
+    {
+        if (OnChanged is { } all) all();   // the whole app (the desk refreshes with it)
+        else Refresh();
     }
 
     private static string Join(IReadOnlyList<string> items) => items.Count switch
@@ -137,6 +315,8 @@ public sealed class MediaViewModel : ObservableObject
 
     public void Attach(World world)
     {
+        // The shut-down question belongs to one house on one day: another save, or the world moving on, closes it.
+        if (!ReferenceEquals(world, _world) || world.CurrentDate != _shutdownAskedOn) CloseShutdown();
         _world = world;
         Refresh();
     }
@@ -144,14 +324,14 @@ public sealed class MediaViewModel : ObservableObject
     private void Refresh()
     {
         Deals.Clear(); Offers.Clear(); Ladder.Clear();
-        if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
+        if (_world?.Get(_world.PlayerPromotion) is not { } promo) { CloseShutdown(); return; }
 
         if (promo.Stream is { } stream) Deals.Add(new MediaRow(stream));
         foreach (var d in promo.MediaDeals.OrderByDescending(d => d.RightsFeePerEvent.Amount))
             Deals.Add(new MediaRow(d, promo));
 
         foreach (var o in promo.Offers.Where(o => o.Media is not null).OrderBy(o => o.ExpiresOn))
-            Offers.Add(new OfferRow(o));
+            Offers.Add(new OfferRow(o, MediaService.TradeFor(_world, promo, o) is { } t ? new PlatformTradeView(t, o) : null));
 
         // Only the screens the sport has (every one, today); the rest are named once, as not there yet.
         var missing = new List<string>();
@@ -176,6 +356,10 @@ public sealed class MediaViewModel : ObservableObject
                 + "Subscribers follow the product: they grow with every card aired and melt away when we go dark.";
         }
         else { StreamHeadline = ""; StreamDetail = ""; }
+        ShutdownLabel = promo.Stream is { } live ? $"Shut down {live.Name}…" : "";
+        // An open confirmation is re-read from the sim (a week may have moved the numbers), or closed with the platform.
+        if (Shutdown is not null)
+            Shutdown = MediaService.PreviewShutdown(promo) is { } preview ? new ShutdownView(preview, promo) : null;
 
         CanLaunchStream = promo.Stream is null && streams
             && MediaService.LaneOpen(promo, MediaKind.InHouseStream)
@@ -185,6 +369,8 @@ public sealed class MediaViewModel : ObservableObject
             : MediaService.LaneOpen(promo, MediaKind.InHouseStream)
                 ? $"Launch {promo.Abbreviation}+ for {MediaService.StreamLaunchCost} (plus monthly operations): our own service, " +
                   "every card aired, no network in between. Viable on a war chest or a following — painful on neither."
-                : "The streaming lane is taken — a licensing deal occupies it.";
+                : MediaService.DealIn(promo, MediaLane.Streaming) is { } holder
+                    ? $"{holder.Partner} holds our streaming rights for {holder.MonthsRemaining} more months. A platform of our own can come back when that deal ends."
+                    : "The streaming lane is taken — a licensing deal occupies it.";
     }
 }

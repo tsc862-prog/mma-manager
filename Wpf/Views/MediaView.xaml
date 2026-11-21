@@ -14,7 +14,7 @@
     </UserControl.Resources>
 
     <!-- The Media desk: who airs us, who's calling, and the screens still to climb. -->
-    <DockPanel DataContext="{Binding Media}">
+    <DockPanel x:Name="Desk" DataContext="{Binding Media}">
         <Border DockPanel.Dock="Top" Background="{StaticResource Header}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="16,12">
             <StackPanel>
                 <TextBlock Text="📡 THE MEDIA DESK" FontSize="10.5" FontWeight="Bold" Foreground="{StaticResource TextSecondary}" />
@@ -70,6 +70,60 @@
                             <StackPanel Visibility="{Binding HasStream, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding StreamHeadline}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource Gold}" />
                                 <TextBlock Text="{Binding StreamDetail}" Foreground="{StaticResource TextSecondary}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <!-- the quiet way out: opens the confirmation below, closes nothing by itself -->
+                                <Button Content="{Binding ShutdownLabel}" Command="{Binding AskShutdownCommand}" Style="{StaticResource Button.Quiet}"
+                                        HorizontalAlignment="Left" Margin="-4,6,0,0"
+                                        ToolTip="See what closing it costs first: nothing shuts until you confirm"
+                                        Visibility="{Binding ShowShutdown, Converter={StaticResource InverseBoolToVis}}" />
+                                <!-- the confirmation: what goes with it, in three numbers and a sentence or two -->
+                                <Border DataContext="{Binding Shutdown}" Background="{StaticResource ToneBadDim}" CornerRadius="{StaticResource Radius.Card}"
+                                        Padding="12,10,12,12" Margin="0,10,0,0"
+                                        Visibility="{Binding DataContext.ShowShutdown, ElementName=Desk, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource Text.Kicker}" Foreground="{StaticResource ToneBad}">
+                                            <Run Text="SHUT DOWN " /><Run Text="{Binding Platform, Mode=OneWay}" /><Run Text="?" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Lede}" Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextPrimary}" Margin="0,4,0,0" />
+                                        <Grid Margin="0,10,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                                <TextBlock Text="{Binding Subscribers}" Style="{StaticResource Text.Stat}" />
+                                                <TextBlock Text="subscribers lost" Style="{StaticResource Text.Caption}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                                <TextBlock Text="{Binding NetPerQuarter}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Stat}">
+                                                            <Setter Property="Foreground" Value="{StaticResource ToneGood}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding NetUp}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{StaticResource ToneBad}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="it nets a quarter now" Style="{StaticResource Text.Caption}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="{Binding Relaunch}" Style="{StaticResource Text.Stat}" />
+                                                <TextBlock Text="to relaunch, from zero" Style="{StaticResource Text.Caption}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Reach}" Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" />
+                                        <TextBlock Text="{Binding RelaunchLine}" Style="{StaticResource Text.Secondary}" Margin="0,3,0,0" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                            <Button Content="{Binding ConfirmLabel}" Style="{StaticResource Button.Danger}" Padding="14,5" FontSize="12.5" Margin="0,0,8,0"
+                                                    Command="{Binding DataContext.ShutdownCommand, ElementName=Desk}" />
+                                            <Button Content="Keep it running" Style="{StaticResource Button.Primary}" Padding="14,5" FontSize="12.5"
+                                                    Command="{Binding DataContext.CancelShutdownCommand, ElementName=Desk}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Text="{Binding StreamPitch}" Foreground="{StaticResource TextSecondary}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6">
