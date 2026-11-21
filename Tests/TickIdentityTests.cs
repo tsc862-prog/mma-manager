@@ -72,14 +72,15 @@ namespace MmaManager.Tests;
 /// EventService.Settle after the gate: no draw, no new field). Both modern pins move (televised main cards from week one
 /// raise touring stars' city fame, which the next card's draw reads). Of the Origins pins origins-player-3-y4 never moves
 /// (no screen and no belt changes anything a 1996 digest reads); the other three move, through belts won and kept where a
-/// small house is known and, later, its first screens (not measured site by site).
+/// small house is known and, later, its first screens (not measured site by site). modern-player-4-y2 recaptured again
+/// after merging main ccd2a4f (world/player-platform mail on top of fame travel).
 /// </summary>
 public class TickIdentityTests
 {
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
         ["modern-ai-11-y2"] = "B5C1E9C56E19277F087B",   // 2027-12-30, 4635 events, 7543 fighters
-        ["modern-player-4-y2"] = "FFB9B7E32172D0B6CF6D",   // 2027-12-30, 4584 events, 7567 fighters
+        ["modern-player-4-y2"] = "3A29362F3C66A43C53E9",   // 2027-12-30, 4584 events, 7567 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "72819CCC80053DE57556",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "B623CA75E4DD74ED6647",   // 2002-12-20, 306 events, 420 fighters
