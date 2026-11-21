@@ -2275,6 +2275,20 @@ public partial class App : Application
                         if (quiet is not null) quiet.Command.Execute(null); else md.AskShutdownCommand.Execute(null);
                         Layout();
                         Console.WriteLine($"RENDERAPP shutdown asked: {md.Shutdown?.Subscribers} subs, net {md.Shutdown?.NetPerQuarter}, relaunch {md.Shutdown?.Relaunch}; {md.Shutdown?.Reach}");
+                        if (platformMode == "shutreset")
+                        {
+                            // The question must not outlive its moment: a same-day refresh keeps it, the window
+                            // closing and reopening drops it, and the world moving on drops it.
+                            vm.Contracts.OnChanged?.Invoke();
+                            bool sameDay = md.ShowShutdown;
+                            if (vm.Desktop.Windows.FirstOrDefault(x => x.Spec.Id == "media") is { } mw) vm.Desktop.Close(mw);
+                            vm.Desktop.Open("media");
+                            bool reopened = md.ShowShutdown;
+                            md.AskShutdownCommand.Execute(null);
+                            vm.AdvanceWeekCommand.Execute(null);
+                            bool advanced = md.ShowShutdown;
+                            Console.WriteLine($"RENDERAPP shutdown question: open after same-day refresh {sameDay}, after close+reopen {reopened}, after a week {advanced}");
+                        }
                         if (platformMode == "shutdone")
                         {
                             var confirm = FindAll<System.Windows.Controls.Button>(root).FirstOrDefault(b => ReferenceEquals(b.Command, md.ShutdownCommand));

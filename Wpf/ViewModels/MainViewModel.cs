@@ -107,6 +107,7 @@ public sealed partial class MainViewModel : ObservableObject
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Keep them on");
         Camps.OnChanged = RefreshAll;       // a team deal / camp report moves the balance
         Media.OnChanged = RefreshAll;       // a deal signed or a platform closed moves the screens and the books
+        Finance.OnChanged = RefreshAll;     // a sponsor signed or passed moves the balance every screen shows
         Media.Said = line => StatusText = line;
         if (!HeadlessAutoBoot)
             Media.Confirm = (heading, body, detail, confirm, keep) => MessageWindow.Ask(heading, body, detail, confirm, keep);
@@ -240,7 +241,12 @@ public sealed partial class MainViewModel : ObservableObject
             // all run Dashboard.AcceptDecisionCommand).
             Dashboard.Confirm = (heading, body, detail, confirm) =>
                 MessageWindow.Ask(heading, body, detail, confirm, keep: "Not yet");
-        Desktop.BeforeOpen = id => { if (id == "briefing" && _world is not null) Briefing.Attach(_world); };
+        Desktop.BeforeOpen = id =>
+        {
+            if (id == "briefing" && _world is not null) Briefing.Attach(_world);
+            // A fresh Media window starts without the shut-down question open (bringing an open one forward keeps it).
+            if (id == "media" && !Desktop.Windows.Any(w => w.Spec.Id == "media")) Media.CloseShutdown();
+        };
     }
 
     /// <summary>

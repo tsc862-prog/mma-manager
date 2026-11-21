@@ -136,7 +136,7 @@ public sealed class ShutdownView
         NetPerQuarter = MediaMoney.Signed(p.NetPerQuarter);
         NetUp = p.NetPerQuarter >= 0;
         Relaunch = p.RelaunchCost.ToString();
-        Lede = $"{Platform} goes dark today and every subscriber goes with it. Its running costs stop this month.";
+        Lede = $"{Platform} goes dark today and every subscriber goes with it. Its running costs stop from next month.";
         var others = promo.MediaDeals.Select(d => d.Partner).Distinct().ToList();
         Reach = p.OtherScreen
             ? $"Your cards still air on {string.Join(" and ", others)}, so that's the reach you keep."
@@ -224,6 +224,10 @@ public sealed class MediaViewModel : ObservableObject
     /// <summary>The shutdown confirmation, when it's open; null otherwise.</summary>
     public ShutdownView? Shutdown { get => _shutdown; private set { if (Set(ref _shutdown, value)) OnPropertyChanged(nameof(ShowShutdown)); } }
     public bool ShowShutdown => _shutdown is not null;
+    private DateOnly _shutdownAskedOn;
+
+    /// <summary>Close the shut-down question without shutting anything (a new window, a new day, another save).</summary>
+    public void CloseShutdown() => Shutdown = null;
 
     private string _shutdownLabel = "";
     /// <summary>"Shut down {platform}…" — the quiet action on the platform's panel.</summary>
@@ -266,6 +270,7 @@ public sealed class MediaViewModel : ObservableObject
         {
             if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
             Shutdown = MediaService.PreviewShutdown(promo) is { } p ? new ShutdownView(p, promo) : null;
+            _shutdownAskedOn = _world.CurrentDate;
         });
         CancelShutdownCommand = new RelayCommand(() => Shutdown = null);
         ShutdownCommand = new RelayCommand(() =>
@@ -274,7 +279,7 @@ public sealed class MediaViewModel : ObservableObject
             string? name = promo.Stream?.Name;
             Shutdown = null;
             if (MediaService.ShutDownPlatform(_world, promo, _world.CurrentDate))
-                Said?.Invoke($"{name} is shut down. The subscribers are gone and the running costs stop this month.");
+                Said?.Invoke($"{name} is shut down. The subscribers are gone and the running costs stop from next month.");
             Changed();
         });
     }
@@ -310,6 +315,8 @@ public sealed class MediaViewModel : ObservableObject
 
     public void Attach(World world)
     {
+        // The shut-down question belongs to one house on one day: another save, or the world moving on, closes it.
+        if (!ReferenceEquals(world, _world) || world.CurrentDate != _shutdownAskedOn) CloseShutdown();
         _world = world;
         Refresh();
     }
@@ -317,7 +324,7 @@ public sealed class MediaViewModel : ObservableObject
     private void Refresh()
     {
         Deals.Clear(); Offers.Clear(); Ladder.Clear();
-        if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
+        if (_world?.Get(_world.PlayerPromotion) is not { } promo) { CloseShutdown(); return; }
 
         if (promo.Stream is { } stream) Deals.Add(new MediaRow(stream));
         foreach (var d in promo.MediaDeals.OrderByDescending(d => d.RightsFeePerEvent.Amount))

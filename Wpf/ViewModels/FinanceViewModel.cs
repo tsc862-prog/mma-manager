@@ -209,15 +209,25 @@ public sealed class FinanceViewModel : ObservableObject
         AcceptOfferCommand = new RelayCommand<OfferRow>(row =>
         {
             if (_world?.Get(_world.PlayerPromotion) is not { } promo || row.Offer.Media is not null) return;
+            if (!promo.Offers.Contains(row.Offer)) { Changed(); return; }   // lapsed or answered elsewhere since the row was drawn
             MmaManager.Core.Sim.Finance.Sponsorships.Accept(_world, promo, row.Offer, _world.CurrentDate);
-            Refresh();
+            Changed();
         });
         DeclineOfferCommand = new RelayCommand<OfferRow>(row =>
         {
             if (_world?.Get(_world.PlayerPromotion) is not { } promo) return;
             promo.Offers.Remove(row.Offer);
-            Refresh();
+            Changed();
         });
+    }
+
+    /// <summary>A deal signed or passed moves the money: the whole app refreshes (this screen with it).</summary>
+    public Action? OnChanged { get; set; }
+
+    private void Changed()
+    {
+        if (OnChanged is { } all) all();
+        else Refresh();
     }
 
     public void Attach(World world)
