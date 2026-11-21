@@ -310,6 +310,8 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
         res.Rooms = rooms;
         var fame = new LongSim.FameSpread();
         res.Fame = fame;
+        var flow = new LongSim.TalentFlow();
+        res.Flow = flow;
         var marks = new LongSim.YearMarks();
         res.Marks = marks;
         var deadAtStart = world.Promotions.Values.Where(p => p.Defunct).Select(p => p.Id).ToHashSet();
@@ -326,6 +328,7 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
                 media.BeforeWeek(world);
                 rooms.BeforeWeek(world);
                 fame.BeforeWeek(world);
+                flow.BeforeWeek(world);
                 var weekBefore = world.CurrentDate;
                 tick.AdvanceWeeks(world, 1);
                 titleShots.AfterWeek(world, w % 4 == 3);
@@ -333,6 +336,7 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
                 media.AfterWeek(world);
                 rooms.AfterWeek(world);
                 fame.AfterWeek(world);
+                flow.AfterWeek(world);
                 int from = 0;
                 if (lastSeen is not null)
                 {
@@ -380,6 +384,7 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
         media.End(world, startDate);
         washouts.Close(world);
         fame.End(world);
+        flow.End(world);
 
         // Durable, from event/fight state (events are never pruned for AI orgs).
         var simEvents = world.Events.Values.Where(e => e.Date > startDate).ToList();
@@ -542,6 +547,7 @@ static void RunCompare(int seeds, int years, ulong firstSeed = 1)
     LongSim.MediaHealth.Print(all.Select(r => r.Media).Where(f => f is not null).Select(f => f!).ToList());
     LongSim.RoomHealth.Print(all.Select(r => r.Rooms).Where(f => f is not null).Select(f => f!).ToList());
     LongSim.FameSpread.Print(all.Select(r => r.Fame).Where(f => f is not null).Select(f => f!).ToList());
+    LongSim.TalentFlow.Print(all.Select(r => r.Flow).Where(f => f is not null).Select(f => f!).ToList());
     LongSim.YearMarks.Print(all.Select(r => r.Marks).Where(f => f is not null).Select(f => f!).ToList());
     LongSim.MediaHealth.PrintAcquisitions(all.Select(r => r.Media).Where(f => f is not null).Select(f => f!).ToList());
     PrintDeaths(results.Values.OrderBy(r => r.Seed).SelectMany(r => r.Orgs).ToList());
@@ -739,6 +745,7 @@ sealed class SeedResult
     public LongSim.MediaHealth? Media;
     public LongSim.RoomHealth? Rooms;
     public LongSim.FameSpread? Fame;
+    public LongSim.TalentFlow? Flow;
     public LongSim.YearMarks? Marks;
 }
 
