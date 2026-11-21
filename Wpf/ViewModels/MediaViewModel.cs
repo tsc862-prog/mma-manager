@@ -8,14 +8,14 @@ namespace MmaManager.Wpf.ViewModels;
 /// <summary>One rung of the media ladder, judged for the player's promotion.</summary>
 public sealed class RungRow
 {
-    public RungRow(MediaService.RungView r, Promotion promo)
+    public RungRow(MediaService.RungView r, Promotion promo, DateOnly today)
     {
         Label = r.Label;
         var deal = promo.MediaDeals.FirstOrDefault(d => d.Kind == r.Kind);
         Signed = deal is not null;
         Qualified = r.Qualified;
         Status = deal is not null ? $"ON AIR — {deal.Partner}"
-            : promo.Offers.Any(o => o.Media == r.Kind) ? "offer on the table"
+            : MediaService.PendingOffers(promo, today).Any(o => o.Media == r.Kind) ? "offer on the table"
             : r.Qualified ? "qualified — waiting on a call"
             : r.Gate;
         Fee = r.Kind == MediaKind.PpvCarrier ? "50–60% of buys" : $"~{r.Fee}/ev";
@@ -243,7 +243,12 @@ public sealed class MediaViewModel : ObservableObject
             if (Confirm is not null && SignQuestion(row.Offer) is { } q
                 && !Confirm(q.Heading, q.Body, q.Detail, q.Confirm, q.Keep)) return;
             string? closed = promo.Stream?.Name;
-            var deal = MediaService.Accept(_world, promo, row.Offer, _world.CurrentDate);
+            if (MediaService.Accept(_world, promo, row.Offer, _world.CurrentDate) is not { } deal)
+            {
+                Said?.Invoke($"{row.Offer.Partner}'s offer lapsed on {row.Offer.ExpiresOn:d MMM}; it is off the table.");
+                Changed();
+                return;
+            }
             Said?.Invoke(closed is not null && promo.Stream is null
                 ? $"Signed with {deal.Partner}. {closed} is shut down; your cards stream on {deal.Partner} from the next one."
                 : $"Signed with {deal.Partner}: {MediaService.Label(deal.Kind)} for {deal.MonthsRemaining} months.");
@@ -330,13 +335,13 @@ public sealed class MediaViewModel : ObservableObject
         foreach (var d in promo.MediaDeals.OrderByDescending(d => d.RightsFeePerEvent.Amount))
             Deals.Add(new MediaRow(d, promo));
 
-        foreach (var o in promo.Offers.Where(o => o.Media is not null).OrderBy(o => o.ExpiresOn))
+        foreach (var o in MediaService.PendingOffers(promo, _world.CurrentDate).OrderBy(o => o.ExpiresOn))
             Offers.Add(new OfferRow(o, MediaService.TradeFor(_world, promo, o) is { } t ? new PlatformTradeView(t, o) : null));
 
         // Only the screens the sport has (every one, today); the rest are named once, as not there yet.
         var missing = new List<string>();
         foreach (var rung in MediaService.LadderView(_world, promo))
-            if (Core.Sim.Living.Era.AllowsMedia(_world, rung.Kind)) Ladder.Add(new RungRow(rung, promo));
+            if (Core.Sim.Living.Era.AllowsMedia(_world, rung.Kind)) Ladder.Add(new RungRow(rung, promo, _world.CurrentDate));
             else missing.Add(rung.Label);
         bool streams = Core.Sim.Living.Era.AllowsMedia(_world, MediaKind.InHouseStream);
         if (!streams && !missing.Contains(MediaService.Label(MediaKind.InHouseStream))) missing.Add(MediaService.Label(MediaKind.InHouseStream));
