@@ -516,10 +516,15 @@ public static class OriginsShows
         if (division?.Title is not { } tid || world.Get(tid) is not { } title) return;
         var previous = title.CurrentChampion;
         var reign = title.Lineage.LastOrDefault(r => r.LostOn is null);
+        // The bracket's bouts carry no title and the night settled before the belt was handed out, so the belt's
+        // travel (Geography.BroadcastFame) is applied here, once; a night whose card already put this belt on a title
+        // bout was lifted at settle and is not lifted again.
+        bool liftedAtSettle = ev.Card.Any(f => f.IsTitleFight && f.Title == tid);
         if (previous == champion.Id)
         {
             if (reign is not null) reign.Defenses++;
             News.TitleDefended(world, title, champion, ev.Date);
+            if (!liftedAtSettle) Geography.BroadcastFame.BeltWon(world, promo, champion, title, crowned: false);
             return;
         }
         if (reign is not null) reign.LostOn = ev.Date;
@@ -544,6 +549,7 @@ public static class OriginsShows
         }
         else News.TitleClaimed(world, title, champion, ev.Date);
         Mail.TitleWon(world, title, champion, ev.Date);
+        if (!liftedAtSettle) Geography.BroadcastFame.BeltWon(world, promo, champion, title, crowned: true);
     }
 
     /// <summary>"X wins the {night} and the tournament championship; {holder} was not in the field".</summary>

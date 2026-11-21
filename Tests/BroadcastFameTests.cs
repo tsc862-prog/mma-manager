@@ -1,6 +1,7 @@
 using System.Reflection;
 using MmaManager.Core.Model;
 using MmaManager.Core.Sim.Booking;
+using MmaManager.Core.Sim.Engine;
 using MmaManager.Core.Sim.Geography;
 using MmaManager.Core.Sim.Living;
 using MmaManager.Core.Sim.Rng;
@@ -64,10 +65,10 @@ public class BroadcastFameTests
             p.MediaDeals.Clear();
             OnScreen(p, kind, partner);
             var ev = Card(w, p, 1);
-            var s = BroadcastFame.ScreenFor(p, ev)!.Value;
-            Assert.Equal(kind, s.Kind);
-            var fp = BroadcastFame.Footprint(w, p, s.HomeFloor, s.AbroadFloor);
-            footprints[kind] = (fp.Count, fp.Count(c => w.Get(c.City)!.Region != p.BaseRegion), s.Cap);
+            var screens = BroadcastFame.ScreensFor(p, ev);
+            Assert.Equal(kind, Assert.Single(screens).Kind);
+            var fp = BroadcastFame.TvFootprint(w, p, screens);
+            footprints[kind] = (fp.Count, fp.Count(c => w.Get(c.City)!.Region != p.BaseRegion), screens[0].Cap);
         }
         // A niche channel stays in the home region; a worldwide streamer goes wherever the brand is known.
         Assert.Equal(0, footprints[MediaKind.SpecialtyCable].Abroad);
@@ -147,12 +148,93 @@ public class BroadcastFameTests
         var (w, p) = World();
         OnScreen(p, MediaKind.PrimeBroadcast, "United Broadcasting");   // the flagship: the biggest cap there is
         var star = Fresh(w, 100); var foe = Fresh(w, 100, 1);
-        var foughtIn = p.PopularityByCity.OrderByDescending(kv => kv.Value.Value).ThenBy(kv => kv.Key.Value).First().Key;
-        star.CityReputation[foughtIn] = 60;
         for (int i = 0; i < 200; i++) BroadcastFame.AfterCard(w, p, Card(w, p, 1, Bout(star, foe)));
+        Assert.All(star.CityReputation, kv => Assert.True(kv.Value.Value <= BroadcastFame.RemoteCeiling));
+        Assert.Contains(star.CityReputation.Values, v => v.Value == BroadcastFame.RemoteCeiling);
 
-        Assert.Equal(60, Reputation.FighterInCity(star, foughtIn));
-        Assert.All(star.CityReputation.Where(kv => kv.Key != foughtIn), kv => Assert.True(kv.Value.Value <= BroadcastFame.RemoteCeiling));
+        // A protected number BELOW the ceiling but above what television can reach there: a modest name (pop 30, so no
+        // target anywhere passes 30 x 100 / 250 = 12) who once fought in a city and is at 15 there keeps exactly 15.
+        var modest = Fresh(w, 30, 2); var other = Fresh(w, 30, 3);
+        var foughtIn = p.PopularityByCity.OrderByDescending(kv => kv.Value.Value).ThenBy(kv => kv.Key.Value).First().Key;
+        modest.CityReputation[foughtIn] = 15;
+        for (int i = 0; i < 200; i++) BroadcastFame.AfterCard(w, p, Card(w, p, 1, Bout(modest, other)));
+        Assert.Equal(15, Reputation.FighterInCity(modest, foughtIn));
+        Assert.True(15 < BroadcastFame.RemoteCeiling);
+        Assert.All(modest.CityReputation.Where(kv => kv.Key != foughtIn), kv => Assert.True(kv.Value.Value <= 12));
+    }
+
+    [Fact]
+    public void ASecondBiggerDeal_NeverLowersAnyCitysTarget()
+    {
+        var (w, p) = World();
+        var ev = Card(w, p, 1);
+        Dictionary<CityId, double> Targets(int pop) => BroadcastFame.TvFootprint(w, p, BroadcastFame.ScreensFor(p, ev))
+            .ToDictionary(c => c.City, c => Math.Min(c.Cap, pop * c.Brand / 250.0));
+        var pairs = new[]
+        {
+            ((MediaKind.MajorStream, "Arena+"), (MediaKind.PrimeBroadcast, "United Broadcasting")),
+            ((MediaKind.SpecialtyCable, "Combat One"), (MediaKind.CableSports, "PrimeSport")),
+            ((MediaKind.InHouseStream, ""), (MediaKind.PrimeBroadcast, "NBS")),
+        };
+        foreach (var (first, second) in pairs)
+        {
+            p.MediaDeals.Clear(); p.Stream = null;
+            if (first.Item1 == MediaKind.InHouseStream) p.Stream = new StreamingPlatform { Name = "Test TV" };
+            else OnScreen(p, first.Item1, first.Item2);
+            var before = Targets(90);
+            OnScreen(p, second.Item1, second.Item2);
+            var after = Targets(90);
+            foreach (var (city, t) in before)
+                Assert.True(after.TryGetValue(city, out var t2) && t2 >= t, $"{first.Item1} + {second.Item1}: city {city.Value} fell below {t}");
+        }
+        // The case the single-best-screen rule broke: the streamer's thin abroad cities (brand 5-14) stay on air.
+        p.MediaDeals.Clear(); p.Stream = null;
+        OnScreen(p, MediaKind.MajorStream, "Arena+");
+        OnScreen(p, MediaKind.PrimeBroadcast, "United Broadcasting");
+        var both = BroadcastFame.TvFootprint(w, p, BroadcastFame.ScreensFor(p, ev));
+        Assert.Equal(p.PopularityByCity.Count(kv => kv.Value.Value >= 5 && w.Get(kv.Key) is not null), both.Count);
+    }
+
+    [Fact]
+    public void BeltLift_SkipsLocalTalent()
+    {
+        var (w, p) = World();
+        var belt = w.Titles.Values.Where(t => t.Promotion == p.Id).OrderBy(t => t.Id.Value).First();
+        belt.Prestige = 90;
+        var local = Fresh(w, 40); local.LocalTalent = true;
+        BroadcastFame.BeltWon(w, p, local, belt, crowned: true);
+        Assert.Empty(local.CityReputation);
+    }
+
+    [Fact]
+    public void OriginsBracketBelt_TravelsOnce_FromTheCrowning()
+    {
+        // A one-night bracket's bouts carry no title and the night settles before the belt is handed out
+        // (OriginsShows.Crown), so the crowning applies the lift itself, once. A far city that only the belt can reach:
+        // another region, where the house is known (brand 80) but where nobody on the night has fought.
+        for (ulong seed = 1; seed <= 12; seed++)
+        {
+            var w = OriginsWorldTests.AiWorld(seed);
+            var cru = w.Promotions.Values.Single(x => x.Abbreviation == "CRU");
+            var belt = w.Get(cru.Divisions.Single().Title!.Value)!;
+            Assert.Empty(BroadcastFame.ScreensFor(cru, new Event { Id = new EventId(++_ids), Promotion = cru.Id, Name = "x", Date = w.CurrentDate }));
+            var far = w.Cities.Values.Where(c => c.Region != cru.BaseRegion).OrderBy(c => c.Id.Value).First().Id;
+            cru.PopularityByCity[far] = 80;
+            belt.Prestige = 80;   // target there 80 x 80 / 200 = 32 -> the ceiling, 24
+            foreach (var f in w.Fighters.Values) f.CityReputation.Remove(far);
+            var holder = belt.CurrentChampion;
+            var ev = OriginsShows.ScheduleTournament(w, cru.Id, w.CurrentDate.AddDays(14));
+            if (ev is null || !OriginsShows.RunTournament(w, ev, new FightEngine())) continue;
+            if (belt.CurrentChampion is not { } champId) continue;
+            Assert.DoesNotContain(ev.Card, f => f.IsTitleFight);
+            bool kept = holder == champId;
+            int expected = (int)Math.Round(BroadcastFame.RemoteCeiling * (kept ? BroadcastFame.DefenseRate : BroadcastFame.NewChampRate));
+            Assert.Equal(expected, Reputation.FighterInCity(w.Get(champId)!, far));   // lifted, and only once
+            foreach (var id in ev.Card.SelectMany(f => new[] { f.RedCorner, f.BlueCorner }).Where(id => id != champId))
+                Assert.Equal(0, Reputation.FighterInCity(w.Get(id)!, far));   // the rest of the field: no belt, no travel
+            return;
+        }
+        Assert.Fail("no seed in 1..12 crowned a bracket champion: the test never ran its checks");
     }
 
     [Fact]
@@ -275,13 +357,13 @@ public class BroadcastFameTests
     }
 
     [Fact]
-    public void Origins_DayOne_HasNoScreens_SoOnlyBeltsTravel()
+    public void Origins_DayOne_HasNoScreens()
     {
         // The 1993 world gets the same rule: its houses start with no television (the era opens screens later), so on
-        // day one nothing is broadcast; a belt still makes its champion known where the small house is.
+        // day one nothing is broadcast (its bracket belts still travel: OriginsBracketBelt_TravelsOnce_FromTheCrowning).
         var w = new WorldBuilder().Build(WorldBuilder.Options.OriginsObserver(3));
         Assert.Equal(WorldMode.Origins, w.Mode);
         foreach (var p in w.Promotions.Values.Where(p => !p.Defunct).OrderBy(p => p.Id.Value))
-            Assert.Null(BroadcastFame.ScreenFor(p, new Event { Id = new EventId(++_ids), Promotion = p.Id, Name = "x", Date = w.CurrentDate }));
+            Assert.Empty(BroadcastFame.ScreensFor(p, new Event { Id = new EventId(++_ids), Promotion = p.Id, Name = "x", Date = w.CurrentDate }));
     }
 }

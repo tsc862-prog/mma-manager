@@ -10,8 +10,8 @@ namespace MmaManager.Core.Sim.Geography;
 /// <see cref="RemoteCeiling"/> ("a few fans"), so a star's map still shows a home and the places he has fought,
 /// with a thin glow across the broadcast footprint.
 /// <para>
-/// Everything is derived from what the world already models: the screen is the strongest deal the house held
-/// when the card aired (its kind and the partner's reach), the footprint is where the PROMOTION is known
+/// Everything is derived from what the world already models: the screens are the deals the house held when the card
+/// aired (their kind and each partner's reach; each city takes the best one that reaches it), the footprint is where the PROMOTION is known
 /// (<see cref="Promotion.PopularityByCity"/>), the depth is the fighter's own public popularity and his place on the
 /// card, and a belt's lift is the belt's <see cref="Title.Prestige"/>. No randomness at all, no new model field.
 /// Each city's number is computed on its own, so the order cities are walked in never matters.
@@ -53,17 +53,18 @@ public static class BroadcastFame
     };
 
     /// <summary>
-    /// The screen this card aired on: the strongest of the house's deals (the PPV carrier only on a PPV night) and its
-    /// own platform. Null when nobody aired it.
+    /// Every screen this card aired on: each of the house's deals (the PPV carrier only on a PPV night) and its own
+    /// platform. Empty when nobody aired it. Each city takes the best screen that reaches it (<see cref="TvFootprint"/>),
+    /// so signing a bigger deal can only widen or deepen a house's reach, never narrow it.
     /// </summary>
-    public static Screen? ScreenFor(Promotion promo, Event ev)
+    public static List<Screen> ScreensFor(Promotion promo, Event ev)
     {
-        Screen? best = null;
+        var list = new List<Screen>();
         void Consider(MediaKind kind, double reach)
         {
             var (cap, home, abroad) = Shape(kind);
             var s = new Screen(kind, Math.Min(RemoteCeiling, cap * reach), home, abroad);
-            if (s.Cap > 0 && (best is null || s.Cap > best.Value.Cap)) best = s;
+            if (s.Cap > 0) list.Add(s);
         }
         foreach (var d in promo.MediaDeals)
         {
@@ -71,7 +72,28 @@ public static class BroadcastFame
             Consider(d.Kind, Finance.MediaService.ReachScaleOf(d.Partner));
         }
         if (promo.Stream is not null) Consider(MediaKind.InHouseStream, 1.0);
-        return best;
+        return list;
+    }
+
+    /// <summary>
+    /// The cities this night's screens reach, each with the brand's standing there and the highest cap among the
+    /// screens that reach it (a city out of every screen's footprint is left out).
+    /// </summary>
+    internal static List<(CityId City, int Brand, double Cap)> TvFootprint(World world, Promotion promo, List<Screen> screens)
+    {
+        var list = new List<(CityId, int, double)>();
+        if (screens.Count == 0) return list;
+        foreach (var kv in promo.PopularityByCity)
+        {
+            if (world.Get(kv.Key) is not { } c) continue;
+            bool home = c.Region == promo.BaseRegion;
+            int brand = kv.Value.Value;
+            double best = 0;
+            foreach (var s in screens)
+                if (brand >= (home ? s.HomeFloor : s.AbroadFloor)) best = Math.Max(best, s.Cap);
+            if (best > 0) list.Add((kv.Key, brand, best));
+        }
+        return list;
     }
 
     /// <summary>How much of the screen a card slot gets: the main event all of it, the co-main most, the rest of the main card some, prelims none.</summary>
@@ -91,16 +113,14 @@ public static class BroadcastFame
     public static void AfterCard(World world, Promotion promo, Event ev)
     {
         if (ev.Card.Count == 0) return;
-        var screen = ScreenFor(promo, ev);
-        List<(CityId City, int Brand)>? tv = screen is { } s ? Footprint(world, promo, s.HomeFloor, s.AbroadFloor) : null;
-        List<(CityId City, int Brand)>? known = null;
+        var tv = TvFootprint(world, promo, ScreensFor(promo, ev));
 
         for (int i = 0; i < ev.Card.Count; i++)
         {
             var fight = ev.Card[i];
             if (fight.Outcome is not { } outcome) continue;
 
-            if (tv is { Count: > 0 } && screen is { } sc)
+            if (tv.Count > 0)
             {
                 double share = PositionShare(ev, i);
                 if (share > 0)
@@ -108,7 +128,7 @@ public static class BroadcastFame
                     double rate = i == ev.Card.Count - 1 && ev.Tier >= EventTier.Ppv ? BigNightRate : TvRate;
                     foreach (var id in new[] { fight.RedCorner, fight.BlueCorner })
                         if (world.Get(id) is { LocalTalent: false } f)
-                            Televise(f, tv, sc.Cap * share, rate);
+                            Televise(f, tv, share, rate);
                 }
             }
 
@@ -116,12 +136,22 @@ public static class BroadcastFame
             if (fight.IsTitleFight && fight.Title is { } tid && world.Get(tid) is { } title
                 && outcome.Winner is { } wid && title.CurrentChampion == wid && world.Get(wid) is { } champ)
             {
-                known ??= Footprint(world, promo, BeltFloor, BeltFloor);
                 bool crowned = title.Lineage.LastOrDefault(r => r.LostOn is null) is { } reign
                                && reign.Champion == wid && reign.WonOn == ev.Date;
-                LiftForBelt(champ, known, title.Prestige.Value, crowned ? NewChampRate : DefenseRate);
+                BeltWon(world, promo, champ, title, crowned);
             }
         }
+    }
+
+    /// <summary>
+    /// A belt won (<paramref name="crowned"/>) or kept: its champion becomes known wherever the house is. Called once per
+    /// belt per night: from <see cref="AfterCard"/> for a title bout, and from an Origins bracket's crowning
+    /// (OriginsShows.Crown), whose bouts carry no title and whose belt is handed out after the night settles.
+    /// </summary>
+    public static void BeltWon(World world, Promotion promo, Fighter champ, Title title, bool crowned)
+    {
+        if (champ.LocalTalent) return;
+        LiftForBelt(champ, Footprint(world, promo, BeltFloor, BeltFloor), title.Prestige.Value, crowned ? NewChampRate : DefenseRate);
     }
 
     /// <summary>A belt is news wherever the brand is at least this well known.</summary>
@@ -141,15 +171,15 @@ public static class BroadcastFame
     }
 
     /// <summary>
-    /// One televised appearance: in each footprint city the target is the screen's cap at this slot, held down by how
+    /// One televised appearance: in each footprint city the target is the best reaching screen's cap at this slot, held down by how
     /// famous the man is and how well the city knows the brand (popularity x brand / 250: a 90-pop star where the brand
     /// is at 60 is worth ~22); the city closes <paramref name="rate"/> of the gap.
     /// </summary>
-    internal static void Televise(Fighter f, List<(CityId City, int Brand)> footprint, double slotCap, double rate)
+    internal static void Televise(Fighter f, List<(CityId City, int Brand, double Cap)> footprint, double share, double rate)
     {
         int pop = f.Intangibles.Popularity.Value;
-        foreach (var (city, brand) in footprint)
-            Approach(f, city, Math.Min(slotCap, pop * brand / 250.0), rate);
+        foreach (var (city, brand, cap) in footprint)
+            Approach(f, city, Math.Min(cap * share, pop * brand / 250.0), rate);
     }
 
     /// <summary>
