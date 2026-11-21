@@ -146,7 +146,7 @@ public class PlayerPlatformTests
         Assert.Equal(MediaService.OfferPerQuarter(world, house, offer), trade.Value.OfferPerQuarter);
         Assert.Equal(trade.Value.OfferPerQuarter - trade.Value.PlatformPerQuarter, trade.Value.GainPerQuarter);
 
-        var deal = MediaService.Accept(world, house, offer, world.CurrentDate);
+        var deal = MediaService.Accept(world, house, offer, world.CurrentDate)!;
 
         Assert.Null(house.Stream);
         Assert.Equal("Arena+", deal.Partner);

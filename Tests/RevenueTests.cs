@@ -449,9 +449,10 @@ public class RevenueTests
             promo.MediaDeals.Clear();
             promo.Offers.Clear();
             promo.CourtedBy.Clear();
-            var offer = new DealOffer { Media = MediaKind.CableSports, Partner = partner, FeePerEvent = Money.Zero, Term = 24 };
+            var offer = new DealOffer { Media = MediaKind.CableSports, Partner = partner, FeePerEvent = Money.Zero, Term = 24,
+                OfferedOn = world.CurrentDate, ExpiresOn = world.CurrentDate.AddDays(90) };
             promo.Offers.Add(offer);
-            return MediaService.Accept(world, promo, offer, world.CurrentDate);
+            return MediaService.Accept(world, promo, offer, world.CurrentDate)!;
         }
 
         // Fees & terms come from the OFFER, which MakeOffer builds per profile —
