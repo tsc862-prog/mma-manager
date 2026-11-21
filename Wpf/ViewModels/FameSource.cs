@@ -83,7 +83,7 @@ public static class FameSource
 
     /// <summary>
     /// One line on the cities that know the name without ever having seen him fight, by what carried it there:
-    /// "Never seen live in 37 cities: known as a champion in 36 · from TV in 1". "" when every city that knows him has
+    /// "Never seen live in 37 cities: known as the VMMA champion in 36 · seen on TV in 1". "" when every city that knows him has
     /// seen him (or is home). <paramref name="known"/> is <see cref="Fame.KnownCities(World, Fighter)"/>.
     /// </summary>
     public static string RemoteLine(World w, Fighter f, List<(City City, int Fame)> known)
