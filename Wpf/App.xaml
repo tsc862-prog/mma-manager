@@ -615,6 +615,8 @@
         <Geometry x:Key="Icon.Newspaper">M4,5 H17 V19 H6 A2,2 0 0 1 4,17 Z M17,9 H20 V17 A2,2 0 0 1 18,19 H17 M7,8.5 H14 M7,12 H14 M7,15 H11</Geometry>
         <Geometry x:Key="Icon.Building">M4,20.5 H20 M5.5,20.5 V8 L12,4 L18.5,8 V20.5 M9,11 H10 M14,11 H15 M9,14.5 H10 M14,14.5 H15 M10.5,20.5 V17 H13.5 V20.5</Geometry>
         <Geometry x:Key="Icon.Home">M3.5,11.5 L12,4.5 L20.5,11.5 M6,9.5 V20 H18 V9.5 M10,20 V14.5 H14 V20</Geometry>
+        <!-- The cage (an octagon): "fought here". -->
+        <Geometry x:Key="Icon.Cage">M9,3.5 H15 L20.5,9 V15 L15,20.5 H9 L3.5,15 V9 Z</Geometry>
         <Geometry x:Key="Icon.Flame">M12,21 A6.5,6.5 0 0 1 5.5,14.5 C5.5,10.5 9,8.5 9.5,4 C12.5,6 13.5,9 13,11.5 C14.5,10.8 15.3,9.6 15.5,8.2 C17.5,10 18.5,12.2 18.5,14.5 A6.5,6.5 0 0 1 12,21 Z</Geometry>
         <Geometry x:Key="Icon.ChevronLeft">M15,5 L8,12 L15,19</Geometry>
         <Geometry x:Key="Icon.ChevronRight">M9,5 L16,12 L9,19</Geometry>
@@ -1324,6 +1326,13 @@
                            TextAlignment="Center" TextTrimming="CharacterEllipsis" />
             </StackPanel>
         </DataTemplate>
+        <!-- The short "why this city knows him" phrase (FameSource) under a hot-spot chip and on the map hover card. -->
+        <Style x:Key="Text.FameSource" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontStyle" Value="Italic" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
         <!-- A city where the name carries, as a heat-coloured chip (the host binds the click). -->
         <Style x:Key="HotSpotChip" TargetType="Button">
             <Setter Property="Cursor" Value="Hand" />
@@ -1332,6 +1341,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="b" Background="{Binding HeatBrush}" CornerRadius="6" Padding="10,5" BorderThickness="1" BorderBrush="Transparent">
+                            <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <controls:Icon x:Name="home" Kind="Home" Width="14" Height="14" Brush="{Binding InkBrush}" StrokeThickness="2"
                                                Margin="0,0,6,0" VerticalAlignment="Center" Visibility="Collapsed" />
@@ -1339,10 +1349,19 @@
                                 <TextBlock x:Name="where" Text="{Binding Where}" FontSize="11" Foreground="{Binding InkBrush}" Opacity="0.8" Margin="6,0,0,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding Fame}" FontWeight="Bold" FontSize="14" Foreground="{Binding InkBrush}" Margin="10,0,0,0" VerticalAlignment="Center" />
                             </StackPanel>
+                            <!-- Why the city knows him (fighter maps only; FameSource): a small glyph and a phrase. -->
+                            <StackPanel x:Name="src" Orientation="Horizontal" Margin="0,2,0,0" Opacity="0.88">
+                                <controls:Icon x:Name="srcGlyph" Kind="{Binding SourceGlyph}" Width="11" Height="11" Brush="{Binding InkBrush}" StrokeThickness="2"
+                                               Margin="0,0,5,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Source}" Style="{StaticResource Text.FameSource}" Foreground="{Binding InkBrush}" />
+                            </StackPanel>
+                            </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
                             <DataTrigger Binding="{Binding IsHome}" Value="True"><Setter TargetName="home" Property="Visibility" Value="Visible" /></DataTrigger>
                             <DataTrigger Binding="{Binding Where}" Value=""><Setter TargetName="where" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Source}" Value=""><Setter TargetName="src" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <DataTrigger Binding="{Binding SourceGlyph}" Value=""><Setter TargetName="srcGlyph" Property="Visibility" Value="Collapsed" /></DataTrigger>
                             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource TextPrimary}" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

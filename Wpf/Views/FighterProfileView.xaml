@@ -170,7 +170,7 @@
                     </Border>
                     <!-- Where the name carries: the hottest cities as heat chips, the regions that know him, and the map -->
                     <Border Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource Border}" BorderThickness="1" Padding="10,8"
-                            Margin="0,0,12,12" MaxWidth="476" HorizontalAlignment="Left">
+                            Margin="0,0,12,12" MinWidth="420" MaxWidth="476" HorizontalAlignment="Left">
                         <StackPanel>
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" Content="{Binding SelectedFighter.FameMapText}" Style="{StaticResource Button.Link}" Padding="0"
@@ -193,6 +193,9 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock Text="{Binding SelectedFighter.FameRemoteLine}" Style="{StaticResource Text.FameSource}" FontSize="11.5"
+                                       Foreground="{StaticResource TextSecondary}" TextTrimming="None" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Visibility="{Binding SelectedFighter.HasFameRemote, Converter={StaticResource BoolToVis}}" />
                             <ItemsControl ItemsSource="{Binding SelectedFighter.KnownRegions}" Margin="0,2,0,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>

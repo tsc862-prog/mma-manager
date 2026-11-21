@@ -2096,6 +2096,16 @@ public partial class App : Application
                             // a working regional name: known (30-55) in his best city, and in one region only
                             "regional" => pool.Where(f => !f.LocalTalent && TopCity(f) is >= 30 and <= 55 && RegionsKnown(f) == 1)
                                               .OrderByDescending(f => f.CityReputation.Values.Count(v => v.Value > 0)).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                            // the widest-known name who has never held a belt (so his far fame can only be television or word of mouth)
+                            "tv" => pool.Where(f => !f.LocalTalent && !w.Titles.Values.Any(t => t.CurrentChampion == f.Id || t.Lineage.Any(r => r.Champion == f.Id)))
+                                        .OrderByDescending(f => f.CityReputation.Values.Count(v => v.Value >= 10))
+                                        .ThenByDescending(f => MmaManager.Core.Sim.Geography.Reputation.FighterBest(w, f)).ThenBy(f => f.Id.Value).FirstOrDefault(),
+                            // a working pro known only at home: every city that knows him is his home town (best home fame first)
+                            // (a working name, 10-45 at home, who has fought and never held a belt; the deepest such home first)
+                            "local" => pool.Where(f => !f.LocalTalent && f.HomeCity is { } hc && f.BoutHistory.Count > 0 && TopCity(f) is >= 10 and <= 45
+                                                       && f.CityReputation.All(kv => kv.Value.Value <= 0 || kv.Key == hc)
+                                                       && !w.Titles.Values.Any(t => t.Lineage.Any(r => r.Champion == f.Id)))
+                                           .OrderByDescending(TopCity).ThenBy(f => f.Id.Value).FirstOrDefault(),
                             // the least-known name on file (a signed or listed fighter before a scouted local)
                             _ => pool.OrderBy(TopCity).ThenBy(f => f.LocalTalent).ThenBy(f => f.Id.Value).FirstOrDefault(),
                         };
@@ -2137,6 +2147,20 @@ public partial class App : Application
                         string name = e.Args[Array.IndexOf(e.Args, "--hover") + 1];
                         wm.HoverSpot = wm.MapSpots.FirstOrDefault(s => s.Name == name);
                     }
+                    // --hoverfame <Home|Fought|Belt|Television|Nearby|Medal|Unseen>: hover the subject's hottest city whose
+                    // fame comes from that source (FameSource), so the hover card's "why" line can be seen for each kind.
+                    if (e.Args.Contains("--hoverfame") && vm.LiveWorld is { } hw && vm.SelectedFighter?.Model is { } subj)
+                    {
+                        var want = Enum.Parse<FameSourceKind>(e.Args[Array.IndexOf(e.Args, "--hoverfame") + 1], true);
+                        var fameSpot = wm.MapSpots.Where(s => hw.Get(new MmaManager.Core.Model.CityId(s.CityId)) is { } c && FameSource.For(hw, subj, c).Kind == want)
+                            .OrderByDescending(s => s.Value).ThenBy(s => s.CityId).FirstOrDefault();
+                        wm.HoverSpot = fameSpot;
+                        Console.WriteLine($"RENDERAPP hoverfame {want}: {fameSpot?.Name ?? "no such city"} {fameSpot?.Value}");
+                    }
+                    // Every source line the subject's map would show, once per kind (the harness's proof of the wording).
+                    if (vm.LiveWorld is { } lw && vm.SelectedFighter?.Model is { } sfx && wm.Layer == MapLayer.Fighter)
+                        foreach (var g in Fame.KnownCities(lw, sfx).Select(k => (k.City, k.Fame, n: FameSource.For(lw, sfx, k.City))).GroupBy(t => t.n.Kind))
+                            Console.WriteLine($"RENDERAPP source {g.Key}: {g.Count()} cities, e.g. {string.Join(" | ", g.Take(3).Select(t => $"{t.City.Name} {t.Fame}: {t.n.Text}"))}");
                     if (e.Args.Contains("--hovercountry")) wm.HoverCountry = e.Args[Array.IndexOf(e.Args, "--hovercountry") + 1];
                     // --mapadvance: a week goes by with the map drilled in (the drill, layer and subject must survive the refresh).
                     if (e.Args.Contains("--mapadvance"))
@@ -2338,6 +2362,19 @@ public partial class App : Application
                 string p = e.Args[^1];
                 using (var fs = File.Create(p)) enc.Save(fs);
                 Console.WriteLine("RENDERAPP OK -> " + Path.GetFullPath(p));
+                // --alsoprofile: from the same world (no second sim-forward), the fame subject's profile too, to <path>-profile.png.
+                if (e.Args.Contains("--alsoprofile") && vm.SelectedFighter is { } also)
+                {
+                    vm.OpenFighter(also.Id);
+                    Layout();
+                    WaitThumbs("before the profile");
+                    var prtb = new RenderTargetBitmap(W, H, 96, 96, PixelFormats.Pbgra32);
+                    prtb.Render(root);
+                    var penc = new PngBitmapEncoder(); penc.Frames.Add(BitmapFrame.Create(prtb));
+                    string pp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(p))!, Path.GetFileNameWithoutExtension(p) + "-profile.png");
+                    using (var fs = File.Create(pp)) penc.Save(fs);
+                    Console.WriteLine("RENDERAPP OK -> " + pp);
+                }
             }
             catch (Exception ex) { Console.WriteLine("RENDERAPP FAIL: " + ex); }
             Environment.Exit(0);

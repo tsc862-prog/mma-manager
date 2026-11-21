@@ -185,6 +185,8 @@
                                 <controls:Icon Kind="Home" Width="14" Height="14" Brush="{StaticResource Gold}" StrokeThickness="2" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding SubjectHome}" Foreground="{StaticResource TextSecondary}" FontSize="12" VerticalAlignment="Center" />
                             </StackPanel>
+                            <TextBlock Text="{Binding SubjectRemote}" Style="{StaticResource Text.FameSource}" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                                       TextTrimming="None" TextWrapping="Wrap" Margin="20,3,0,0" Visibility="{Binding HasSubjectRemote, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                     </DockPanel>
                 </Border>
@@ -273,6 +275,12 @@
                                     <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
                                         <Border Width="11" Height="11" CornerRadius="6" Background="{Binding HoverValueBrush}" VerticalAlignment="Center" Margin="0,0,7,0" />
                                         <TextBlock Text="{Binding HoverValue}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="18,3,0,0" Visibility="{Binding HasHoverSource, Converter={StaticResource BoolToVis}}">
+                                        <controls:Icon Kind="{Binding HoverSourceGlyph}" Width="12" Height="12" Brush="{StaticResource DrawInk}" StrokeThickness="2"
+                                                       Margin="0,0,5,0" VerticalAlignment="Center" Visibility="{Binding HasHoverSourceGlyph, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="{Binding HoverSource}" Style="{StaticResource Text.FameSource}" FontSize="11.5" Foreground="{StaticResource DrawInk}"
+                                                   TextTrimming="None" TextWrapping="Wrap" MaxWidth="250" />
                                     </StackPanel>
                                     <TextBlock Text="{Binding HoverSecond}" Foreground="{StaticResource TextSecondary}" FontSize="11.5" Margin="0,3,0,0" />
                                     <TextBlock Text="{Binding HoverOrgs}" Foreground="{StaticResource TextSecondary}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap" />
