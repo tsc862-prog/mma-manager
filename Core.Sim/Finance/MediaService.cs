@@ -185,6 +185,9 @@ public static class MediaService
     private static PartnerProfile ProfileOf(string partner) =>
         Profiles.TryGetValue(partner, out var p) ? p : new PartnerProfile(partner, "standard", 1.0m, 1.0, 0);
 
+    /// <summary>How far the network carries relative to its rung (the flagship 1.1, the budget channel 0.8; 1.0 unknown).</summary>
+    internal static double ReachScaleOf(string partner) => ProfileOf(partner).ReachScale;
+
     /// <summary>The network's personality tag ("flagship", "niche", "budget"…) for display.</summary>
     public static string TagOf(string partner) => ProfileOf(partner).Tag;
 
