@@ -675,6 +675,14 @@
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+        <!-- Text.Stat: one big number with a caption under it (a trade, a cost) — two or three side by side
+             say more than a table row. Colour it with a Tone brush when it goes up or down. -->
+        <Style x:Key="Text.Stat" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+            <Setter Property="FontSize" Value="21" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
         <Style x:Key="Text.Quote" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontStyle" Value="Italic" />
@@ -1026,6 +1034,20 @@
             <Setter Property="Padding" Value="14,6" />
             <Setter Property="Margin" Value="0" />
         </Style>
+        <!-- Button.Danger: the confirming button of a destructive question (shut it down, close it) — outlined in the bad tone, never filled. -->
+        <Style x:Key="Button.Danger" TargetType="Button" BasedOn="{StaticResource Button.Ghost}">
+            <Setter Property="Foreground" Value="{StaticResource ToneBad}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ToneBad}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <!-- the implicit TextBlock style would paint a string label white: carry the button's own colour through -->
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="Button.Soft" TargetType="Button" BasedOn="{StaticResource Button.Primary}">
             <Setter Property="Background" Value="{DynamicResource OrgAccentDim}" />
             <Setter Property="BorderBrush" Value="{DynamicResource OrgAccentDim}" />
@@ -1055,6 +1077,70 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Button.Quiet: a secondary action that should not draw the eye (shut a platform down…): faint text, brighter on hover. -->
+        <Style x:Key="Button.Quiet" TargetType="Button" BasedOn="{StaticResource Button.Link}">
+            <Setter Property="Foreground" Value="{StaticResource TextFaint}" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- PlatformTradeTemplate: a PlatformTradeView — what a streaming giant's offer costs while our own
+             platform runs: three numbers (the platform's net, the deal's expected pay, the difference), a
+             sentence on each side of them, and a plain warning when our record would miss the deal's terms. -->
+        <DataTemplate x:Key="PlatformTradeTemplate">
+            <Border Background="{StaticResource SurfaceSunken}" BorderBrush="{StaticResource PanelEdge}" BorderThickness="1"
+                    CornerRadius="{StaticResource Radius.Card}" Padding="12,10,12,12" Margin="0,10,0,0">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Text.Kicker}" Foreground="{StaticResource ToneWarn}" TextTrimming="CharacterEllipsis">
+                        <Run Text="THE TRADE  ·  SIGNING CLOSES " /><Run Text="{Binding Platform, Mode=OneWay}" />
+                    </TextBlock>
+                    <Grid Margin="0,8,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock x:Name="net" Text="{Binding PlatformNet}" Style="{StaticResource Text.Stat}" Foreground="{StaticResource ToneGood}" />
+                            <TextBlock Style="{StaticResource Text.Caption}" TextTrimming="None" TextWrapping="Wrap">
+                                <Run Text="{Binding Platform, Mode=OneWay}" /><Run Text=" nets a quarter" />
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                            <TextBlock Text="{Binding OfferPays}" Style="{StaticResource Text.Stat}" Foreground="{StaticResource TextPrimary}" />
+                            <TextBlock Style="{StaticResource Text.Caption}" TextTrimming="None" TextWrapping="Wrap">
+                                <Run Text="{Binding Partner, Mode=OneWay}" /><Run Text=" should pay a quarter" />
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock x:Name="gain" Text="{Binding Gain}" Style="{StaticResource Text.Stat}" Foreground="{StaticResource ToneGood}" />
+                            <TextBlock Text="a quarter if you sign" Style="{StaticResource Text.Caption}" TextTrimming="None" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding Lede}" Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding CloseLine}" Style="{StaticResource Text.Secondary}" Margin="0,4,0,0" />
+                    <Border Background="{StaticResource ToneBadDim}" CornerRadius="6" Padding="10,8" Margin="0,10,0,0"
+                            Visibility="{Binding HasWarning, Converter={StaticResource BoolToVis}}">
+                        <DockPanel>
+                            <controls:Icon DockPanel.Dock="Left" Kind="Warning" Width="18" Height="18" Brush="{StaticResource ToneBad}"
+                                           VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <StackPanel>
+                                <TextBlock Text="YOUR RECORD WOULD MISS THEIR TERMS" Style="{StaticResource Text.Kicker}" Foreground="{StaticResource ToneBad}" />
+                                <TextBlock Text="{Binding Warning}" Style="{StaticResource Text.Secondary}" Foreground="{StaticResource TextPrimary}" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding PlatformUp}" Value="False">
+                    <Setter TargetName="net" Property="Foreground" Value="{StaticResource ToneBad}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding GainUp}" Value="False">
+                    <Setter TargetName="gain" Property="Foreground" Value="{StaticResource ToneBad}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
 
         <!-- OfferCardTemplate: an OfferRow (a sponsor or a network on the table) — the partner's mark large,
              who and what, the money and the term, their conditions, Sign / Pass. The host's DataContext
@@ -1066,11 +1152,11 @@
                     <ContentControl DockPanel.Dock="Left" Style="{StaticResource BrandMark}" Content="{Binding Partner}"
                                     Width="104" Height="60" VerticalAlignment="Top" Margin="0,2,16,0" />
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button Content="Sign" Style="{StaticResource Button.Primary}" Padding="18,5" FontSize="12.5" Margin="0,0,8,0"
-                                Command="{Binding DataContext.AcceptOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        <Button Content="{Binding SignLabel}" Style="{StaticResource Button.Primary}" Padding="18,5" FontSize="12.5" Margin="0,0,8,0"
+                                Command="{Binding DataContext.AcceptOfferCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}" />
                         <Button x:Name="pass" Content="Pass" Style="{StaticResource Button.Ghost}" Padding="14,4" FontSize="12.5"
-                                Command="{Binding DataContext.DeclineOfferCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Command="{Binding DataContext.DeclineOfferCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}" />
                     </StackPanel>
                     <StackPanel>
@@ -1086,6 +1172,9 @@
                             <Run Text="  ·  " Foreground="{StaticResource TextMuted}" /><Run Text="{Binding Term, Mode=OneWay}" Foreground="{StaticResource TextSoft}" />
                         </TextBlock>
                         <TextBlock Text="{Binding Terms}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                        <!-- a streaming giant while our own platform runs: what signing gives up, before we answer -->
+                        <ContentControl Content="{Binding Trade}" ContentTemplate="{StaticResource PlatformTradeTemplate}" Focusable="False"
+                                        Visibility="{Binding HasTrade, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                 </DockPanel>
             </Border>

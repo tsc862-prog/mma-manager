@@ -65,6 +65,9 @@ namespace MmaManager.Tests;
 /// no draw; fitted again after the network's running order at announcement and once the card has settled on fight
 /// night). Both modern pins move: the gate, and through it banks and prestige, differs from the first cards. No Origins
 /// pin moves (all four equal main's at 860c31a; Origins houses never come to RoomFit).
+/// Recaptured on world/player-platform (a media partner signing elsewhere now mails the player when it takes an offer
+/// off his desk). Only modern-player-4-y2 moves, and only through his inbox: with World.Mail left out of the digest,
+/// all six keys are identical with the new mail on and off. The other five equal main's at dac1515.
 /// Recaptured on world/fame-travel (city fame travels through television and belts, Geography.BroadcastFame, applied in
 /// EventService.Settle after the gate: no draw, no new field). Both modern pins move (televised main cards from week one
 /// raise touring stars' city fame, which the next card's draw reads). Of the Origins pins origins-player-3-y4 never moves
@@ -76,7 +79,7 @@ public class TickIdentityTests
     private static readonly Dictionary<string, string> Expected = new(StringComparer.Ordinal)
     {
         ["modern-ai-11-y2"] = "B5C1E9C56E19277F087B",   // 2027-12-30, 4635 events, 7543 fighters
-        ["modern-player-4-y2"] = "FE8BC0F139B1A1600B19",   // 2027-12-30, 4584 events, 7567 fighters
+        ["modern-player-4-y2"] = "FFB9B7E32172D0B6CF6D",   // 2027-12-30, 4584 events, 7567 fighters
         ["origins-player-3-y4"] = "F572D25439AA44611209",   // 1996-12-27, 68 events, 177 fighters
         ["origins-player-8-y10"] = "72819CCC80053DE57556",   // 2002-12-20, 193 events, 311 fighters
         ["origins-observer-5-y10"] = "B623CA75E4DD74ED6647",   // 2002-12-20, 306 events, 420 fighters
