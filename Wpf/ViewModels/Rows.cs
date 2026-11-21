@@ -573,12 +573,20 @@ public sealed class FighterRow
     /// <summary>Where the name carries furthest, in a line; or the human line for a nobody.</summary>
     public string FameLine => IsKnownNowhere ? Fame.NobodyLine(_f) : Fame.ReachLine(_w, Known);
     /// <summary>The three hottest cities as heat chips.</summary>
-    public IReadOnlyList<HotSpot> FameHotSpots => Known.Take(3).Select(k => new HotSpot
+    public IReadOnlyList<HotSpot> FameHotSpots => Known.Take(3).Select(k =>
     {
-        City = k.City.Name, Where = _w.Get(k.City.Country)?.Name is { } cn && cn != k.City.Name ? cn : "", Fame = k.Fame,
-        HeatBrush = Fame.Heat(k.Fame), InkBrush = Fame.InkOn(k.Fame),
-        IsHome = k.City.Id == _f.HomeCity, Region = k.City.Region, Country = k.City.Country,
+        var note = FameSource.For(_w, _f, k.City);
+        return new HotSpot
+        {
+            City = k.City.Name, Where = _w.Get(k.City.Country)?.Name is { } cn && cn != k.City.Name ? cn : "", Fame = k.Fame,
+            HeatBrush = Fame.Heat(k.Fame), InkBrush = Fame.InkOn(k.Fame),
+            IsHome = k.City.Id == _f.HomeCity, Region = k.City.Region, Country = k.City.Country,
+            Source = note.Text, SourceGlyph = note.Glyph,
+        };
     }).ToList();
+    /// <summary>What carried the name to the cities that have never seen the fighter fight ("" when there are none).</summary>
+    public string FameRemoteLine => IsKnownNowhere ? "" : FameSource.RemoteLine(_w, _f, Known);
+    public bool HasFameRemote => FameRemoteLine.Length > 0;
     /// <summary>Regions where the name means anything (the bars only list these; all zero shows none).</summary>
     public IReadOnlyList<RatingBar> KnownRegions => RegionalFame.Where(b => b.Value > 0).ToList();
     public string FameMapText => _f.Sex == Sex.Female ? "See where she's known on the map ›" : "See where he's known on the map ›";
