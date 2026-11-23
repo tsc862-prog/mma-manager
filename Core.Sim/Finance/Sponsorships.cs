@@ -241,9 +241,22 @@ public static class Sponsorships
         return offer;
     }
 
-    /// <summary>Sign an offer off the table into an active deal.</summary>
-    public static SponsorDeal Accept(World world, Promotion promo, DealOffer offer, DateOnly date)
+    /// <summary>
+    /// The sponsor offers still open to answer on <paramref name="date"/>, in table order. A lapsed offer
+    /// (<see cref="MediaService.IsLive"/>: live through its expiry day) can sit in <see cref="Promotion.Offers"/> until
+    /// the month turn's prune, so anything that shows or signs sponsor offers reads this instead of the list.
+    /// </summary>
+    public static IEnumerable<DealOffer> PendingOffers(Promotion promo, DateOnly date) =>
+        promo.Offers.Where(o => o.Media is null && MediaService.IsLive(o, date));
+
+    /// <summary>
+    /// Sign an offer off the table into an active deal. Returns null, changing nothing, when the offer has lapsed
+    /// (<see cref="MediaService.IsLive"/>): the month turn's prune takes it off the table. AI houses only answer inside
+    /// the monthly pass, after that prune, so they never meet a lapsed one.
+    /// </summary>
+    public static SponsorDeal? Accept(World world, Promotion promo, DealOffer offer, DateOnly date)
     {
+        if (!MediaService.IsLive(offer, date)) return null;
         promo.Offers.Remove(offer);
         var deal = new SponsorDeal
         {
@@ -257,11 +270,13 @@ public static class Sponsorships
         return deal;
     }
 
-    private static void AiAccept(World world, Promotion promo, DateOnly date)
+    internal static void AiAccept(World world, Promotion promo, DateOnly date)
     {
+        // Live offers only: Accept leaves a lapsed one on the table, so a loop over the raw list would never end. (After
+        // the prune at the top of RunMonthly every sponsor offer is live, so this picks exactly what it always did.)
         while (promo.SponsorDeals.Count < Slots(Org.OrgSizing.SizeOf(promo)))
         {
-            var best = promo.Offers.Where(o => o.Media is null)
+            var best = PendingOffers(promo, date)
                 .OrderByDescending(o => o.FeePerEvent.Amount).FirstOrDefault();
             if (best is null) return;
             Accept(world, promo, best, date);
