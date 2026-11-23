@@ -210,7 +210,8 @@ public sealed class FinanceViewModel : ObservableObject
         {
             if (_world?.Get(_world.PlayerPromotion) is not { } promo || row.Offer.Media is not null) return;
             if (!promo.Offers.Contains(row.Offer)) { Changed(); return; }   // lapsed or answered elsewhere since the row was drawn
-            MmaManager.Core.Sim.Finance.Sponsorships.Accept(_world, promo, row.Offer, _world.CurrentDate);
+            if (MmaManager.Core.Sim.Finance.Sponsorships.Accept(_world, promo, row.Offer, _world.CurrentDate) is null)
+                Said?.Invoke($"{row.Offer.Partner}'s offer lapsed on {row.Offer.ExpiresOn:d MMM}; it is off the table.");
             Changed();
         });
         DeclineOfferCommand = new RelayCommand<OfferRow>(row =>
@@ -223,6 +224,9 @@ public sealed class FinanceViewModel : ObservableObject
 
     /// <summary>A deal signed or passed moves the money: the whole app refreshes (this screen with it).</summary>
     public Action? OnChanged { get; set; }
+
+    /// <summary>A line for the status strip (a sponsor offer that lapsed before he signed it).</summary>
+    public Action<string>? Said { get; set; }
 
     private void Changed()
     {
@@ -277,7 +281,7 @@ public sealed class FinanceViewModel : ObservableObject
 
         foreach (var d in promo.SponsorDeals.OrderByDescending(d => d.FeePerEvent.Amount))
             Sponsors.Add(new SponsorRow(d));
-        foreach (var o in promo.Offers.Where(o => o.Media is null).OrderBy(o => o.ExpiresOn))
+        foreach (var o in MmaManager.Core.Sim.Finance.Sponsorships.PendingOffers(promo, now).OrderBy(o => o.ExpiresOn))
             Offers.Add(new OfferRow(o));
 
         foreach (var e in Enumerable.Reverse(promo.Ledger).Take(25)) Recent.Add(new TxnRow(e));

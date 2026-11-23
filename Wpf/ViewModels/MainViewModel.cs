@@ -109,6 +109,7 @@ public sealed partial class MainViewModel : ObservableObject
         Media.OnChanged = RefreshAll;       // a deal signed or a platform closed moves the screens and the books
         Finance.OnChanged = RefreshAll;     // a sponsor signed or passed moves the balance every screen shows
         Media.Said = line => StatusText = line;
+        Finance.Said = line => StatusText = line;   // a sponsor offer that lapsed before he signed it
         if (!HeadlessAutoBoot)
             Media.Confirm = (heading, body, detail, confirm, keep) => MessageWindow.Ask(heading, body, detail, confirm, keep);
         Booking.OnRunLive = RunLive;        // "run & watch" a card
