@@ -403,16 +403,87 @@ public static class Camps
 
         var members = world.Fighters.Values
             .Where(f => f.Camp == camp.Id && f.Status == FighterStatus.Active)
-            .OrderByDescending(Ability.FighterAbility.CurrentAbility)
             .ToList();
-        var lines = members.Select(f =>
-            $"• {f.FullName} ({f.Record}, age {f.AgeOn(date)}) — looks a {Ability.FighterAbility.CurrentAbility(f)}, " +
-            (f.PotentialAbility.Value - Ability.FighterAbility.CurrentAbility(f) >= 8 ? "clear room to grow" : "close to his ceiling"));
+        var places = PublicPlaces(world);
+        var rank = places.ToDictionary(kv => kv.Key, kv => kv.Value.Rank);
+        var lines = ReportOrder(members, rank).Select(f =>
+            $"• {f.FullName} ({f.Record}, age {f.AgeOn(date)}"
+            + (places.TryGetValue(f.Id, out var p) ? $", #{p.Rank} {OriginsReforms.Name(p.Division).ToLowerInvariant()}" : "") + ")"
+            + $" — looks a {Ability.FighterAbility.CurrentAbility(f)}, {GrowthRead(f, date)}");
+        // A report already paid for and still unread would make the inbox drop this one as a repeat, and the
+        // player would pay for nothing: the new report supersedes it.
+        foreach (var old in world.Mail.Where(m => !m.Read && m.Subject == $"Camp report: {camp.Name}"))
+            old.Read = true;
         Mail.Post(world, date, MailCategory.General, "Scouting",
             $"Camp report: {camp.Name}",
             $"A week on the mats at {camp.Name} ({world.Get(camp.City)?.Name}). {members.Count} pros in the room:\n"
             + string.Join("\n", lines));
         return true;
+    }
+
+    // The camp report's ONE paid reveal is each man's exact current ability ("looks a 62"). Everything else on it
+    // is what anybody could say from the outside: the room is listed in public order (the cross-org rankings, then
+    // the record, then id), and the growth line is what a coach can honestly say without reading the hidden
+    // ceiling (age, the record's trend, the current run, and the band of the number the report just showed).
+
+    /// <summary>Each ranked fighter's public place in his division's cross-org rankings (1 = top of the list).</summary>
+    internal static Dictionary<FighterId, int> PublicRanks(World world) =>
+        PublicPlaces(world).ToDictionary(kv => kv.Key, kv => kv.Value.Rank);
+
+    // Divisions walked in enum order so a man listed twice always keeps the same place, whatever order the
+    // dictionary was filled in (a loaded world fills it in its own order).
+    private static Dictionary<FighterId, (int Rank, WeightClass Division)> PublicPlaces(World world)
+    {
+        var places = new Dictionary<FighterId, (int, WeightClass)>();
+        foreach (var (wc, list) in world.GlobalRankings.OrderBy(kv => kv.Key))
+            for (int i = 0; i < list.Count; i++)
+                places.TryAdd(list[i], (i + 1, wc));
+        return places;
+    }
+
+    /// <summary>
+    /// The order a camp report lists its room in: public facts only. Ranked men first, best place first; then
+    /// the most wins, the fewest losses, the longest record; id last so the order never depends on iteration.
+    /// </summary>
+    internal static IEnumerable<Fighter> ReportOrder(IEnumerable<Fighter> members, IReadOnlyDictionary<FighterId, int> rank) =>
+        members
+            .OrderBy(f => rank.TryGetValue(f.Id, out int r) ? r : int.MaxValue)
+            .ThenByDescending(f => f.Record.Wins)
+            .ThenBy(f => f.Record.Losses)
+            .ThenByDescending(f => f.Record.TotalBouts)
+            .ThenBy(f => f.Id.Value);
+
+    /// <summary>
+    /// What a coach can honestly say about a man's room to grow without reading his hidden ceiling: the headroom
+    /// a man of his age usually has left, what his record says about how he has been winning (both the public
+    /// projection the scouts use, <see cref="Scouting.ScoutingService.Headroom"/> and
+    /// <see cref="Scouting.ScoutingService.RecordSignal"/>), his current run, and the band of the ability the
+    /// report itself shows. Never reads <see cref="Fighter.PotentialAbility"/>.
+    /// </summary>
+    internal static string GrowthRead(Fighter f, DateOnly date)
+    {
+        int age = f.AgeOn(date);
+        string his = f.Sex == Sex.Female ? "her" : "his";
+        string him = f.Sex == Sex.Female ? "her" : "him";
+        var band = Scouting.ScoutReport.Band(Ability.FighterAbility.CurrentAbility(f));   // of the number just revealed
+        double room = Scouting.ScoutingService.Headroom(age) + Scouting.ScoutingService.RecordSignal(f, age);
+        int run = f.Record.CurrentStreak;
+
+        string read = room switch
+        {
+            >= 11 => band == Scouting.StatBand.Elite
+                ? "already among the best and young enough that the coaches think there is more"
+                : "young, and the coaches think there is plenty more to come",
+            >= 7 => "still in the years where fighters get better",
+            >= 3 => $"close to {his} prime; small gains left, if any",
+            > 0 => $"in {his} peak years; what you see is about what you get",
+            _ => band is Scouting.StatBand.Elite or Scouting.StatBand.Strong
+                ? $"a finished article; the job now is keeping {him} sharp"
+                : "past the age of big jumps",
+        };
+        if (run >= 3) read += $" (won {his} last {run})";
+        else if (run <= -3) read += $" (lost {his} last {-run})";
+        return read;
     }
 
     /// <summary>

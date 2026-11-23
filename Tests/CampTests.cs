@@ -241,6 +241,121 @@ public class CampTests
         Assert.Contains("pros in the room", mail.Body);
     }
 
+    // The fog on the paid camp report: its ONE reveal is each man's exact current ability ("looks a 62").
+    // The order of the room and the room-to-grow line are what anybody could say from outside.
+    private static void SetAllRatings(Fighter f, int v)
+    {
+        foreach (object block in new object[] { f.Striking, f.Grappling, f.Physical, f.Mental })
+            foreach (var p in block.GetType().GetProperties())
+                if (p.PropertyType == typeof(Rating) && p.CanWrite) p.SetValue(block, (Rating)v);
+    }
+
+    private static string WithoutTheReveal(string body) =>
+        System.Text.RegularExpressions.Regex.Replace(body, @"looks a \d+", "looks a ?");
+
+    [Fact]
+    public void ACampReport_OrdersAndWordsTheRoom_OffPublicFacts_AndStillRevealsTheExactAbility()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 9 });
+        var player = world.Get(world.PlayerPromotion)!;
+        var camp = world.Camps.Values.OrderByDescending(c => c.Reputation).ThenBy(c => c.Id.Value).First();
+        var members = world.Fighters.Values
+            .Where(f => f.Camp == camp.Id && f.Status == FighterStatus.Active).OrderBy(f => f.Id.Value).ToList();
+        Assert.True(members.Count >= 4, $"{camp.Name} has {members.Count} pros");
+
+        Assert.True(Camps.BuyReport(world, player, camp, world.CurrentDate));
+        string before = world.Mail.Last(m => m.Subject.Contains("Camp report")).Body;
+
+        // Turn the truth upside down inside the room: the better half become the worse and the ceilings run the
+        // other way. Nothing public moves (record, age, rankings, camp). Everybody lands in one revealed band
+        // (Strong), since the band of the number the report shows is itself part of the paid reveal.
+        var trueOrderBefore = members.OrderByDescending(Core.Sim.Ability.FighterAbility.CurrentAbility).ThenBy(f => f.Id.Value)
+            .Select(f => f.Id).ToList();
+        var betterHalf = trueOrderBefore.Take(members.Count / 2).ToHashSet();
+        foreach (var f in members)
+        {
+            bool wasGood = betterHalf.Contains(f.Id);
+            SetAllRatings(f, wasGood ? 66 : 78);
+            f.PotentialAbility = wasGood ? 67 : 99;   // the old top now has no room left, the old bottom plenty
+        }
+        var trueOrderAfter = members.OrderByDescending(Core.Sim.Ability.FighterAbility.CurrentAbility).ThenBy(f => f.Id.Value)
+            .Select(f => f.Id).ToList();
+        Assert.NotEqual(trueOrderBefore, trueOrderAfter);
+
+        player.Balance = new Money(player.Balance.Amount + 1_000_000m);
+        Assert.True(Camps.BuyReport(world, player, camp, world.CurrentDate));
+        string after = world.Mail.Last(m => m.Subject.Contains("Camp report")).Body;
+
+        // Same order, same words: only the paid-for numbers changed.
+        Assert.Equal(WithoutTheReveal(before), WithoutTheReveal(after));
+        Assert.NotEqual(before, after);
+
+        // The reveal stays: every man's exact current ability is on his line.
+        var lines = after.Split('\n').Where(l => l.StartsWith("•")).ToList();
+        Assert.Equal(members.Count, lines.Count);
+        foreach (var f in members)
+        {
+            var line = Assert.Single(lines, l => l.Contains(f.FullName + " ("));
+            Assert.Contains($"looks a {Core.Sim.Ability.FighterAbility.CurrentAbility(f)},", line);
+        }
+    }
+
+    [Fact]
+    public void TwoFighters_WithTheSamePublicPicture_GetTheSameGrowthLine_WhateverTheirCeiling()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 9 });
+        var date = world.CurrentDate;
+        // Every age and record the world offers; within one revealed band (Strong: 65-79) the ability shown and
+        // the hidden ceiling are both turned from one end to the other, and the line must not move.
+        var sample = world.Fighters.Values.Where(f => f.Status == FighterStatus.Active)
+            .OrderBy(f => f.Id.Value).Take(300).ToList();
+        var ages = new HashSet<int>();
+        foreach (var f in sample)
+        {
+            SetAllRatings(f, 66); f.PotentialAbility = 67;
+            int lowShown = Core.Sim.Ability.FighterAbility.CurrentAbility(f);
+            string low = Camps.GrowthRead(f, date);
+
+            SetAllRatings(f, 78); f.PotentialAbility = 99;
+            int highShown = Core.Sim.Ability.FighterAbility.CurrentAbility(f);
+            Assert.Equal(Core.Sim.Scouting.ScoutReport.Band(lowShown), Core.Sim.Scouting.ScoutReport.Band(highShown));
+            Assert.True(highShown > lowShown);
+
+            Assert.Equal(low, Camps.GrowthRead(f, date));
+            ages.Add(f.AgeOn(date));
+        }
+        Assert.True(ages.Min() <= 22 && ages.Max() >= 32, "the sample should span young and old");
+
+        // And it reads age, not the ceiling: a kid and a veteran with the same record and the same number are
+        // told apart.
+        var kid = sample.First(f => f.AgeOn(date) <= 21);
+        var vet = sample.First(f => f.AgeOn(date) >= 33);
+        Assert.NotEqual(Camps.GrowthRead(kid, date), Camps.GrowthRead(vet, date));
+    }
+
+    [Fact]
+    public void ACampReport_ReadsTheRoomInPublicOrder()
+    {
+        var world = new WorldBuilder().Build(new WorldBuilder.Options { Seed = 9 });
+        var rank = Camps.PublicRanks(world);
+        var room = world.Fighters.Values.Where(f => f.Status == FighterStatus.Active)
+            .OrderBy(f => f.Id.Value).Take(400).ToList();
+        var ordered = Camps.ReportOrder(room, rank).ToList();
+
+        // Ranked men lead, best place first; the unranked follow by record.
+        int firstUnranked = ordered.FindIndex(f => !rank.ContainsKey(f.Id));
+        Assert.True(firstUnranked > 0, "the sample should hold ranked men");
+        for (int i = 1; i < firstUnranked; i++)
+            Assert.True(rank[ordered[i - 1].Id] <= rank[ordered[i].Id]);
+        Assert.All(ordered.Skip(firstUnranked), f => Assert.False(rank.ContainsKey(f.Id)));
+        for (int i = firstUnranked + 1; i < ordered.Count; i++)
+            Assert.True(ordered[i - 1].Record.Wins >= ordered[i].Record.Wins);
+
+        // Iteration order never matters.
+        var reversed = room.AsEnumerable().Reverse().ToList();
+        Assert.Equal(ordered.Select(f => f.Id), Camps.ReportOrder(reversed, rank).Select(f => f.Id));
+    }
+
     [Fact]
     public void TheCampGrapevine_ClearsTheFog()
     {
