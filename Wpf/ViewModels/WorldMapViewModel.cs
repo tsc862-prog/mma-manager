@@ -93,6 +93,10 @@ public sealed class HotSpot
     public bool IsHome { get; init; }
     public Region Region { get; init; }
     public CountryId Country { get; init; }
+    /// <summary>Why this city knows the fighter ("Fought here 3 times", "Known from AFC on TV"); "" for a promotion's map.</summary>
+    public string Source { get; init; } = "";
+    /// <summary>The source's glyph (an Icon kind), or "" for none.</summary>
+    public string SourceGlyph { get; init; } = "";
 }
 
 /// <summary>A stop on the fame legend.</summary>
@@ -194,11 +198,17 @@ public sealed class WorldMapViewModel : ObservableObject
     public string HoverHint { get; private set; } = "";
     public bool HoverIsHome { get; private set; }
     public string HoverHomeText { get; private set; } = "";
+    /// <summary>On a fighter's map: why this city knows him ("Fought here twice", "Known from AFC on TV"); "" otherwise.</summary>
+    public string HoverSource { get; private set; } = "";
+    public string HoverSourceGlyph { get; private set; } = "";
+    public bool HasHoverSource => HoverSource.Length > 0;
+    public bool HasHoverSourceGlyph => HoverSourceGlyph.Length > 0;
 
     private static readonly string[] HoverProps =
     {
         nameof(HasHover), nameof(HoverTitle), nameof(HoverWhere), nameof(HoverValue), nameof(HoverValueBrush),
         nameof(HoverSecond), nameof(HoverOrgs), nameof(HoverHint), nameof(HoverIsHome), nameof(HoverHomeText),
+        nameof(HoverSource), nameof(HoverSourceGlyph), nameof(HasHoverSource), nameof(HasHoverSourceGlyph),
         nameof(HoverSpot), nameof(HoverCountry),
     };
 
@@ -256,6 +266,9 @@ public sealed class WorldMapViewModel : ObservableObject
     public string SubjectLine { get; private set; } = "";
     public bool SubjectIsNobody { get; private set; }
     public string SubjectHome { get; private set; } = "";
+    /// <summary>A fighter's map: what carried the name to the cities that have never seen him fight (FameSource.RemoteLine).</summary>
+    public string SubjectRemote { get; private set; } = "";
+    public bool HasSubjectRemote => SubjectRemote.Length > 0;
     public bool HasSubjectHome => SubjectHome.Length > 0;
     /// <summary>The fighter's popularity for his draw meter (fighter layer only).</summary>
     public int SubjectDraw { get; private set; }
@@ -516,7 +529,7 @@ public sealed class WorldMapViewModel : ObservableObject
     private void HoverClear()
     {
         HasHover = HoverIsHome = false;
-        HoverTitle = HoverWhere = HoverValue = HoverSecond = HoverOrgs = HoverHint = HoverHomeText = "";
+        HoverTitle = HoverWhere = HoverValue = HoverSecond = HoverOrgs = HoverHint = HoverHomeText = HoverSource = HoverSourceGlyph = "";
         HoverValueBrush = Brushes.Transparent;
     }
 
@@ -537,6 +550,12 @@ public sealed class WorldMapViewModel : ObservableObject
             HoverIsHome = s.IsHome || s.IsMine;
             HoverHomeText = s.IsMine ? "YOUR BASE" : _layer == MapLayer.Fighter ? "HOME TOWN" : "HOME CITY";
             HoverHint = $"Click to open {s.CountryName}";
+            if (_layer == MapLayer.Fighter && SubjectFighter is { } subject)
+            {
+                var note = FameSource.For(w, subject, city);
+                HoverSource = note.Text;
+                HoverSourceGlyph = note.Glyph;
+            }
         }
         else if (w is not null && _hoverCountry is { } code && WorldShapes.ByCode(code) is { } shape)
         {
@@ -608,7 +627,7 @@ public sealed class WorldMapViewModel : ObservableObject
     private void BuildSubject(World w)
     {
         HotSpots.Clear();
-        SubjectKicker = SubjectName = SubjectLine = SubjectHome = HotSpotsHeader = "";
+        SubjectKicker = SubjectName = SubjectLine = SubjectHome = SubjectRemote = HotSpotsHeader = "";
         SubjectPicture = null;
         SubjectPictureIsLogo = SubjectIsNobody = false;
         SubjectDraw = 0;
@@ -625,6 +644,7 @@ public sealed class WorldMapViewModel : ObservableObject
             SubjectIsNobody = known.Count == 0;
             SubjectLine = SubjectIsNobody ? ViewModels.Fame.NobodyLine(f) : ViewModels.Fame.ReachLine(w, known);
             SubjectHome = HomeCity(w) is { } home ? $"Home town: {ViewModels.Fame.CityLabel(w, home)}" : "";
+            SubjectRemote = FameSource.RemoteLine(w, f, known);
         }
         else if (PlayerPromo is { } p)
         {
@@ -640,7 +660,10 @@ public sealed class WorldMapViewModel : ObservableObject
         else return;
 
         var homeId = HomeCity(w)?.Id;
+        var subject = _layer == MapLayer.Fighter ? SubjectFighter : null;
         foreach (var (city, fame) in known.Take(6))
+        {
+            var note = subject is null ? FameSourceNote.Empty : FameSource.For(w, subject, city);
             HotSpots.Add(new HotSpot
             {
                 City = city.Name,
@@ -651,7 +674,10 @@ public sealed class WorldMapViewModel : ObservableObject
                 IsHome = city.Id == homeId,
                 Region = city.Region,
                 Country = city.Country,
+                Source = note.Text,
+                SourceGlyph = note.Glyph,
             });
+        }
         HotSpotsHeader = HotSpots.Count == 0 ? "" : "HOTTEST CITIES  ·  click one to open its country";
     }
 
